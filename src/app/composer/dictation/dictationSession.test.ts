@@ -1263,7 +1263,7 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     recovered?.journal.release();
   });
 
-  it('commits segments atomically, preserves hard-cut overlap tail, and prunes locked WAVs on completion/refinement', async () => {
+  it('commits segments atomically, preserves hard-cut overlap tail, and retains WAVs until settlement', async () => {
     let clock = 5_000;
     const journal = makeJournal();
     let callCount = 0;
@@ -1292,28 +1292,31 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
       clock += 96;
       rig.pushFrame(makeFrame(0.3));
     }
-    await waitForJournalSettled(80);
-
-    const afterHardCut = await readJournalRow(journal.id);
+    let afterHardCut = await readJournalRow(journal.id);
+    await vi.waitFor(async () => {
+      afterHardCut = await readJournalRow(journal.id);
+      expect(afterHardCut.recording?.consumedThroughFramePos).toBe(245);
+    });
     const tailAfterHard = afterHardCut.chunks.filter((c) => c.seq >= TAIL_SEQ_OFFSET);
-    // Hard cut emitted seg 0 (which completed and got pruned because hard cut sealed group 0 -> fallback).
-    expect(afterHardCut.chunks.some((c) => c.seq === 0)).toBe(false);
-    // With identical frames, hardCut selects the earliest search-window frame (250), so
-    // consumedThroughFramePos=245 is stored in metadata, fully consumed chunks (end <= 245) are
-    // dropped, and partial chunk [240, 250) + [250, 260) remain intact for recovery slicing.
-    expect(afterHardCut.recording?.consumedThroughFramePos).toBe(245);
+    // Hard cut emitted seg 0; its WAV stays persisted in IndexedDB until terminal settlement.
+    expect(afterHardCut.chunks.some((c) => c.seq === 0)).toBe(true);
     expect(tailAfterHard.length).toBeGreaterThan(0);
     expect(tailAfterHard[0]?.startFramePos).toBe(240);
     expect(tailAfterHard[tailAfterHard.length - 1]?.endFramePos).toBe(260);
 
-    // Finish the overlapped continuation (seg 1) and pause -> tail cleared, seg 1 WAV pruned after transcription.
+    // Finish the overlapped continuation (seg 1) and pause -> tail cleared, both segment WAVs retained until finish.
     for (let i = 0; i < 8; i += 1) rig.pushFrame(makeFrame(0.001));
     await session.pause();
     await waitForJournalSettled(60);
 
     const afterPause = await readJournalRow(journal.id);
     expect(afterPause.chunks.filter((c) => c.seq >= TAIL_SEQ_OFFSET)).toHaveLength(0);
-    expect(afterPause.chunks.filter((c) => c.seq < TAIL_SEQ_OFFSET)).toHaveLength(0);
+    expect(
+      afterPause.chunks
+        .filter((c) => c.seq < TAIL_SEQ_OFFSET)
+        .map((c) => c.seq)
+        .sort((a, b) => a - b)
+    ).toEqual([0, 1]);
     expect(session.getSnapshot().previewText).toBe('Long utterance part one. Part two.');
 
     // Finish returns journalId WITHOUT deleting the journal!
@@ -1775,7 +1778,7 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     await deleteCapture(j3.id);
   });
 
-  it('prunes all refined group WAVs on seal while retaining uncovered failed WAVs, and preserves failed/idle on park()', async () => {
+  it('retains refined group WAVs on seal alongside failed WAVs for full-session voice fallback, and preserves failed/idle on park()', async () => {
     const journal = makeJournal();
     let call = 0;
     const transcribe = vi.fn(async () => {
@@ -1809,13 +1812,18 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     const beforeSeal = await readJournalRow(journal.id);
     expect(beforeSeal.chunks.map((c) => c.seq).sort((a, b) => a - b)).toEqual([0, 1]);
 
-    // Pause seals group [0, 1] -> refined -> atomically prunes [0, 1] from IndexedDB!
+    // Pause seals group [0, 1] -> refined -> retains [0, 1] WAVs so later partial failure still exports full audio.
     await session.pause();
     await waitForJournalSettled(60);
     const afterSeal = await readJournalRow(journal.id);
-    expect(afterSeal.chunks.filter((c) => c.seq < TAIL_SEQ_OFFSET)).toHaveLength(0);
+    expect(
+      afterSeal.chunks
+        .filter((c) => c.seq < TAIL_SEQ_OFFSET)
+        .map((c) => c.seq)
+        .sort((a, b) => a - b)
+    ).toEqual([0, 1]);
 
-    // Resume and record seg 2 which fails non-transiently -> seg 2 WAV stays on disk, park() is no-op in failed phase.
+    // Resume and record seg 2 which fails non-transiently -> all 3 WAVs stay on disk, park() is no-op in failed phase.
     expect(await session.resume()).toBe(true);
     await flushMicrotasks();
     pushSpeechAndPause(rig.pushFrame);
@@ -1826,9 +1834,27 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
 
     session.park();
     expect(session.getSnapshot().phase).toBe('failed');
+    expect(session.getSnapshot().hasVoiceAudio).toBe(true);
     const afterFail = await readJournalRow(journal.id);
-    expect(afterFail.chunks.map((c) => c.seq)).toEqual([2]);
-    await session.discard();
+    expect(afterFail.chunks.map((c) => c.seq).sort((a, b) => a - b)).toEqual([0, 1, 2]);
+
+    // buildVoiceAudio() is non-destructive and exports all 3 segments; completeVoiceFallback() clears state and returns journalId.
+    const voiceAudio = await session.buildVoiceAudio();
+    expect(voiceAudio).toBeDefined();
+    expect(voiceAudio!.missingAudioPartialText).toBeUndefined();
+    expect(voiceAudio!.duration).toBeGreaterThan(1_000);
+    expect(voiceAudio!.waveform).toHaveLength(48);
+    expect(session.getSnapshot().phase).toBe('failed');
+    expect(session.getSnapshot().hasVoiceAudio).toBe(true);
+
+    const completedFallback = session.completeVoiceFallback();
+    expect(completedFallback).toEqual({ journalId: journal.id });
+    expect(session.getSnapshot().phase).toBe('idle');
+    expect(session.getSnapshot().hasVoiceAudio).toBe(false);
+    expect(await session.buildVoiceAudio()).toBeUndefined();
+    // Caller still owns journal deletion after completeVoiceFallback().
+    expect((await readJournalRow(journal.id)).recording).toBeDefined();
+    await deleteCapture(journal.id);
   });
 
   it('honors initialActiveFrames cap across resumed recovered sessions', async () => {

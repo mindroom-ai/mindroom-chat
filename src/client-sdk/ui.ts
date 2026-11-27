@@ -62,21 +62,30 @@ export const sanitizeHtml = (html: string): string => sanitizeCustomHtml(html);
  * Images keep only `mxc://` sources unless `options.imageSource` is given: the plugin's own mapping
  * then decides which other images load, and from where, by returning an absolute `https:` URL
  * without credentials for an image's source, or undefined to drop the image.
+ * When `options.commonMarkHtml` is true, line-start raw HTML follows CommonMark before
+ * sanitization: HTML comments, declarations, processing instructions, and disallowed tags are
+ * parsed as HTML and stripped or discarded by the sanitizer rather than escaped as literal text
+ * (while raw HTML inside code remains literal), and an unclosed HTML comment or line-start tag
+ * block runs per CommonMark rules.
  */
 export const useMarkdownHtml = (
   markdown: string,
-  options?: { imageSource?: (src: string) => string | undefined }
+  options?: {
+    imageSource?: (src: string) => string | undefined;
+    commonMarkHtml?: boolean;
+  }
 ): string | undefined => {
   const ready = useLiveMarkdownReady();
   // The deployment's link schemes, which the timeline allows in an agent's reply too.
   const schemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
   const imageSource = options?.imageSource;
+  const commonMarkHtml = options?.commonMarkHtml;
   return useMemo(() => {
-    const html = ready ? renderLiveMarkdown(markdown) : undefined;
+    const html = ready ? renderLiveMarkdown(markdown, { commonMarkHtml }) : undefined;
     return html === undefined
       ? undefined
       : sanitizeCustomHtml(html, { additionalAllowedUriSchemes: schemes, imageSource });
-  }, [ready, markdown, schemes, imageSource]);
+  }, [ready, markdown, schemes, imageSource, commonMarkHtml]);
 };
 
 // Sanitized HTML drawn as the timeline draws an agent's reply, wide tables in their scroll box.

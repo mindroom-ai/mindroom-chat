@@ -87,4 +87,40 @@ describe('useDirectRooms', () => {
 
     expect(orders).toHaveLength(renders);
   });
+
+  it('keeps a stable array reference across unrelated parent re-renders when membership and order are unchanged', () => {
+    const rooms = new Map(
+      [fakeRoom('!ada', 3000), fakeRoom('!bo', 2000)].map((room) => [room.roomId, room])
+    );
+    const emitter = new EventEmitter();
+    client.current = Object.assign(emitter, { getRoom: (roomId: string) => rooms.get(roomId) });
+    const store = createStore();
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: ['!ada', '!bo'] });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set(['!ada', '!bo']) });
+
+    const snapshots: unknown[] = [];
+    function Probe({ tick }: { tick: number }) {
+      void tick;
+      snapshots.push(useDirectRooms());
+      return null;
+    }
+
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <Probe tick={0} />
+        </Provider>
+      );
+    });
+    act(() => {
+      renderer!.update(
+        <Provider store={store}>
+          <Probe tick={1} />
+        </Provider>
+      );
+    });
+
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots[1]).toBe(snapshots[0]);
+  });
 });

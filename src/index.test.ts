@@ -63,10 +63,6 @@ vi.mock('./app/theme/appliedTheme', () => ({
   applyAppTheme: vi.fn(),
 }));
 
-vi.mock('./app/timeline/rideTraceRecorder', () => ({
-  bootstrapRideTraceFlagFromUrl: vi.fn(),
-}));
-
 vi.mock('./app/event-store/engine/prefetchSettingsStorage', () => ({
   migratePrefetchSettingsStorage: vi.fn(),
 }));
@@ -147,6 +143,7 @@ describe('application bootstrap', () => {
     vi.clearAllMocks();
     document.body.innerHTML = '<div id="root"></div>';
     mocks.isNativeIOS.mockReturnValue(false);
+    mocks.isNativeApp.mockReturnValue(false);
     mocks.isServiceWorkerEnabled.mockReturnValue(false);
     mocks.createRoot.mockReturnValue({ render: mocks.render });
     mocks.getActiveSession.mockReturnValue(undefined);
@@ -165,11 +162,11 @@ describe('application bootstrap', () => {
   });
 
   it.each([
-    ['native iOS', true, false, 1],
+    ['native app (iOS or Android)', true, false, 1],
     ['another platform', false, false, 0],
     ['another platform with debug mode on', false, true, 1],
-  ])('installs the flight recorder on %s', async (_platform, nativeIOS, debugMode, installs) => {
-    mocks.isNativeIOS.mockReturnValue(nativeIOS);
+  ])('installs the flight recorder on %s', async (_platform, nativeApp, debugMode, installs) => {
+    mocks.isNativeApp.mockReturnValue(nativeApp);
     if (debugMode) window.localStorage.setItem(DEBUG_MODE_KEY, '1');
 
     await import('./index');
@@ -203,12 +200,12 @@ describe('application bootstrap', () => {
   });
 
   it.each([
-    ['native iOS', true, false],
-    ['desktop app', false, true],
+    ['native app', true, false],
+    ['desktop app', true, true],
   ])(
     "leaves the recorders to the main web view in the quick capture widget's (%s)",
-    async (_label, nativeIOS, desktop) => {
-      mocks.isNativeIOS.mockReturnValue(nativeIOS);
+    async (_label, nativeApp, desktop) => {
+      mocks.isNativeApp.mockReturnValue(nativeApp);
       if (desktop) {
         Object.defineProperty(window, 'mindroomDesktop', {
           configurable: true,
@@ -233,7 +230,7 @@ describe('application bootstrap', () => {
   );
 
   it('continues boot when recorder route classification throws', async () => {
-    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.isNativeApp.mockReturnValue(true);
     mocks.installFlightRecorder.mockImplementationOnce(() => {
       throw new TypeError('route classification failed');
     });
@@ -246,7 +243,7 @@ describe('application bootstrap', () => {
   });
 
   it('continues boot when opt-in tracing setup throws', async () => {
-    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.isNativeApp.mockReturnValue(true);
     mocks.initializeDeepTraceRecorder.mockImplementationOnce(() => {
       throw new TypeError('indexeddb setup failed');
     });
@@ -259,9 +256,9 @@ describe('application bootstrap', () => {
   });
 
   it.each([true, false])(
-    'watches for IndexedDB server loss (native iOS: %s)',
-    async (nativeIOS) => {
-      mocks.isNativeIOS.mockReturnValue(nativeIOS);
+    'watches for IndexedDB server loss (native app: %s)',
+    async (nativeApp) => {
+      mocks.isNativeApp.mockReturnValue(nativeApp);
 
       await import('./index');
 
@@ -271,7 +268,7 @@ describe('application bootstrap', () => {
   );
 
   it('records a recovery reload after the deep trace recorder starts', async () => {
-    mocks.isNativeIOS.mockReturnValue(true);
+    mocks.isNativeApp.mockReturnValue(true);
     mocks.readRecoveryReloadAge.mockReturnValueOnce(1_500);
 
     await import('./index');
@@ -295,55 +292,61 @@ describe('application bootstrap', () => {
     expect(mocks.installIndexedDbLossRecovery).toHaveBeenCalledOnce();
   });
 
-  it('marks the desktop shell and requests persistent storage in Electron', async () => {
-    const persist = vi.fn().mockResolvedValue(true);
-    const originalStorage = navigator.storage;
-    const listeners: Array<(event: { type: 'fullscreen'; value: boolean }) => void> = [];
-    const bridge = {
-      onShellEvent: vi.fn((listener: (event: { type: 'fullscreen'; value: boolean }) => void) => {
-        listeners.push(listener);
-        return () => undefined;
-      }),
-      setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
-      startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
-      openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
-      showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
-      setBadge: vi.fn(),
-      isWindowFocused: () => true,
-      screenShare: false,
-      appUrl: {
-        addListener: vi.fn(async () => ({ remove: vi.fn() })),
-        getLaunchUrl: vi.fn(async () => undefined),
-      },
-    };
-    const win = window as Window & { mindroomDesktop?: typeof bridge };
-    win.mindroomDesktop = bridge;
-    Object.defineProperty(navigator, 'storage', {
-      configurable: true,
-      value: { persist },
-    });
-    mocks.isNativeApp.mockReturnValueOnce(true);
-    try {
-      await import('./index');
-      expect(document.documentElement.dataset.shell).toBe('desktop');
-      expect(persist).toHaveBeenCalledOnce();
-      expect(bridge.setMediaSession).toHaveBeenCalledWith(null);
-      expect(mocks.registerNativeAppUrlCallbacks).toHaveBeenCalledWith(bridge.appUrl);
-      expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
-      expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
-      expect(mocks.startMemorySampler).toHaveBeenCalledOnce();
-      listeners[0]?.({ type: 'fullscreen', value: true });
-      expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(true);
-    } finally {
-      delete win.mindroomDesktop;
-      delete document.documentElement.dataset.shell;
-      document.documentElement.removeAttribute('data-fullscreen');
+  it.each([true, false])(
+    'marks the desktop shell and requests persistent storage in Electron (customTitlebar: %s)',
+    async (customTitlebar) => {
+      const persist = vi.fn().mockResolvedValue(true);
+      const originalStorage = navigator.storage;
+      const listeners: Array<(event: { type: 'fullscreen'; value: boolean }) => void> = [];
+      const bridge = {
+        onShellEvent: vi.fn((listener: (event: { type: 'fullscreen'; value: boolean }) => void) => {
+          listeners.push(listener);
+          return () => undefined;
+        }),
+        setMediaSession: vi.fn(() => ({ ok: true as const, value: undefined })),
+        startSignIn: vi.fn(async () => ({ ok: true as const, value: '' })),
+        openSignIn: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        showMainWindow: vi.fn(async () => ({ ok: true as const, value: undefined })),
+        setBadge: vi.fn(),
+        isWindowFocused: () => true,
+        screenShare: false,
+        customTitlebar,
+        appUrl: {
+          addListener: vi.fn(async () => ({ remove: vi.fn() })),
+          getLaunchUrl: vi.fn(async () => undefined),
+        },
+      };
+      const win = window as Window & { mindroomDesktop?: typeof bridge };
+      win.mindroomDesktop = bridge;
       Object.defineProperty(navigator, 'storage', {
         configurable: true,
-        value: originalStorage,
+        value: { persist },
       });
+      mocks.isNativeApp.mockReturnValue(true);
+      try {
+        await import('./index');
+        expect(document.documentElement.dataset.shell).toBe('desktop');
+        expect(document.documentElement.hasAttribute('data-custom-titlebar')).toBe(customTitlebar);
+        expect(persist).toHaveBeenCalledOnce();
+        expect(bridge.setMediaSession).toHaveBeenCalledWith(null);
+        expect(mocks.registerNativeAppUrlCallbacks).toHaveBeenCalledWith(bridge.appUrl);
+        expect(mocks.installFlightRecorder).toHaveBeenCalledOnce();
+        expect(mocks.initializeDeepTraceRecorder).toHaveBeenCalledOnce();
+        expect(mocks.startMemorySampler).toHaveBeenCalledOnce();
+        listeners[0]?.({ type: 'fullscreen', value: true });
+        expect(document.documentElement.hasAttribute('data-fullscreen')).toBe(true);
+      } finally {
+        delete win.mindroomDesktop;
+        delete document.documentElement.dataset.shell;
+        document.documentElement.removeAttribute('data-custom-titlebar');
+        document.documentElement.removeAttribute('data-fullscreen');
+        Object.defineProperty(navigator, 'storage', {
+          configurable: true,
+          value: originalStorage,
+        });
+      }
     }
-  });
+  );
 
   it('continues boot when IndexedDB loss recovery setup throws', async () => {
     mocks.installIndexedDbLossRecovery.mockImplementationOnce(() => {

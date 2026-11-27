@@ -6,16 +6,16 @@ import { APP_ROOT, REPO_ROOT, readSource, walkProductionSources } from '../../..
 // constant (`overviewInsetStop`), so a change of the filter bar's height does not restyle every
 // row. The files below name the inset or a class built on it. Before adding a file to READERS,
 // check that what it renders with the inset is not inside the Compact card list
-// (CompactRoomView's content box) or the room's virtual inner list (RoomTimeline's
+// (CompactRoomView's content box) or the room's virtual inner list (TimelineViewport's
 // `virtualInnerRef`): there it would read the constant, not the inset.
 const READERS = [
   'src/app/shell/layout/floatingCardsLayout.css.ts',
   'src/app/threads/overview/CompactRoomView.css.ts',
   'src/app/threads/overview/CompactRoomView.tsx',
-  'src/app/timeline/RoomTimeline.tsx',
   'src/app/timeline/RoomTimelineOverlays.tsx',
   'src/app/timeline/TimelineMinimap.css.ts',
   'src/app/timeline/TimelineMinimap.tsx',
+  'src/app/timeline/TimelineViewport.tsx',
   'src/app/timeline/roomTimelineUnread.tsx',
   'src/app/ui/styles/RoomOverlay.css.ts',
 ];

@@ -1,9 +1,11 @@
 import React from 'react';
+import { Provider, atom, createStore } from 'jotai';
 import { MatrixError } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UploadCardRenderer } from './UploadCardRenderer';
 import { TUploadContent, toMatrixUploadError } from '../../matrix/matrix';
+import type { TUploadItem } from '../../matrix/state/upload';
 
 const uploadMock = vi.hoisted(() => ({
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- the types do not check without it
@@ -80,13 +82,8 @@ vi.mock('../../lib/hooks/useObjectURL', () => ({
   useObjectURL: () => undefined,
 }));
 
-vi.mock('../../matrix/state/upload', () => ({
-  UploadStatus: {
-    Idle: 'idle',
-    Loading: 'loading',
-    Success: 'success',
-    Error: 'error',
-  },
+vi.mock('../../matrix/state/upload', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/state/upload')>()),
   useBindUploadAtom: (...args: unknown[]) => {
     uploadMock.useBindUploadAtom(...args);
     return {
@@ -121,6 +118,36 @@ const setUploadError = (
     status: 'error',
     error,
   };
+};
+
+const tooLarge413 = () => new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too large' }, 413);
+
+const stagedItem = (
+  file: TUploadContent,
+  extra: Partial<Omit<TUploadItem, 'file' | 'originalFile'>> = {}
+): TUploadItem => ({
+  file,
+  originalFile: file,
+  encInfo: undefined,
+  metadata: { markedAsSpoiler: false },
+  ...extra,
+});
+
+const renderCard = (
+  props: Omit<React.ComponentProps<typeof UploadCardRenderer>, 'setMetadata' | 'onRemove'> &
+    Partial<Pick<React.ComponentProps<typeof UploadCardRenderer>, 'setMetadata' | 'onRemove'>>,
+  store?: ReturnType<typeof createStore>
+) => {
+  const el = React.createElement(UploadCardRenderer, {
+    setMetadata: vi.fn(),
+    onRemove: vi.fn(),
+    ...props,
+  });
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(store ? React.createElement(Provider, { store }, el) : el);
+  });
+  return { renderer, text: JSON.stringify(renderer.toJSON()) };
 };
 
 const renderText = (node: React.ReactElement): string => {
@@ -280,5 +307,287 @@ describe('upload card renderers', () => {
     );
     expect(errOut).toContain(friendlyTransientMessage);
     expect(errOut).not.toContain('Retry');
+  });
+
+  it('suppresses unencrypted and too-large errors while compressing, blocks upload, renders progress, and wires Use original', () => {
+    const file = createFile({
+      name: 'recording.mov',
+      type: 'video/quicktime',
+      size: 80 * 1024 * 1024,
+    });
+    const progressAtom = atom(0.37);
+    const onUseOriginal = vi.fn();
+    const store = createStore();
+    uploadMock.mediaConfig = { 'm.upload.size': 50 * 1024 * 1024 };
+    uploadMock.upload = { file, status: 'idle' };
+
+    const fileItem = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: {
+        status: 'compressing' as const,
+        progressAtom,
+        cancel: vi.fn(),
+        useOriginal: vi.fn(),
+      },
+    };
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(UploadCardRenderer, {
+            isEncrypted: true,
+            fileItem,
+            setMetadata: vi.fn(),
+            onRemove: vi.fn(),
+            onUseOriginal,
+          })
+        )
+      );
+    });
+
+    const initial = JSON.stringify(renderer.toJSON());
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+    expect(uploadMock.useBindUploadAtom).toHaveBeenCalledWith(
+      expect.anything(),
+      'room-upload-atom',
+      expect.objectContaining({
+        blockUploadError: expect.any(MatrixError),
+      })
+    );
+    expect(initial).toContain('Compressing...');
+    expect(initial).toContain('37%');
+    expect(initial).toContain('Use original');
+    expect(initial).not.toContain(prepareUploadMessage);
+    expect(initial).not.toContain('too large');
+
+    // Updating progressAtom updates the percentage reactively.
+    act(() => {
+      store.set(progressAtom, 0.82);
+    });
+    expect(JSON.stringify(renderer.toJSON())).toContain('82%');
+
+    const useOriginalBtn = renderer.root
+      .findAllByType('button')
+      .find((btn) =>
+        btn.findAllByType('span').some((span) => span.children.includes('Use original'))
+      );
+    expect(useOriginalBtn).toBeDefined();
+    act(() => {
+      useOriginalBtn?.props.onClick();
+    });
+    expect(onUseOriginal).toHaveBeenCalledWith(fileItem);
+  });
+
+  it('renders original to compressed size delta and hides Use original when enrolled', () => {
+    const sourceFile = new File(['raw'], 'shot.png', { type: 'image/png' });
+    const compressedFile = createFile({
+      name: 'shot.webp',
+      type: 'image/webp',
+      size: 256 * 1024,
+    });
+    uploadMock.upload = { file: compressedFile, status: 'success', mxc: 'mxc://example/1' };
+    const onUseOriginal = vi.fn();
+
+    const fileItem = {
+      file: compressedFile,
+      originalFile: compressedFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+      compression: {
+        status: 'compressed' as const,
+        sourceFile,
+        originalSize: 2 * 1024 * 1024,
+      },
+    };
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        React.createElement(UploadCardRenderer, {
+          fileItem,
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onUseOriginal,
+          canUseOriginal: true,
+        })
+      );
+    });
+    const output = JSON.stringify(renderer.toJSON());
+    expect(output).toContain('2.1 MB → 262.1 KB');
+    expect(output).toContain('Use original');
+
+    const useOriginalBtn = renderer.root
+      .findAllByType('button')
+      .find((btn) =>
+        btn.findAllByType('span').some((span) => span.children.includes('Use original'))
+      );
+    act(() => {
+      useOriginalBtn?.props.onClick();
+    });
+    expect(onUseOriginal).toHaveBeenCalledWith(fileItem);
+
+    // Enrolled in active send: Use original is hidden.
+    act(() => {
+      renderer.update(
+        React.createElement(UploadCardRenderer, {
+          fileItem,
+          setMetadata: vi.fn(),
+          onRemove: vi.fn(),
+          onUseOriginal,
+          canUseOriginal: false,
+        })
+      );
+    });
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Use original');
+  });
+
+  it('wires Compress (.zip) without Retry on pre-flight oversized deferred uploads', () => {
+    const bigLog = createFile({ name: 'app.log', type: 'text/plain', size: 60 * 1024 * 1024 });
+    const onCompressToZip = vi.fn();
+    uploadMock.mediaConfig = { 'm.upload.size': 50 * 1024 * 1024 };
+    uploadMock.upload = { file: bigLog, status: 'idle' };
+    const item = stagedItem(bigLog);
+
+    const { renderer, text } = renderCard({ autoUpload: false, fileItem: item, onCompressToZip });
+    expect(text).toContain('Compress (.zip)');
+    expect(text).not.toContain('Retry');
+
+    const zipBtn = renderer.root
+      .findAllByType('button')
+      .find((btn) =>
+        btn.findAllByType('span').some((span) => span.children.includes('Compress (.zip)'))
+      );
+    act(() => {
+      zipBtn?.props.onClick();
+    });
+    expect(onCompressToZip).toHaveBeenCalledWith(item);
+  });
+
+  it.each([
+    { label: 'server 413 log', file: { name: 'app.log', type: 'text/plain' }, expected: true },
+    { label: 'ordinary .txt', file: { name: 'notes.txt', type: 'text/plain' }, expected: true },
+    {
+      label: 'already .zip',
+      file: { name: 'bundle.zip', type: 'application/zip' },
+      expected: false,
+    },
+    {
+      label: 'enrolled item',
+      file: { name: 'app.log', type: 'text/plain' },
+      canUseOriginal: false,
+      expected: false,
+    },
+    {
+      label: 'large paste attachment',
+      file: { name: 'pasted-1.txt', type: 'text/plain' },
+      extra: {
+        metadata: {
+          markedAsSpoiler: false,
+          mindroomPasteAttachment: { id: 'p1', chars: 60_000_000, fileName: 'pasted-1.txt' },
+        },
+      },
+      expected: false,
+    },
+  ])(
+    'server 413 Compress (.zip) eligibility: $label',
+    ({ file, extra, canUseOriginal, expected }) => {
+      const f = createFile({ ...file, size: 60 * 1024 * 1024 });
+      setUploadError(f, tooLarge413());
+      const { text } = renderCard({
+        fileItem: stagedItem(f, extra),
+        onCompressToZip: vi.fn(),
+        canUseOriginal,
+      });
+      expect(text.includes('Compress (.zip)')).toBe(expected);
+      expect(text).not.toContain('Retry');
+    }
+  );
+
+  it('hides Use original when sourceFile or useOriginal callback is omitted', () => {
+    const zipped = createFile({
+      name: 'app.log.zip',
+      type: 'application/zip',
+      size: 4 * 1024 * 1024,
+    });
+    uploadMock.upload = { file: zipped, status: 'success', mxc: 'mxc://example/zip' };
+    const compressed = renderCard({
+      fileItem: stagedItem(zipped, {
+        compression: { status: 'compressed', originalSize: 60 * 1024 * 1024 },
+      }),
+      onUseOriginal: vi.fn(),
+    }).text;
+    expect(compressed).toContain('62.9 MB → 4.2 MB');
+    expect(compressed).not.toContain('Use original');
+
+    uploadMock.upload = { file: zipped, status: 'idle' };
+    const compressing = renderCard(
+      {
+        fileItem: stagedItem(zipped, {
+          compression: { status: 'compressing', progressAtom: atom(0.4), cancel: vi.fn() },
+        }),
+        onUseOriginal: vi.fn(),
+      },
+      createStore()
+    ).text;
+    expect(compressing).toContain('Compressing...');
+    expect(compressing).not.toContain('Use original');
+  });
+
+  it.each([
+    ['too-large', 50_000_000, 'Still too large after compressing to .zip (maximum is 50.0 MB).'],
+    ['too-large', undefined, 'Still too large after compressing to .zip.'],
+    ['no-savings', undefined, 'Compressing to .zip did not make this file smaller.'],
+    ['error', undefined, "Couldn't compress this file to .zip."],
+  ] as const)(
+    'renders zipFailed (%s, max=%s) without auto-uploading or showing actions',
+    (reason, maxSize, expected) => {
+      const raw = createFile({
+        name: 'data.bin',
+        type: 'application/octet-stream',
+        size: 60_000_000,
+      });
+      uploadMock.upload = { file: raw, status: 'idle' };
+      uploadMock.mediaConfig = maxSize !== undefined ? { 'm.upload.size': maxSize } : {};
+      const { text } = renderCard({
+        fileItem: stagedItem(raw, { compression: { status: 'zipFailed', reason } }),
+        onCompressToZip: vi.fn(),
+      });
+      expect(uploadMock.startUpload).not.toHaveBeenCalled();
+      expect(text).toContain(expected);
+      expect(text).not.toContain('Compress (.zip)');
+      expect(text).not.toContain('Retry');
+    }
+  );
+
+  it('shows zipFailed in an encrypted room even when encInfo is undefined without uploading plaintext', () => {
+    const raw = createFile({
+      name: 'huge.bin',
+      type: 'application/octet-stream',
+      size: 60_000_000,
+    });
+    uploadMock.upload = { file: raw, status: 'idle' };
+    uploadMock.mediaConfig = { 'm.upload.size': 50_000_000 };
+    const { text } = renderCard({
+      isEncrypted: true,
+      fileItem: stagedItem(raw, {
+        encInfo: undefined,
+        compression: { status: 'zipFailed', reason: 'too-large' },
+      }),
+      onCompressToZip: vi.fn(),
+    });
+    expect(uploadMock.startUpload).not.toHaveBeenCalled();
+    expect(uploadMock.useBindUploadAtom).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ blockUploadError: expect.any(MatrixError) })
+    );
+    expect(text).toContain('Still too large after compressing to .zip (maximum is 50.0 MB).');
+    expect(text).not.toContain('not encrypted');
   });
 });

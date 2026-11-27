@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { useRef } from 'react';
+import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { Virtualizer, type VirtualizerOptions } from '@tanstack/react-virtual';
 import { describe, expect, it, vi } from 'vitest';
@@ -18,11 +18,6 @@ vi.mock('@tanstack/react-virtual', async (importOriginal) => {
   };
 });
 
-vi.mock('../timeline/rideTraceRecorder', () => ({
-  installRideTraceRecorder: vi.fn(),
-  isRideTraceEnabled: () => false,
-}));
-
 const measureCoverage = (
   sizes: number[],
   threadId: string | null = '$thread',
@@ -31,13 +26,10 @@ const measureCoverage = (
   let instance: Virtualizer<HTMLDivElement, Element>;
   const Harness = () => {
     const controller = useTimelineScrollLedgerController({
-      alive: () => true,
       estimateSize: (index = 0) => sizes[index]!,
       getItemKey: (index) => index,
       getScrollElement: () => null,
       itemCount: sizes.length,
-      pendingRoomFoldPxRef: useRef(0),
-      roomFoldPriceRef: useRef(() => 0),
       roomId: '!room:example.org',
       threadId: threadId ?? undefined,
     });
@@ -115,13 +107,10 @@ describe('thread scroll coverage with real virtual-core ranges', () => {
       const Harness = ({ threadId }: { threadId?: string }) => {
         renders += 1;
         const controller = useTimelineScrollLedgerController({
-          alive: () => true,
           estimateSize: (index = 0) => sizes[index]!,
           getItemKey: (index) => index,
           getScrollElement,
           itemCount: sizes.length,
-          pendingRoomFoldPxRef: useRef(0),
-          roomFoldPriceRef: useRef(() => 0),
           roomId: '!room:example.org',
           threadId,
         });

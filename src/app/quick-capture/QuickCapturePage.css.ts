@@ -105,11 +105,12 @@ export const Page = style({
 });
 
 /**
- * In the Mac's window the system's material is the background, behind a web view that draws none:
- * neither the page nor the document the theme paints (applyThemeToDom, inline) covers it.
+ * When the native window uses system vibrancy (macOS), the system's material is the background,
+ * behind a web view that draws none: neither the page nor the document the theme paints
+ * (applyThemeToDom, inline) covers it.
  */
 globalStyle(
-  `${Page}[data-native], html:has(${Page}[data-native]), html:has(${Page}[data-native]) body`,
+  `${Page}[data-vibrancy], html:has(${Page}[data-vibrancy]), html:has(${Page}[data-vibrancy]) body`,
   {
     backgroundColor: 'transparent !important',
   }
@@ -145,8 +146,8 @@ export const Notice = style({
 export const NoticeText = style({ marginBlock: 0 });
 
 /**
- * The window's title bar, with the room as its title. The window is dragged by it on the Mac:
- * nothing in it but the room's button may take the mouse down for itself.
+ * The window's title bar, with the room as its title. The window is dragged by it in the desktop
+ * app: nothing in it but the room's button may take the mouse down for itself.
  */
 export const Header = style({
   ...strip,

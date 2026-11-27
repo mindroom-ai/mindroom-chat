@@ -114,9 +114,15 @@ for (const mobile of [false, true]) {
         await page.mouse.move(dragX, dragY);
         await page.mouse.down();
         await page.mouse.move(dragX - resizedWidth + 150, dragY, { steps: 8 });
-        // Below its smallest width the panel follows the pointer, ready to close on release.
-        await expect.poll(async () => (await panel.boundingBox())?.width).toBe(150);
+        // Below its smallest width the panel holds at 200 while charging collapse and showing the fold chip.
+        await expect
+          .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+          .toBe(200);
+        await expect(panel).toHaveAttribute('data-collapse-charging', 'true');
         await expect(panel).toHaveAttribute('data-collapse-preview', 'true');
+        await expect(panel.locator('[data-panel-collapse-badge]')).toHaveText(
+          'Collapse navigation panel'
+        );
         await expect(panel).toHaveCount(1);
         await expect(page.getByRole('button', { name: 'Expand navigation panel' })).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
@@ -126,6 +132,8 @@ for (const mobile of [false, true]) {
         await expect
           .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
           .toBe(resizedWidth);
+        await expect(panel).not.toHaveAttribute('data-collapse-charging', 'true');
+        await expect(panel).not.toHaveAttribute('data-collapse-preview', 'true');
         await page.mouse.move(dragX - resizedWidth + 150, dragY, { steps: 8 });
         await page.mouse.up();
         await expect(panel).toHaveCount(0);
@@ -183,6 +191,42 @@ for (const mobile of [false, true]) {
           await section.button.tap();
           await expect(panel).toHaveCount(0);
           await expect(page).toHaveURL(new RegExp(encodeURIComponent(section.room)));
+        } else if (section.root === '/home/') {
+          const currentUrl = page.url();
+          const homeRootUrl = new URL(section.root, currentUrl).toString();
+          await expect(panel).toBeVisible();
+          // Collapsed on a Home sub-route: clicking Home expands without navigating away.
+          await page
+            .getByRole('button', { name: 'Collapse navigation panel', exact: true })
+            .click();
+          await expect(panel).toHaveCount(0);
+          await section.button.click();
+          await expect(panel).toBeVisible();
+          await expect(page).toHaveURL(currentUrl);
+          await expect
+            .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+            .toBe(resizedWidth);
+          // Open on a Home sub-route: clicking Home returns to /home/ and keeps the panel open.
+          await section.button.click();
+          await expect(page).toHaveURL(homeRootUrl);
+          await expect(
+            page.getByRole('button', { name: 'How threads work', exact: true })
+          ).toBeVisible();
+          await expect(panel).toBeVisible();
+          // Open on /home/: clicking Home collapses the panel, and clicking again expands it.
+          await section.button.click();
+          await expect(panel).toHaveCount(0);
+          await expect(page).toHaveURL(homeRootUrl);
+          await section.button.click();
+          await expect(panel).toBeVisible();
+          await expect(page).toHaveURL(homeRootUrl);
+          await expect
+            .poll(async () => Math.round((await panel.boundingBox())?.width ?? 0))
+            .toBe(resizedWidth);
+          await section.button.click();
+          await expect(panel).toHaveCount(0);
+          await page.getByRole('button', { name: 'Direct Messages', exact: true }).click();
+          await expect(panel).toBeVisible();
         } else {
           const currentUrl = page.url();
           await expect(panel).toBeVisible();

@@ -3,12 +3,13 @@
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import FileSaver from 'file-saver';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { saveFile } from './nativeFileSave';
+import { isNativeFileOpenAvailable, openNativeFile, saveFile } from './nativeFileSave';
 
 const nativePlugin = vi.hoisted(() => ({
   beginSave: vi.fn(),
   appendSave: vi.fn(),
   presentSave: vi.fn(),
+  openFile: vi.fn(),
   abortSave: vi.fn(),
 }));
 
@@ -36,10 +37,11 @@ describe('saveFile', () => {
     nativePlugin.beginSave.mockResolvedValue({ id: 'save-1' });
     nativePlugin.appendSave.mockResolvedValue(undefined);
     nativePlugin.presentSave.mockResolvedValue({ saved: true });
+    nativePlugin.openFile.mockResolvedValue({ opened: true });
     nativePlugin.abortSave.mockResolvedValue(undefined);
   });
 
-  it('keeps FileSaver behavior outside native iOS', async () => {
+  it('keeps FileSaver behavior outside native iOS and Android', async () => {
     const blob = new Blob(['hello'], { type: 'text/plain' });
 
     await expect(saveFile(blob, 'hello.txt')).resolves.toBe(true);
@@ -66,6 +68,41 @@ describe('saveFile', () => {
     });
     expect(nativePlugin.presentSave).toHaveBeenCalledWith({ id: 'save-1' });
     expect(FileSaver.saveAs).not.toHaveBeenCalled();
+  });
+
+  it('opens the native Android SAF save prompt with mimeType from blob or explicit param', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+
+    const pdfBlob = new Blob(['pdf'], { type: 'application/pdf' });
+    await expect(saveFile(pdfBlob, 'report.pdf')).resolves.toBe(true);
+
+    expect(nativePlugin.beginSave).toHaveBeenCalledWith({
+      fileName: 'report.pdf',
+      pageId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      mimeType: 'application/pdf',
+    });
+    expect(nativePlugin.appendSave).toHaveBeenCalledWith({
+      id: 'save-1',
+      data: 'cGRm',
+    });
+    expect(nativePlugin.presentSave).toHaveBeenCalledWith({
+      id: 'save-1',
+      mimeType: 'application/pdf',
+    });
+    expect(FileSaver.saveAs).not.toHaveBeenCalled();
+
+    await expect(saveFile(new Blob(['plain']), 'notes.md', 'text/markdown')).resolves.toBe(true);
+    expect(nativePlugin.beginSave).toHaveBeenLastCalledWith({
+      fileName: 'notes.md',
+      pageId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      mimeType: 'text/markdown',
+    });
+    expect(nativePlugin.presentSave).toHaveBeenLastCalledWith({
+      id: 'save-1',
+      mimeType: 'text/markdown',
+    });
   });
 
   it('uses one owner id per page so native code can replace sessions abandoned by a reload', async () => {
@@ -158,5 +195,87 @@ describe('saveFile', () => {
 
     expect(nativePlugin.abortSave).toHaveBeenCalledWith({ id: 'save-1' });
     expect(nativePlugin.presentSave).not.toHaveBeenCalled();
+  });
+});
+
+describe('openNativeFile', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(false);
+    nativePlugin.beginSave.mockResolvedValue({ id: 'open-1' });
+    nativePlugin.appendSave.mockResolvedValue(undefined);
+    nativePlugin.openFile.mockResolvedValue({ opened: true });
+    nativePlugin.abortSave.mockResolvedValue(undefined);
+  });
+
+  it.each([
+    ['web', false, true],
+    ['ios', true, true],
+    ['android', true, false],
+  ] as const)(
+    'returns false when unavailable (%s, native=%s, plugin=%s)',
+    async (platform, native, available) => {
+      vi.mocked(Capacitor.getPlatform).mockReturnValue(platform);
+      vi.mocked(Capacitor.isNativePlatform).mockReturnValue(native);
+      vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(available);
+
+      expect(isNativeFileOpenAvailable()).toBe(false);
+      await expect(
+        openNativeFile(new Blob(['pdf']), 'report.pdf', 'application/pdf')
+      ).resolves.toBe(false);
+      expect(nativePlugin.beginSave).not.toHaveBeenCalled();
+      expect(nativePlugin.openFile).not.toHaveBeenCalled();
+    }
+  );
+
+  it('stages and opens a file via MindRoomFileSave.openFile on Android', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+
+    expect(isNativeFileOpenAvailable()).toBe(true);
+    await expect(openNativeFile(new Blob(['pdf']), 'report.pdf', 'application/pdf')).resolves.toBe(
+      true
+    );
+
+    expect(nativePlugin.beginSave).toHaveBeenCalledWith({
+      fileName: 'report.pdf',
+      pageId: expect.stringMatching(/^[0-9a-f]{32}$/),
+      mimeType: 'application/pdf',
+    });
+    expect(nativePlugin.appendSave).toHaveBeenCalledWith({
+      id: 'open-1',
+      data: 'cGRm',
+    });
+    expect(nativePlugin.openFile).toHaveBeenCalledWith({
+      id: 'open-1',
+      mimeType: 'application/pdf',
+    });
+  });
+
+  it('returns false when Android has no app to handle the file', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    nativePlugin.openFile.mockResolvedValue({ opened: false });
+
+    await expect(openNativeFile(new Blob(['pdf']), 'report.pdf', 'application/pdf')).resolves.toBe(
+      false
+    );
+    expect(nativePlugin.abortSave).not.toHaveBeenCalled();
+  });
+
+  it('aborts the native session when openFile fails', async () => {
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    nativePlugin.openFile.mockRejectedValue(new Error('open failed'));
+
+    await expect(
+      openNativeFile(new Blob(['pdf']), 'report.pdf', 'application/pdf')
+    ).rejects.toThrow('open failed');
+    expect(nativePlugin.abortSave).toHaveBeenCalledWith({ id: 'open-1' });
   });
 });

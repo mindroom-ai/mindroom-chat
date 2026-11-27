@@ -7,19 +7,16 @@ import {
 } from './roomFocusScrollController';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { useViewScopedFlag } from './roomTimelineViewScope';
-import type { EventTimeline } from 'matrix-js-sdk';
 import {
-  heldListHeight,
   useFlickStop,
   useGestureBottomPins,
   useLatestPinAsked,
-  useLatestRowPin,
-  useRowsGeneration,
   useThreadOpenedAtLatest,
   useThreadReturnPlace,
   useTimelineRowJumps,
   type RoomRowsPlace,
 } from './roomTimelineScroll';
+import { useTimelineLiveEnd } from './timelineLiveEnd';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
 /** A thread's scroll area at its bottom: listeners by event type and a recorded `scrollTo`. */
@@ -123,7 +120,7 @@ function OpenThread({
     threadTimelineTick: 0,
     timelineAtLiveEnd: true,
   });
-  useLatestRowPin({
+  useTimelineLiveEnd({
     surface: followsLatest && readerScrolledRef.current.value ? 'thread' : undefined,
     itemCount: rows,
     virtualizer: { scrollToIndex: ignoreRowIndex, cancelScroll: ignoreRowIndex },
@@ -273,18 +270,10 @@ type RoomProps = {
   scrollToIndex: (index: number) => void;
   /** The rows run newest first (the Threads view under a newest-first sort). */
   latestAtTop?: boolean;
-  takeSettledScrollTop?: () => number | undefined;
 };
 
 /** The pieces of the room's Full view that decide its bottom pins, wired as the room timeline does. */
-function RoomRows({
-  scroller,
-  pins,
-  rows,
-  scrollToIndex,
-  latestAtTop = false,
-  takeSettledScrollTop,
-}: RoomProps) {
+function RoomRows({ scroller, pins, rows, scrollToIndex, latestAtTop = false }: RoomProps) {
   const scrollRef = useRef(scroller as unknown as HTMLDivElement);
   const latestAtTopRef = useRef(latestAtTop);
   latestAtTopRef.current = latestAtTop;
@@ -327,7 +316,7 @@ function RoomRows({
     threadTimelineTick: 0,
     timelineAtLiveEnd: true,
   });
-  useLatestRowPin({
+  useTimelineLiveEnd({
     surface: 'room',
     itemCount: rows,
     virtualizer: { scrollToIndex, cancelScroll: () => undefined },
@@ -339,7 +328,6 @@ function RoomRows({
     committedView: '!room||classic',
     focusItem: undefined,
     onReaderGesture: gesturePins.onRoomGesture,
-    takeSettledScrollTop,
   });
   return null;
 }
@@ -432,7 +420,7 @@ describe('useLatestRowPin and the virtual list', () => {
       },
     };
     function Pin() {
-      useLatestRowPin({
+      useTimelineLiveEnd({
         surface: 'room',
         itemCount: 20,
         virtualizer: list,
@@ -518,7 +506,7 @@ describe('useLatestRowPin and the virtual list', () => {
       cancelScroll: () => undefined,
     };
     function Pin() {
-      useLatestRowPin({
+      useTimelineLiveEnd({
         surface: 'room',
         itemCount: 20,
         virtualizer: list,
@@ -582,19 +570,11 @@ describe('useLatestRowPin in room rows that run newest first', () => {
     const pins = { current: { count: 0, smooth: false } };
     const scrollToIndex = vi.fn();
     let renderer: ReactTestRenderer | undefined;
-    // The position the offset ledger wrote at its last settle, taken once.
-    const settled = { top: undefined as number | undefined };
-    const takeSettledScrollTop = () => {
-      const { top } = settled;
-      settled.top = undefined;
-      return top;
-    };
     const props = {
       scroller: element,
       pins,
       scrollToIndex,
       latestAtTop: true,
-      takeSettledScrollTop,
     };
     act(() => {
       renderer = create(createElement(RoomRows, { ...props, rows: 20 }));
@@ -605,7 +585,7 @@ describe('useLatestRowPin in room rows that run newest first', () => {
       act(() => {
         shown.update(createElement(RoomRows, { ...props, rows }));
       });
-    return { element, fire, pins, scrollToIndex, showRows, settled };
+    return { element, fire, pins, scrollToIndex, showRows };
   };
 
   it('opens at the top and keeps it while rows land there, until the reader scrolls down', () => {
@@ -622,29 +602,6 @@ describe('useLatestRowPin in room rows that run newest first', () => {
     act(() => room.fire('scroll'));
     room.element.scrollTo.mockClear();
     room.showRows(22);
-    expect(room.element.scrollTo).not.toHaveBeenCalled();
-  });
-
-  it('keeps the top when the offset ledger gives the position the rows it held above the list', () => {
-    const room = roomNewestFirst();
-    room.element.scrollTo.mockClear();
-
-    // The settle puts the rows back above the view and moves the position down as far.
-    room.settled.top = 762;
-    room.element.scrollHeight += 762;
-    room.element.scrollTop = 762;
-    act(() => room.fire('scroll'));
-    room.showRows(20);
-    expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 0 });
-    room.element.scrollTop = 0;
-    act(() => room.fire('scroll'));
-    room.element.scrollTo.mockClear();
-
-    // The reader's scrollbar takes them down as far, after rows that arrived made the list longer.
-    room.element.scrollHeight += 900;
-    room.element.scrollTop = 762;
-    act(() => room.fire('scroll'));
-    room.showRows(21);
     expect(room.element.scrollTo).not.toHaveBeenCalled();
   });
 
@@ -860,7 +817,6 @@ describe('useTimelineRowJumps', () => {
         activeRangeRef: { current: { start: 0, end: 44 } },
         virtualizerRef: { current: virtualList },
         threadEventIndexMapRef: { current: new Map([['$reply', 3]]) },
-        onJump: () => steps.push('ledger'),
         rows: {
           getScrollElement: () => scroller as unknown as HTMLElement,
           getRowElement: (index) => (state.rowTop.has(index) ? element(index) : undefined),
@@ -880,7 +836,7 @@ describe('useTimelineRowJumps', () => {
     const { steps, state, jumps } = setup();
     state.rowTop.set(40, 700);
     expect(jumps().scrollToItem(40, { behavior: 'smooth' })).toBe(true);
-    expect(steps).toEqual(['ledger', 'paginator row 40 smooth']);
+    expect(steps).toEqual(['paginator row 40 smooth']);
     vi.unstubAllGlobals();
   });
 
@@ -904,7 +860,7 @@ describe('useTimelineRowJumps', () => {
     jumps().scrollToItem(40, { behavior: 'smooth', align: 'center' });
     state.rowTop.set(40, 280);
     for (let frame = 0; frame < 6; frame += 1) runFrame();
-    expect(steps).toEqual(['ledger', 'paginator row 40 smooth']);
+    expect(steps).toEqual(['paginator row 40 smooth']);
     expect(scroller.listenerCount()).toBe(0);
     vi.unstubAllGlobals();
   });
@@ -912,7 +868,7 @@ describe('useTimelineRowJumps', () => {
   it('takes a far row through the virtual list, then aligns it until it keeps its place', () => {
     const { steps, state, scroller, runFrame, virtualList, jumps } = setup();
     expect(jumps().scrollToItem(0, { behavior: 'smooth', align: 'center' })).toBe(true);
-    expect(steps).toEqual(['ledger', 'ledger', 'virtual list row 0']);
+    expect(steps).toEqual(['virtual list row 0']);
     steps.length = 0;
     // The row mounts and moves twice while the rows around it measure, then holds still.
     for (const top of [180, 240, 280, 280, 280, 280]) {
@@ -957,7 +913,7 @@ describe('useTimelineRowJumps', () => {
       ...state.rows.current,
     ];
     runFrame();
-    expect(steps).toEqual(['ledger', 'virtual list row 4']);
+    expect(steps).toEqual(['virtual list row 4']);
     scroller.fire('wheel');
     steps.length = 0;
     runFrame();
@@ -978,39 +934,16 @@ describe('useTimelineRowJumps', () => {
     vi.unstubAllGlobals();
   });
 
-  it('tells the ledger before every jump to a row', () => {
-    const { steps, jumps } = setup();
+  it('cancels any active virtualizer scroll before every jump to a row', () => {
+    const { steps, jumps, virtualList } = setup();
+    virtualList.scrollState = { index: 40 };
     jumps().scrollToElement({ getBoundingClientRect: () => box(5) } as HTMLElement);
+    expect(virtualList.scrollState).toBeNull();
+    virtualList.scrollState = { index: 40 };
     jumps().scrollThreadEventIntoView('$reply');
-    expect(steps).toEqual(['ledger', 'align row at 5 ', 'ledger', 'virtual list row 3']);
+    expect(virtualList.scrollState).toEqual({ index: 3 });
+    expect(steps).toEqual(['align row at 5 ', 'virtual list row 3']);
     vi.unstubAllGlobals();
-  });
-});
-
-describe('useRowsGeneration', () => {
-  it('counts the times the rows on screen are replaced, not the times the chain grows', () => {
-    const part = (name: string) => ({ name }) as unknown as EventTimeline;
-    const [live, older, context] = [part('live'), part('older'), part('context')];
-    const counts: number[] = [];
-    function Rows({ chain }: { chain: EventTimeline[] }) {
-      counts.push(useRowsGeneration(chain));
-      return null;
-    }
-    let renderer: ReactTestRenderer | undefined;
-    const show = (chain: EventTimeline[]) =>
-      act(() => {
-        if (renderer) renderer.update(createElement(Rows, { chain }));
-        else renderer = create(createElement(Rows, { chain }));
-      });
-
-    show([live]);
-    show([older, live]);
-    // An event the room has not loaded: the rows empty, then the history around it arrives,
-    // and its newer history joins the live chain.
-    show([]);
-    show([context]);
-    show([context, live]);
-    expect(counts).toEqual([0, 0, 1, 2, 2]);
   });
 });
 
@@ -1113,24 +1046,5 @@ describe('useLatestPinAsked', () => {
     // The next render, a page or a measurement, asks for nothing new.
     show(3);
     expect(asked).toEqual([false, false, true, false]);
-  });
-});
-
-describe('heldListHeight', () => {
-  // A scroll correction renders inside the browser's ResizeObserver loop: the scroll content, which
-  // the scrollbar and the follow-growth observer watch, must keep its size there. The list's box
-  // ends at its top margin plus its height.
-  it('keeps the list bottom edge when the ledger moves the list top', () => {
-    // As traced in WebKit: a 2273 px list without margin, and the ledger takes 285 px.
-    const height = heldListHeight({ height: '2273px', marginTop: '' }, 285);
-    expect(-285 + height).toBe(2273);
-  });
-
-  it('keeps the height when the ledger stays', () => {
-    expect(heldListHeight({ height: '2000.5px', marginTop: '-100px' }, 100)).toBe(2000.5);
-  });
-
-  it('keeps the bottom edge when the ledger gives pixels back', () => {
-    expect(0 + heldListHeight({ height: '2000px', marginTop: '-100px' }, 0)).toBe(-100 + 2000);
   });
 });

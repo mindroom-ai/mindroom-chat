@@ -7,9 +7,8 @@ import {
   type MutableRefObject,
 } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
-import type { EventTimeline } from 'matrix-js-sdk';
 import type { ItemRange, ScrollToElement, ScrollToItem } from './useVirtualPaginator';
-import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScrollController';
+import type { ScrollToBottomState } from './roomFocusScrollController';
 import type { ThreadBackPaginationController } from './threadBackPaginationController';
 import { useViewScopedFlag, type ViewScopedFlag } from './roomTimelineViewScope';
 import {
@@ -19,6 +18,8 @@ import {
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { scrollToBottom } from '../lib/dom';
 import { stopIOSFlick } from '../lib/iosFlickStop';
+import { clearVirtualizerHoldOffset } from './timelineScrollLedgerController';
+import { readScrollPadding } from '../ui/styles/threadHeaderInset';
 
 /**
  * The room timeline's scroll area: the element it publishes to the controllers, the request that
@@ -27,42 +28,39 @@ import { stopIOSFlick } from '../lib/iosFlickStop';
  */
 
 /**
- * The list's height in a render that corrects the scroll position inside the browser's
- * ResizeObserver loop: the list keeps its bottom edge where the screen has it, so the scroll content
- * keeps its size until the next render. `rendered` is the list's style on screen; the ledger's
- * pixels set its top margin to `-ledgerPx` in that render, and the height takes the difference.
- */
-export const heldListHeight = (
-  rendered: { height: string; marginTop: string },
-  ledgerPx: number
-): number =>
-  Number.parseFloat(rendered.height) + (Number.parseFloat(rendered.marginTop) || 0) + ledgerPx;
-
-/**
  * The timeline's scroll element, as a ref for reads during events and as state for effects that
  * attach to it. folds' Scroll hands React a new ref callback on every render, so each commit
  * detaches the element (null) and attaches it again. Only a different element, or none left after
  * the commit, changes the state. Even an equal update re-renders the timeline while slower updates
  * wait on it, and that render attaches the element again, without end.
  */
-export const useTimelineScrollElement = () => {
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+export const useTimelineScrollElement = (
+  externalScrollRef?: MutableRefObject<HTMLDivElement | null>
+) => {
+  const internalScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = externalScrollRef ?? internalScrollRef;
   const [scrollElement, setScrollElement] = useState<HTMLDivElement | null>(null);
   const publishedScrollRef = useRef<HTMLDivElement | null>(null);
-  const attachScroll = useCallback((element: HTMLDivElement | null) => {
-    scrollRef.current = element;
-    const publishAttached = () => {
-      const attached = scrollRef.current;
-      if (attached === publishedScrollRef.current) return;
-      publishedScrollRef.current = attached;
-      setScrollElement(attached);
-    };
-    if (element) publishAttached();
-    else queueMicrotask(publishAttached);
-  }, []);
+  const attachScroll = useCallback(
+    (element: HTMLDivElement | null) => {
+      scrollRef.current = element;
+      const publishAttached = () => {
+        const attached = scrollRef.current;
+        if (attached === publishedScrollRef.current) return;
+        publishedScrollRef.current = attached;
+        setScrollElement(attached);
+      };
+      if (element) publishAttached();
+      else queueMicrotask(publishAttached);
+    },
+    [scrollRef]
+  );
   // A new identity once the scroll area mounts, so observers built on it start over (the
   // compact view has none, and switching to the timeline mounts it later).
-  const getScrollElement = useCallback(() => scrollRef.current ?? scrollElement, [scrollElement]);
+  const getScrollElement = useCallback(
+    () => scrollRef.current ?? scrollElement,
+    [scrollElement, scrollRef]
+  );
   return { scrollRef, scrollElement, attachScroll, getScrollElement };
 };
 
@@ -123,148 +121,6 @@ export const useViewportAtBottomNow = (
 
 /** Gestures and keys that hand the scroll position over to the reader. */
 export const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
-/** How much further from the newest row a scroll must leave the reader to count as theirs. */
-const LEFT_LATEST_ROW_PX = 32;
-/** How near the end a held list will have a reader counts as there (rows measure in whole px). */
-const AT_HELD_LIST_END_PX = 2;
-
-const distanceBelowView = (element: HTMLElement): number =>
-  element.scrollHeight - element.scrollTop - element.clientHeight;
-
-type LatestRowRequestOptions = {
-  /** Whether opening this room shows its newest row (not its unread marker or an event). */
-  opensAtLatest: boolean;
-  /** Whether the room's newest row is its first (`scrollToLatestEnd`). */
-  latestAtTop?: boolean;
-  roomId: string;
-  scrollElement: HTMLElement | null;
-  /** The bottom pins asked for: each new `count` that a commit sees asks for the newest row. */
-  scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
-  committedView: string;
-  focusItem: RoomTimelineFocusItem | undefined;
-  /** Runs at each gesture or scroll that hands the position to the reader. */
-  onReaderGesture: () => void;
-  /**
-   * The room that rows which shrank still take in the list until React renders it
-   * (`listShrinkNotRendered`). The correction that keeps the end in place for them moves the
-   * position up by as much, and that scroll is not the reader's.
-   */
-  pendingListShrinkPx?: () => number;
-  /**
-   * Takes the position the offset ledger last wrote when it settled, if no scroll has read it yet
-   * (`takeSettledScrollTop`). The scroll that lands there is the ledger's own.
-   */
-  takeSettledScrollTop?: () => number | undefined;
-};
-
-/**
- * A request to show the newest row. Opening the room, Jump to Latest, a message the reader sends,
- * a live row they follow, and switching the view make one; it holds until the reader scrolls, so
- * rows measured or grown later still end at the bottom. A view switch that React renders but never
- * shows makes none.
- * The reader's gesture also ends the pins asked for before it that no commit has seen yet: a row
- * that arrived while they were at the bottom must not bring them back once they scroll away.
- */
-const useLatestRowRequest = ({
-  opensAtLatest,
-  latestAtTop,
-  roomId,
-  scrollElement,
-  scrollToBottomRef,
-  committedView,
-  focusItem,
-  onReaderGesture,
-  pendingListShrinkPx,
-  takeSettledScrollTop,
-}: LatestRowRequestOptions) => {
-  const requestRef = useRef(opensAtLatest);
-  const seenCountRef = useRef(scrollToBottomRef.current.count);
-  const viewRef = useRef(committedView);
-  const roomRef = useRef(roomId);
-  const onReaderGestureRef = useLatestRef(onReaderGesture);
-  const latestAtTopRef = useLatestRef(!!latestAtTop);
-  const pendingListShrinkPxRef = useLatestRef(pendingListShrinkPx);
-  const takeSettledScrollTopRef = useLatestRef(takeSettledScrollTop);
-  useLayoutEffect(() => {
-    if (viewRef.current === committedView) return;
-    viewRef.current = committedView;
-    // Another room opens as the first one did; another view of the same room at its newest row.
-    requestRef.current = roomRef.current === roomId || opensAtLatest;
-    roomRef.current = roomId;
-  }, [committedView, opensAtLatest, roomId]);
-  // Every commit compares the count as it is then: a render that React bails out of keeps the
-  // count it read without running its effects, so effect dependencies would miss that pin.
-  useLayoutEffect(() => {
-    const { count } = scrollToBottomRef.current;
-    if (count === seenCountRef.current) return;
-    seenCountRef.current = count;
-    requestRef.current = true;
-  });
-  useLayoutEffect(() => {
-    // A jump to an event owns the position from here.
-    if (focusItem) requestRef.current = false;
-  }, [focusItem]);
-  useEffect(() => {
-    if (!scrollElement) return undefined;
-    const release = () => {
-      requestRef.current = false;
-      seenCountRef.current = scrollToBottomRef.current.count;
-      onReaderGestureRef.current();
-    };
-    // A scroll up that also leaves more rows below the view is the reader's too (the scrollbar,
-    // a script or assistive technology): the timeline's own pins scroll down, and a row above
-    // the view that changes size moves the position and the content by the same amount. It
-    // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
-    // synchronously and so would pin the newest row again before this saw the reader's position.
-    // With the newest row first, the pins scroll up, and a scroll down away from the top is the
-    // reader's, except the one the offset ledger writes when it settles: the list had held rows
-    // above its start, out of reach of a pin to the top, and the settle puts them back with the
-    // position moved down as far. The pin then brings the top in.
-    // The room below the view that rows which shrank still take until React renders the
-    // list does not count: the correction that keeps the end in place for them scrolls up as much.
-    // The rows can still measure a shrink that React has already rendered: never less than none.
-    // A scroll up no larger than the scroll area grew is the browser keeping the position inside
-    // the taller area (a phone's keyboard band that widens while the rows measure again): the
-    // view's lower edge stays where it was, and that scroll is not the reader's either.
-    const roomBelow = () =>
-      Math.max(0, distanceBelowView(scrollElement) - (pendingListShrinkPxRef.current?.() ?? 0));
-    let lastTop = scrollElement.scrollTop;
-    let lastBelow = roomBelow();
-    let lastHeight = scrollElement.clientHeight;
-    const followScroll = () => {
-      const top = scrollElement.scrollTop;
-      const below = roomBelow();
-      const height = scrollElement.clientHeight;
-      const lowerEdgeRose = top < lastTop && top + height < lastTop + lastHeight;
-      const settledTop = takeSettledScrollTopRef.current?.();
-      const ledgerSettled = settledTop !== undefined && Math.abs(top - settledTop) < 1;
-      const leftLatest = latestAtTopRef.current
-        ? !ledgerSettled && top > lastTop + LEFT_LATEST_ROW_PX
-        : lowerEdgeRose && below > lastBelow + LEFT_LATEST_ROW_PX;
-      if (leftLatest) release();
-      lastTop = top;
-      lastBelow = below;
-      lastHeight = height;
-    };
-    READER_INTENT_EVENTS.forEach((name) =>
-      scrollElement.addEventListener(name, release, { passive: true })
-    );
-    scrollElement.addEventListener('scroll', followScroll, { capture: true, passive: true });
-    return () => {
-      READER_INTENT_EVENTS.forEach((name) => scrollElement.removeEventListener(name, release));
-      scrollElement.removeEventListener('scroll', followScroll, { capture: true });
-    };
-  }, [
-    latestAtTopRef,
-    onReaderGestureRef,
-    pendingListShrinkPxRef,
-    scrollElement,
-    scrollToBottomRef,
-    takeSettledScrollTopRef,
-  ]);
-  return requestRef;
-};
-
 /**
  * A place in the room's rows: the row of `eventId` starts `offset` px below the scroll area's top.
  */
@@ -312,7 +168,7 @@ export const useThreadReturnPlace = ({
 }: {
   memoryRef: MutableRefObject<RoomRowsPlace | undefined>;
   roomId: string;
-  threadId: string | undefined;
+  threadId?: string;
   eventId: string | undefined;
   /** Whether the view shows the room's rows (not a thread, not Compact's cards). */
   roomRowsShown: boolean;
@@ -339,81 +195,13 @@ export const useThreadReturnPlace = ({
         : readRoomRowsPlace(scrollElement, shown.roomId);
     };
   }, [memoryRef]);
-  return place;
-};
-
-/**
- * Keeps the newest row at the bottom while a request for it holds: after every commit, the room's
- * virtual list scrolls to its last row (to its top when its newest row is first), and an open
- * thread to the end of its scroll area. A pin
- * applied once can be cut short (a smooth scroll stops at the next scroll the timeline writes, as
- * when the composer grows) or land before the rows below it measure, and then every later row
- * would find the reader above the bottom and leave them there.
- */
-export const useLatestRowPin = ({
-  surface,
-  itemCount,
-  virtualizer,
-  listHeightHeld,
-  onReaderGesture,
-  ...request
-}: LatestRowRequestOptions & {
-  /**
-   * The rows it keeps: the room's own, an open thread's once the reader has scrolled it (until
-   * then the pin the thread opened with holds), or none (the Compact cards).
-   */
-  surface: 'room' | 'thread' | undefined;
-  itemCount: number;
-  virtualizer: Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>;
-  /** Whether this commit keeps the list's old height over rows that changed size. */
-  listHeightHeld?: boolean;
-}) => {
-  const surfaceRef = useLatestRef(surface);
-  const virtualizerRef = useLatestRef(virtualizer);
-  // The reader's gesture takes the position over: the virtual list stops scrolling to the row it
-  // was last sent to. A thread's gestures have their own rule for the pins (useGestureBottomPins'
-  // onThreadGesture).
-  const onGesture = useCallback(() => {
-    virtualizerRef.current.cancelScroll();
-    if (surfaceRef.current === 'room') onReaderGesture();
-  }, [onReaderGesture, surfaceRef, virtualizerRef]);
-  const latestRowRequestRef = useLatestRowRequest({ ...request, onReaderGesture: onGesture });
-  // A thread's request starts with the reader's own scrolling: what was asked before belongs to
-  // the pin the thread opened with.
-  const surfaceAtLastCommitRef = useRef(surface);
-  useLayoutEffect(() => {
-    if (surfaceAtLastCommitRef.current === surface) return;
-    surfaceAtLastCommitRef.current = surface;
-    if (surface === 'thread') latestRowRequestRef.current = false;
-  });
-  const { scrollElement, latestAtTop, pendingListShrinkPx } = request;
-  useLayoutEffect(() => {
-    if (!surface || !latestRowRequestRef.current || itemCount === 0) return;
-    if (surface === 'room' && latestAtTop) {
-      scrollElement?.scrollTo({ top: 0 });
-      return;
-    }
-    // A commit that holds the list's height over rows that shrank ends the list below its newest
-    // row (`listShrinkNotRendered`). A reader the correction for those rows left where the list
-    // will end is at the newest row: the end the list has now would show a blank band above the
-    // composer for a frame. Any other reader is brought to the end the list has.
-    const heldPx = listHeightHeld ? (pendingListShrinkPx?.() ?? 0) : 0;
-    if (
-      heldPx >= 1 &&
-      scrollElement &&
-      Math.abs(distanceBelowView(scrollElement) - heldPx) < AT_HELD_LIST_END_PX
-    ) {
-      return;
-    }
-    if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
-    else if (scrollElement) scrollToBottom(scrollElement, 'instant');
-  });
+  return place?.roomId === roomId ? place : undefined;
 };
 
 /**
  * Asks iOS to stop a touch flick before the reader's own Jump to Latest writes: the button is
  * outside the scroll area, so its tap does not end the flick, and a write inside a scroll the
- * compositor still owns can be discarded (see the offset ledger's discard watch). The area takes
+ * compositor still owns can be discarded. The area takes
  * `overflow-y: hidden` for the write and gets its own value back two frames later, so one frame
  * renders it hidden. iOS only; the timeline's own pins never call it.
  */
@@ -447,7 +235,7 @@ export const useGestureBottomPins = ({
   onFirstGesture,
   onThreadTakeover,
 }: {
-  backController: ThreadBackPaginationController;
+  backController?: ThreadBackPaginationController;
   scrollToBottomRef: MutableRefObject<ScrollToBottomState>;
   /** Whether the reader has scrolled the view shown now. */
   readerScrolledRef: MutableRefObject<ViewScopedFlag>;
@@ -462,19 +250,22 @@ export const useGestureBottomPins = ({
   const onThreadGesture = useCallback(() => {
     onThreadTakeoverRef.current?.();
     const { count } = scrollToBottomRef.current;
-    backController.cancelOpenBottomPin(count);
+    backController?.cancelOpenBottomPin(count);
     countAtGestureRef.current = count;
     if (readerScrolledRef.current.value) return;
     readerScrolledRef.current.value = true;
     onFirstGesture();
   }, [backController, onFirstGesture, onThreadTakeoverRef, readerScrolledRef, scrollToBottomRef]);
-  /** The room rows' gestures (`useLatestRowPin`), which have no opening pin to end. */
+  /** The room rows' gestures (`useTimelineLiveEnd`), which have no opening pin to end. */
   const onRoomGesture = useCallback(() => {
     countAtGestureRef.current = scrollToBottomRef.current.count;
-  }, [scrollToBottomRef]);
+    if (readerScrolledRef.current.value) return;
+    readerScrolledRef.current.value = true;
+    onFirstGesture();
+  }, [onFirstGesture, readerScrolledRef, scrollToBottomRef]);
   const shouldApplyBottomPin = useCallback(
     (count: number) =>
-      count !== countAtGestureRef.current && backController.shouldApplyBottomPin(count),
+      count !== countAtGestureRef.current && (backController?.shouldApplyBottomPin(count) ?? true),
     [backController]
   );
   return { onThreadGesture, onRoomGesture, shouldApplyBottomPin };
@@ -543,46 +334,55 @@ type RoomRowLookup = {
  * where the jump asked (its alignment and offset) as it and its neighbours mount and measure, until
  * it keeps its place, the reader scrolls, or another jump starts. A thread's rows are all in the
  * list.
- * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own. Each
- * jump also ends the scroll the virtual list still reconciles (`cancelScroll`): a bottom
- * pin's, or its own `scrollToIndex` that brought a far row in, whose place for the row leaves out
- * the offset ledger's shift. Left running, it scrolled there again when a row measured after the
- * jump had aligned its row (Jump to Unread left the "New messages" line under the composer, or
- * back at the newest row).
+ * Each jump ends any scroll the virtual list still reconciles (`cancelScroll`) and clears any
+ * held wheel/gesture offset (`clearVirtualizerHoldOffset`) so quiescence cannot shift the landed
+ * position away from the target.
  */
-export const useTimelineRowJumps = ({
-  paginatorScrollToItem,
-  paginatorScrollToElement,
-  activeRangeRef,
-  virtualizerRef,
-  threadEventIndexMapRef,
-  threadLeadingOffsetRef,
-  onJump,
-  rows,
-}: {
-  paginatorScrollToItem: ScrollToItem;
-  paginatorScrollToElement: ScrollToElement;
-  activeRangeRef: MutableRefObject<ItemRange>;
+const NO_SCROLL_ELEMENT = () => null;
+const EMPTY_ROWS_LOOKUP: RoomRowLookup = {
+  getScrollElement: NO_SCROLL_ELEMENT,
+  getRowElement: () => undefined,
+  roomRowsRef: { current: [] },
+};
+
+export const useTimelineRowJumps = (o: {
+  paginatorScrollToItem?: ScrollToItem;
+  paginatorScrollToElement?: ScrollToElement;
+  getScrollElement?: () => HTMLElement | null;
+  activeRangeRef?: MutableRefObject<ItemRange>;
   virtualizerRef: MutableRefObject<
     Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex' | 'cancelScroll'>
   >;
-  threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  threadEventIndexMapRef?: MutableRefObject<Map<string, number>>;
   threadLeadingOffsetRef?: MutableRefObject<number>;
-  onJump: () => void;
-  rows: RoomRowLookup;
+  roomLeadingOffsetRef?: MutableRefObject<number>;
+  rows?: RoomRowLookup;
 }) => {
+  const {
+    paginatorScrollToItem,
+    activeRangeRef,
+    virtualizerRef,
+    threadEventIndexMapRef,
+    threadLeadingOffsetRef,
+    roomLeadingOffsetRef,
+  } = o;
   const jumpCountRef = useRef(0);
-  const rowsRef = useLatestRef(rows);
+  const rowsRef = useLatestRef(o.rows ?? EMPTY_ROWS_LOOKUP);
+  const fallbackScrollToElement = useElementScroll(
+    o.getScrollElement ?? o.rows?.getScrollElement ?? NO_SCROLL_ELEMENT
+  );
+  const baseScrollToElement = o.paginatorScrollToElement ?? fallbackScrollToElement;
   const jumped = useCallback(() => {
-    virtualizerRef.current.cancelScroll();
-    onJump();
-  }, [onJump, virtualizerRef]);
+    const v = virtualizerRef.current;
+    v.cancelScroll();
+    clearVirtualizerHoldOffset(v);
+  }, [virtualizerRef]);
   const scrollToElement = useCallback<ScrollToElement>(
     (element, opts) => {
       jumped();
-      return paginatorScrollToElement(element, opts);
+      return baseScrollToElement(element, opts);
     },
-    [jumped, paginatorScrollToElement]
+    [baseScrollToElement, jumped]
   );
 
   /**
@@ -645,12 +445,12 @@ export const useTimelineRowJumps = ({
           }
         }
         frame += 1;
-        const { start, end: stop } = activeRangeRef.current;
+        const { start, end: stop } = activeRangeRef?.current ?? { start: 0, end: 0 };
         if (index >= start && index < stop) {
           const row = getRowElement(index);
           jumped();
           if (row) {
-            paginatorScrollToElement(row, { align, offset, behavior: 'instant' });
+            baseScrollToElement(row, { align, offset, behavior: 'instant' });
             const top = row.getBoundingClientRect().top;
             settledFrames =
               lastTop !== undefined && Math.abs(top - lastTop) < 1 ? settledFrames + 1 : 0;
@@ -660,7 +460,10 @@ export const useTimelineRowJumps = ({
               return;
             }
           } else {
-            virtualizerRef.current.scrollToIndex(index - start, { align, behavior: 'auto' });
+            virtualizerRef.current.scrollToIndex(
+              index - start + (roomLeadingOffsetRef?.current ?? 0),
+              { align, behavior: 'auto' }
+            );
           }
         }
         requestAnimationFrame(step);
@@ -668,7 +471,7 @@ export const useTimelineRowJumps = ({
       if (afterSmoothScroll) requestAnimationFrame(step);
       else step();
     },
-    [activeRangeRef, jumped, paginatorScrollToElement, rowsRef, virtualizerRef]
+    [activeRangeRef, jumped, baseScrollToElement, roomLeadingOffsetRef, rowsRef, virtualizerRef]
   );
 
   const scrollToItem = useCallback<ScrollToItem>(
@@ -677,11 +480,11 @@ export const useTimelineRowJumps = ({
       const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
       const scrollElement = getScrollElement();
       const mounted = getRowElement(index);
-      const { start, end } = activeRangeRef.current;
+      const { start, end } = activeRangeRef?.current ?? { start: 0, end: 0 };
       // Close by: the paginator's own scroll, smooth when asked; a row of the window it has not
       // mounted goes to the virtual list.
       if (!scrollElement || (mounted && rowNearView(mounted, scrollElement))) {
-        if (paginatorScrollToItem(index, opts)) {
+        if (paginatorScrollToItem?.(index, opts)) {
           if (scrollElement && opts?.behavior === 'smooth') {
             const eventId = roomRowsRef.current[index]?.getId();
             followFarRow(eventId, index, opts.align ?? 'center', true, opts.offset);
@@ -689,23 +492,31 @@ export const useTimelineRowJumps = ({
           return true;
         }
         if (index < start || index >= end) return false;
-        virtualizerRef.current.scrollToIndex(index - start, {
+        virtualizerRef.current.scrollToIndex(index - start + (roomLeadingOffsetRef?.current ?? 0), {
           align: opts?.align ?? 'center',
           behavior: opts?.behavior === 'smooth' ? 'smooth' : 'auto',
         });
         return true;
       }
       // Outside the window the paginator moves it there first; then the row is followed in.
-      if ((index < start || index >= end) && !paginatorScrollToItem(index, opts)) return false;
+      if ((index < start || index >= end) && !paginatorScrollToItem?.(index, opts)) return false;
       const eventId = roomRowsRef.current[index]?.getId();
       followFarRow(eventId, index, opts?.align ?? 'center', false, opts?.offset);
       return true;
     },
-    [activeRangeRef, followFarRow, jumped, paginatorScrollToItem, rowsRef, virtualizerRef]
+    [
+      activeRangeRef,
+      followFarRow,
+      jumped,
+      paginatorScrollToItem,
+      roomLeadingOffsetRef,
+      rowsRef,
+      virtualizerRef,
+    ]
   );
   const scrollThreadEventIntoView = useCallback(
     (targetEventId: string) => {
-      const index = threadEventIndexMapRef.current.get(targetEventId);
+      const index = threadEventIndexMapRef?.current.get(targetEventId);
       if (index === undefined) return false;
       jumped();
       virtualizerRef.current.scrollToIndex(index + (threadLeadingOffsetRef?.current ?? 0), {
@@ -716,6 +527,72 @@ export const useTimelineRowJumps = ({
     [jumped, threadEventIndexMapRef, threadLeadingOffsetRef, virtualizerRef]
   );
   return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
+};
+
+const atScrollBoundary = (scrollElement: HTMLElement, error: number): boolean => {
+  const { scrollTop, scrollHeight, clientHeight } = scrollElement;
+  if (typeof scrollTop !== 'number') return false;
+  if (error < 0) return scrollTop <= 0;
+  if (typeof scrollHeight !== 'number' || typeof clientHeight !== 'number') return false;
+  return scrollTop >= scrollHeight - clientHeight;
+};
+
+/** Scrolls a mounted DOM element into its aligned place inside the scroll container. */
+export const useElementScroll = (getScrollElement: () => HTMLElement | null): ScrollToElement => {
+  const getScrollElementRef = useLatestRef(getScrollElement);
+  const correctionFrameRef = useRef<number | undefined>(undefined);
+
+  const cancelCorrection = () => {
+    if (correctionFrameRef.current !== undefined && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(correctionFrameRef.current);
+    }
+    correctionFrameRef.current = undefined;
+  };
+  useEffect(() => cancelCorrection, []);
+
+  return useCallback<ScrollToElement>(
+    (element, opts = {}) => {
+      cancelCorrection();
+      const scrollElement = getScrollElementRef.current();
+      if (!scrollElement) return false;
+      const { align = 'center', offset = 0, stopInView = false, behavior } = opts;
+      const view = scrollElement.getBoundingClientRect();
+      const padding = readScrollPadding(scrollElement);
+      const viewTop = view.top + padding.top;
+      const viewBottom = view.bottom - padding.bottom;
+
+      const targetTop = (height: number): number => {
+        const usableHeight = viewBottom - viewTop;
+        // An element taller than the usable view shows its start.
+        const effectiveAlign = height > usableHeight ? 'start' : align;
+        if (effectiveAlign === 'end') return viewBottom - height + offset;
+        if (effectiveAlign === 'center') return viewTop + (usableHeight - height) / 2 + offset;
+        return viewTop + offset;
+      };
+
+      const rect = element.getBoundingClientRect();
+      if (stopInView && rect.top >= viewTop && rect.bottom <= viewBottom) return false;
+
+      const delta = rect.top - targetTop(rect.height);
+      scrollElement.scrollBy({ top: delta, behavior });
+
+      if (behavior !== 'smooth' && typeof requestAnimationFrame === 'function') {
+        // Layout can still move the element during the scroll; correct once on the next frame.
+        let ran = false;
+        const frameId = requestAnimationFrame(() => {
+          ran = true;
+          correctionFrameRef.current = undefined;
+          const corrected = element.getBoundingClientRect();
+          const error = corrected.top - targetTop(corrected.height);
+          if (Math.abs(error) < 1 || atScrollBoundary(scrollElement, error)) return;
+          scrollElement.scrollBy({ top: error, behavior });
+        });
+        if (!ran) correctionFrameRef.current = frameId;
+      }
+      return true;
+    },
+    [getScrollElementRef]
+  );
 };
 
 /**
@@ -729,21 +606,4 @@ export const useLatestPinAsked = (scrollToBottomRef: MutableRefObject<ScrollToBo
     committedCountRef.current = scrollToBottomRef.current.count;
   });
   return scrollToBottomRef.current.count !== committedCountRef.current;
-};
-
-/**
- * Counts the times the room's rows were replaced rather than added to: emptied for an event the
- * room has not loaded, then the history around it, or the newest rows again. A page of history or
- * a live row joins the chain on screen and replaces nothing. Counted during render, so the render
- * that shows new rows has the new count and the offset ledger starts over in it, before a fold or
- * a settle watch of the old rows can move the new ones.
- */
-export const useRowsGeneration = (linkedTimelines: EventTimeline[]): number => {
-  const seenRef = useRef({ chain: linkedTimelines, generation: 0 });
-  const seen = seenRef.current;
-  if (seen.chain !== linkedTimelines) {
-    const replaced = !linkedTimelines.some((part) => seen.chain.includes(part));
-    seenRef.current = { chain: linkedTimelines, generation: seen.generation + (replaced ? 1 : 0) };
-  }
-  return seenRef.current.generation;
 };

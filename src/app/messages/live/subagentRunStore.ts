@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore } from 'react';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useMatrixClient, useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
   isActiveSubagentStatus,
   type SubagentFrame,
@@ -60,19 +60,50 @@ export const runsStartedIn = (
 ): readonly SubagentRun[] =>
   threadId === undefined ? runs : runs.filter((run) => run.meta.threadId === threadId);
 
+/** Finds the room's sub-agent run linked to a parent reply's tool call from the same sender and conversation. */
+export const findLinkedSubagentRun = (
+  runs: readonly SubagentRun[],
+  toolCallId: string | undefined,
+  threadId: string | undefined,
+  sender: string | undefined
+): SubagentRun | undefined => {
+  if (!toolCallId || !sender) return undefined;
+  const expectedThread = threadId ?? null;
+  let best: SubagentRun | undefined;
+  let bestActive = false;
+  for (const run of runs) {
+    if (
+      run.sender !== sender ||
+      run.meta.callerToolCallId !== toolCallId ||
+      run.meta.threadId !== expectedThread
+    )
+      continue;
+    const active = isActiveSubagentStatus(run.meta.status);
+    if (
+      !best ||
+      (active && !bestActive) ||
+      (active === bestActive && run.meta.startedAt > best.meta.startedAt)
+    ) {
+      best = run;
+      bestActive = active;
+    }
+  }
+  return best;
+};
+
 const runKey = (roomId: string, run: string): string => `${roomId}\0${run}`;
 
 const isWorking = ({ status }: SubagentMeta): boolean =>
   status === 'running' || status === 'awaiting_approval';
 
+const STICKY_META_KEYS = ['task', 'title', 'result', 'callerToolCallId'] as const;
+
 const nextMeta = (held: SubagentMeta | undefined, latest: SubagentMeta): SubagentMeta => {
+  if (!held) return latest;
   const meta = { ...latest };
-  const task = latest.task ?? held?.task;
-  const title = latest.title ?? held?.title;
-  const result = latest.result ?? held?.result;
-  if (task !== undefined) meta.task = task;
-  if (title !== undefined) meta.title = title;
-  if (result !== undefined) meta.result = result;
+  for (const key of STICKY_META_KEYS) {
+    if (meta[key] === undefined && held[key] !== undefined) meta[key] = held[key];
+  }
   return meta;
 };
 
@@ -180,15 +211,26 @@ export const getSubagentRunStore = (mx: MatrixClient): SubagentRunStore => {
   return store;
 };
 
-/** The room's sub-agent runs on the active client, rendered again whenever they change. */
-export const useRoomSubagentRuns = (roomId: string): readonly SubagentRun[] => {
-  const store = getSubagentRunStore(useMatrixClient());
+const noopUnsubscribe = () => undefined;
+
+/**
+ * The room's sub-agent runs on the active client, rendered again whenever they change.
+ * When `roomId` is undefined or no Matrix client is mounted, subscribes to nothing and returns an
+ * empty list so callers can keep a stable hook tree while toggling sub-agent lookups.
+ */
+export const useRoomSubagentRuns = (roomId: string | undefined): readonly SubagentRun[] => {
+  const mx = useOptionalMatrixClient();
+  const store = roomId && mx ? getSubagentRunStore(mx) : undefined;
   const subscribe = useCallback(
-    (onChange: () => void) => store.subscribe(roomId, onChange),
+    (onChange: () => void) =>
+      roomId && store ? store.subscribe(roomId, onChange) : noopUnsubscribe,
     [roomId, store]
   );
-  const getRuns = useCallback(() => store.runs(roomId), [roomId, store]);
-  return useSyncExternalStore(subscribe, getRuns);
+  const getRuns = useCallback(
+    () => (roomId && store ? store.runs(roomId) : NO_RUNS),
+    [roomId, store]
+  );
+  return useSyncExternalStore(subscribe, getRuns, getRuns);
 };
 
 /**

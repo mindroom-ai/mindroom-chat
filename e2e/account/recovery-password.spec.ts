@@ -208,13 +208,17 @@ test('the unlock dialog sits in the middle of a phone, and a tap beside it close
   expect(box.x + box.width / 2).toBeCloseTo(width / 2, 0);
   await dialog.getByText('Enter your recovery password').tap();
   await expect(dialog).toBeVisible();
-  // The tap lands on the backdrop over Join a Room, whose dialog must not open once Unlock is gone.
-  const beneath = await second.getByText('Join a Room', { exact: true }).boundingBox();
-  if (!beneath) throw new Error('Join a Room is not on the page');
+  // The tap lands on the backdrop over Add rooms, whose menu must not open once Unlock is gone.
+  const addRooms = second.locator('[data-home-room-action="add"]');
+  const beneath = await addRooms.boundingBox();
+  if (!beneath) throw new Error('Add rooms is not on the page');
   await second.touchscreen.tap(beneath.x + beneath.width / 2, beneath.y + beneath.height / 2);
   await expect(dialog).toHaveCount(0);
   await second.waitForTimeout(1_000);
   await expect(second.getByRole('dialog')).toHaveCount(0);
+  await expect(addRooms).toHaveAttribute('aria-expanded', 'false');
+  await expect(second.locator('[data-home-room-action="create"]')).toHaveCount(0);
+  await expect(second.locator('[data-home-room-action="join"]')).toHaveCount(0);
 });
 
 test('Not now keeps the start prompt closed after a reload, and the banner still unlocks', async ({

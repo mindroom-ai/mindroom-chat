@@ -14,7 +14,7 @@ export const useTimelineDebugTraceIds = ({
 }: {
   eventId: string | undefined;
   room: Room;
-  threadId: string | undefined;
+  threadId?: string;
 }): TimelineDebugTraceIds => {
   const roomDebugTraceRef = useRef({
     roomId: room.roomId,

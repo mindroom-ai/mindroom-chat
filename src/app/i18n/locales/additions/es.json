@@ -41,6 +41,16 @@
       "fileCount_many": "{{count}} archivos",
       "fileCount_other": "{{count}} archivos"
     },
+    "uploadCardRenderer": {
+      "compressing": "Comprimiendo...",
+      "useOriginal": "Usar original",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "Comprimir (.zip)",
+      "zipFailedTooLarge": "Sigue siendo demasiado grande después de comprimir a .zip.",
+      "zipFailedTooLargeWithMax": "Sigue siendo demasiado grande después de comprimir a .zip (el máximo es {{maxSize}}).",
+      "zipFailedNoSavings": "Comprimir a .zip no redujo el tamaño de este archivo.",
+      "zipFailedError": "No se pudo comprimir este archivo a .zip."
+    },
     "passwordInput": {
       "show": "Mostrar contraseña",
       "hide": "Ocultar contraseña"
@@ -445,6 +455,8 @@
       "sidebar": {
         "title": "Barra lateral",
         "navigation": "Navegación",
+        "direct": "Mostrar Mensajes directos en la barra lateral",
+        "directDescription": "Los mensajes directos en su propia pestaña lateral. Si lo ocultas, ábrelos desde Inicio o desde el menú ⋮ de Inicio.",
         "threads": "Mostrar Hilos en la barra lateral",
         "threadsDescription": "Los hilos de todas las salas en una lista. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
         "canvasesDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
@@ -541,7 +553,9 @@
         "midTurn": "redirigir, cola, automático, agente, respuesta, interrumpir",
         "usage": "tokens, coste, precio, modelo, llamadas a herramientas, subagentes, tareas en segundo plano",
         "plugins": "complementos, plugins, extensiones, integraciones",
-        "appUpdates": "actualización, actualizaciones, versión, mejorar, reiniciar"
+        "appUpdates": "actualización, actualizaciones, versión, mejorar, reiniciar",
+        "mediaCompression": "capturas de pantalla, grabaciones de pantalla, imágenes, vídeos, compresión, tamaño de subida",
+        "autoZipLargeFiles": "zip, archivo, comprimir, json, csv, registro, log, archivos grandes, tamaño de subida"
       },
       "errorReports": {
         "title": "Enviar informes de errores",
@@ -563,13 +577,30 @@
         "updateReady": "La versión {{version}} está lista para instalar.",
         "restartToUpdate": "Reiniciar para actualizar",
         "updateInstallFailed": "No se pudo reiniciar para instalar la actualización. Inténtalo de nuevo."
+      },
+      "mediaCompression": {
+        "title": "Compresión multimedia",
+        "description": "Comprime fotos, capturas de pantalla y vídeos adjuntos antes de subirlos. Aún puedes usar el original para cualquier archivo adjunto.",
+        "off": "Desactivada",
+        "balanced": "Equilibrada",
+        "small": "Pequeña"
+      },
+      "autoZipLargeFiles": {
+        "title": "Comprimir archivos grandes (.zip)",
+        "description": "Comprime automáticamente en .zip los archivos comprimibles de más de 1 MB antes de subirlos. Aún puedes usar el original para cualquier archivo adjunto."
       }
     },
     "createChat": {
       "failed": "No se pudo iniciar el chat. Inténtalo de nuevo."
     },
     "homeNav": {
-      "options": "Opciones de Inicio"
+      "options": "Opciones de Inicio",
+      "addRooms": "Añadir salas",
+      "directMessages": "Mensajes directos",
+      "newDirectMessage": "Nuevo mensaje directo",
+      "showAllDirectMessages": "Mostrar todos ({{count}})",
+      "agents": "Agentes",
+      "agentActive": "Agente activo"
     },
     "directNav": {
       "options": "Opciones de mensajes directos"
@@ -1104,6 +1135,15 @@
       "unavailable": {
         "description": "El acceso al Mac no está disponible en este dispositivo."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "tú",
+        "draft": "Borrador",
+        "groupMemberCount_many": "{{count}} miembros",
+        "groupMemberCount_one": "{{count}} miembro",
+        "groupMemberCount_other": "{{count}} miembros"
+      }
     }
   },
   "mindroomUi": {
@@ -1409,6 +1449,43 @@
       "stopReply": {
         "label": "Detener respuesta",
         "stopping": "Deteniendo…"
+      },
+      "runError": {
+        "cardLabel": "Error de ejecución",
+        "actions": {
+          "continue": "Continuar",
+          "retry": "Reintentar",
+          "compact": "Compactar"
+        },
+        "chips": {
+          "streamStalled": "Flujo detenido",
+          "providerUnavailable": "No disponible",
+          "rateLimited": "Límite de tasa",
+          "timeout": "Tiempo agotado",
+          "contextWindow": "Límite de contexto",
+          "tokensPerMinute": "Límite de tokens",
+          "safeguardRefusal": "Rechazado",
+          "quotaExhausted": "Cuota",
+          "missingApiKey": "Clave API",
+          "authenticationFailed": "Autenticación",
+          "runtimeError": "Error"
+        },
+        "technicalDetails": "Detalles técnicos",
+        "details": {
+          "model": "Modelo",
+          "provider": "Proveedor",
+          "code": "Código",
+          "detail": "Detalle",
+          "error": "Error"
+        },
+        "receipt": {
+          "continue": "Reanudado",
+          "retry": "Reintentado",
+          "compact": "Compactado"
+        },
+        "sendFailed": "No se pudo enviar el mensaje. Inténtalo de nuevo.",
+        "restartSeam": "Servicio reiniciado · contexto conservado",
+        "restartSeamRepeated": "Servicio reiniciado ({{times}}×) · contexto conservado"
       }
     },
     "message-search": {
@@ -1567,7 +1644,9 @@
       "jobTotal_other": "{{count}} tareas en segundo plano",
       "jobTotalFinished_one": "{{count}} tarea en segundo plano terminada",
       "jobTotalFinished_many": "{{count}} tareas en segundo plano terminadas",
-      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas"
+      "jobTotalFinished_other": "{{count}} tareas en segundo plano terminadas",
+      "reviewApprovalFor": "Revisar aprobación: {{tool}}",
+      "checkingApproval": "Comprobando aprobación…"
     },
     "workflowRun": {
       "title": "Flujo de trabajo",
@@ -1590,6 +1669,8 @@
       "stopping": "Deteniendo…",
       "resume": "Reanudar",
       "runAgain": "Ejecutar de nuevo",
+      "confirmRunAgain": "Confirmar nueva ejecución",
+      "cancel": "Cancelar",
       "starting": "Iniciando…",
       "failedCount_one": "{{count}} fallidos",
       "failedCount_many": "{{count}} fallidos",
@@ -1616,6 +1697,24 @@
         "waitingForUpdate": "Esperando la próxima actualización de la ejecución…",
         "stale": "Sin actualizarse. Última actualización {{time}}.",
         "log": "Registro",
+        "viewsLabel": "Vistas del flujo de trabajo",
+        "flow": "Flujo",
+        "steps": "Pasos",
+        "selectStep": "Selecciona un paso para inspeccionar su salida, métricas y enlaces.",
+        "noMessages": "Aún no hay mensajes entre pasos.",
+        "noLog": "Aún no hay entradas en el registro.",
+        "omittedEdges_one": "{{count}} ruta de mensajes omitida.",
+        "omittedEdges_many": "{{count}} rutas de mensajes omitidas.",
+        "omittedEdges_other": "{{count}} rutas de mensajes omitidas.",
+        "omittedMessages_one": "{{count}} mensaje omitido.",
+        "omittedMessages_many": "{{count}} mensajes omitidos.",
+        "omittedMessages_other": "{{count}} mensajes omitidos.",
+        "omittedLog_one": "{{count}} entrada de registro omitida.",
+        "omittedLog_many": "{{count}} entradas de registro omitidas.",
+        "omittedLog_other": "{{count}} entradas de registro omitidas.",
+        "setupSteps_one": "{{count}} paso de configuración",
+        "setupSteps_many": "{{count}} pasos de configuración",
+        "setupSteps_other": "{{count}} pasos de configuración",
         "showMore": "Mostrar {{count}} más",
         "omitted": {
           "queued_one": "y {{count}} más en cola",
@@ -1660,8 +1759,18 @@
         "error": "Error",
         "messages": "Mensajes",
         "messagesTo": "Mensajes a {{name}}: {{count}}",
+        "messagesFrom": "Mensajes de {{name}}: {{count}}",
+        "timeout": "Tiempo agotado",
+        "routeTo": "De {{from}} a {{to}}: {{count}}",
+        "messageRoute": "De {{from}} a {{to}}",
+        "script": "script",
+        "routeBetween": "Entre {{from}} y {{to}}: {{count}}",
+        "duration": "Duración",
+        "tokens": "Tokens",
+        "cost": "Coste",
         "open": "Abrir",
         "detailsUnavailable": "Los detalles ya no están disponibles tras recargar.",
+        "transcriptUnavailable": "La transcripción completa ya no está disponible tras recargar.",
         "stop": "Detener agente"
       }
     },
@@ -1812,7 +1921,64 @@
       "unattributed": "Sin atribuir",
       "allUsageAndLimits": "Todo el uso y límites →",
       "noAccounts": "Aún no se informaron cuentas de proveedores.",
-      "noDailyData": "No se registró uso diario en los últimos 7 días."
+      "noDailyData": "No se registró uso diario en los últimos 7 días.",
+      "kpiSpend7d": "Gasto est. (7 días)",
+      "kpiTokens7d": "Tokens (7 días)",
+      "perDayAvg": "~{{value}}/día prom.",
+      "peakAndAvg": "Pico {{day}} · {{tokens}} · ~{{avg}}/d",
+      "trendVsPrior3d": "{{delta}} frente a los 3 días anteriores",
+      "tokenMixTitle": "Mezcla de tokens y caché (7 d)",
+      "savedViaCache": "Ahorrado ~{{cost}} con caché",
+      "cacheRead": "Lectura caché",
+      "cacheWrite": "Escritura caché",
+      "inputTokens": "Entrada",
+      "outputTokens": "Salida",
+      "inputShort": "Ent.",
+      "outputShort": "Sal.",
+      "tokenMixAria": "Lectura caché {{cacheRead}}, escritura caché {{cacheWrite}}, entrada {{input}}, salida {{output}}",
+      "subscriptionQuotas": "Cuotas de suscripción",
+      "paceLegend": "Marca = ritmo uniforme",
+      "paceAhead": "+{{delta}}% adelantado",
+      "paceFastBurn": "-{{delta}}% consumo rápido",
+      "paceOnPace": "A buen ritmo",
+      "dailySpendTitle": "Gasto diario estimado",
+      "dailyTokensTitle": "Tokens diarios",
+      "dailySubtitleCost": "Toca una barra para ver tokens y precio exactos",
+      "dailySubtitleTokens": "Toca una barra para ver tokens exactos",
+      "chartMetricLabel": "Métrica del gráfico",
+      "metricSpend": "Gasto ($)",
+      "metricTokens": "Tokens",
+      "hideDominant": "Ocultar dominante",
+      "resetFilter": "Restablecer filtro",
+      "hideDominantTooltip": "Ocultar {{account}} para inspeccionar cuentas más pequeñas",
+      "resetFilterTooltip": "Mostrar todas las cuentas incluida {{account}}",
+      "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} tokens",
+      "vs7dAvg": "{{delta}} vs prom. 7 d",
+      "tokensShortUnit": "{{tokens}} tok",
+      "noDayActivity": "No se registró uso en este día.",
+      "whereUsageGoes": "Dónde va el uso",
+      "whereUsageGoesSub": "Toca una fila para ver el desglose y tendencia de 7 d",
+      "tabModels": "Modelos",
+      "tabAgents": "Agentes",
+      "tabAccounts": "Cuentas",
+      "shareOfSpend": "Porcentaje del gasto (7 d): {{share}}",
+      "shareOfTokens": "Porcentaje de tokens (7 d): {{share}}",
+      "trend7d": "Tendencia 7 d",
+      "runCount_one": "{{count}} ejecución",
+      "runCount_many": "{{count}} ejecuciones",
+      "runCount_other": "{{count}} ejecuciones",
+      "idleAccountsLabel_one": "{{count}} cuenta inactiva (0 tokens en 7 d)",
+      "idleAccountsLabel_many": "{{count}} cuentas inactivas (0 tokens en 7 d)",
+      "idleAccountsLabel_other": "{{count}} cuentas inactivas (0 tokens en 7 d)",
+      "show": "Mostrar",
+      "hide": "Ocultar",
+      "zeroTokens": "0 tokens"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Mostrar en la barra lateral",
+        "sidebarSettings": "Ajustes de la barra lateral…"
+      }
     }
   },
   "composer": {
@@ -1847,6 +2013,7 @@
     "newThreadWith": "Nuevo hilo con {{name}}…",
     "dictation": {
       "label": "Dictar",
+      "temporarilyUnavailable": "Dictado no disponible — reconectando",
       "cancel": "Cancelar dictado",
       "pause": "Pausar dictado",
       "resume": "Reanudar dictado",
@@ -1854,6 +2021,8 @@
       "finishAndSend": "Finalizar y enviar",
       "retry": "Reintentar",
       "retryAndSend": "Reintentar y enviar",
+      "sendAsVoice": "Enviar como voz",
+      "attachAsVoice": "Adjuntar como voz",
       "insertPartial": "Insertar texto parcial",
       "discard": "Descartar",
       "dismissError": "Cerrar error de dictado",
@@ -1866,6 +2035,7 @@
       "noSpeech": "No se detectó voz.",
       "noSpeechOffThread": "No se detectó voz en {{room}}.",
       "sendFailedOffThread": "No se pudo finalizar el mensaje dictado en {{room}}. Ábrelo para reintentar.",
+      "sendFailedOffTarget": "No se pudo finalizar el mensaje dictado en {{room}}. Vuelve a elegir {{room}} para reintentar.",
       "statusPendingRetry_one": "{{count}} segmento pendiente de reintento",
       "statusPendingRetry_many": "{{count}} segmentos pendientes de reintento",
       "statusPendingRetry_other": "{{count}} segmentos pendientes de reintento",
@@ -2028,21 +2198,26 @@
     "openInOriginalThread": "Abrir en el hilo original",
     "forkFromHere": "Bifurcar desde aquí",
     "forkThread": "Bifurcar hilo",
-    "forking": "Bifurcando {{title}}",
-    "continueInNewThread": "Continuar en un hilo nuevo",
+    "forking": "Borrador · envía un mensaje abajo para iniciar esta bifurcación",
+    "continueInNewThread": "Envía el primer mensaje para crear la bifurcación…",
     "forkCount_one": "{{count}} bifurcación",
     "forkCount_many": "{{count}} bifurcaciones",
     "forkCount_other": "{{count}} bifurcaciones",
     "forkedFromInRoom": "Bifurcado de {{title}} en {{room}}",
     "forkedFromAnotherRoom": "Bifurcado desde otra sala",
-    "forkingIntoRoom": "Bifurcando {{title}} en {{room}}",
+    "forkingIntoRoom": "Borrador · envía un mensaje abajo para bifurcar en {{room}}",
     "forkToRoom": "Bifurcar a sala…",
     "forkToRoomTitle": "Bifurcar a sala",
     "forkToRoomSearchPlaceholder": "Buscar salas…",
     "forkToRoomEmpty": "No hay salas coincidentes",
     "forkToRoomAgentWarning": "Los agentes en esta sala no están en {{room}} y no verán el hilo original",
     "forkingFromRoom": "Bifurcando desde {{room}}",
-    "forkDraftAgentWarning": "Los agentes aquí no están en {{room}} y no verán el hilo original"
+    "forkDraftAgentWarning": "Los agentes aquí no están en {{room}} y no verán el hilo original",
+    "draftBadge": "Borrador",
+    "forkingThread": "Bifurcando hilo",
+    "forkDraftHint": "Aún no se ha creado. Envía un mensaje abajo para iniciar este hilo bifurcado.",
+    "forkDraftHintInRoom": "Aún no está en {{room}}. Envía un mensaje abajo para crear este hilo.",
+    "continueInNewThreadInRoom": "Envía el primer mensaje para crear la bifurcación en {{room}}…"
   },
   "activity": {
     "title": "Actividad",

@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { createStore, Provider as JotaiProvider } from 'jotai';
 import { MatrixEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import i18next from 'i18next';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../../matrix/protocol/backgroundJobsContract';
 import type {
@@ -35,6 +36,7 @@ const emptyOmitted = {
   groups: 0,
   phases: 0,
   log: 0,
+  messages: 0,
 };
 
 const makeNode = (id: string, overrides: Partial<WorkflowRunNode> = {}): WorkflowRunNode => ({
@@ -100,6 +102,7 @@ const makeSnapshotFrame = (
     groups: [],
     nodes: [],
     edges: [],
+    messages: [],
     log: [],
     omitted: emptyOmitted,
     ...graph,
@@ -366,6 +369,11 @@ describe('WorkflowPanel', () => {
     expect(document.querySelectorAll('[data-workflow-chip-id]')).toHaveLength(0);
     expect(screen.getByText(/and 1,?000 more queued/)).toBeTruthy();
     expect(screen.getByText('Ask panels for the rest.')).toBeTruthy();
+    const tabs = screen.getAllByRole('tab');
+    fireEvent.click(tabs[2]!);
+    expect(screen.getByText('No messages between steps yet.')).toBeTruthy();
+    fireEvent.click(tabs[3]!);
+    expect(screen.getByText('No log entries yet.')).toBeTruthy();
   });
 
   it('shows message counts as text, opens Sub-agents panel on node.run, and stops one agent by node.job', async () => {
@@ -607,6 +615,7 @@ describe('WorkflowPanel', () => {
         groups: [],
         nodes: [makeNode('n1', { label: 'Check auth', status: 'failed', error: 'Mismatch' })],
         edges: [],
+        messages: [],
         log: [],
         omitted: emptyOmitted,
       },
@@ -664,6 +673,7 @@ describe('WorkflowPanel', () => {
         groups: [],
         nodes: [makeNode('n1', { label: 'Audit auth', status: 'completed', endedAt: 1795389790 })],
         edges: [],
+        messages: [],
         log: [],
         omitted: emptyOmitted,
       },
@@ -787,7 +797,7 @@ describe('WorkflowPanel', () => {
     expect(within(turnChip()).getByText('$0.99')).toBeTruthy();
   });
 
-  it('renders nested workflow groups under their caller, translates inspector status, and disables unavailable Open', () => {
+  it('renders nested workflow groups under their caller, translates inspector status, and omits unavailable Open', () => {
     const { mx, room } = makeClient();
     const store = createStore();
     getWorkflowRunStore(mx).ingest(
@@ -829,9 +839,7 @@ describe('WorkflowPanel', () => {
     const details = document.querySelector('[data-workflow-node-details="n3"]') as HTMLElement;
     expect(within(details).getByText('May have run')).toBeTruthy();
     expect(within(details).queryByText('indeterminate')).toBeNull();
-    expect(within(details).getByRole<HTMLButtonElement>('button', { name: 'Open' }).disabled).toBe(
-      true
-    );
+    expect(within(details).queryByRole('button', { name: 'Open' })).toBeNull();
     expect(within(details).getByText('Details are no longer available after reload.')).toBeTruthy();
   });
 
@@ -865,8 +873,10 @@ describe('WorkflowPanel', () => {
       </JotaiProvider>
     );
 
+    fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    expect(sendEvent).not.toHaveBeenCalled();
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm run again' }));
     });
     expect(sendEvent).toHaveBeenCalledWith(
       ROOM_ID,
@@ -876,100 +886,470 @@ describe('WorkflowPanel', () => {
     );
   });
 
-  it('remeasures SVG edges when folded group membership changes even with unchanged edges and size', () => {
+  it('keeps spawned session turns inside Parallel groups, shows @session badges, and highlights siblings', () => {
     const { mx, room } = makeClient();
     const store = createStore();
-    const wfStore = getWorkflowRunStore(mx);
-    const rectSpy = vi
-      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function (this: HTMLElement) {
-        const id = this.dataset?.workflowChipId;
-        const n = id ? Number(id.slice(1)) : 0;
-        return {
-          x: n * 10,
-          y: n * 40,
-          top: n * 40,
-          left: n * 10,
-          right: n * 10 + 100,
-          bottom: n * 40 + 30,
-          width: 100,
-          height: 30,
-          toJSON: () => ({}),
-        };
-      });
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        groups: [
+          { id: 'g1', kind: 'parallel', phase: 0, parent: null, total: 2, done: 1, failed: 0 },
+        ],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            label: 'Reviewer session',
+            name: 'reviewer',
+            status: 'completed',
+            turns: 2,
+            endedAt: 1795389740,
+          }),
+          makeNode('n4', {
+            kind: 'turn',
+            label: 'Inspect auth',
+            name: 'backend',
+            group: 'g1',
+            session: 's1',
+            status: 'running',
+            model: 'gemini_flash@minimal',
+          }),
+          makeNode('n5', {
+            kind: 'turn',
+            label: 'Inspect tokens',
+            name: 'frontend',
+            group: 'g1',
+            session: 's1',
+            status: 'failed',
+            error: 'Timed out after 120s waiting for agent',
+            endedAt: 1795389780,
+          }),
+        ],
+        edges: [
+          { from: 'n4', to: 'n5', count: 2 },
+          { from: 'n5', to: 'n4', count: 1 },
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Empty root session card is omitted while its turns remain inside Parallel group g1.
+    expect(document.querySelector('[data-workflow-chip-id="s1"]')).toBeNull();
+    const groupEl = document.querySelector('[data-workflow-group-id="g1"]') as HTMLElement;
+    expect(within(groupEl).getByRole('button', { name: /Inspect auth/ })).toBeTruthy();
+    expect(within(groupEl).getByRole('button', { name: /Inspect tokens/ })).toBeTruthy();
+    expect(within(groupEl).getAllByText('@reviewer')).toHaveLength(2);
+    expect(within(groupEl).getByText('gemini_flash · minimal')).toBeTruthy();
+    expect(within(groupEl).getByText('Timeout')).toBeTruthy();
+    expect(groupEl.querySelector('[dir="ltr"]')?.textContent).toContain('backend ↔ frontend · 3');
+    expect(groupEl.textContent).toContain('backend and frontend: 3');
+    expect(groupEl.querySelector('[role="progressbar"]')).toBeNull();
+    expect(groupEl.querySelectorAll('svg path').length).toBeGreaterThan(0);
+
+    // Inspector details stay absent until a node is selected.
+    expect(document.querySelector('[data-workflow-node-details]')).toBeNull();
+
+    const turn4 = document.querySelector('[data-workflow-chip-id="n4"]') as HTMLElement;
+    const turn5 = document.querySelector('[data-workflow-chip-id="n5"]') as HTMLElement;
+    fireEvent.click(turn4);
+
+    expect(turn5.dataset.sessionHighlighted).toBe('true');
+    const details = document.querySelector('[data-workflow-node-details="n4"]') as HTMLElement;
+    expect(within(details).getByText('@reviewer')).toBeTruthy();
+    expect(within(details).getByText('Messages to frontend: 2')).toBeTruthy();
+    expect(within(details).getByText('Messages from frontend: 1')).toBeTruthy();
+  });
+
+  it('collapses consecutive completed plumbing in Flow, shows flat rows in Steps, and switches Messages/Log tabs', async () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getSubagentRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      {
+        run: 'delegation-json',
+        sid: '1795389735000-c1d2e3f4',
+        seq: 1,
+        meta: {
+          agent: 'panels',
+          subagent: 'delegation-json',
+          caller: 'panels',
+          root: 'panels',
+          parent: null,
+          threadId: null,
+          source: 'workflow',
+          status: 'completed',
+          startedAt: 1795389740,
+          endedAt: 1795389755,
+          result: '```json\n{"id":9223372036854775807,"checked":4}\n```',
+        },
+        snapshot: {
+          md: '',
+          reasoning: '',
+          tools: [],
+          status: 'done',
+          activity: '',
+          segments: [],
+        },
+      },
+      Date.now()
+    );
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Prepare'],
+        nodes: [
+          makeNode('n1', {
+            kind: 'value',
+            label: 'Load config',
+            status: 'completed',
+            endedAt: 1795389741,
+          }),
+          makeNode('n2', {
+            kind: 'state',
+            label: 'Seed state',
+            status: 'completed',
+            endedAt: 1795389741,
+          }),
+          makeNode('n3', {
+            kind: 'agent',
+            label: 'Run audit',
+            name: 'auditor',
+            status: 'completed',
+            run: 'delegation-json',
+            endedAt: 1795389755,
+            usage: { inputTokens: 1500, outputTokens: 500, toolCalls: 2, costUsd: 0.12 },
+          }),
+          makeNode('n4', {
+            kind: 'send',
+            label: 'Notify peer',
+            name: null,
+            status: 'failed',
+            error: 'Peer inbox closed',
+            endedAt: 1795389756,
+          }),
+        ],
+        edges: [{ from: 'n3', to: 'n4', count: 2 }],
+        log: ['Round 1 finished'],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Flow tab collapses n1 + n2 into one setup-steps pill while keeping failed plumbing visible.
+    const setupToggle = screen.getByRole('button', { name: '2 setup steps' });
+    expect(document.querySelector('[data-workflow-chip-id="n1"]')).toBeNull();
+    expect(document.querySelector('[data-workflow-chip-id="n4"]')).toBeTruthy();
+
+    fireEvent.click(setupToggle);
+    const setupChild1 = document.querySelector('[data-workflow-chip-id="n1"]') as HTMLElement;
+    expect(setupChild1).toBeTruthy();
+    expect(document.querySelector('[data-workflow-chip-id="n2"]')).toBeTruthy();
+    // Clicking the setup-steps toggle collapses the group cleanly even while a child is selected.
+    fireEvent.click(setupChild1);
+    expect(document.querySelector('[data-workflow-node-details="n1"]')).toBeTruthy();
+    fireEvent.click(setupToggle);
+    expect(setupToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[data-workflow-chip-id="n1"]')).toBeNull();
+
+    // Selecting n3 displays KPI metrics and un-fenced pretty JSON inside <pre>.
+    fireEvent.click(screen.getByRole('button', { name: /Run audit/ }));
+    const details = document.querySelector('[data-workflow-node-details="n3"]') as HTMLElement;
+    expect(within(details).getByText('Duration')).toBeTruthy();
+    expect(within(details).getByText('2K')).toBeTruthy();
+    expect(within(details).getByText('$0.12')).toBeTruthy();
+    const pre = details.querySelector('pre');
+    expect(pre?.textContent).toBe('{"id":9223372036854775807,"checked":4}');
+
+    // Tabs have space-separated accessible names and wire aria-controls to a focusable tabpanel.
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs).toHaveLength(4);
+    expect(tabs[1]!.textContent).toBe('Steps 4');
+    expect(tabs[0]!.getAttribute('aria-controls')).toBeTruthy();
+    expect(tabs[1]!.getAttribute('aria-controls')).toBeNull();
+    fireEvent.click(tabs[1]!);
+    const stepsPanel = screen.getByRole('tabpanel');
+    expect(stepsPanel.id).toBe(tabs[1]!.getAttribute('aria-controls'));
+    expect(tabs[0]!.getAttribute('aria-controls')).toBeNull();
+    expect(stepsPanel.getAttribute('tabindex')).toBe('0');
+    expect(document.querySelectorAll('[data-workflow-chip-id]')).toHaveLength(4);
+    expect(document.querySelector('[data-workflow-chip-id="n4"]')?.textContent).toContain(
+      '(Failed)'
+    );
+
+    // Messages tab wraps arrows in dir="ltr" and exposes accessible direction; ArrowRight switches to Log.
+    fireEvent.click(tabs[2]!);
+    const routeItem = screen.getByRole('listitem');
+    expect(routeItem.querySelector('[dir="ltr"]')?.textContent).toBe('auditor → Notify peer');
+    expect(routeItem.textContent).toContain('auditor to Notify peer: 2');
+    fireEvent.keyDown(tabs[2]!, { key: 'ArrowRight' });
+    expect(tabs[3]!.getAttribute('aria-selected')).toBe('true');
+    expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(tabs[3]!.id);
+    expect(screen.getByText('Round 1 finished')).toBeTruthy();
+
+    // Bengali locale formats tab counts with localDigits and RTL reverses arrow-key tab order.
+    const previousLanguage = i18next.language;
+    const previousDir = document.documentElement.dir;
     try {
-      const nodes = Array.from({ length: 25 }, (_, i) =>
-        makeNode(`n${String(i + 1).padStart(2, '0')}`, {
-          group: 'g1',
-          status: 'running',
-          startedAt: 1795389740 + i,
-        })
+      i18next.addResourceBundle(
+        'bn',
+        'translation',
+        { mindroomUi: { workflowRun: { panel: { flow: 'প্রবাহ' } } } },
+        true,
+        true
       );
-      const edges = [{ from: 'n01', to: 'n02', count: 2 }];
-      wfStore.ingest(
-        ROOM_ID,
-        AGENT,
-        makeSnapshotFrame({
-          phases: ['Audit'],
-          groups: [
-            { id: 'g1', kind: 'foreach', phase: 0, parent: null, total: 25, done: 0, failed: 0 },
-          ],
-          nodes,
-          edges,
-        }),
-        Date.now()
-      );
-
-      render(
-        <JotaiProvider store={store}>
-          <MatrixClientProvider value={mx}>
-            <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
-          </MatrixClientProvider>
-        </JotaiProvider>
-      );
-      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeTruthy();
-      const edgePaths = () =>
-        document.querySelectorAll('[data-testid="workflow-panel"] > div svg path');
-      expect(edgePaths()).toHaveLength(1);
-
-      // Completing n01 pushes it out of the 24 running visible chips while edges remain identical.
-      act(() => {
-        wfStore.ingest(
-          ROOM_ID,
-          AGENT,
-          {
-            run: RUN,
-            sid: '1795389735000-a1b2c3d4',
-            seq: 2,
-            meta: makeMeta(),
-            delta: {
-              nodes: [{ ...nodes[0]!, status: 'completed', endedAt: 1795389800 }],
-              groups: [
-                {
-                  id: 'g1',
-                  kind: 'foreach',
-                  phase: 0,
-                  parent: null,
-                  total: 25,
-                  done: 1,
-                  failed: 0,
-                },
-              ],
-            },
-          },
-          Date.now()
-        );
+      await act(async () => {
+        await i18next.changeLanguage('bn');
       });
-      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeNull();
-      expect(edgePaths()).toHaveLength(0);
+      const tablistText = screen.getByRole('tablist').textContent ?? '';
+      expect(tablistText).toContain('৪');
+      expect(tablistText).toContain('২');
+      expect(tablistText).toContain('১');
+      expect(tablistText).not.toMatch(/[0-9]/);
 
-      // Expanding the group brings n01 back and restores the measured SVG edge.
-      fireEvent.click(screen.getByRole('button', { name: 'Show 1 more' }));
-      expect(document.querySelector('[data-workflow-chip-id="n01"]')).toBeTruthy();
-      expect(edgePaths()).toHaveLength(1);
+      document.documentElement.dir = 'rtl';
+      fireEvent.keyDown(tabs[3]!, { key: 'ArrowRight' });
+      expect(tabs[2]!.getAttribute('aria-selected')).toBe('true');
     } finally {
-      rectSpy.mockRestore();
+      document.documentElement.dir = previousDir;
+      await act(async () => {
+        i18next.removeResourceBundle('bn', 'translation');
+        await i18next.changeLanguage(previousLanguage);
+      });
     }
+  });
+
+  it('shows omitted notices instead of empty states and hides 0 tab badges when edges or logs were omitted', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [makeNode('n1', { label: 'Check auth', status: 'completed', endedAt: 1795389760 })],
+        edges: [],
+        log: [],
+        omitted: { ...emptyOmitted, edges: 5, log: 3 },
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs[2]!.textContent).toBe('Messages');
+    expect(tabs[3]!.textContent).toBe('Log');
+
+    fireEvent.click(tabs[2]!);
+    expect(screen.queryByText('No messages between steps yet.')).toBeNull();
+    expect(screen.getByText('5 message routes omitted.')).toBeTruthy();
+    expect(screen.getByText('Ask panels for the rest.')).toBeTruthy();
+
+    fireEvent.click(tabs[3]!);
+    expect(screen.queryByText('No log entries yet.')).toBeNull();
+    expect(screen.getByText('3 log entries omitted.')).toBeTruthy();
+  });
+
+  it('resolves session-addressed peer edges in Parallel groups and preserves execution order in folded sequential run groups', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const seqNodes = Array.from({ length: 25 }, (_, i) =>
+      makeNode(`n${i + 10}`, {
+        label: `Seq ${i + 1}`,
+        group: 'g-seq',
+        phase: 1,
+        status: 'completed',
+        endedAt: 1795389800 + i,
+      })
+    );
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit', 'Pipeline'],
+        groups: [
+          { id: 'g1', kind: 'parallel', phase: 0, parent: null, total: 2, done: 2, failed: 0 },
+          { id: 'g-seq', kind: 'run', phase: 1, parent: null, total: 25, done: 25, failed: 0 },
+        ],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            label: 'Reviewer session',
+            name: 'reviewer',
+            phase: 0,
+            status: 'completed',
+            turns: 1,
+            endedAt: 1795389750,
+          }),
+          makeNode('n4', {
+            label: 'Backend scan',
+            name: 'backend',
+            group: 'g1',
+            phase: 0,
+            status: 'completed',
+            endedAt: 1795389760,
+          }),
+          makeNode('n5', {
+            kind: 'turn',
+            label: 'Review pass',
+            name: 'pass-1',
+            group: 'g1',
+            session: 's1',
+            phase: 0,
+            status: 'completed',
+            endedAt: 1795389765,
+          }),
+          ...seqNodes,
+        ],
+        edges: [{ from: 'n4', to: 's1', count: 2 }],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Turn-to-session edge renders as a peer bridge inside g1 and appears in n5's inspector.
+    const parallelGroup = document.querySelector('[data-workflow-group-id="g1"]') as HTMLElement;
+    expect(parallelGroup.querySelector('[dir="ltr"]')?.textContent).toContain(
+      'backend → reviewer · 2'
+    );
+    fireEvent.click(document.querySelector('[data-workflow-chip-id="n5"]') as HTMLElement);
+    const details = document.querySelector('[data-workflow-node-details="n5"]') as HTMLElement;
+    const sessionSection = details.querySelector(
+      '[data-workflow-session-messages="s1"]'
+    ) as HTMLElement;
+    expect(sessionSection).toBeTruthy();
+    expect(within(sessionSection).getByText('@reviewer')).toBeTruthy();
+    expect(within(sessionSection).getByText('Messages from backend: 2')).toBeTruthy();
+
+    // Folded 25-item sequential `run` group keeps its 24 kept items in ascending execution order (n11..n34).
+    const seqGroup = document.querySelector('[data-workflow-group-id="g-seq"]') as HTMLElement;
+    const seqChipIds = Array.from(
+      seqGroup.querySelectorAll<HTMLElement>('[data-workflow-chip-id]'),
+      (el) => el.dataset.workflowChipId
+    );
+    expect(seqChipIds).toHaveLength(24);
+    expect(seqChipIds[0]).toBe('n11');
+    expect(seqChipIds[23]).toBe('n34');
+  });
+
+  it('omits backwards arrows for post-phase unphased steps and shows visible non-color status cues in Steps', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Build'],
+        nodes: [
+          makeNode('n1', {
+            label: 'Compile',
+            phase: 0,
+            status: 'waiting',
+            waitingOn: 'peer',
+          }),
+          makeNode('n2', {
+            label: 'Publish',
+            phase: null,
+            status: 'completed',
+            cached: true,
+            endedAt: 1795389760,
+          }),
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Unphased Publish (n2) appears above Build (n1) without a backwards downward arrow SVG.
+    const flowPanel = screen.getByRole('tabpanel');
+    expect(flowPanel.querySelectorAll('svg')).toHaveLength(0);
+
+    // Steps tab renders visible non-color status cues AND includes Reused in screen-reader status text.
+    fireEvent.click(screen.getAllByRole('tab')[1]!);
+    const compileRow = document.querySelector('[data-workflow-chip-id="n1"]') as HTMLElement;
+    const publishRow = document.querySelector('[data-workflow-chip-id="n2"]') as HTMLElement;
+    expect(within(compileRow).getByText('Waiting for a message')).toBeTruthy();
+    expect(within(publishRow).getByText('Reused from the last run')).toBeTruthy();
+    expect(publishRow.textContent).toContain('(Done, Reused from the last run)');
+  });
+
+  it('waits without rendering empty 0-count tabs when entry summary exists before graph arrives', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const summaryOnlyCard: WorkflowRunCard = {
+      run: RUN,
+      jobId: 'job-wf-live',
+      requester: VIEWER,
+      title: 'Pending graph run',
+      status: 'running',
+      counts: {
+        queued: 1,
+        running: 1,
+        waiting: 0,
+        completed: 0,
+        failed: 0,
+        indeterminate: 0,
+        cached: 0,
+      },
+      usage: { inputTokens: 0, outputTokens: 0, toolCalls: 0, costUnknown: false },
+      phases: ['Audit'],
+      attempt: 1,
+      startedAt: 1795389735,
+      endedAt: null,
+      error: null,
+      large: false,
+    };
+    getWorkflowRunStore(mx).showCard(ROOM_ID, AGENT, summaryOnlyCard, Date.now());
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    expect(screen.getByRole('heading', { name: 'Pending graph run' })).toBeTruthy();
+    expect(screen.queryByRole('tablist')).toBeNull();
+    expect(screen.getByText("Waiting for the run's next update…")).toBeTruthy();
   });
 
   it('shows the node wait reason in the inspector for peer, approval, and user waits', () => {
@@ -1188,5 +1568,532 @@ describe('WorkflowPanel', () => {
     );
     expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Stop agent' })).toBeNull();
+  });
+
+  it('renders Messages tab text, clickable node jumps, omitted.messages, inspector messages, and send->script fallback', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('s1', {
+            kind: 'session',
+            label: 'designer',
+            name: 'designer',
+            status: 'completed',
+            turns: 1,
+            endedAt: 1795389740,
+          }),
+          makeNode('n4', {
+            kind: 'turn',
+            label: 'Design pass',
+            name: 'design-turn',
+            session: 's1',
+            status: 'completed',
+            endedAt: 1795389760,
+          }),
+          makeNode('n5', {
+            kind: 'agent',
+            label: 'Review pass',
+            name: 'reviewer',
+            status: 'completed',
+            endedAt: 1795389770,
+          }),
+        ],
+        messages: [
+          {
+            seq: 1,
+            from: null,
+            fromName: 'script',
+            to: 's1',
+            toName: 'designer',
+            text: 'Use the warm palette.',
+            sentAt: 1795389742,
+          },
+          {
+            seq: 2,
+            from: 'n4',
+            fromName: 'designer',
+            to: 'n5',
+            toName: 'reviewer',
+            text: 'Ready for review.',
+            sentAt: 1795389755,
+          },
+        ],
+        omitted: { ...emptyOmitted, messages: 4 },
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    const tabs = screen.getAllByRole('tab');
+    expect(tabs[2]!.textContent).toBe('Messages 2+');
+
+    fireEvent.click(tabs[2]!);
+    const items = screen.getAllByRole('listitem');
+    expect(items).toHaveLength(2);
+    expect(within(items[0]!).getByText('Use the warm palette.')).toBeTruthy();
+    expect(within(items[0]!).queryByRole('button', { name: 'script' })).toBeNull();
+    expect(items[0]!.querySelector('time')).toBeTruthy();
+    expect(within(items[1]!).getByText('Ready for review.')).toBeTruthy();
+    expect(screen.getByText('4 messages omitted.')).toBeTruthy();
+
+    // Clicking a node endpoint jumps to Flow tab and opens its Inspector with actual message snippets.
+    fireEvent.click(within(items[1]!).getByRole('button', { name: 'designer' }));
+    expect(tabs[0]!.getAttribute('aria-selected')).toBe('true');
+    const details = document.querySelector('[data-workflow-node-details="n4"]') as HTMLElement;
+    expect(within(details).getByText('Ready for review.')).toBeTruthy();
+    const sessionSection = details.querySelector(
+      '[data-workflow-session-messages="s1"]'
+    ) as HTMLElement;
+    expect(within(sessionSection).getByText('Use the warm palette.')).toBeTruthy();
+
+    // Clicking the peer message inside Inspector jumps to reviewer (n5).
+    fireEvent.click(within(details).getByRole('button', { name: /Ready for review\./ }));
+    expect(document.querySelector('[data-workflow-node-details="n5"]')).toBeTruthy();
+  });
+
+  it('falls back to edges with script label for send nodes and renders persisted node.preview after reload without Open', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n8', {
+            kind: 'send',
+            label: 'send -> designer',
+            name: null,
+            status: 'completed',
+            endedAt: 1795389745,
+          }),
+          makeNode('n10', {
+            kind: 'agent',
+            label: 'Design pass',
+            name: 'designer',
+            status: 'completed',
+            run: 'stale-subagent-run',
+            preview: 'Persisted redacted summary.',
+            endedAt: 1795389760,
+          }),
+        ],
+        edges: [{ from: 'n8', to: 'n10', count: 1 }],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Design pass/ }));
+    const details = document.querySelector('[data-workflow-node-details="n10"]') as HTMLElement;
+    expect(details.querySelector('pre')?.textContent).toBe('Persisted redacted summary.');
+    expect(within(details).queryByRole('button', { name: 'Open' })).toBeNull();
+    expect(
+      within(details).getByText('Full transcript is no longer available after reload.')
+    ).toBeTruthy();
+    expect(within(details).getByText('Messages from script: 1')).toBeTruthy();
+
+    fireEvent.click(screen.getAllByRole('tab')[2]!);
+    const routeItem = screen.getByRole('listitem');
+    expect(routeItem.querySelector('[dir="ltr"]')?.textContent).toBe('script → designer');
+  });
+
+  it('keeps Phase 4 spawned turns in Phase 4, puts @session in ChipMeta, uses single odd 3-item join prong, and scrolls Inspector on narrow click', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Phase 3', 'Phase 4'],
+        groups: [
+          { id: 'g3', kind: 'foreach', phase: 0, parent: null, total: 3, done: 3, failed: 0 },
+        ],
+        nodes: [
+          makeNode('n10', {
+            kind: 'session',
+            label: 'designer',
+            name: 'designer',
+            phase: 0,
+            status: 'completed',
+            turns: 2,
+            startedAt: 1795389740,
+            endedAt: 1795389740,
+          }),
+          makeNode('n11', {
+            kind: 'turn',
+            label: 'Propose hero layout',
+            phase: 0,
+            group: 'g3',
+            session: 'n10',
+            status: 'completed',
+            endedAt: 1795389750,
+          }),
+          makeNode('n12', {
+            kind: 'agent',
+            label: 'Check accessibility',
+            phase: 0,
+            group: 'g3',
+            status: 'completed',
+            endedAt: 1795389751,
+          }),
+          makeNode('n13', {
+            kind: 'agent',
+            label: 'Audit performance',
+            phase: 0,
+            group: 'g3',
+            status: 'completed',
+            endedAt: 1795389752,
+          }),
+          makeNode('n15', {
+            kind: 'turn',
+            label: 'Polish final copy',
+            phase: 1,
+            group: null,
+            session: 'n10',
+            status: 'completed',
+            endedAt: 1795389765,
+          }),
+        ],
+      }),
+      Date.now()
+    );
+
+    const scrollIntoView = vi.fn();
+    let splitWidth = 420;
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => ({
+      width: splitWidth,
+      height: 400,
+      top: 0,
+      left: 0,
+      right: splitWidth,
+      bottom: 400,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }));
+    const origScrollIntoView = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      render(
+        <JotaiProvider store={store}>
+          <MatrixClientProvider value={mx}>
+            <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+          </MatrixClientProvider>
+        </JotaiProvider>
+      );
+
+      // Phase 4 turn stays in Phase 4 section and redundant 0s session n10 is omitted.
+      expect(document.querySelector('[data-workflow-chip-id="n10"]')).toBeNull();
+      const phase4Heading = screen.getByRole('heading', { name: 'Phase 4' });
+      const phase4Section = phase4Heading.closest('section') as HTMLElement;
+      expect(within(phase4Section).getByRole('button', { name: /Polish final copy/ })).toBeTruthy();
+
+      // @designer badge lives in ChipMeta (2nd span child of chip), NOT inside ChipTop (1st span child).
+      const turn11 = document.querySelector('[data-workflow-chip-id="n11"]') as HTMLElement;
+      const chipTop = turn11.children[0] as HTMLElement;
+      const chipMeta = turn11.children[1] as HTMLElement;
+      expect(chipTop.textContent).not.toContain('@designer');
+      expect(chipMeta.textContent).toContain('@designer');
+
+      // 3-item For each join SVG renders a single left-to-center curve in its 2-column mid group.
+      const groupEl = document.querySelector('[data-workflow-group-id="g3"]') as HTMLElement;
+      const svgs = groupEl.querySelectorAll('svg');
+      const joinSvg = svgs[svgs.length - 1]!;
+      const twoMidGroup = joinSvg.querySelectorAll('g')[1]!;
+      const midPaths = Array.from(twoMidGroup.querySelectorAll('path'), (p) => p.getAttribute('d'));
+      expect(midPaths).toEqual(['M 25 0 C 25 9, 50 9, 50 18']);
+
+      // Clicking Phase 3 turn highlights Phase 4 sibling turn AND smoothly scrolls Inspector in narrow view.
+      fireEvent.click(turn11);
+      const turn15 = document.querySelector('[data-workflow-chip-id="n15"]') as HTMLElement;
+      expect(turn15.dataset.sessionHighlighted).toBe('true');
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' });
+
+      // Reduced-motion preference scrolls with behavior: 'auto'.
+      scrollIntoView.mockClear();
+      const origMatchMedia = window.matchMedia;
+      window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as typeof window.matchMedia;
+      try {
+        fireEvent.click(turn15);
+        expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'auto', block: 'nearest' });
+      } finally {
+        window.matchMedia = origMatchMedia;
+      }
+
+      // Wide split (>= 36rem) does NOT scroll Inspector on click.
+      scrollIntoView.mockClear();
+      splitWidth = 720;
+      fireEvent.click(turn11);
+      expect(scrollIntoView).not.toHaveBeenCalled();
+    } finally {
+      Element.prototype.scrollIntoView = origScrollIntoView;
+    }
+  });
+
+  it('keeps uncovered Inspector edge links for broadcasts (to: null) and aged-out messages', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    getWorkflowRunStore(mx).ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes: [
+          makeNode('n1', {
+            label: 'Early step',
+            name: 'early',
+            status: 'completed',
+            endedAt: 1795389741,
+          }),
+          makeNode('n2', {
+            label: 'Second step',
+            name: 'second',
+            status: 'completed',
+            endedAt: 1795389742,
+          }),
+          makeNode('n4', {
+            label: 'Backend',
+            name: 'backend',
+            status: 'completed',
+            endedAt: 1795389750,
+          }),
+          makeNode('n5', {
+            label: 'Frontend',
+            name: 'frontend',
+            status: 'completed',
+            endedAt: 1795389755,
+          }),
+        ],
+        edges: [
+          { from: 'n1', to: 'n2', count: 2 },
+          { from: 'n4', to: 'n5', count: 1 },
+        ],
+        messages: [
+          {
+            seq: 51,
+            from: 'n4',
+            fromName: 'backend',
+            to: null,
+            toName: 'all',
+            text: 'Broadcast schema update.',
+            sentAt: 1795389752,
+          },
+        ],
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    // Broadcast sender keeps both the broadcast message and its uncovered aggregate edge link.
+    fireEvent.click(screen.getByRole('button', { name: /Backend/ }));
+    const n4Details = document.querySelector('[data-workflow-node-details="n4"]') as HTMLElement;
+    expect(within(n4Details).getByText('Broadcast schema update.')).toBeTruthy();
+    expect(within(n4Details).getByText('Messages to frontend: 1')).toBeTruthy();
+
+    // Recipient of broadcast still sees the uncovered incoming edge link.
+    fireEvent.click(within(n4Details).getByRole('button', { name: 'Messages to frontend: 1' }));
+    const n5Details = document.querySelector('[data-workflow-node-details="n5"]') as HTMLElement;
+    expect(within(n5Details).getByText('Messages from backend: 1')).toBeTruthy();
+
+    // Early node whose messages aged out of the 50-message window still shows its aggregate edge link.
+    fireEvent.click(screen.getByRole('button', { name: /Early step/ }));
+    const n1Details = document.querySelector('[data-workflow-node-details="n1"]') as HTMLElement;
+    expect(within(n1Details).getByText('Messages to second: 2')).toBeTruthy();
+  });
+
+  it('computes Messages tab + suffix accurately for broadcasts, omitted messages, and edge-only fallbacks, keeps partial route counts, and focuses labeled Inspector on jump', () => {
+    const { mx, room } = makeClient();
+    const store = createStore();
+    const wfStore = getWorkflowRunStore(mx);
+    const nodes = [
+      makeNode('n1', {
+        label: 'Backend',
+        name: 'backend',
+        status: 'completed',
+        endedAt: 1795389760,
+      }),
+      makeNode('n2', {
+        label: 'Frontend',
+        name: 'frontend',
+        status: 'completed',
+        endedAt: 1795389765,
+      }),
+      makeNode('n3', { label: 'QA', name: 'qa', status: 'completed', endedAt: 1795389766 }),
+    ];
+
+    // 1 broadcast message to 2 recipients (2 edges) with omitted.messages === 0 shows 'Messages 1' (no '+').
+    wfStore.ingest(
+      ROOM_ID,
+      AGENT,
+      makeSnapshotFrame({
+        phases: ['Audit'],
+        nodes,
+        edges: [
+          { from: 'n1', to: 'n2', count: 1 },
+          { from: 'n1', to: 'n3', count: 1 },
+        ],
+        messages: [
+          {
+            seq: 1,
+            from: 'n1',
+            fromName: 'backend',
+            to: null,
+            toName: 'all',
+            text: 'Broadcast schema.',
+            sentAt: 1795389750,
+          },
+        ],
+        omitted: emptyOmitted,
+      }),
+      Date.now()
+    );
+
+    render(
+      <JotaiProvider store={store}>
+        <MatrixClientProvider value={mx}>
+          <WorkflowPanel room={room} run={RUN} threadId={null} onClose={() => undefined} />
+        </MatrixClientProvider>
+      </JotaiProvider>
+    );
+
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 1');
+
+    // Broadcast + direct message to n2 (edge count 2, 1 matching preview) keeps aggregate route count 2 in n2 Inspector.
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes,
+            edges: [
+              { from: 'n1', to: 'n2', count: 2 },
+              { from: 'n1', to: 'n3', count: 1 },
+            ],
+            messages: [
+              {
+                seq: 1,
+                from: 'n1',
+                fromName: 'backend',
+                to: null,
+                toName: 'all',
+                text: 'Broadcast schema.',
+                sentAt: 1795389750,
+              },
+              {
+                seq: 2,
+                from: 'n1',
+                fromName: 'backend',
+                to: 'n2',
+                toName: 'frontend',
+                text: 'Direct follow-up.',
+                sentAt: 1795389755,
+              },
+            ],
+            omitted: emptyOmitted,
+          },
+          {},
+          2
+        ),
+        Date.now() + 5
+      );
+    });
+
+    // Ordinary Flow chip click keeps focus on the clicked chip (does not steal focus to Inspector).
+    const backendChip = screen.getByRole('button', { name: /Backend/ });
+    backendChip.focus();
+    fireEvent.click(backendChip);
+    expect(document.activeElement).toBe(backendChip);
+
+    // Explicit jump from Messages tab moves focus to the labeled Inspector container.
+    fireEvent.click(screen.getAllByRole('tab')[2]!);
+    fireEvent.click(screen.getByRole('button', { name: 'frontend' }));
+    const n2Inspector = document.querySelector('[data-workflow-node-details="n2"]') as HTMLElement;
+    expect(n2Inspector.getAttribute('tabindex')).toBe('-1');
+    expect(n2Inspector.getAttribute('aria-labelledby')).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: 'Frontend' })).toBe(n2Inspector);
+    expect(document.activeElement).toBe(n2Inspector);
+    expect(within(n2Inspector).getByText('Direct follow-up.')).toBeTruthy();
+    expect(within(n2Inspector).getByText('Messages from backend: 2')).toBeTruthy();
+
+    // 50 retained messages with omitted.messages === 1 renders 'Messages 50+'.
+    const fiftyMessages = Array.from({ length: 50 }, (_, i) => ({
+      seq: i + 2,
+      from: 'n1',
+      fromName: 'backend',
+      to: 'n2',
+      toName: 'frontend',
+      text: `msg-${i + 2}`,
+      sentAt: 1795389740 + i,
+    }));
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes,
+            edges: [{ from: 'n1', to: 'n2', count: 51 }],
+            messages: fiftyMessages,
+            omitted: { ...emptyOmitted, messages: 1 },
+          },
+          {},
+          3
+        ),
+        Date.now() + 10
+      );
+    });
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 50+');
+
+    // Edge-only fallback with omitted.edges === 0 and omitted.messages === 2 does not append '+'.
+    act(() => {
+      wfStore.ingest(
+        ROOM_ID,
+        AGENT,
+        makeSnapshotFrame(
+          {
+            phases: ['Audit'],
+            nodes,
+            edges: [{ from: 'n1', to: 'n2', count: 3 }],
+            messages: [],
+            omitted: { ...emptyOmitted, edges: 0, messages: 2 },
+          },
+          {},
+          4
+        ),
+        Date.now() + 20
+      );
+    });
+    expect(screen.getAllByRole('tab')[2]!.textContent).toBe('Messages 3');
   });
 });

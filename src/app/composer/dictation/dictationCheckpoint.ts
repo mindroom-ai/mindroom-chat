@@ -74,10 +74,10 @@ export type SerializableDictationState = {
 };
 
 export type DictationCheckpointer = {
-  checkpointState: (pruned?: readonly number[], clearAllTail?: boolean) => Promise<void>;
+  checkpointState: (clearAllTail?: boolean) => Promise<void>;
   pushTailFrame: (frame: Float32Array, pos: number) => void;
   flushTailBuffer: () => void;
-  commitSegment: (segment: DictationSegment, pruned: readonly number[]) => void;
+  commitSegment: (segment: DictationSegment) => void;
   clearTailState: () => void;
   resetTailState: () => void;
   getJournalId: () => string | undefined;
@@ -97,7 +97,6 @@ export type PreparedDictationRecovery = {
   records: RecoveredDictationRecord[];
   groups: RefinementGroup[];
   tailSegments: DictationSegment[];
-  prunedOnSeal: number[];
   effectiveElapsedMs: number;
   initialSegmentIndex: number;
   initialActiveFrames: number;
@@ -176,15 +175,9 @@ export const createDictationCheckpointer = (
   const buildJournalMeta = (): DictationJournalMeta =>
     serializeDictationMeta({ ...readState(), consumedThroughFramePos: lastConsumedFramePos });
 
-  const checkpointState = (pruned?: readonly number[], clearAllTail?: boolean): Promise<void> => {
+  const checkpointState = (clearAllTail?: boolean): Promise<void> => {
     if (!journal) return Promise.resolve();
-    return journal
-      .updateState(
-        buildJournalMeta(),
-        pruned && pruned.length > 0 ? pruned : undefined,
-        clearAllTail
-      )
-      .catch(() => undefined);
+    return journal.updateState(buildJournalMeta(), undefined, clearAllTail).catch(() => undefined);
   };
 
   const flushTailBuffer = () => {
@@ -224,7 +217,7 @@ export const createDictationCheckpointer = (
       if (tailFrames.length >= TAIL_CHECKPOINT_FRAMES) flushTailBuffer();
     },
     flushTailBuffer,
-    commitSegment: (segment, pruned) => {
+    commitSegment: (segment) => {
       pruneTailBufferThrough(segment.consumedThroughFramePos);
       if (segment.consumedThroughFramePos !== undefined) {
         lastConsumedFramePos = segment.consumedThroughFramePos;
@@ -234,9 +227,6 @@ export const createDictationCheckpointer = (
       void journal
         .commitSegment(segment.index, segment.wavBuffer, journalMeta)
         .catch(() => undefined);
-      if (pruned.length > 0) {
-        void journal.updateState(journalMeta, pruned).catch(() => undefined);
-      }
       if (segment.cutReason === 'hard' && tailFrames.length > 0) flushTailBuffer();
     },
     clearTailState: () => {
@@ -437,14 +427,13 @@ export const prepareRecoveredDictation = async (
     loadVad,
   });
 
-  const prunedOnSeal: number[] = [];
   for (const seg of tailSegments) {
     const { wav, wavBuffer: _wavBuffer, consumedThroughFramePos: _pos, ...segMeta } = seg;
     records.push({ segment: segMeta, wav, status: 'queued', retryable: true });
-    appendSegmentToGroups(groups, records, prunedOnSeal);
+    appendSegmentToGroups(groups, records);
   }
   for (const group of groups) {
-    if (group.state === 'open') sealRefinementGroup(group, records, prunedOnSeal);
+    if (group.state === 'open') sealRefinementGroup(group, records);
   }
 
   const summary = summarizeSessionRecords(records, groups);
@@ -460,7 +449,6 @@ export const prepareRecoveredDictation = async (
     records,
     groups,
     tailSegments,
-    prunedOnSeal,
     effectiveElapsedMs,
     initialSegmentIndex: records.length,
     initialActiveFrames,
@@ -477,20 +465,14 @@ export const persistRecoveredTail = (
   journal: DictationJournalHandle,
   state: SerializableDictationState,
   tailSegments: readonly DictationSegment[],
-  tailChunkCount: number,
-  prunedOnSeal: readonly number[]
+  tailChunkCount: number
 ): void => {
-  if (tailSegments.length === 0 && tailChunkCount === 0 && prunedOnSeal.length === 0) return;
+  if (tailSegments.length === 0 && tailChunkCount === 0) return;
   const recoveredMeta = serializeDictationMeta(state);
   const putSegments = tailSegments
     .filter((seg): seg is DictationSegment & { wavBuffer: ArrayBuffer } => Boolean(seg.wavBuffer))
     .map((seg) => ({ index: seg.index, wav: seg.wavBuffer }));
   void journal
-    .updateState(
-      recoveredMeta,
-      prunedOnSeal.length > 0 ? prunedOnSeal : undefined,
-      true,
-      putSegments.length > 0 ? putSegments : undefined
-    )
+    .updateState(recoveredMeta, undefined, true, putSegments.length > 0 ? putSegments : undefined)
     .catch(() => undefined);
 };

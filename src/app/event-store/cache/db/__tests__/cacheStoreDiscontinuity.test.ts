@@ -8,10 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,
+  loadRoomTailDiscontinuities,
   loadRoomTailDiscontinuity,
   markRoomTailDiscontinuity,
 } from '../cacheStoreDiscontinuity';
 import { resetCacheStoreForTesting } from '../cacheStoreDb';
+import { updateRoomOfflineProgress } from '../cacheStoreMeta';
+import { saveThreadEventsToCache } from '../cacheStoreEvents';
 
 const SESSION_ID = 'session-p32';
 const ROOM_ID = '!room:example.org';
@@ -191,6 +194,57 @@ describe('cacheStoreDiscontinuity (ISSUE-207 P3.2)', () => {
       markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, { markedAt: 1000 })
     ).rejects.toThrow('unavailable');
     await expect(loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).rejects.toThrow('unavailable');
+    await expect(loadRoomTailDiscontinuities(SESSION_ID, [ROOM_ID])).rejects.toThrow('unavailable');
     await expect(clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).rejects.toThrow('unavailable');
+  });
+
+  it('reads only requested room-scope discontinuity keys in one meta readonly transaction', async () => {
+    await markRoomTailDiscontinuity(SESSION_ID, '!r1:example.org', {
+      markedAt: 1000,
+      prevBatch: 'b1',
+    });
+    await markRoomTailDiscontinuity(SESSION_ID, '!left:example.org', {
+      markedAt: 2000,
+      prevBatch: 'b-left',
+    });
+    await updateRoomOfflineProgress(SESSION_ID, '!r2:example.org', { opened: true });
+    const rootEvent = {
+      event_id: '$root',
+      room_id: '!r1:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+      origin_server_ts: 1,
+      content: { msgtype: 'm.text', body: 'thread root payload' },
+    };
+    await saveThreadEventsToCache(
+      SESSION_ID,
+      '!r1:example.org',
+      '$root',
+      [{ ...rootEvent, event_id: '$reply', origin_server_ts: 2 }],
+      rootEvent
+    );
+
+    const txSpy = vi.spyOn(IDBDatabase.prototype, 'transaction');
+    const getAllSpy = vi.spyOn(IDBObjectStore.prototype, 'getAll');
+    const getSpy = vi.spyOn(IDBObjectStore.prototype, 'get');
+
+    expect((await loadRoomTailDiscontinuities(SESSION_ID, [])).size).toBe(0);
+    expect(txSpy).not.toHaveBeenCalled();
+
+    const markers = await loadRoomTailDiscontinuities(SESSION_ID, [
+      '!r1:example.org',
+      '!r2:example.org',
+      '!r1:example.org',
+    ]);
+
+    expect(txSpy).toHaveBeenCalledTimes(1);
+    expect(txSpy.mock.calls[0]?.slice(0, 2)).toEqual(['meta', 'readonly']);
+    expect(getAllSpy).not.toHaveBeenCalled();
+    expect(getSpy.mock.calls.map(([key]) => key)).toEqual(['!r1:example.org|', '!r2:example.org|']);
+    expect(Array.from(markers.entries())).toEqual([
+      ['!r1:example.org', { markedAt: 1000, prevBatch: 'b1' }],
+    ]);
+    await clearRoomTailDiscontinuity(SESSION_ID, '!r1:example.org');
+    await clearRoomTailDiscontinuity(SESSION_ID, '!left:example.org');
   });
 });

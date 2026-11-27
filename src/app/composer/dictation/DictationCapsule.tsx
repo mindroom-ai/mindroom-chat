@@ -5,6 +5,7 @@ import { millisecondsToMinutesAndSeconds } from '../../lib/common';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../ui/glass/liquid/useLiquidGlass';
 import { useLiveCaptureCapsuleVisible } from '../capture/useLiveCaptureCapsuleVisible';
+import { VoiceMessageIcon } from '../voice/VoiceMessageIcon';
 import { CapsuleControlButton, RecordingCapsule } from '../voice/VoiceRecordingCapsule';
 import * as voiceCss from '../voice/VoiceRecordingCapsule.css';
 import * as css from './DictationCapsule.css';
@@ -18,7 +19,9 @@ export type DictationCapsuleProps = {
   onPause: () => void;
   onResume: () => void;
   onFinish: () => void;
-  onRetry: () => void;
+  onRetry?: () => void;
+  onVoiceFallback?: () => void;
+  voiceFallbackPending?: boolean;
   onInsertPartial: () => void;
   onDiscard: () => void;
   onDismissError: () => void;
@@ -52,6 +55,8 @@ export function DictationCapsule({
   onResume,
   onFinish,
   onRetry,
+  onVoiceFallback,
+  voiceFallbackPending = false,
   onInsertPartial,
   onDiscard,
   onDismissError,
@@ -66,6 +71,7 @@ export function DictationCapsule({
     pendingUploads,
     failedSegments,
     hasPartialText,
+    hasVoiceAudio,
     previewText,
     capReached,
     interrupted,
@@ -135,11 +141,38 @@ export function DictationCapsule({
               {detail}
             </Text>
             <div className={css.RecoveryActions}>
-              <Button size="300" radii="300" variant="Primary" onClick={onRetry}>
-                <Text size="B300">
-                  {sending ? t('composer.dictation.retryAndSend') : t('composer.dictation.retry')}
-                </Text>
-              </Button>
+              {onRetry && (
+                <Button
+                  size="300"
+                  radii="300"
+                  variant="Primary"
+                  className={css.RecoveryButton}
+                  onClick={onRetry}
+                >
+                  <Text size="B300">
+                    {sending ? t('composer.dictation.retryAndSend') : t('composer.dictation.retry')}
+                  </Text>
+                </Button>
+              )}
+              {hasVoiceAudio && onVoiceFallback && (
+                <Button
+                  size="300"
+                  radii="300"
+                  variant="Secondary"
+                  fill="Soft"
+                  outlined
+                  className={css.RecoveryButton}
+                  disabled={voiceFallbackPending}
+                  before={<Icon size="50" src={VoiceMessageIcon} aria-hidden="true" />}
+                  onClick={onVoiceFallback}
+                >
+                  <Text size="B300">
+                    {sending
+                      ? t('composer.dictation.sendAsVoice')
+                      : t('composer.dictation.attachAsVoice')}
+                  </Text>
+                </Button>
+              )}
               {hasPartialText && (
                 <Button
                   size="300"
@@ -147,6 +180,7 @@ export function DictationCapsule({
                   variant="Secondary"
                   fill="Soft"
                   outlined
+                  className={css.RecoveryButton}
                   onClick={onInsertPartial}
                 >
                   <Text size="B300">{t('composer.dictation.insertPartial')}</Text>
@@ -158,6 +192,7 @@ export function DictationCapsule({
                 variant="Critical"
                 fill="Soft"
                 outlined
+                className={css.RecoveryButton}
                 onClick={onDiscard}
               >
                 <Text size="B300">{t('composer.dictation.discard')}</Text>
@@ -227,14 +262,16 @@ export function DictationCapsule({
             )}
           </CapsuleControlButton>
         }
+        bottom={
+          subtleStatus ? (
+            <Text size="T200" className={css.StatusNote}>
+              {subtleStatus}
+            </Text>
+          ) : null
+        }
         statusText={subtleStatus ?? t(getScreenReaderStatusKey(phase, sending, recovered))}
         statusRole="status"
       />
-      {subtleStatus && (
-        <Text size="T200" className={css.StatusNote}>
-          {subtleStatus}
-        </Text>
-      )}
     </div>
   );
 }

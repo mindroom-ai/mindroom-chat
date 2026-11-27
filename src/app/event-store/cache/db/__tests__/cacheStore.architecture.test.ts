@@ -45,9 +45,20 @@ const readSource = (file: string): string => readFileSync(file, 'utf8');
 
 describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
   it('(c) render components do not import cacheStore directly', () => {
-    // RoomTimeline.tsx: the timeline render component.
-    const timelineSource = readSource(path.resolve(APP_ROOT, 'timeline/RoomTimeline.tsx'));
-    expect(timelineSource).not.toContain('/cache/db');
+    // Timeline surface render components and live-end modules.
+    for (const relativeFile of [
+      'timeline/RoomTimeline.tsx',
+      'timeline/ThreadTimeline.tsx',
+      'timeline/RoomSurface.tsx',
+      'timeline/CompactRoomSurface.tsx',
+      'timeline/RoomRowsTimeline.tsx',
+      'timeline/TimelineViewport.tsx',
+      'timeline/timelineLiveEnd.ts',
+      'timeline/timelineListShrink.ts',
+    ]) {
+      const timelineSource = readSource(path.resolve(APP_ROOT, relativeFile));
+      expect(timelineSource, `${relativeFile} imports /cache/db`).not.toContain('/cache/db');
+    }
 
     // Render sources under messages/**. Tests may wire the store
     // directly, and attachmentRepository is the non-React transport owner.
@@ -95,6 +106,7 @@ describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
         path.resolve(APP_ROOT, 'event-store/engine', 'gapFillExecutor.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'deepHistoryJob.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'syncEngine.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'liveWriteQueue.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'roomOffline.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'engineWriteThrough.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'enginePersistFacade.ts'),

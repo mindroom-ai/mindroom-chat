@@ -59,6 +59,7 @@ import {
   getMountedOwner,
   mergeDictatedDoc,
   registerMountedDictationOwner,
+  type CreateVoiceUploadItems,
 } from './dictationSendHandoff';
 import type {
   DictationSession,
@@ -88,6 +89,8 @@ export type UseRoomInputDictationOptions = {
   containerRef?: RefObject<HTMLElement | null>;
   createSession?: (opts: DictationSessionOptions) => DictationSession;
   onCommandProblem?: (problem: string) => void;
+  prepareVoiceUploadItems?: CreateVoiceUploadItems;
+  appendAttachments?: (roomId: string, items: TUploadItem[]) => void;
   restoreAttachments?: (roomId: string, items: TUploadItem[]) => void;
   restoreReplyDraft?: (replyDraft: IReplyDraft) => void;
   saveDraft?: () => void;
@@ -138,6 +141,7 @@ const IDLE_SNAPSHOT: DictationSnapshot = {
   failedSegments: 0,
   completedSegments: 0,
   hasPartialText: false,
+  hasVoiceAudio: false,
   previewText: '',
   capReached: false,
   interrupted: false,
@@ -171,11 +175,7 @@ const matchesOriginApiUrl = (
 const onDictationShortcutCapture = (event: KeyboardEvent): void => {
   if (event.defaultPrevented || event.repeat || isComposingKey(event)) return;
   if (!matchesShortcut(event, 'dictate')) return;
-  if (
-    computerOwnsKeyboardEvent(event) ||
-    computerOwnsKeyboardFocus() ||
-    openOverlay() !== 'none'
-  ) {
+  if (computerOwnsKeyboardEvent(event) || computerOwnsKeyboardFocus() || openOverlay() !== 'none') {
     return;
   }
 
@@ -249,6 +249,8 @@ export const useRoomInputDictation = ({
   containerRef,
   createSession,
   onCommandProblem,
+  prepareVoiceUploadItems,
+  appendAttachments,
   restoreAttachments,
   restoreReplyDraft,
   saveDraft,
@@ -258,7 +260,8 @@ export const useRoomInputDictation = ({
   const mx = useOptionalMatrixClient();
   const userId = mx?.getUserId() ?? undefined;
   const sessionId = getDictationSessionId(mx);
-  const { available, confirmed, apiUrl, sessions } = useDictationServer(roomId);
+  const { available, confirmed, temporarilyUnavailable, apiUrl, sessions } =
+    useDictationServer(roomId);
   const detachedSends = useAtomValue(detachedDictationSendsAtom);
   const detachedEntry = detachedSends.get(sendKey);
   const liveCapture = useAtomValue(liveCaptureAtom);
@@ -268,9 +271,14 @@ export const useRoomInputDictation = ({
   const voiceDraftRestores = useAtomValue(voiceDraftRestoresAtom);
   const discardInFlight = useAtomValue(captureDiscardsInFlightAtom) > 0;
   const [localNotice, setLocalNotice] = useState<string>();
+  const [voiceFallbackPending, setVoiceFallbackPending] = useState(false);
+  const [voiceFallbackError, setVoiceFallbackError] = useState<string>();
   const [discardTarget, setDiscardTarget] = useState<DiscardTarget>();
   const discardDialogWasMountedRef = useRef(false);
   const discardTargetRef = useLatestRef(discardTarget);
+  const voiceFallbackPendingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const activeSendKeyRef = useLatestRef(sendKey);
 
   const selectionRef = useRef<SessionSelectionRef | null>(null);
   const finishingSessionRef = useRef<DictationSession | null>(null);
@@ -279,11 +287,20 @@ export const useRoomInputDictation = ({
   const callbacksRef = useLatestRef({
     createSession,
     onCommandProblem,
+    prepareVoiceUploadItems,
+    appendAttachments,
     restoreAttachments,
     restoreReplyDraft,
     saveDraft,
     t,
   });
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const showingLive = detachedEntry === undefined && liveSession !== undefined;
   const displaySession = detachedEntry?.session ?? liveSession;
@@ -348,7 +365,12 @@ export const useRoomInputDictation = ({
     if (!liveSession && !finishingSessionRef.current && !discardTargetRef.current) {
       shouldRestoreFocusRef.current = false;
     }
+    setVoiceFallbackError(undefined);
   }, [clearSelectionRef, discardTargetRef, liveSession]);
+
+  useEffect(() => {
+    if (livePhase !== 'failed') setVoiceFallbackError(undefined);
+  }, [livePhase]);
 
   // Lazy client binding for recovered live or failed detached sessions whose server matches
   // (or had no fixed origin). Checks all detached sends for this account so opening another room
@@ -591,6 +613,69 @@ export const useRoomInputDictation = ({
     completeLiveDictation(current, 'retry');
   }, [completeLiveDictation, getLiveDictationSession]);
 
+  const handleAttachAsVoice = async () => {
+    if (voiceFallbackPendingRef.current) return;
+    const prepareItems = callbacksRef.current.prepareVoiceUploadItems;
+    const appendItems = callbacksRef.current.appendAttachments;
+    if (!prepareItems || !appendItems) return;
+    const current = getLiveDictationSession();
+    if (!current || current.getSnapshot().phase !== 'failed') return;
+
+    voiceFallbackPendingRef.current = true;
+    setVoiceFallbackPending(true);
+    setVoiceFallbackError(undefined);
+    const sameAccount = captureAccountGuard(store);
+    const isStillActiveTarget = () =>
+      sameAccount() &&
+      mountedRef.current &&
+      activeSendKeyRef.current === sendKey &&
+      store.get(liveCaptureAtom)?.session === current &&
+      current.getSnapshot().phase === 'failed';
+    try {
+      const voiceAudio = await current.buildVoiceAudio();
+      if (!isStillActiveTarget()) return;
+      if (!voiceAudio) {
+        setVoiceFallbackError('Could not prepare voice message.');
+        return;
+      }
+      const items = await prepareItems(voiceAudio.file, voiceAudio.duration, voiceAudio.waveform);
+      const failedItem = items.find((item) => item.prepError);
+      if (failedItem?.prepError) throw failedItem.prepError;
+      if (items.length === 0) throw new Error('Could not prepare voice message.');
+      if (!isStillActiveTarget()) return;
+
+      appendItems(roomId, items);
+      const shouldFocus = consumeRestoreFocus();
+      const savedSelection = consumeSelectionRef(current);
+      if (voiceAudio.missingAudioPartialText) {
+        if (
+          insertDictatedText(editor, voiceAudio.missingAudioPartialText, savedSelection, {
+            focus: shouldFocus,
+          })
+        ) {
+          callbacksRef.current.saveDraft?.();
+        }
+      } else if (shouldFocus) {
+        focusEditor();
+      }
+
+      const { journalId } = current.completeVoiceFallback();
+      if (journalId) void deleteCapture(journalId).catch(() => undefined);
+      clearLiveCapture(store, current);
+    } catch (error) {
+      if (isStillActiveTarget()) {
+        setVoiceFallbackError(
+          error instanceof Error && error.message.trim()
+            ? error.message.trim()
+            : 'Could not prepare voice message.'
+        );
+      }
+    } finally {
+      voiceFallbackPendingRef.current = false;
+      if (mountedRef.current) setVoiceFallbackPending(false);
+    }
+  };
+
   const handleInsertPartial = useCallback(() => {
     const current = getLiveDictationSession();
     if (!current) return;
@@ -751,10 +836,13 @@ export const useRoomInputDictation = ({
     liveCapture !== undefined ||
     voiceAutoSendPending ||
     restoresPending();
-  const label = t('composer.dictation.label');
+  const label = temporarilyUnavailable
+    ? t('composer.dictation.temporarilyUnavailable')
+    : t('composer.dictation.label');
+  const shortcut = temporarilyUnavailable ? undefined : ('dictate' as const);
 
   const button = available ? (
-    <IconTooltip label={label} position="Top" shortcut="dictate">
+    <IconTooltip label={label} position="Top" shortcut={shortcut}>
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
@@ -779,7 +867,7 @@ export const useRoomInputDictation = ({
           disabled={disabled}
           aria-label={label}
           aria-pressed={active}
-          {...shortcutAttributes('dictate')}
+          {...shortcutAttributes(shortcut)}
           className={ComposerIconButton}
         >
           <Icon src={Icons.Mic} />
@@ -788,14 +876,26 @@ export const useRoomInputDictation = ({
     </IconTooltip>
   ) : null;
 
+  const detachedTargetMismatch = detachedEntry !== undefined && detachedEntry.roomId !== roomId;
   const capsuleSnapshot: DictationSnapshot = detachedEntry
     ? {
         ...displaySnapshot,
         phase: detachedEntry.status === 'failed' ? 'failed' : 'finishing',
+        ...(detachedEntry.status === 'failed' && detachedTargetMismatch
+          ? {
+              errorMessage: t('composer.dictation.sendFailedOffTarget', {
+                room: detachedEntry.roomName,
+              }),
+            }
+          : detachedEntry.errorMessage !== undefined
+            ? { errorMessage: detachedEntry.errorMessage }
+            : {}),
       }
-    : localNotice && displaySnapshot.phase === 'idle' && !displaySnapshot.errorMessage
-      ? { ...displaySnapshot, errorMessage: localNotice }
-      : displaySnapshot;
+    : voiceFallbackError && displaySnapshot.phase === 'failed'
+      ? { ...displaySnapshot, errorMessage: voiceFallbackError }
+      : localNotice && displaySnapshot.phase === 'idle' && !displaySnapshot.errorMessage
+        ? { ...displaySnapshot, errorMessage: localNotice }
+        : displaySnapshot;
 
   const showCapsule =
     capsuleSnapshot.phase !== 'idle' || capsuleSnapshot.errorMessage !== undefined;
@@ -815,7 +915,25 @@ export const useRoomInputDictation = ({
             onPause={handlePause}
             onResume={handleResume}
             onFinish={handleFinish}
-            onRetry={detachedEntry ? detachedEntry.retryAndSend : handleRetry}
+            onRetry={
+              detachedEntry
+                ? detachedTargetMismatch
+                  ? undefined
+                  : detachedEntry.retryAndSend
+                : handleRetry
+            }
+            onVoiceFallback={
+              detachedEntry
+                ? detachedTargetMismatch
+                  ? undefined
+                  : detachedEntry.sendAsVoice
+                : prepareVoiceUploadItems && appendAttachments
+                  ? () => {
+                      void handleAttachAsVoice();
+                    }
+                  : undefined
+            }
+            voiceFallbackPending={!detachedEntry && voiceFallbackPending}
             onInsertPartial={detachedEntry ? detachedEntry.insertPartial : handleInsertPartial}
             onDiscard={detachedEntry ? handleRequestDiscardDetached : handleRequestDiscardLive}
             onDismissError={handleDismissError}

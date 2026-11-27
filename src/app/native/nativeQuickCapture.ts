@@ -22,6 +22,9 @@ export class ScreenshotError extends Error {
 
 export const isNativeQuickCaptureAvailable = (): boolean => Boolean(desktopBridge()?.quickCapture);
 
+export const hasQuickCaptureVibrancy = (): boolean =>
+  Boolean(desktopBridge()?.quickCapture?.vibrancy);
+
 export const isNativeScreenshotAvailable = (): boolean =>
   Boolean(desktopBridge()?.quickCapture?.captureScreenshot);
 

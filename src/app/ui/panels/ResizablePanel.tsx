@@ -12,9 +12,11 @@ import {
   animatePanel,
   currentPanelSize,
   layoutParentOf,
+  measureFullRowWidth,
   panelGap,
   type PanelPhase,
   type PanelRegistration,
+  useJustFilled,
   usePanelPresence,
 } from './panelPresence';
 import { PanelFrameStrip } from './PanelFrame';
@@ -25,7 +27,8 @@ import * as css from './ResizablePanel.css';
 /** The narrowest a resizable panel settles at, unless its row is narrower still. */
 export const MIN_WIDTH = 200;
 const MAX_WIDTH = 600;
-const COLLAPSE_WIDTH = MIN_WIDTH - 40;
+/** How far past its narrowest a drag goes before its release collapses the panel. */
+const COLLAPSE_PAST = 40;
 /** How far past its widest a drag goes before its release fills the content's place. */
 const EXPAND_PAST = 40;
 /** The conversation column keeps at least this much room beside a resizable side panel. */
@@ -163,27 +166,33 @@ export function ResizablePanel({
   /** The width a released drag left on screen, which the next commit moves from. */
   const releasedAt = useRef<number>(undefined);
   const movesRef = useRef(moves);
+  const [fullRowWidth, setFullRowWidth] = useState(0);
   const maxWidth = Math.max(
     Math.min(smallest, availableWidth),
     Math.min(maxPanelWidth, availableWidth - minContentWidth)
   );
   const minWidth = Math.min(smallest, maxWidth);
   const settledWidth = clamp(preferredWidth ?? defaultWidth, maxWidth, smallest);
-  // A drag past the panel's widest leaves it there: how far the pointer went says whether its
-  // release fills the content's place.
+  // A drag past the panel's narrowest or widest holds the box at that edge while pointer travel
+  // beyond it charges collapse or expand.
   const width =
-    previewWidth === undefined || full ? settledWidth : Math.min(previewWidth, maxWidth);
-  // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
-  // content instead of squeezing it.
+    previewWidth === undefined || full ? settledWidth : clamp(previewWidth, maxWidth, minWidth);
   const contentWidth = Math.max(width, minWidth);
-  const collapseOnRelease =
-    !full && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
-  const expandOnRelease =
-    !full &&
-    !!expand &&
-    phase !== 'exit' &&
-    previewWidth !== undefined &&
-    previewWidth > maxWidth + EXPAND_PAST;
+  const canCollapseDrag =
+    !full && !folded && !!onCollapse && phase !== 'exit' && previewWidth !== undefined;
+  const under = canCollapseDrag ? Math.max(0, minWidth - previewWidth) : 0;
+  const collapseCharging = under > 0;
+  const collapseProgress = collapseCharging ? Math.min(1, under / COLLAPSE_PAST) : 0;
+  const collapseOnRelease = canCollapseDrag && under >= COLLAPSE_PAST;
+  const collapsePull = collapseCharging ? Math.round(3 * Math.tanh(under / 28)) : 0;
+  const canExpandDrag = !full && !!expand && phase !== 'exit' && previewWidth !== undefined;
+  const over = canExpandDrag ? Math.max(0, previewWidth - maxWidth) : 0;
+  const expandCharging = over > 0;
+  const expandProgress = expandCharging ? Math.min(1, over / EXPAND_PAST) : 0;
+  const expandHighlight = over >= EXPAND_PAST * 0.4;
+  const expandOnRelease = canExpandDrag && over > EXPAND_PAST;
+  const expandPull = expandCharging && !expandOnRelease ? Math.round(3 * Math.tanh(over / 28)) : 0;
+  const dragging = !full && !folded && phase !== 'exit' && previewWidth !== undefined;
   const resizeDirection = () => {
     const inlineDirection =
       panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
@@ -231,6 +240,8 @@ export function ResizablePanel({
     }
   });
 
+  const justFilled = useJustFilled(full, folded, passthrough, phase);
+
   // The slot waits for this panel to close; a panel that takes another's place starts from the
   // width that one had when it left.
   const register = presence?.register;
@@ -264,6 +275,7 @@ export function ResizablePanel({
       // grows or shrinks around a wide-enough panel (another panel moving) does not render it.
       const usable = Math.max(0, parent.clientWidth - padding);
       setAvailableWidth(Math.min(usable, maxPanelWidth + minContentWidth));
+      if (dragRef.current) setFullRowWidth(measureFullRowWidth(parent));
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -278,6 +290,8 @@ export function ResizablePanel({
     event.currentTarget.setPointerCapture(event.pointerId);
     // Caught mid-motion, the drag starts from where the panel is on screen.
     const panel = panelRef.current;
+    const parent = layoutParentOf(panel);
+    if (expand && parent) setFullRowWidth(measureFullRowWidth(parent));
     // Never past its widest, as a swap from a wider panel can be, or a release with no move fills.
     const startWidth =
       panel && motionRef.current?.playState === 'running'
@@ -300,12 +314,13 @@ export function ResizablePanel({
     const drag = dragRef.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const requestedWidth = drag.startWidth + (event.clientX - drag.startX) * drag.direction;
-    // A panel that can close follows the pointer all the way to nothing, and one that can expand
-    // keeps how far past its widest the pointer went; others stop at their smallest and widest.
+    // A panel that can close or expand keeps how far past its narrowest or widest the pointer
+    // went; others stop at their smallest and widest.
     if (onCollapse || expand) {
       const widest = expand ? requestedWidth : Math.min(requestedWidth, maxWidth);
-      drag.width = Math.max(onCollapse ? 0 : minWidth, widest);
-    } else drag.width = clamp(requestedWidth, maxWidth);
+      const narrowest = onCollapse ? Math.min(0, minWidth - COLLAPSE_PAST) : minWidth;
+      drag.width = Math.max(narrowest, widest);
+    } else drag.width = clamp(requestedWidth, maxWidth, minWidth);
     setPreviewWidth(drag.width);
   };
   const finishResize = (event: React.PointerEvent<HTMLDivElement>, commit: boolean) => {
@@ -316,9 +331,8 @@ export function ResizablePanel({
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
-    if (commit && onCollapse && drag.width <= COLLAPSE_WIDTH) {
-      // The panel stays where the drag let go while its owner closes it, which moves it the
-      // rest of the way out.
+    if (commit && onCollapse && collapseOnRelease && minWidth - drag.width >= COLLAPSE_PAST) {
+      // Hold at minWidth while the owner closes the panel so animatePanel glides smoothly to 0.
       onCollapse();
       return;
     }
@@ -329,8 +343,8 @@ export function ResizablePanel({
       expand();
       return;
     }
-    releasedAt.current = Math.min(drag.width, maxWidth);
-    if (commit) setPreferredWidth(Math.round(clamp(drag.width, maxWidth)));
+    releasedAt.current = clamp(drag.width, maxWidth, minWidth);
+    if (commit) setPreferredWidth(Math.round(clamp(drag.width, maxWidth, minWidth)));
   };
   const resizeWithKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
     let next: number;
@@ -365,7 +379,24 @@ export function ResizablePanel({
   let panelStyle: CSSProperties | undefined;
   if (passthrough) panelStyle = { display: 'contents' };
   else if (full) panelStyle = { width: '100%' };
-  else if (!folded) panelStyle = { width };
+  else if (!folded) {
+    if (expandCharging) {
+      panelStyle = {
+        width,
+        '--mr-expand-progress': String(expandProgress),
+        '--mr-expand-pull': `${expandPull}px`,
+        ...(fullRowWidth > 0 ? { '--mr-expand-target-width': `${fullRowWidth}px` } : {}),
+      } as CSSProperties;
+    } else if (collapseCharging) {
+      panelStyle = {
+        width,
+        '--mr-collapse-progress': String(collapseProgress),
+        '--mr-collapse-pull': `${collapsePull}px`,
+      } as CSSProperties;
+    } else {
+      panelStyle = { width };
+    }
+  }
 
   return (
     <div
@@ -376,8 +407,13 @@ export function ResizablePanel({
       data-side={side}
       data-folded={folded || undefined}
       data-filled={full || undefined}
+      data-dragging={dragging || undefined}
+      data-collapse-charging={collapseCharging || undefined}
       data-collapse-preview={collapseOnRelease || undefined}
+      data-expand-charging={expandCharging || undefined}
+      data-expand-highlight={expandHighlight || undefined}
       data-expand-preview={expandOnRelease || undefined}
+      data-just-filled={justFilled || undefined}
       onKeyDown={onKeyDown}
       onFocus={onFocus}
       onBlur={onBlur}
@@ -398,9 +434,9 @@ export function ResizablePanel({
           role="separator"
           aria-label={resizeLabel}
           aria-orientation="vertical"
-          aria-valuemin={width < minWidth ? 0 : minWidth}
+          aria-valuemin={minWidth}
           aria-valuemax={maxWidth}
-          aria-valuenow={Math.round(Math.min(width, maxWidth))}
+          aria-valuenow={Math.round(width)}
           aria-valuetext={
             (collapseOnRelease && collapseLabel) || (expandOnRelease && expandText) || undefined
           }
@@ -411,9 +447,21 @@ export function ResizablePanel({
           onPointerCancel={(event) => finishResize(event, false)}
           onLostPointerCapture={(event) => finishResize(event, false)}
           onKeyDown={resizeWithKeyboard}
-        />
+        >
+          <span data-panel-handle-pill="" aria-hidden="true" />
+        </div>
       )}
       {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+      {collapseOnRelease && (
+        <div data-panel-collapse-overlay="" aria-hidden="true">
+          {collapseLabel && <span data-panel-collapse-badge="">{collapseLabel}</span>}
+        </div>
+      )}
+      {expandOnRelease && (
+        <div data-panel-expand-ghost="" aria-hidden="true">
+          {expandText && <span data-panel-expand-ghost-badge="">{expandText}</span>}
+        </div>
+      )}
     </div>
   );
 }

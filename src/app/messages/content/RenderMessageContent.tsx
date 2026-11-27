@@ -92,6 +92,8 @@ type RenderMessageContentProps = BodyOptions & {
   outlineAttachment?: boolean;
   /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
   readOnly?: boolean;
+  /** Disable RunErrorCard, fallback error stripping, and restart seams (e.g. search previews). */
+  disableRunErrorUi?: boolean;
 };
 
 type Content = Record<string, unknown>;
@@ -139,6 +141,7 @@ function CoreMessageContent({
   failedSend,
   hydrateLongText,
   readOnly,
+  disableRunErrorUi,
 }: RenderMessageContentProps) {
   const client = useMatrixClient();
   const content = getContent<Content>();
@@ -162,9 +165,10 @@ function CoreMessageContent({
   // Pinned messages give no room; the event knows it.
   const toolThreadId = threadId ?? mEvent?.threadRootId;
   const toolRoomId = roomId ?? mEvent?.getRoomId();
+  const toolSender = mEvent?.getSender();
   const toolCallMessage = useMemo(
-    () => ({ eventId, roomId: toolRoomId, threadId: toolThreadId }),
-    [eventId, toolRoomId, toolThreadId]
+    () => ({ eventId, roomId: toolRoomId, threadId: toolThreadId, sender: toolSender }),
+    [eventId, toolRoomId, toolThreadId, toolSender]
   );
 
   // A call between people starts with MindRoom's row, shown as its latest edit has it: who is
@@ -213,6 +217,7 @@ function CoreMessageContent({
     renderUrlsPreview,
     hydrateLongText,
     readOnly,
+    disableRunErrorUi,
   });
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
   const agentMessage = agentContent !== undefined && (

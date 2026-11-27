@@ -5,6 +5,7 @@ import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem
 import { getDirectPath } from '../../routes/pathUtils';
 import { useDirectRoomIds } from '../direct/useDirectRooms';
 import { SectionTab } from './SectionTab';
+import { useRailVisibilityMenuTrigger } from './railVisibilityMenuContext';
 
 type DirectTabProps = {
   /** Lets the navigation panel take the click, given whether Direct Messages is shown; true when it did. */
@@ -17,6 +18,7 @@ export function DirectTab({ onSelect }: DirectTabProps) {
   const selected = useDirectSelected();
   // The conversations Direct Messages lists, so the badge counts none it hides.
   const roomIds = useDirectRoomIds();
+  const contextMenuProps = useRailVisibilityMenuTrigger('direct');
   return (
     <SectionTab
       section="direct"
@@ -28,6 +30,7 @@ export function DirectTab({ onSelect }: DirectTabProps) {
       menu={(close) => <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />}
       personal
       onSelect={onSelect}
+      contextMenuProps={contextMenuProps}
     />
   );
 }

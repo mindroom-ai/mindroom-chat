@@ -4,14 +4,16 @@ import {
   threadModelContent,
   type ThreadModelContent,
 } from '../../matrix/protocol/threadModel';
-import { type Atom, Provider, createStore } from 'jotai';
+import { atom, type Atom, Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer, type TestRendererOptions } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
-import { RelationType, Room } from 'matrix-js-sdk';
+import { MatrixError, RelationType, Room } from 'matrix-js-sdk';
 import { Transforms, type Descendant } from 'slate';
 import * as idb from 'idb';
 import * as keptPastes from '../keptPastes';
 import { RoomInput } from '../RoomInput';
+import { UploadBoardHeader } from '../upload/UploadBoard';
+import { UploadCardRenderer } from '../upload/UploadCardRenderer';
 import { useCommands } from '../commands/useCommands';
 import { resolveVoiceComposer } from '../voiceHoldShortcut';
 import { createRoomUploadItems } from '../../matrix/send/roomInputUploadPreparation';
@@ -21,6 +23,8 @@ import {
   forgetComposerStateOfSession,
   getHomeAskDraftKey,
   getRoomInputDraftKey,
+  getSpaceThreadsDraftKey,
+  readKeptFileNames,
   homeAskDestinationAtomFamily,
   IReplyDraft,
   type PendingVoiceSendContext,
@@ -28,6 +32,7 @@ import {
   composerUploadItemsAtom,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
+  spaceThreadsDestinationAtomFamily,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
@@ -50,6 +55,17 @@ import {
   getMatrixUploadErrorStage,
   toMatrixUploadError,
 } from '../../matrix/matrix';
+
+const mediaCompressionMocks = vi.hoisted(() => ({
+  compressImage: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined),
+  compressVideo: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined),
+}));
+vi.mock('../../lib/media/compressImage', () => ({
+  compressImage: (...args: unknown[]) => mediaCompressionMocks.compressImage(...args),
+}));
+vi.mock('../../lib/media/compressVideo', () => ({
+  compressVideo: (...args: unknown[]) => mediaCompressionMocks.compressVideo(...args),
+}));
 
 vi.mock('idb', async (importOriginal) => {
   const actual = await importOriginal<typeof idb>();
@@ -89,6 +105,7 @@ const {
       | undefined,
     props: undefined as
       | {
+          className?: string;
           onPaste?: (evt: {
             clipboardData: DataTransfer;
             preventDefault: () => void;
@@ -115,6 +132,7 @@ const {
   modelPickerState: {
     props: [] as Array<{ room: Room; threadId?: string; newThread?: boolean }>,
     takeRootModelDraft: vi.fn<() => ThreadModelContent | undefined>(() => undefined),
+    restoreRootModelDraft: vi.fn(),
   },
   mxState: {
     cancelUpload: vi.fn(),
@@ -264,7 +282,7 @@ vi.mock('folds', () => {
     Tooltip: () => null,
     TooltipProvider: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
       children(() => undefined),
-    color: { Critical: { Main: 'red' } },
+    color: { Critical: { Main: 'red' }, Warning: { Main: 'amber' } },
     config: {
       space: new Proxy(
         {},
@@ -285,6 +303,7 @@ vi.mock('../../editor/output', () => ({
 }));
 vi.mock('../../editor/Editor', () => ({
   CustomEditor: ({
+    className,
     style,
     top,
     before,
@@ -296,6 +315,7 @@ vi.mock('../../editor/Editor', () => ({
     onDrop,
     placeholder,
   }: {
+    className?: string;
     style?: React.CSSProperties;
     placeholder?: string;
     top?: React.ReactNode;
@@ -307,7 +327,15 @@ vi.mock('../../editor/Editor', () => ({
     onPaste?: (evt: { clipboardData: DataTransfer; preventDefault: () => void }) => void;
     onDrop?: (evt: { preventDefault: () => void }) => void;
   }) => {
-    customEditorState.props = { onChange, onKeyDown, onKeyUp, onPaste, onDrop, placeholder };
+    customEditorState.props = {
+      className,
+      onChange,
+      onKeyDown,
+      onKeyUp,
+      onPaste,
+      onDrop,
+      placeholder,
+    };
     return React.createElement(
       'div',
       { style },
@@ -461,10 +489,19 @@ vi.mock('../dictation/useRoomInputDictation', () => ({
 
 // Its hold menu has a test of its own (ComposerSendButton.test.tsx); a click sends.
 vi.mock('../ComposerSendButton', () => ({
-  ComposerSendButton: ({ label, onSend }: { label: string; onSend: () => unknown }) =>
+  ComposerSendButton: ({
+    label,
+    disabled,
+    onSend,
+  }: {
+    label: string;
+    disabled?: boolean;
+    onSend: () => unknown;
+  }) =>
     React.createElement('button', {
       'aria-label': label,
       variant: 'Primary',
+      disabled,
       onClick: () => onSend(),
     }),
 }));
@@ -495,6 +532,7 @@ vi.mock('../../models/modelController', () => ({
       (modelPickerState.takeRootModelDraft as (...a: unknown[]) => ThreadModelContent | undefined)(
         ...args
       ),
+    restoreRootModelDraft: (...args: unknown[]) => modelPickerState.restoreRootModelDraft(...args),
   }),
 }));
 
@@ -519,9 +557,12 @@ vi.mock('../../preferences/useSetting', () => ({
   useSetting: () => [false, vi.fn()],
 }));
 
-vi.mock('../../preferences/settings', () => ({
-  settingsAtom: {},
-}));
+vi.mock('../../preferences/settings', async () => {
+  const { atom: createAtom } = await import('jotai');
+  return {
+    settingsAtom: createAtom({ mediaCompression: 'balanced', autoZipLargeFiles: false }),
+  };
+});
 
 vi.mock('../../lib/dom', () => ({
   getDataTransferFiles: (dataTransfer: DataTransfer) => {
@@ -897,13 +938,14 @@ const createDeferred = <T>() => {
 
 const createUploadItem = (
   file: File,
-  options: Partial<Pick<TUploadItem, 'metadata' | 'prepError'>> = {}
+  options: Partial<Pick<TUploadItem, 'metadata' | 'prepError' | 'compression'>> = {}
 ): TUploadItem => ({
   file,
   originalFile: file,
   encInfo: undefined,
   metadata: options.metadata ?? { markedAsSpoiler: false },
   ...(options.prepError ? { prepError: options.prepError } : {}),
+  ...(options.compression ? { compression: options.compression } : {}),
 });
 
 const stageUploadItems = (
@@ -982,6 +1024,8 @@ const createRoomInputTree = (
     keyedRoomSubtree?: boolean;
     encryptedRoom?: boolean;
     forkFrom?: ThreadForkRef;
+    stagedDraftKey?: string;
+    onRestoreDestination?: (roomId: string) => void;
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
     view?: string;
     fileDropContainerRef?: React.RefObject<HTMLElement | null>;
@@ -997,6 +1041,10 @@ const createRoomInputTree = (
     threadingEnabled: props?.threadingEnabled,
     onRoomMessageSent: props?.onRoomMessageSent,
     forkFrom: props?.forkFrom,
+    stagedDraftKey:
+      props?.stagedDraftKey ??
+      (props?.ask ? getHomeAskDraftKey(mxState.getUserId() ?? '') : undefined),
+    onRestoreDestination: props?.onRestoreDestination,
     ask: props?.ask,
   });
   return React.createElement(
@@ -1018,18 +1066,7 @@ const shownComposer: TestRendererOptions = {
 
 const renderRoomInput = async (
   store = createStore(),
-  props?: {
-    roomId?: string;
-    threadId?: string;
-    threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => boolean | void;
-    keyedRoomSubtree?: boolean;
-    encryptedRoom?: boolean;
-    forkFrom?: ThreadForkRef;
-    ask?: React.ComponentProps<typeof RoomInput>['ask'];
-    view?: string;
-    fileDropContainerRef?: React.RefObject<HTMLElement | null>;
-  },
+  props?: Parameters<typeof createRoomInputTree>[1],
   options?: TestRendererOptions
 ): Promise<{ renderer: ReactTestRenderer; store: ReturnType<typeof createStore> }> => {
   let renderer!: ReactTestRenderer;
@@ -1044,18 +1081,7 @@ const renderRoomInput = async (
 const updateRoomInput = async (
   renderer: ReactTestRenderer,
   store: ReturnType<typeof createStore>,
-  props?: {
-    roomId?: string;
-    threadId?: string;
-    threadingEnabled?: boolean;
-    onRoomMessageSent?: (eventId: string) => boolean | void;
-    keyedRoomSubtree?: boolean;
-    encryptedRoom?: boolean;
-    forkFrom?: ThreadForkRef;
-    ask?: React.ComponentProps<typeof RoomInput>['ask'];
-    view?: string;
-    fileDropContainerRef?: React.RefObject<HTMLElement | null>;
-  }
+  props?: Parameters<typeof createRoomInputTree>[1]
 ) => {
   await act(async () => {
     renderer.update(createRoomInputTree(store, props));
@@ -1097,6 +1123,7 @@ afterEach(() => {
   customEditorState.replyContextRenderCount = 0;
   modelPickerState.props = [];
   modelPickerState.takeRootModelDraft.mockReset();
+  modelPickerState.restoreRootModelDraft.mockReset();
   editorOutputState.plainText = '';
   editorOutputState.customHtml = '';
   editorOutputState.htmlEqualsPlainText = true;
@@ -4894,7 +4921,12 @@ describe('RoomInput in a fork draft', () => {
     const onRoomMessageSent = vi.fn(() => true);
     const { renderer } = await renderRoomInput(store, { forkFrom, onRoomMessageSent });
 
-    expect(customEditorState.props?.placeholder).toBe('Continue in a new thread');
+    const { ComposerForkDraft } = await import('../RoomInput.css');
+    expect(customEditorState.props?.placeholder).toBe('Send first message to create fork…');
+    expect(customEditorState.props?.className).toContain(ComposerForkDraft);
+    expect(
+      renderer.root.findAll((node) => node.props['data-fork-draft-composer'] === 'true')
+    ).toHaveLength(1);
     stageComposerText('Try Porto instead');
     await submitComposer();
 
@@ -4907,6 +4939,28 @@ describe('RoomInput in a fork draft', () => {
     expect(content).not.toHaveProperty('m.relates_to');
     expect(onRoomMessageSent).toHaveBeenCalledWith(`~${ROOM_ID}:txn-room-input`);
 
+    renderer.unmount();
+  });
+
+  it('names the destination room in a cross-room fork draft placeholder and omits draft styling outside forks', async () => {
+    const store = createStore();
+    const { ComposerForkDraft } = await import('../RoomInput.css');
+    const { renderer } = await renderRoomInput(store, {
+      forkFrom: { roomId: '!source:example.org', threadId: '$parent', eventId: '$point' },
+    });
+    expect(customEditorState.props?.placeholder).toBe(
+      `Send first message to create fork in ${ROOM_ID}…`
+    );
+    expect(customEditorState.props?.className).toContain(ComposerForkDraft);
+    expect(
+      renderer.root.findAll((node) => node.props['data-fork-draft-composer'] === 'true')
+    ).toHaveLength(1);
+
+    await updateRoomInput(renderer, store, { threadId: '$parent' });
+    expect(customEditorState.props?.className ?? '').not.toContain(ComposerForkDraft);
+    expect(
+      renderer.root.findAll((node) => node.props['data-fork-draft-composer'] === 'true')
+    ).toHaveLength(0);
     renderer.unmount();
   });
 
@@ -5725,5 +5779,884 @@ describe("RoomInput as Home's ask field", () => {
     expect(mxState.sendMessage).toHaveBeenCalledTimes(3);
     expect(store.get(homeUploadsAtom)).toHaveLength(0);
     renderer.unmount();
+  });
+
+  it('stagedDraftKey keeps inline deferred files across target switches, re-encrypts on retry, and keeps lost-file names under the staged key', async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal('localStorage', {
+      get length() {
+        return stored.size;
+      },
+      key: (i: number) => [...stored.keys()][i] ?? null,
+      getItem: (k: string) => stored.get(k) ?? null,
+      setItem: (k: string, v: string) => stored.set(k, v),
+      removeItem: (k: string) => stored.delete(k),
+    });
+    try {
+      const spaceKey = getSpaceThreadsDraftKey(USER_ID, '!space:example.org');
+      const spaceUploads = composerUploadItemsAtom(spaceKey, undefined);
+      const store = createStore();
+      const onRestoreDestination = (id: string) =>
+        store.set(spaceThreadsDestinationAtomFamily(spaceKey), id);
+      const { renderer } = await renderRoomInput(store, {
+        roomId: ROOM_ID,
+        encryptedRoom: false,
+        stagedDraftKey: spaceKey,
+        onRestoreDestination,
+      });
+
+      await act(async () => {
+        fileInputState.onDrop?.([new File(['secret'], 'brief.pdf', { type: 'application/pdf' })]);
+        await Promise.resolve();
+      });
+      expect(store.get(spaceUploads)).toHaveLength(1);
+      expect(mxState.uploadContent).not.toHaveBeenCalled();
+      expect(
+        renderer.root.find((n) => n.props['data-upload-board-inline'] === 'true')
+      ).toBeTruthy();
+      expect(readKeptFileNames(spaceKey)).toEqual(['brief.pdf']);
+      expect(readKeptFileNames(getRoomInputDraftKey(USER_ID, ROOM_ID))).toEqual([]);
+
+      // Type once, fail Send on plain room after target moved to encrypted room (restoring target
+      // and original draft), then switch to encrypted room and retry without re-typing.
+      const originalDraft = [{ type: 'paragraph', children: [{ text: 'Ship it' }] }];
+      editorOutputState.emptyEditor = false;
+      stageComposerText('Ship it');
+      act(() => {
+        customEditorState.props!.onChange?.();
+      });
+      expect(store.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(originalDraft);
+
+      const plainSend = createDeferred<{ event_id: string }>();
+      editorMocks.resetEditor.mockImplementationOnce(() => {
+        editorOutputState.emptyEditor = true;
+        setEditorText('');
+        customEditorState.props!.onChange?.();
+      });
+      vi.mocked(Transforms.insertFragment).mockImplementationOnce((_editor, nodes) => {
+        editorOutputState.emptyEditor = false;
+        customEditorState.editor!.children = nodes as Array<any>;
+      });
+      mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/plain' });
+      mxState.sendMessage.mockReturnValueOnce(plainSend.promise);
+      let firstSend!: Promise<void>;
+      await act(async () => {
+        firstSend = getPrimarySendButton(renderer).props.onClick();
+        await Promise.resolve();
+      });
+      store.set(spaceThreadsDestinationAtomFamily(spaceKey), OTHER_ROOM_ID);
+      await updateRoomInput(renderer, store, {
+        roomId: OTHER_ROOM_ID,
+        encryptedRoom: true,
+        stagedDraftKey: spaceKey,
+        onRestoreDestination,
+      });
+      await act(async () => {
+        plainSend.reject(new Error('plain send failed'));
+        await firstSend;
+      });
+      expect(store.get(spaceUploads)).toHaveLength(1);
+      expect(store.get(spaceThreadsDestinationAtomFamily(spaceKey))).toBe(ROOM_ID);
+      expect(store.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(originalDraft);
+      expect(getEditorText()).toBe('Ship it');
+
+      // Switching back to the encrypted target keeps the original draft and re-encrypts on retry.
+      await updateRoomInput(renderer, store, {
+        roomId: OTHER_ROOM_ID,
+        encryptedRoom: true,
+        stagedDraftKey: spaceKey,
+      });
+      expect(store.get(roomIdToMsgDraftAtomFamily(spaceKey))).toEqual(originalDraft);
+      resetEditorOnNextSend();
+      mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/enc' });
+      mxState.sendMessage
+        .mockResolvedValueOnce({ event_id: '$enc-file' })
+        .mockResolvedValueOnce({ event_id: '$enc-caption' });
+      await act(async () => getPrimarySendButton(renderer).props.onClick());
+
+      expect(mxState.uploadContent).toHaveBeenCalledTimes(2);
+      expect(mxState.uploadContent.mock.calls[1]![1]).toMatchObject({
+        includeFilename: false,
+        type: 'application/octet-stream',
+      });
+      expect(
+        mxState.sendMessage.mock.calls
+          .slice(1)
+          .map(([id, c]) => [id, (c as { body?: string }).body])
+      ).toEqual([
+        [OTHER_ROOM_ID, 'brief.pdf'],
+        [OTHER_ROOM_ID, 'Ship it'],
+      ]);
+      expect(store.get(spaceUploads)).toHaveLength(0);
+      renderer.unmount();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('ignores Enter and Send button clicks while a deferred attachment upload is pending', async () => {
+    const spaceKey = getSpaceThreadsDraftKey(USER_ID, '!space:example.org');
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { stagedDraftKey: spaceKey });
+
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['txt'], 'notes.txt', { type: 'text/plain' })]);
+      await Promise.resolve();
+    });
+    stageComposerText('Original caption');
+    resetEditorOnNextSend();
+    const upload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(upload.promise);
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$file' })
+      .mockResolvedValueOnce({ event_id: '$caption' });
+
+    let firstSend!: Promise<void>;
+    await act(async () => {
+      firstSend = getPrimarySendButton(renderer).props.onClick();
+      await Promise.resolve();
+    });
+
+    stageComposerText('Follow up');
+    const sendButton = getPrimarySendButton(renderer);
+    expect(sendButton.props.disabled).toBe(true);
+    await act(async () => {
+      customEditorState.props!.onKeyDown?.({
+        key: 'Enter',
+        preventDefault: vi.fn(),
+      });
+      sendButton.props.onClick();
+      await Promise.resolve();
+    });
+    expect(editorOutputState.plainText).toBe('Follow up');
+
+    await act(async () => {
+      upload.resolve({ content_uri: 'mxc://mindroom/notes' });
+      await firstSend;
+    });
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(mxState.sendMessage.mock.calls.map(([, c]) => (c as { body?: string }).body)).toEqual([
+      'notes.txt',
+      'Original caption',
+    ]);
+    expect(editorOutputState.plainText).toBe('Follow up');
+    renderer.unmount();
+  });
+
+  it('takes root model before deferred upload so unmounted sends keep it, and restores it if no send runs', async () => {
+    threadModeState.mode = 'thread';
+    const pick = threadModelContent('@router:example.org', 'DEV1', 'opus@high');
+    const spaceKey = getSpaceThreadsDraftKey(USER_ID, '!space:example.org');
+
+    // 1. Background deferred send: composer unmounts while uploading, root upload still stamps pick.
+    modelPickerState.takeRootModelDraft.mockReturnValueOnce(pick);
+    const store1 = createStore();
+    const { renderer: r1 } = await renderRoomInput(store1, { stagedDraftKey: spaceKey });
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['big'], 'deck.pdf', { type: 'application/pdf' })]);
+      await Promise.resolve();
+    });
+    stageComposerText('Caption');
+    resetEditorOnNextSend();
+    const upload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(upload.promise);
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$file' })
+      .mockResolvedValueOnce({ event_id: '$caption' });
+    let sending!: Promise<void>;
+    await act(async () => {
+      sending = getPrimarySendButton(r1).props.onClick();
+      await Promise.resolve();
+    });
+    expect(modelPickerState.takeRootModelDraft).toHaveBeenCalledTimes(1);
+    r1.unmount();
+    await act(async () => {
+      upload.resolve({ content_uri: 'mxc://mindroom/deck' });
+      await sending;
+    });
+    expect(mxState.sendMessage.mock.calls[0]![1]).toMatchObject({
+      body: 'deck.pdf',
+      [THREAD_MODEL_KEY]: pick[THREAD_MODEL_KEY],
+    });
+    expect(modelPickerState.restoreRootModelDraft).not.toHaveBeenCalled();
+
+    // 2. Failed file-only upload ends with no send -> root model draft is restored.
+    modelPickerState.takeRootModelDraft.mockReturnValueOnce(pick);
+    const store2 = createStore();
+    const { renderer: r2 } = await renderRoomInput(store2, { stagedDraftKey: spaceKey });
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['big'], 'fail.pdf', { type: 'application/pdf' })]);
+      await Promise.resolve();
+    });
+    stageComposerText('');
+    mxState.uploadContent.mockRejectedValueOnce(new Error('offline'));
+    await act(async () => getPrimarySendButton(r2).props.onClick());
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(2);
+    expect(modelPickerState.restoreRootModelDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ roomId: ROOM_ID }),
+      pick
+    );
+    r2.unmount();
+  });
+
+  it('restores deferred caption when the send controller rejects before taking ownership', async () => {
+    const spaceKey = getSpaceThreadsDraftKey(USER_ID, '!space:example.org');
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { stagedDraftKey: spaceKey });
+
+    // Start an earlier long-text send so an active session occupies the slot while uploading.
+    const earlierUpload = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(earlierUpload.promise);
+    stageComposerText('x'.repeat(70_000));
+    resetEditorOnNextSend();
+    let firstSend!: Promise<void>;
+    await act(async () => {
+      firstSend = getPrimarySendButton(renderer).props.onClick();
+      await Promise.resolve();
+    });
+
+    // Attach a file + type a follow-up caption and send while the earlier text send is still active.
+    await act(async () => {
+      fileInputState.onDrop?.([new File(['pdf'], 'spec.pdf', { type: 'application/pdf' })]);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+    expect(store.get(composerUploadItemsAtom(spaceKey, undefined))).toHaveLength(1);
+    stageComposerText('Follow-up caption');
+    resetEditorOnNextSend();
+    mxState.uploadContent.mockResolvedValueOnce({ content_uri: 'mxc://mindroom/spec' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+
+    expect(editorMocks.restoreEditorContent).toHaveBeenCalledWith(customEditorState.editor, [
+      { type: 'paragraph', children: [{ text: 'Follow-up caption' }] },
+    ]);
+
+    await act(async () => {
+      earlierUpload.resolve({ content_uri: 'mxc://mindroom/long-text' });
+      await firstSend;
+    });
+    renderer.unmount();
+  });
+});
+
+describe('RoomInput media compression send and voice invariants', () => {
+  const makeSizedFile = (name: string, type: string, size: number) => {
+    const file = new File(['v'], name, { type });
+    Object.defineProperty(file, 'size', { value: size });
+    return file;
+  };
+
+  afterEach(() => {
+    mediaCompressionMocks.compressImage.mockReset();
+    mediaCompressionMocks.compressImage.mockResolvedValue(undefined);
+    mediaCompressionMocks.compressVideo.mockReset();
+    mediaCompressionMocks.compressVideo.mockResolvedValue(undefined);
+    vi.unstubAllGlobals();
+  });
+
+  it('disables Send and blocks Enter while video compresses, then re-enables on completion, Use original, or Cancel', async () => {
+    vi.stubGlobal('VideoEncoder', class {});
+    vi.stubGlobal('VideoDecoder', class {});
+
+    const store = createStore();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: dropRef });
+
+    // 1. Completion flow: disabled during compression, re-enabled and sendable after.
+    const rawVideo = makeSizedFile('demo.mov', 'video/quicktime', 4 * 1024 * 1024);
+    const compressedVideo = makeSizedFile('demo.mp4', 'video/mp4', 600 * 1024);
+    const videoGate = createDeferred<{
+      file: File;
+      originalSize: number;
+      compressedSize: number;
+    }>();
+    mediaCompressionMocks.compressVideo.mockImplementationOnce(() => videoGate.promise);
+
+    await act(async () => {
+      fileInputState.onDrop?.([rawVideo]);
+      await Promise.resolve();
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0]?.compression?.status).toBe(
+      'compressing'
+    );
+    expect(getPrimarySendButton(renderer).props.disabled).toBe(true);
+
+    stageComposerText('First caption');
+    await submitComposer();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(getEditorText()).toBe('First caption');
+
+    await act(async () => {
+      videoGate.resolve({
+        file: compressedVideo,
+        originalSize: rawVideo.size,
+        compressedSize: compressedVideo.size,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(getPrimarySendButton(renderer).props.disabled).toBe(false));
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0]?.file).toBe(compressedVideo);
+
+    store.set(roomUploadAtomFamily(compressedVideo), { mxc: 'mxc://mindroom/compressed-vid' });
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$vid-evt' })
+      .mockResolvedValueOnce({ event_id: '$cap-evt' });
+    resetEditorOnNextSend();
+    await submitComposer();
+    await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(2));
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['demo.mp4', 'First caption']);
+
+    // 2. Use original mid-compression aborts transcode and re-enables Send with the original file.
+    const rawVideo2 = makeSizedFile('orig.mov', 'video/quicktime', 4 * 1024 * 1024);
+    mediaCompressionMocks.compressVideo.mockImplementationOnce(
+      async (_file: unknown, opts: unknown) => {
+        const signal = (opts as { signal?: AbortSignal })?.signal;
+        await new Promise<void>((resolve) => {
+          signal?.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return undefined;
+      }
+    );
+    await act(async () => {
+      fileInputState.onDrop?.([rawVideo2]);
+      await Promise.resolve();
+    });
+    expect(getPrimarySendButton(renderer).props.disabled).toBe(true);
+    await act(async () => {
+      const card = renderer.root.findByType(UploadCardRenderer);
+      card.props.onUseOriginal(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(getPrimarySendButton(renderer).props.disabled).toBe(false));
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0]).toMatchObject({
+      file: rawVideo2,
+      compression: { status: 'original' },
+    });
+    act(() => {
+      renderer.root.findByType(UploadCardRenderer).props.onRemove(rawVideo2);
+    });
+
+    // 3. Cancel/Remove mid-compression aborts transcode and re-enables Send.
+    const rawVideo3 = makeSizedFile('cancel.mov', 'video/quicktime', 4 * 1024 * 1024);
+    let cancelSignal: AbortSignal | undefined;
+    mediaCompressionMocks.compressVideo.mockImplementationOnce((_file: unknown, opts: unknown) => {
+      cancelSignal = (opts as { signal?: AbortSignal })?.signal;
+      return new Promise(() => {});
+    });
+    await act(async () => {
+      fileInputState.onDrop?.([rawVideo3]);
+      await Promise.resolve();
+    });
+    expect(getPrimarySendButton(renderer).props.disabled).toBe(true);
+    act(() => {
+      renderer.root.findByType(UploadCardRenderer).props.onRemove(rawVideo3);
+    });
+    expect(cancelSignal?.aborted).toBe(true);
+    expect(getPrimarySendButton(renderer).props.disabled).toBe(false);
+
+    renderer.unmount();
+  });
+
+  it('disables Send and blocks Enter while inline image staging is in flight, then sends compressed image with caption', async () => {
+    const store = createStore();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: dropRef });
+
+    const screenshot = makeSizedFile('screenshot.png', 'image/png', 180 * 1024);
+    const compressedShot = makeSizedFile('screenshot.webp', 'image/webp', 35 * 1024);
+    const imageGate = createDeferred<{
+      file: File;
+      originalSize: number;
+      compressedSize: number;
+    }>();
+    mediaCompressionMocks.compressImage.mockImplementationOnce(() => imageGate.promise);
+
+    stageComposerText('Look at this bug');
+    act(() => {
+      fileInputState.onDrop?.([screenshot]);
+    });
+    expect(getPrimarySendButton(renderer).props.disabled).toBe(true);
+
+    // Pressing Enter while inline compression is running must NOT send the caption alone.
+    await submitComposer();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+    expect(getEditorText()).toBe('Look at this bug');
+
+    // Inline compression finishes -> image is staged and Send re-enables.
+    await act(async () => {
+      imageGate.resolve({
+        file: compressedShot,
+        originalSize: screenshot.size,
+        compressedSize: compressedShot.size,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(getPrimarySendButton(renderer).props.disabled).toBe(false));
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))[0]?.file).toBe(compressedShot);
+
+    store.set(roomUploadAtomFamily(compressedShot), { mxc: 'mxc://mindroom/shot' });
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$img-evt' })
+      .mockResolvedValueOnce({ event_id: '$cap-evt' });
+    resetEditorOnNextSend();
+    await submitComposer();
+    await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(2));
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['screenshot.webp', 'Look at this bug']);
+
+    renderer.unmount();
+  });
+
+  it('blocks composer submit while compressing and ignores compressing placeholders during direct voice send', async () => {
+    const store = createStore();
+    const rawVideo = makeSizedFile('unready.mov', 'video/quicktime', 3 * 1024 * 1024);
+    const placeholder = createUploadItem(rawVideo, {
+      compression: {
+        status: 'compressing',
+        progressAtom: atom(0.4),
+        cancel: vi.fn(),
+        useOriginal: vi.fn(),
+      },
+    });
+    stageUploadItems(store, [placeholder]);
+
+    const { renderer } = await renderRoomInput(store, { encryptedRoom: true });
+    expect(getPrimarySendButton(renderer).props.disabled).toBe(true);
+
+    await openVoiceRecorder(renderer);
+    // Enter / primary submit is blocked while attachments are compressing.
+    await submitComposer();
+    expect(mxState.sendMessage).not.toHaveBeenCalled();
+
+    // Even if the recorder invokes onSendRecording directly, useRoomInputVoice filters out the unready placeholder.
+    const voiceFile = new File(['voice'], 'voice.m4a', { type: 'audio/mp4' });
+    await act(async () => {
+      await voiceRecorderState.props!.onSendRecording(
+        voiceFile,
+        420,
+        undefined,
+        voiceRecorderState.props!.getSendContext()
+      );
+    });
+    expect(mxState.uploadContent).toHaveBeenCalledTimes(1);
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['voice.m4a']);
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toEqual([placeholder]);
+
+    renderer.unmount();
+  });
+
+  it('survives collapsing UploadBoard during video compression, auto-uploads on completion, and sends cleanly', async () => {
+    vi.stubGlobal('VideoEncoder', class {});
+    vi.stubGlobal('VideoDecoder', class {});
+
+    const store = createStore();
+    const dropRef = createRef<HTMLElement>();
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: dropRef });
+
+    const rawVideo = makeSizedFile('collapsed.mov', 'video/quicktime', 4 * 1024 * 1024);
+    const compressedVideo = makeSizedFile('collapsed.mp4', 'video/mp4', 600 * 1024);
+    const videoGate = createDeferred<{
+      file: File;
+      originalSize: number;
+      compressedSize: number;
+    }>();
+    mediaCompressionMocks.compressVideo.mockImplementationOnce(() => videoGate.promise);
+
+    await act(async () => {
+      fileInputState.onDrop?.([rawVideo]);
+      await Promise.resolve();
+    });
+    // Collapse UploadBoard so UploadCardRenderer unmounts while compression is active.
+    act(() => {
+      renderer.root.findByType(UploadBoardHeader).props.onToggle();
+    });
+    expect(renderer.root.findAllByType(UploadCardRenderer)).toHaveLength(0);
+    expect(getPrimarySendButton(renderer).props.disabled).toBe(true);
+
+    const uploadGate = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(uploadGate.promise);
+    await act(async () => {
+      videoGate.resolve({
+        file: compressedVideo,
+        originalSize: rawVideo.size,
+        compressedSize: compressedVideo.size,
+      });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mxState.uploadContent).toHaveBeenCalledTimes(1));
+    expect(mxState.uploadContent.mock.calls[0]?.[0]).toBe(compressedVideo);
+    expect(getPrimarySendButton(renderer).props.disabled).toBe(false);
+
+    stageComposerText('Sent while collapsed');
+    resetEditorOnNextSend();
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$vid-evt' })
+      .mockResolvedValueOnce({ event_id: '$cap-evt' });
+    await act(async () => {
+      uploadGate.resolve({ content_uri: 'mxc://mindroom/collapsed-vid' });
+      await Promise.resolve();
+    });
+    await submitComposer();
+    await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(2));
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['collapsed.mp4', 'Sent while collapsed']);
+
+    renderer.unmount();
+  });
+
+  it('disables Use original during Home Ask deferred upload and re-enables it if upload fails', async () => {
+    const store = createStore();
+    const dropRef = createRef<HTMLElement>();
+    const onSendingChange = vi.fn();
+    const homeAsk = {
+      agentUserId: '@mindroom_helper:example.org',
+      placeholder: 'Ask Helper anything...',
+      pickers: null,
+      canSend: () => true,
+      onSendingChange,
+    };
+    const { renderer } = await renderRoomInput(store, {
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: homeAsk,
+    });
+
+    const rawImg = makeSizedFile('home-shot.png', 'image/png', 160 * 1024);
+    const compressedImg = makeSizedFile('home-shot.webp', 'image/webp', 28 * 1024);
+    mediaCompressionMocks.compressImage.mockResolvedValueOnce({
+      file: compressedImg,
+      originalSize: rawImg.size,
+      compressedSize: compressedImg.size,
+    });
+
+    await act(async () => {
+      fileInputState.onDrop?.([rawImg]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    const homeUploadsAtom = composerUploadItemsAtom(
+      getHomeAskDraftKey('@me:example.org'),
+      HOME_ASK_VIEW
+    );
+    expect(store.get(homeUploadsAtom)[0]?.file).toBe(compressedImg);
+    expect(renderer.root.findByType(UploadCardRenderer).props.canUseOriginal).toBe(true);
+
+    // Start Home Ask deferred send with a paused upload.
+    stageComposerText('Explain this chart');
+    resetEditorOnNextSend();
+    const uploadGate = createDeferred<{ content_uri: string }>();
+    mxState.uploadContent.mockReturnValueOnce(uploadGate.promise);
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$home-img' })
+      .mockResolvedValueOnce({ event_id: '$home-cap' });
+
+    let sendPromise!: Promise<void>;
+    await act(async () => {
+      sendPromise = getPrimarySendButton(renderer).props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    await vi.waitFor(() => expect(mxState.uploadContent).toHaveBeenCalledTimes(1));
+    const cardDuringSend = renderer.root.findByType(UploadCardRenderer);
+    expect(cardDuringSend.props.canUseOriginal).toBe(false);
+
+    // Even if invoked programmatically while deferred upload is in flight, Use original is ignored.
+    await act(async () => {
+      cardDuringSend.props.onUseOriginal(store.get(homeUploadsAtom)[0]);
+      await Promise.resolve();
+    });
+    expect(store.get(homeUploadsAtom)[0]?.file).toBe(compressedImg);
+
+    // Completing upload sends both the compressed image and the caption.
+    await act(async () => {
+      uploadGate.resolve({ content_uri: 'mxc://mindroom/home-shot' });
+      await sendPromise;
+      await Promise.resolve();
+    });
+    expect(
+      mxState.sendMessage.mock.calls.map((call) => (call[1] as { body: string }).body)
+    ).toEqual(['home-shot.webp', 'Explain this chart']);
+    expect(onSendingChange.mock.calls).toEqual([[true], [false]]);
+
+    // Now verify failure re-enables Use original for retry while keeping Remove separate.
+    const rawImg2 = makeSizedFile('home-shot-2.png', 'image/png', 160 * 1024);
+    const compressedImg2 = makeSizedFile('home-shot-2.webp', 'image/webp', 28 * 1024);
+    mediaCompressionMocks.compressImage.mockResolvedValueOnce({
+      file: compressedImg2,
+      originalSize: rawImg2.size,
+      compressedSize: compressedImg2.size,
+    });
+    await act(async () => {
+      fileInputState.onDrop?.([rawImg2]);
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(store.get(homeUploadsAtom)[0]?.file).toBe(compressedImg2));
+    stageComposerText('');
+    mxState.uploadContent.mockRejectedValueOnce(new Error('network error'));
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    const cardAfterFailure = renderer.root.findByType(UploadCardRenderer);
+    expect(cardAfterFailure.props.canUseOriginal).toBe(true);
+
+    act(() => {
+      renderer.unmount();
+    });
+  });
+
+  it('bails out cleanly on account switch during Home Ask deferred upload without sending or touching the active composer', async () => {
+    const store = createStore();
+    const dropRef = createRef<HTMLElement>();
+    const onSendingChange = vi.fn();
+    const previousSessions = storedSessions.list;
+    storedSessions.list = [{ userId: '@me:example.org' }];
+
+    const { renderer } = await renderRoomInput(store, {
+      view: HOME_ASK_VIEW,
+      fileDropContainerRef: dropRef,
+      ask: {
+        agentUserId: '@mindroom_helper:example.org',
+        placeholder: 'Ask Helper anything...',
+        pickers: null,
+        canSend: () => true,
+        onSendingChange,
+      },
+    });
+
+    try {
+      const rawImg = makeSizedFile('home-shot.png', 'image/png', 160 * 1024);
+      const compressedImg = makeSizedFile('home-shot.webp', 'image/webp', 28 * 1024);
+      mediaCompressionMocks.compressImage.mockResolvedValueOnce({
+        file: compressedImg,
+        originalSize: rawImg.size,
+        compressedSize: compressedImg.size,
+      });
+
+      await act(async () => {
+        fileInputState.onDrop?.([rawImg]);
+        await Promise.resolve();
+      });
+      await vi.waitFor(() => expect(getPrimarySendButton(renderer).props.disabled).toBe(false));
+
+      const uploadGate = createDeferred<{ content_uri: string }>();
+      mxState.uploadContent.mockReturnValueOnce(uploadGate.promise);
+      stageComposerText('Summarize my screenshot');
+      resetEditorOnNextSend();
+
+      let sendPromise!: Promise<void>;
+      await act(async () => {
+        sendPromise = getPrimarySendButton(renderer).props.onClick();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await vi.waitFor(() => expect(mxState.uploadContent).toHaveBeenCalledTimes(1));
+      expect(onSendingChange.mock.calls).toEqual([[true]]);
+
+      // Switch accounts while Home Ask deferred upload is in flight.
+      await act(async () => {
+        forgetComposerStateOfSession(store);
+        uploadGate.resolve({ content_uri: 'mxc://mindroom/home-shot' });
+        await sendPromise;
+        await Promise.resolve();
+      });
+
+      expect(mxState.sendMessage).not.toHaveBeenCalled();
+      expect(editorMocks.restoreEditorContent).not.toHaveBeenCalled();
+      expect(onSendingChange.mock.calls).toEqual([[true]]);
+      const oldHomeDraft = store.get(
+        roomIdToMsgDraftAtomFamily(getHomeAskDraftKey('@me:example.org'))
+      ) as Array<{ children?: Array<{ text?: string }> }>;
+      expect(oldHomeDraft[0]?.children?.[0]?.text).toBe('Summarize my screenshot');
+    } finally {
+      storedSessions.list = previousSessions;
+      act(() => {
+        renderer.unmount();
+      });
+    }
+  });
+
+  const cardFor = (renderer: ReactTestRenderer, file: File) =>
+    renderer.root.findAllByType(UploadCardRenderer).find((c) => c.props.fileItem.file === file);
+
+  const err413 = () => new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413);
+
+  const makePasteItem = (id: string, text: string) => {
+    const file = new File([text], `mindroom-paste-${id}.txt`, { type: 'text/plain' });
+    return createUploadItem(file, {
+      metadata: {
+        markedAsSpoiler: false,
+        mindroomPasteAttachment: { id, chars: text.length, fileName: file.name },
+      },
+    });
+  };
+
+  it('releases enrollment when an in-flight Send upload fails with 413 so Compress (.zip) works without stranding sibling files or caption', async () => {
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: createRef() });
+    const bigLog = new File(['MindRoom log line\n'.repeat(2000)], 'huge.log', {
+      type: 'text/plain',
+    });
+    const okTxt = new File(['small note'], 'small.txt', { type: 'text/plain' });
+    const bigGate = createDeferred<{ content_uri: string }>();
+    const okGate = createDeferred<{ content_uri: string }>();
+
+    await act(async () => {
+      fileInputState.onDrop?.([bigLog, okTxt]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    act(() => {
+      store.set(roomUploadAtomFamily(bigLog), { promise: bigGate.promise });
+      store.set(roomUploadAtomFamily(okTxt), { promise: okGate.promise });
+    });
+
+    stageComposerText('Here are the logs');
+    resetEditorOnNextSend();
+    mxState.sendMessage
+      .mockResolvedValueOnce({ event_id: '$small-root' })
+      .mockResolvedValueOnce({ event_id: '$caption' });
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(cardFor(renderer, bigLog)?.props.canUseOriginal).toBe(false);
+    expect(cardFor(renderer, okTxt)?.props.canUseOriginal).toBe(false);
+
+    // 413 releases huge.log enrollment while okTxt remains enrolled and finishes sending with caption.
+    await act(async () => {
+      bigGate.reject(err413());
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(cardFor(renderer, bigLog)?.props.canUseOriginal).toBe(true));
+    expect(cardFor(renderer, okTxt)?.props.canUseOriginal).toBe(false);
+
+    await act(async () => {
+      okGate.resolve({ content_uri: 'mxc://mindroom/small' });
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(mxState.sendMessage).toHaveBeenCalledTimes(2));
+    expect(mxState.sendMessage.mock.calls.map((c) => (c[1] as { body: string }).body)).toEqual([
+      'small.txt',
+      'Here are the logs',
+    ]);
+
+    const bigCard = cardFor(renderer, bigLog)!;
+    await act(async () => bigCard.props.onCompressToZip(bigCard.props.fileItem));
+    await vi.waitFor(() => {
+      const staged = store.get(roomIdToUploadItemsAtomFamily(ROOM_ID));
+      expect(staged).toHaveLength(1);
+      expect(staged[0]?.originalFile.name).toBe('huge.log.zip');
+      expect(staged[0]?.compression).toEqual({ status: 'compressed', originalSize: bigLog.size });
+    });
+
+    // Single-file Send -> 413 with no caption also completes cleanly and releases enrollment.
+    const solo = new File(['solo log\n'.repeat(500)], 'solo.log', { type: 'text/plain' });
+    const soloGate = createDeferred<{ content_uri: string }>();
+    await act(async () => {
+      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), {
+        type: 'DELETE',
+        item: store.get(roomIdToUploadItemsAtomFamily(ROOM_ID)),
+      });
+      fileInputState.onDrop?.([solo]);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    act(() => store.set(roomUploadAtomFamily(solo), { promise: soloGate.promise }));
+    stageComposerText('');
+    await act(async () => getPrimarySendButton(renderer).props.onClick());
+    expect(cardFor(renderer, solo)?.props.canUseOriginal).toBe(false);
+    await act(async () => {
+      soloGate.reject(err413());
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(cardFor(renderer, solo)?.props.canUseOriginal).toBe(true));
+
+    act(() => renderer.unmount());
+  });
+
+  it('keeps a 413 large paste attachment enrolled and staged on Send instead of dropping it as an orphan', async () => {
+    const store = createStore();
+    const paste1 = makePasteItem('413a', 'huge paste');
+    const paste2 = makePasteItem('413b', 'huge paste 2');
+    stageUploadItems(store, [paste1]);
+    store.set(roomUploadAtomFamily(paste1.file), { error: err413() });
+
+    const { renderer } = await renderRoomInput(store);
+    const sendAndClearEditor = async (caption: string, eventId: string) => {
+      stageComposerText(caption);
+      editorMocks.resetEditor.mockImplementationOnce(() => {
+        setEditorText('');
+        customEditorState.props!.onChange?.();
+      });
+      mxState.sendMessage.mockResolvedValueOnce({ event_id: eventId });
+      await act(async () => getPrimarySendButton(renderer).props.onClick());
+    };
+
+    // 1. Already-413 paste stays enrolled across editor reset.
+    await sendAndClearEditor('see pasted log', '$paste-caption');
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
+    expect(cardFor(renderer, paste1.file)?.props.canUseOriginal).toBe(false);
+
+    // 2. In-flight paste failing with 413 after Send also stays enrolled and staged.
+    const gate = createDeferred<{ content_uri: string }>();
+    await act(async () => {
+      cardFor(renderer, paste1.file)?.props.onRemove(paste1.file);
+      await Promise.resolve();
+      await Promise.resolve();
+      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'PUT', item: paste2 });
+      store.set(roomUploadAtomFamily(paste2.file), { promise: gate.promise });
+    });
+    await sendAndClearEditor('second pasted log', '$paste-caption-2');
+    await act(async () => {
+      gate.reject(err413());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(store.get(roomIdToUploadItemsAtomFamily(ROOM_ID))).toHaveLength(1);
+    expect(cardFor(renderer, paste2.file)?.props.canUseOriginal).toBe(false);
+
+    act(() => renderer.unmount());
+  });
+
+  it('wires autoZipLargeFiles from settings into staging (off raw vs on auto-zip with Use original on the card)', async () => {
+    const { settingsAtom } = await import('../../preferences/settings');
+    const store = createStore();
+    const { renderer } = await renderRoomInput(store, { fileDropContainerRef: createRef() });
+    const largeJson = new File(['{"row":"ok"}\n'.repeat(90_000)], 'large.json', {
+      type: 'application/json',
+    });
+    const staged = () => store.get(roomIdToUploadItemsAtomFamily(ROOM_ID));
+
+    await act(async () => {
+      fileInputState.onDrop?.([largeJson]);
+      await Promise.resolve();
+    });
+    expect(staged()[0]?.originalFile).toBe(largeJson);
+    expect(staged()[0]?.compression).toBeUndefined();
+
+    store.set(settingsAtom, { mediaCompression: 'balanced', autoZipLargeFiles: true } as never);
+    await act(async () => {
+      store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'DELETE', item: staged() });
+      fileInputState.onDrop?.([largeJson]);
+      await Promise.resolve();
+    });
+    await vi.waitFor(() => expect(staged()[0]?.compression?.status).toBe('compressed'));
+    expect(staged()[0]?.originalFile.name).toBe('large.json.zip');
+    expect(staged()[0]?.compression).toEqual({
+      status: 'compressed',
+      originalSize: largeJson.size,
+      sourceFile: largeJson,
+    });
+    const zipCard = cardFor(renderer, staged()[0]!.file);
+    expect(zipCard?.props.canUseOriginal).toBe(true);
+    expect(zipCard?.props.onUseOriginal).toBeTypeOf('function');
+
+    act(() => renderer.unmount());
   });
 });

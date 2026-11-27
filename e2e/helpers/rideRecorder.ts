@@ -320,10 +320,7 @@ const recordFlickRide = (
         Object.entries(snapshot).filter(
           ([key, value]) =>
             typeof value === 'number' &&
-            (key.startsWith('threadPaginateBack') ||
-              key === 'threadAutoPaginateBackFired' ||
-              key === 'ledgerQuiescenceSettles' ||
-              key === 'ledgerBoundarySettles')
+            (key.startsWith('threadPaginateBack') || key === 'threadAutoPaginateBackFired')
         )
       );
     };

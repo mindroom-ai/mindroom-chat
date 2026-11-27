@@ -61,7 +61,12 @@ export function ModalLayer({
   // A top layer to react-aria: a bottom sheet or the command palette it opens over neither
   // hides it nor takes a press or the focus in it for leaving, which would close them.
   return (
-    <Overlay open={open} backdrop={<OverlayBackdrop />} data-react-aria-top-layer>
+    <Overlay
+      open={open}
+      backdrop={<OverlayBackdrop />}
+      data-modal-layer=""
+      data-react-aria-top-layer
+    >
       <OverlayCenter>
         <FocusTrap
           focusTrapOptions={{

@@ -106,4 +106,26 @@ describe('settingsAtom with roaming settings', () => {
     expect(loadPendingRoamingSettings(BOB)).toEqual({});
     expect(loadPendingRoamingSettings(ALICE)).toEqual({ hideActivity: true });
   });
+
+  it('roams mediaCompression per account while keeping the device value untouched', () => {
+    storeDevice({ mediaCompression: 'off' });
+    const store = signedIn(ALICE, { version: 1, mediaCompression: 'balanced' });
+    expect(store.get(settingsAtom).mediaCompression).toBe('balanced');
+
+    change(store, 'mediaCompression', 'small');
+    expect(store.get(settingsAtom).mediaCompression).toBe('small');
+    expect(loadPendingRoamingSettings(ALICE)).toEqual({ mediaCompression: 'small' });
+    expect(getSettings().mediaCompression).toBe('off');
+  });
+
+  it('roams autoZipLargeFiles per account while keeping the device value untouched', () => {
+    storeDevice({ autoZipLargeFiles: false });
+    const store = signedIn(ALICE, { version: 1, autoZipLargeFiles: true });
+    expect(store.get(settingsAtom).autoZipLargeFiles).toBe(true);
+
+    change(store, 'autoZipLargeFiles', false);
+    expect(store.get(settingsAtom).autoZipLargeFiles).toBe(false);
+    expect(loadPendingRoamingSettings(ALICE)).toEqual({ autoZipLargeFiles: false });
+    expect(getSettings().autoZipLargeFiles).toBe(false);
+  });
 });

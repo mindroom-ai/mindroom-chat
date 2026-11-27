@@ -1,6 +1,7 @@
 import { type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
 import type { IEncryptedFile } from '../types/common';
+import { readEncryptedFile } from './encryptedFile';
 import {
   isSettingsPageRequest,
   type SettingsPageRequest,
@@ -75,29 +76,6 @@ const record = (value: unknown): value is Record<string, unknown> =>
 
 const isMxc = (value: unknown): value is string =>
   typeof value === 'string' && value.startsWith('mxc://');
-
-const readEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
-  if (
-    !record(value) ||
-    value.v !== 'v2' ||
-    !isMxc(value.url) ||
-    !record(value.key) ||
-    typeof value.key.k !== 'string' ||
-    typeof value.iv !== 'string' ||
-    !record(value.hashes) ||
-    typeof value.hashes.sha256 !== 'string'
-  ) {
-    return undefined;
-  }
-  // Copy only the fields decryption uses.
-  return {
-    url: value.url,
-    key: value.key,
-    iv: value.iv,
-    hashes: { sha256: value.hashes.sha256 },
-    v: value.v,
-  } as unknown as IEncryptedFile;
-};
 
 const readCanvasDocument = (value: unknown): ChatUiCanvasDocument | undefined => {
   if (

@@ -35,6 +35,16 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} 個檔案"
     },
+    "uploadCardRenderer": {
+      "compressing": "正在壓縮...",
+      "useOriginal": "使用原檔案",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "壓縮 (.zip)",
+      "zipFailedTooLarge": "壓縮為 .zip 後仍然過大。",
+      "zipFailedTooLargeWithMax": "壓縮為 .zip 後仍然過大（上限為 {{maxSize}}）。",
+      "zipFailedNoSavings": "壓縮為 .zip 並未縮小此檔案的大小。",
+      "zipFailedError": "無法將此檔案壓縮為 .zip。"
+    },
     "passwordInput": {
       "show": "顯示密碼",
       "hide": "隱藏密碼"
@@ -419,6 +429,8 @@
       "sidebar": {
         "title": "側邊欄",
         "navigation": "導覽",
+        "direct": "在側邊欄顯示私訊",
+        "directDescription": "在側邊欄單獨的分頁中顯示私訊。隱藏後，可從首頁或首頁的 ⋮ 選單開啟。",
         "threads": "在側邊欄顯示討論串",
         "threadsDescription": "所有房間的討論串集中在一個清單中。隱藏後，可從首頁的 ⋮ 選單開啟。",
         "canvasesDescription": "有互動式面板後，顯示一個按鈕來查看代理程式為您建立的面板。隱藏後，可從首頁的 ⋮ 選單開啟。",
@@ -515,7 +527,9 @@
         "midTurn": "轉向, 佇列, 自動, 代理程式, 回覆, 打斷",
         "usage": "權杖, 費用, 價格, 模型, 工具呼叫, 子代理, 背景工作",
         "plugins": "外掛程式, 插件, 擴充功能, 整合",
-        "appUpdates": "更新, 版本, 升級, 重新啟動"
+        "appUpdates": "更新, 版本, 升級, 重新啟動",
+        "mediaCompression": "螢幕截圖, 螢幕錄影, 圖片, 影片, 壓縮, 上傳大小",
+        "autoZipLargeFiles": "zip, 壓縮檔, 壓縮, json, csv, 日誌, 大型檔案, 上傳大小"
       },
       "errorReports": {
         "title": "傳送錯誤報告",
@@ -537,13 +551,30 @@
         "updateReady": "版本 {{version}} 已準備好安裝。",
         "restartToUpdate": "重新啟動以更新",
         "updateInstallFailed": "無法重新啟動以安裝更新，請再試一次。"
+      },
+      "mediaCompression": {
+        "title": "媒體壓縮",
+        "description": "在上傳前壓縮附加的照片、螢幕截圖和影片。您仍可為任何附件使用原始檔案。",
+        "off": "關閉",
+        "balanced": "平衡",
+        "small": "較小"
+      },
+      "autoZipLargeFiles": {
+        "title": "壓縮大型檔案 (.zip)",
+        "description": "在上傳前自動將超過 1 MB 的可壓縮檔案壓縮為 .zip。您仍可為任何附件使用原始檔案。"
       }
     },
     "createChat": {
       "failed": "無法開始聊天，請再試一次。"
     },
     "homeNav": {
-      "options": "首頁選項"
+      "options": "首頁選項",
+      "addRooms": "新增房間",
+      "directMessages": "私訊",
+      "newDirectMessage": "新增私訊",
+      "showAllDirectMessages": "顯示全部 ({{count}})",
+      "agents": "代理",
+      "agentActive": "代理正在執行"
     },
     "directNav": {
       "options": "私訊選項"
@@ -1070,6 +1101,13 @@
       "unavailable": {
         "description": "此裝置不支援 Mac 電腦存取。"
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "自己",
+        "draft": "草稿",
+        "groupMemberCount_other": "{{count}} 位成員"
+      }
     }
   },
   "mindroomUi": {
@@ -1339,6 +1377,43 @@
       "stopReply": {
         "label": "停止回覆",
         "stopping": "正在停止…"
+      },
+      "runError": {
+        "cardLabel": "執行錯誤",
+        "actions": {
+          "continue": "繼續",
+          "retry": "重試",
+          "compact": "壓縮內容"
+        },
+        "chips": {
+          "streamStalled": "串流中斷",
+          "providerUnavailable": "無法使用",
+          "rateLimited": "頻率受限",
+          "timeout": "逾時",
+          "contextWindow": "內容上限",
+          "tokensPerMinute": "權杖上限",
+          "safeguardRefusal": "已拒絕",
+          "quotaExhausted": "額度已滿",
+          "missingApiKey": "缺少 API 金鑰",
+          "authenticationFailed": "驗證失敗",
+          "runtimeError": "錯誤"
+        },
+        "technicalDetails": "技術詳情",
+        "details": {
+          "model": "模型",
+          "provider": "供應商",
+          "code": "錯誤碼",
+          "detail": "詳情",
+          "error": "錯誤"
+        },
+        "receipt": {
+          "continue": "已恢復",
+          "retry": "已重試",
+          "compact": "已壓縮"
+        },
+        "sendFailed": "無法傳送訊息，請重試。",
+        "restartSeam": "服務已重啟 · 上下文已保留",
+        "restartSeamRepeated": "服務已重啟（{{times}}×）· 上下文已保留"
       }
     },
     "message-search": {
@@ -1475,7 +1550,9 @@
         "use": "使用 {{tool}}"
       },
       "jobTotal_other": "{{count}} 個背景工作",
-      "jobTotalFinished_other": "{{count}} 個背景工作已完成"
+      "jobTotalFinished_other": "{{count}} 個背景工作已完成",
+      "reviewApprovalFor": "審核核准：{{tool}}",
+      "checkingApproval": "正在檢查核准…"
     },
     "workflowRun": {
       "title": "工作流程",
@@ -1498,6 +1575,8 @@
       "stopping": "正在停止…",
       "resume": "繼續",
       "runAgain": "再次執行",
+      "confirmRunAgain": "確認再次執行",
+      "cancel": "取消",
       "starting": "正在啟動…",
       "failedCount_other": "{{count}} 項失敗",
       "question": {
@@ -1522,6 +1601,16 @@
         "waitingForUpdate": "正在等待下一次更新…",
         "stale": "未在更新。上次更新於 {{time}}。",
         "log": "日誌",
+        "viewsLabel": "工作流程檢視",
+        "flow": "流程",
+        "steps": "步驟",
+        "selectStep": "選擇一個步驟以檢視其輸出、指標和連結。",
+        "noMessages": "步驟之間尚無訊息。",
+        "noLog": "尚無日誌項目。",
+        "omittedEdges_other": "已省略 {{count}} 條訊息路徑。",
+        "omittedMessages_other": "已省略 {{count}} 條訊息。",
+        "omittedLog_other": "已省略 {{count}} 筆日誌。",
+        "setupSteps_other": "{{count}} 個準備步驟",
         "showMore": "再顯示 {{count}} 項",
         "omitted": {
           "queued_other": "另有 {{count}} 項排隊中",
@@ -1554,8 +1643,18 @@
         "error": "錯誤",
         "messages": "訊息",
         "messagesTo": "傳給 {{name}} 的訊息：{{count}}",
+        "messagesFrom": "來自 {{name}} 的訊息：{{count}}",
+        "timeout": "逾時",
+        "routeTo": "{{from}} 傳送至 {{to}}：{{count}}",
+        "messageRoute": "{{from}} 傳送至 {{to}}",
+        "script": "腳本",
+        "routeBetween": "{{from}} 與 {{to}} 之間：{{count}}",
+        "duration": "耗時",
+        "tokens": "權杖",
+        "cost": "費用",
         "open": "開啟",
         "detailsUnavailable": "重新載入後已無法查看詳細資料。",
+        "transcriptUnavailable": "重新載入後已無法查看完整記錄。",
         "stop": "停止代理"
       }
     },
@@ -1696,7 +1795,60 @@
       "unattributed": "未歸類",
       "allUsageAndLimits": "檢視全部用量與限制 →",
       "noAccounts": "尚未回報供應商帳號。",
-      "noDailyData": "過去 7 天沒有每日用量紀錄。"
+      "noDailyData": "過去 7 天沒有每日用量紀錄。",
+      "kpiSpend7d": "7 天預估費用",
+      "kpiTokens7d": "7 天權杖數",
+      "perDayAvg": "日均 ~{{value}}",
+      "peakAndAvg": "峰值 {{day}} · {{tokens}} · ~{{avg}}/天",
+      "trendVsPrior3d": "較前 3 天 {{delta}}",
+      "tokenMixTitle": "權杖與快取組成（7天）",
+      "savedViaCache": "透過快取節省約 {{cost}}",
+      "cacheRead": "快取讀取",
+      "cacheWrite": "快取寫入",
+      "inputTokens": "輸入",
+      "outputTokens": "輸出",
+      "inputShort": "輸入",
+      "outputShort": "輸出",
+      "tokenMixAria": "快取讀取 {{cacheRead}}，快取寫入 {{cacheWrite}}，輸入 {{input}}，輸出 {{output}}",
+      "subscriptionQuotas": "訂閱配額",
+      "paceLegend": "刻度 = 均勻使用進度",
+      "paceAhead": "領先 +{{delta}}%",
+      "paceFastBurn": "消耗偏快 -{{delta}}%",
+      "paceOnPace": "進度正常",
+      "dailySpendTitle": "每日預估費用",
+      "dailyTokensTitle": "每日權杖數",
+      "dailySubtitleCost": "點擊長條檢視精確權杖數與費用",
+      "dailySubtitleTokens": "點擊長條檢視精確權杖數",
+      "chartMetricLabel": "圖表指標",
+      "metricSpend": "費用 ($)",
+      "metricTokens": "權杖",
+      "hideDominant": "隱藏最高項",
+      "resetFilter": "重設篩選",
+      "hideDominantTooltip": "隱藏 {{account}} 以檢視其他帳號",
+      "resetFilterTooltip": "顯示包含 {{account}} 在內的全部帳號",
+      "dailyBarCostAria": "{{day}}：{{cost}}，{{tokens}} 權杖",
+      "vs7dAvg": "較 7 天均值 {{delta}}",
+      "tokensShortUnit": "{{tokens}} 權杖",
+      "noDayActivity": "當天暫無使用紀錄。",
+      "whereUsageGoes": "使用去向",
+      "whereUsageGoesSub": "點擊列檢視權杖組成與 7 天趨勢",
+      "tabModels": "模型",
+      "tabAgents": "代理",
+      "tabAccounts": "帳號",
+      "shareOfSpend": "7 天費用佔比：{{share}}",
+      "shareOfTokens": "7 天權杖佔比：{{share}}",
+      "trend7d": "7 天趨勢",
+      "runCount_other": "{{count}} 次執行",
+      "idleAccountsLabel_other": "{{count}} 個閒置帳號（7 天內 0 權杖）",
+      "show": "顯示",
+      "hide": "隱藏",
+      "zeroTokens": "0 權杖"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "在側邊欄顯示",
+        "sidebarSettings": "側邊欄設定…"
+      }
     }
   },
   "composer": {
@@ -1731,6 +1883,7 @@
     "newThreadWith": "與 {{name}} 建立新討論串…",
     "dictation": {
       "label": "聽寫",
+      "temporarilyUnavailable": "聽寫無法使用 — 正在重新連線",
       "cancel": "取消聽寫",
       "pause": "暫停聽寫",
       "resume": "繼續聽寫",
@@ -1738,6 +1891,8 @@
       "finishAndSend": "完成並傳送",
       "retry": "重試",
       "retryAndSend": "重試並傳送",
+      "sendAsVoice": "以語音傳送",
+      "attachAsVoice": "以語音附加",
       "insertPartial": "插入部分文字",
       "discard": "捨棄",
       "dismissError": "關閉聽寫錯誤",
@@ -1750,6 +1905,7 @@
       "noSpeech": "未偵測到語音。",
       "noSpeechOffThread": "在 {{room}} 中未偵測到語音。",
       "sendFailedOffThread": "無法完成 {{room}} 中的聽寫訊息。請開啟並重試。",
+      "sendFailedOffTarget": "無法完成 {{room}} 中的聽寫訊息。請再次選擇 {{room}} 以重試。",
       "statusPendingRetry_other": "{{count}} 個片段等待重試",
       "capReached": "已達到 5:00 上限",
       "micInterrupted": "麥克風已中斷連線。請繼續或完成。",
@@ -1908,19 +2064,24 @@
     "openInOriginalThread": "在原討論串中開啟",
     "forkFromHere": "從此處分支",
     "forkThread": "分支討論串",
-    "forking": "正在從 {{title}} 分支",
-    "continueInNewThread": "在新討論串中繼續",
+    "forking": "草稿 · 在下方傳送訊息以開始此分支",
+    "continueInNewThread": "傳送第一則訊息以建立分支…",
     "forkCount_other": "{{count}} 個分支",
     "forkedFromInRoom": "分支自 {{room}} 中的 {{title}}",
     "forkedFromAnotherRoom": "分支自其他房間",
-    "forkingIntoRoom": "正在將 {{title}} 分支到 {{room}}",
+    "forkingIntoRoom": "草稿 · 在下方傳送訊息以分支到 {{room}}",
     "forkToRoom": "分支到房間…",
     "forkToRoomTitle": "分支到房間",
     "forkToRoomSearchPlaceholder": "搜尋房間…",
     "forkToRoomEmpty": "沒有符合的房間",
     "forkToRoomAgentWarning": "此房間中的代理程式不在 {{room}} 中，無法查看原討論串",
     "forkingFromRoom": "正在從 {{room}} 分支",
-    "forkDraftAgentWarning": "此處的代理程式不在 {{room}} 中，無法查看原討論串"
+    "forkDraftAgentWarning": "此處的代理程式不在 {{room}} 中，無法查看原討論串",
+    "draftBadge": "草稿",
+    "forkingThread": "正在分支討論串",
+    "forkDraftHint": "尚未建立。在下方傳送訊息以開始此分支討論串。",
+    "forkDraftHintInRoom": "尚未出現在 {{room}} 中。在下方傳送訊息以建立此討論串。",
+    "continueInNewThreadInRoom": "傳送第一則訊息以在 {{room}} 中建立分支…"
   },
   "activity": {
     "title": "動態",

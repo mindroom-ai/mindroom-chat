@@ -58,6 +58,8 @@ vi.mock('../app/ui/ThreadActivity.css', () => ({
   Detail: 'activity-detail',
   Chevron: 'activity-chevron',
   Panel: 'activity-panel',
+  MonoOutput: 'activity-mono-output',
+  MUTED_LIVE_OPACITY: 0.95,
   Output: 'activity-output',
   OutputLabel: 'activity-output-label',
   Row: 'activity-row',

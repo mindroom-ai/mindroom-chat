@@ -9,15 +9,19 @@ import {
   RelationType,
   RoomEvent,
   RoomStateEvent,
+  SyncState,
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  clearRoomInputDrafts,
   composerUploadItemsAtom,
-  getRoomInputDraftKey,
+  getSpaceThreadsDraftKey,
+  keepStagedFileNames,
   roomIdToMsgDraftAtomFamily,
+  spaceThreadsDestinationAtomFamily,
 } from '../../composer/roomInputDrafts';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
@@ -73,8 +77,17 @@ vi.mock('../../threads/page/useJoinedRoomThreadLists', () => ({
 }));
 
 vi.mock('../../composer/RoomInput', () => ({
-  RoomInput: (props: { roomId: string; onRoomMessageSent?: (id: string) => boolean | void }) => (
-    <div data-testid="mock-room-input" data-room-id={props.roomId}>
+  RoomInput: (props: {
+    roomId: string;
+    stagedDraftKey?: string;
+    onRestoreDestination?: (roomId: string) => void;
+    onRoomMessageSent?: (id: string) => boolean | void;
+  }) => (
+    <div
+      data-testid="mock-room-input"
+      data-room-id={props.roomId}
+      data-staged-draft-key={props.stagedDraftKey}
+    >
       <button
         type="button"
         data-testid="mock-send-message"
@@ -88,6 +101,13 @@ vi.mock('../../composer/RoomInput', () => ({
         onClick={() => props.onRoomMessageSent?.('~local-root')}
       >
         Send local echo
+      </button>
+      <button
+        type="button"
+        data-testid="mock-restore-eng"
+        onClick={() => props.onRestoreDestination?.(ROOM_ENG)}
+      >
+        Restore eng
       </button>
     </div>
   ),
@@ -147,6 +167,7 @@ type FakeRoom = Room & {
   setName: (next: string) => void;
   setMembers: (next: FakeMemberInput[]) => void;
   setPinnedEventIds: (next: string[]) => void;
+  setPowerLevels: (next: Record<string, unknown>) => void;
   setTimelineEvents: (next: unknown[]) => void;
   setReadReceipt: (next: { eventId: string; ts: number } | null) => void;
 };
@@ -181,8 +202,12 @@ const makeRoom = (
   let timelineEvents = opts.timelineEvents ?? [];
   let readReceipt: { eventId: string; data: { ts: number } } | null = null;
 
+  let powerLevelsContent: Record<string, unknown> = {
+    users_default: 0,
+    events_default: canSend ? 0 : 50,
+  };
   const powerEvent = {
-    getContent: () => ({ users_default: 0, events_default: canSend ? 0 : 50 }),
+    getContent: () => powerLevelsContent,
   };
   const threadModeEvent = opts.threadMode
     ? { getContent: () => ({ mode: opts.threadMode }) }
@@ -250,6 +275,9 @@ const makeRoom = (
     },
     setPinnedEventIds: (next: string[]) => {
       pinnedEventIds = next;
+    },
+    setPowerLevels: (next: Record<string, unknown>) => {
+      powerLevelsContent = next;
     },
     setTimelineEvents: (next: unknown[]) => {
       timelineEvents = next;
@@ -328,6 +356,7 @@ const renderSpaceThreads = ({
     getUser: () => null,
     getRoom: (id: string) => roomMap.get(id) ?? null,
     getRooms: () => [...roomMap.values()],
+    getSyncState: () => SyncState.Syncing,
     getAccountData: (type: string) =>
       type === (AccountDataEvent.IgnoredUserList as string) ? ignoredEvent : undefined,
     on: clientEmitter.on,
@@ -380,6 +409,7 @@ afterEach(() => {
   mocks.threadCardBadgesCalls.length = 0;
   clearCompactRoomSectionsStore(ME);
   clearRoomThreadFiltersStore(ME);
+  clearRoomInputDrafts(ME);
   localStorage.clear();
 });
 
@@ -447,7 +477,9 @@ describe('SpaceThreadsPage', () => {
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
 
     fireEvent.click(screen.getByTestId('mock-send-message'));
-    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '$sent-root');
+    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '$sent-root', undefined, {
+      returnToOrigin: true,
+    });
 
     // Check a 2nd room: room badges reappear and trigger shows "Rooms 2".
     toggleRoomOption(container, ROOM_OPS);
@@ -468,7 +500,9 @@ describe('SpaceThreadsPage', () => {
     expect(container.querySelector('[data-room-filter-button]')?.textContent).toBe('Rooms');
 
     fireEvent.click(container.querySelector('[data-thread-root-id="$t-eng"]')!);
-    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_ENG, '$t-eng');
+    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_ENG, '$t-eng', undefined, {
+      returnToOrigin: true,
+    });
   });
 
   it('navigates room-mode sends with confirmed IDs and omits local-echo IDs, while thread mode keeps local echoes', () => {
@@ -490,7 +524,9 @@ describe('SpaceThreadsPage', () => {
     // Thread mode still preserves local-echo navigation via navigateRoomThread.
     fireEvent.click(container.querySelector(`[data-space-composer-target="${ROOM_DES}"]`)!);
     fireEvent.click(screen.getByTestId('mock-send-local-echo'));
-    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '~local-root');
+    expect(mocks.navigateRoomThread).toHaveBeenCalledWith(ROOM_DES, '~local-root', undefined, {
+      returnToOrigin: true,
+    });
   });
 
   it('hides blocked/ignored users threads and updates live when ignored users change', () => {
@@ -526,8 +562,9 @@ describe('SpaceThreadsPage', () => {
       makeEntry(ROOM_ENG, 'Engineering', '$t-eng', 'Build failure', NOW),
       makeEntry(ROOM_DES, 'Design', '$t-des', 'New button spec', NOW - 1000),
     ];
+    const spaceDraftKey = getSpaceThreadsDraftKey(ME, SPACE_ID);
     const store = createStore();
-    store.set(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(ME, ROOM_ENG)), [
+    store.set(roomIdToMsgDraftAtomFamily(spaceDraftKey), [
       { type: 'paragraph', children: [{ text: 'WIP deploy note' }] } as never,
     ]);
 
@@ -541,14 +578,85 @@ describe('SpaceThreadsPage', () => {
 
     cleanup();
     clearRoomThreadFiltersStore(ME);
+    clearRoomInputDrafts(ME);
     const uploadStore = createStore();
-    uploadStore.set(composerUploadItemsAtom(ROOM_ENG, undefined), {
+    uploadStore.set(composerUploadItemsAtom(spaceDraftKey, undefined), {
       type: 'PUT',
       item: { file: {} as File, originalFile: { name: 'spec.png' } as File, metadata: {} } as never,
     });
     const { container: c2 } = renderSpaceThreads({ rooms, entries, store: uploadStore });
     toggleRoomOption(c2, ROOM_DES);
     expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+  });
+
+  it('preserves chosen target across remount, reload, file-only reload, and temporary non-sendable fallback', () => {
+    const spaceDraftKey = getSpaceThreadsDraftKey(ME, SPACE_ID);
+    const rooms = [
+      makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
+      makeRoom(ROOM_DES, 'Design', { hasAgent: true }),
+    ];
+    const store = createStore();
+    const first = renderSpaceThreads({ rooms, entries: [], screenSize: ScreenSize.Mobile, store });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-staged-draft-key')).toBe(
+      spaceDraftKey
+    );
+    fireEvent.click(
+      first.container.querySelector<HTMLButtonElement>(
+        '[data-space-composer-picker="true"] button'
+      )!
+    );
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Design' }));
+    act(() => {
+      store.set(roomIdToMsgDraftAtomFamily(spaceDraftKey), [
+        { type: 'paragraph', children: [{ text: 'Saved note' }] } as never,
+      ]);
+    });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+
+    // Remount and simulated reload both keep Design paired with the Space draft.
+    first.unmount();
+    const remounted = renderSpaceThreads({ rooms, entries: [], store });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    fireEvent.click(screen.getByTestId('mock-restore-eng'));
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+    fireEvent.click(
+      remounted.container.querySelector(`[data-space-composer-target="${ROOM_DES}"]`)!
+    );
+    remounted.unmount();
+
+    // Temporarily non-sendable target displays fallback without overwriting stored Design.
+    const readOnlyDesign = [
+      makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true }),
+      makeRoom(ROOM_DES, 'Design', { hasAgent: true, canSend: false }),
+    ];
+    const fallbackStore = createStore();
+    const fallbackView = renderSpaceThreads({
+      rooms: readOnlyDesign,
+      entries: [],
+      store: fallbackStore,
+    });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_ENG);
+    expect(fallbackStore.get(spaceThreadsDestinationAtomFamily(spaceDraftKey))).toBe(ROOM_DES);
+    fallbackView.unmount();
+
+    // Once Design is sendable again, the stored target returns.
+    const restored = renderSpaceThreads({ rooms, entries: [], store: createStore() });
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
+    restored.unmount();
+
+    // File-only draft (kept lost-file names, no text) keeps Design across reload even under a room filter.
+    clearRoomInputDrafts(ME);
+    const fileStore = createStore();
+    const file = new File(['x'], 'spec.pdf', { type: 'application/pdf' });
+    fileStore.set(spaceThreadsDestinationAtomFamily(spaceDraftKey), ROOM_DES);
+    keepStagedFileNames(
+      spaceDraftKey,
+      [{ file, originalFile: file, encInfo: undefined, metadata: { markedAsSpoiler: false } }],
+      fileStore
+    );
+    const fileReloaded = renderSpaceThreads({ rooms, entries: [], store: createStore() });
+    toggleRoomOption(fileReloaded.container, ROOM_ENG);
+    expect(screen.getByTestId('mock-room-input').getAttribute('data-room-id')).toBe(ROOM_DES);
   });
 
   it('reopens the composer room picker menu without throwing and lists only eligible rooms', () => {
@@ -1056,6 +1164,7 @@ describe('SpaceThreadsPage', () => {
     const client = {
       getSafeUserId: () => ME,
       getUserId: () => ME,
+      getHomeserverUrl: () => 'https://example.org',
       getRoom: (id: string) => roomMap.get(id) ?? null,
       getRooms: () => [...roomMap.values()],
       getAccountData: () => undefined,
@@ -1309,5 +1418,44 @@ describe('SpaceThreadsPage', () => {
         ?.getAttribute('data-room-filter-count')
     ).toBe('0');
     expect(screen.getByText('Deploy script')).toBeTruthy();
+  });
+
+  it('tracks pinned state in flat mode and refreshes card permissions live on power-level updates', () => {
+    const eng = makeRoom(ROOM_ENG, 'Engineering', {
+      hasAgent: true,
+      pinnedEventIds: ['$pinned'],
+    });
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$pinned', 'Pinned card', NOW - 10_000),
+      makeEntry(ROOM_ENG, 'Engineering', '$open', 'Open card', NOW - 20_000),
+    ];
+    const { container } = renderSpaceThreads({ rooms: [eng], entries });
+
+    const pinnedShell = () =>
+      container.querySelector<HTMLElement>('[data-scroll-anchor="$pinned"]')!;
+    const openShell = () => container.querySelector<HTMLElement>('[data-scroll-anchor="$open"]')!;
+
+    // Initially user has power level 0 (cannot toggle/pin).
+    expect(openShell().querySelector('[data-compact-thread-resolve]')).toBeNull();
+    expect(openShell().querySelector('[data-compact-thread-pin]')).toBeNull();
+
+    // Promote user to moderator via RoomPowerLevels state event -> live permission refresh.
+    act(() => {
+      eng.setPowerLevels({ users_default: 50, state_default: 50, events_default: 0 });
+      eng.emit(RoomStateEvent.Events, {
+        getType: () => StateEvent.RoomPowerLevels,
+        getStateKey: () => '',
+      });
+    });
+
+    // Open card gets Resolve + Pin; pinned card omits Resolve and shows Unpin even in flat mode.
+    expect(openShell().querySelector('[data-compact-thread-resolve]')).toBeTruthy();
+    expect(openShell().querySelector('[data-compact-thread-pin]')).toBeTruthy();
+    expect(pinnedShell().querySelector('[data-compact-thread-resolve]')).toBeNull();
+    expect(
+      pinnedShell()
+        .querySelector<HTMLButtonElement>('[data-compact-thread-pin]')
+        ?.getAttribute('aria-label')
+    ).toBe('Unpin thread');
   });
 });

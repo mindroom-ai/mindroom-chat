@@ -7,14 +7,17 @@ import {
   type NavigateOptions,
 } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
+import { withRoomThreadExitTargetState } from './roomNavigateState';
 import {
   advanceHistoryStack,
   emptyHistoryStack,
   findHistoryOrigin,
   historyPageOf,
+  isSpaceThreadsPage,
   OPENED_FROM_OUTSIDE_STATE,
   previousHistoryOrigin,
   previousHistoryPathname,
+  roomFocusEventOf,
   showsRoom,
   useHistoryStackRecorder,
   type HistoryStack,
@@ -207,6 +210,23 @@ describe('findHistoryOrigin', () => {
     expect(showsRoom(historyPageOf(`/home/${encodeURIComponent(room)}/`), [room], [''])).toBe(true);
   });
 
+  it('extracts the focused room event only from room URLs with focusEvent=1', () => {
+    const encodedRoom = encodeURIComponent(room);
+    const encodedSpace = encodeURIComponent('!space:example.org');
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/%24older?focusEvent=1`))).toBe(
+      '$older'
+    );
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/%24older/?focusEvent=1`))).toBe(
+      '$older'
+    );
+    expect(
+      roomFocusEventOf(historyPageOf(`/${encodedSpace}/${encodedRoom}/%24older?focusEvent=1`))
+    ).toBe('$older');
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/%24older`))).toBeUndefined();
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/?focusEvent=1`))).toBeUndefined();
+    expect(roomFocusEventOf(historyPageOf(`/home/${encodedRoom}/`))).toBeUndefined();
+  });
+
   it("counts a space's own pages as the space", () => {
     expect(inRoom(page('a', `/${encodeURIComponent(room)}/lobby/`))).toBe(true);
   });
@@ -232,5 +252,123 @@ describe('findHistoryOrigin', () => {
   it('finds nothing when every page the app has shown is the room', () => {
     const history = stack(page('a', `/home/${room}/`), page('b', `/home/${room}/`, '?threadId=x'));
     expect(findHistoryOrigin(history, (candidate) => !inRoom(candidate))).toBeUndefined();
+  });
+});
+
+describe('isSpaceThreadsPage', () => {
+  it.each([
+    ['/!space:example.org/threads', true],
+    ['/!space:example.org/threads/', true],
+    ['/!space:example.org/Threads', true],
+    ['/%21space%3Aexample.org/threads/', true],
+    ['/%23space%3Aexample.org/threads', true],
+    ['/%23space%3Aexample.org/threads/', true],
+    ['/threads/', false],
+    ['/threads/!room:example.org/', false],
+    ['/!space:example.org/lobby/', false],
+    ['/!space:example.org/!room:example.org/', false],
+    ['/!space:example.org/threads/extra', false],
+    ['/home/threads/', false],
+  ])('returns %s -> %s', (pathname, expected) => {
+    expect(isSpaceThreadsPage({ pathname, search: '' })).toBe(expected);
+  });
+});
+
+describe('returnToOrigin propagation', () => {
+  const entryWithOrigin = (
+    key: string,
+    pathname: string,
+    search = '',
+    returnToOrigin?: boolean
+  ) => ({
+    key,
+    pathname,
+    search,
+    hash: '',
+    ...(returnToOrigin ? { returnToOrigin: true } : {}),
+  });
+
+  it('propagates returnToOrigin across 1-step and multi-step thread entries and omits it when unmarked', () => {
+    const room = '!harbor:example.org';
+    const inThread = (candidate: { pathname: string; search: string }) =>
+      showsRoom(candidate, [room], ['$root']);
+
+    const oneStep: HistoryStack = {
+      entries: [
+        entryWithOrigin('a', '/!space:example.org/threads/'),
+        entryWithOrigin('b', `/!space:example.org/${room}/`, '?threadId=%24root', true),
+      ],
+      index: 1,
+    };
+    expect(findHistoryOrigin(oneStep, (candidate) => !inThread(candidate))).toEqual({
+      steps: 1,
+      path: '/!space:example.org/threads/',
+      returnToOrigin: true,
+    });
+
+    const multiStep: HistoryStack = {
+      entries: [
+        entryWithOrigin('a', '/!space:example.org/threads/'),
+        entryWithOrigin('b', `/!space:example.org/${room}/`, '?threadId=%24root', true),
+        entryWithOrigin('c', `/!space:example.org/${room}/%24reply`, '?threadId=%24root'),
+      ],
+      index: 2,
+    };
+    expect(findHistoryOrigin(multiStep, (candidate) => !inThread(candidate))).toEqual({
+      steps: 2,
+      path: '/!space:example.org/threads/',
+      returnToOrigin: true,
+    });
+
+    const unmarked: HistoryStack = {
+      entries: [
+        entryWithOrigin('a', '/!space:example.org/threads/'),
+        entryWithOrigin('b', `/!space:example.org/${room}/`, '?threadId=%24root'),
+      ],
+      index: 1,
+    };
+    expect(findHistoryOrigin(unmarked, (candidate) => !inThread(candidate))).toEqual({
+      steps: 1,
+      path: '/!space:example.org/threads/',
+    });
+  });
+
+  it('records returnToOrigin from router navigation state via useHistoryStackRecorder', async () => {
+    let navigate: NavigateFunction | undefined;
+    function Recorder() {
+      useHistoryStackRecorder('@alice:example.org');
+      navigate = useNavigate();
+      return null;
+    }
+    let tree: ReactTestRenderer | undefined;
+    await act(async () => {
+      tree = create(
+        React.createElement(
+          MemoryRouter,
+          { initialEntries: ['/!space:example.org/threads/'] },
+          React.createElement(Recorder)
+        )
+      );
+    });
+    const room = '!harbor:example.org';
+    await act(async () => {
+      void navigate?.(`/!space:example.org/${encodeURIComponent(room)}/?threadId=%24root`, {
+        state: withRoomThreadExitTargetState(undefined, {
+          roomId: room,
+          threadId: '$root',
+          returnToOrigin: true,
+        }),
+      });
+    });
+    await act(async () => {
+      void navigate?.(`/!space:example.org/${encodeURIComponent(room)}/%24reply?threadId=%24root`);
+    });
+
+    expect(previousHistoryOrigin((candidate) => !showsRoom(candidate, [room], ['$root']))).toEqual({
+      steps: 2,
+      path: '/!space:example.org/threads/',
+      returnToOrigin: true,
+    });
+    tree?.unmount();
   });
 });

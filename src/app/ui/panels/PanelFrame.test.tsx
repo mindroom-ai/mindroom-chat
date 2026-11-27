@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import type { ReactElement } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { IconButton } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelHeaderControls } from './PanelFrame';
+import { ControlPill } from './PanelFrame.css';
 import { PanelFrameProvider, type PanelFrame } from './panelFrameContext';
 import { usePanelSlot } from './panelPresence';
 import { ResizablePanel } from './ResizablePanel';
@@ -89,6 +91,7 @@ describe('the frame of a side panel', () => {
     expect(separator()).not.toBeNull();
     const fill = screen.getByRole('button', { name: 'Fill the room with Notes' });
     expect(fill.getAttribute('aria-pressed')).toBe('false');
+    expect(fill.hasAttribute('data-panel-fill-button')).toBe(true);
     await act(async () => fill.click());
     expect(setLayout).toHaveBeenLastCalledWith('filled');
     await act(async () => screen.getByRole('button', { name: 'Fold Notes to the edge' }).click());
@@ -223,16 +226,24 @@ describe('PanelHeaderControls', () => {
     cleanup();
   });
 
-  it('renders panel actions, frame controls, and close inside the pill', () => {
+  it('renders panel actions, frame controls, and close as flat Surface/None controls', () => {
     const onClose = vi.fn();
     const setLayout = vi.fn<PanelFrame['setLayout']>();
-    render(
+    const { container: expectedIcon } = render(
+      <IconButton size="300" radii="300" variant="Surface" fill="None" />
+    );
+    const surfaceNoneTokens = Array.from(expectedIcon.querySelector('button')!.classList);
+    cleanup();
+
+    const { container } = render(
       <PanelFrameProvider value={{ label: 'Notes', layout: 'beside', setLayout }}>
         <PanelHeaderControls onClose={onClose} closeLabel="Close Notes">
           <button type="button">Extra</button>
         </PanelHeaderControls>
       </PanelFrameProvider>
     );
+
+    expect(container.firstElementChild?.classList.contains(ControlPill)).toBe(true);
 
     const buttons = screen.getAllByRole('button');
     expect(buttons.map((b) => b.getAttribute('aria-label') ?? b.textContent)).toEqual([
@@ -241,6 +252,9 @@ describe('PanelHeaderControls', () => {
       'Fold Notes to the edge',
       'Close Notes',
     ]);
+    for (const button of buttons.slice(1)) {
+      expect(Array.from(button.classList)).toEqual(expect.arrayContaining(surfaceNoneTokens));
+    }
     fireEvent.click(screen.getByRole('button', { name: 'Close Notes' }));
     expect(onClose).toHaveBeenCalledTimes(1);
   });

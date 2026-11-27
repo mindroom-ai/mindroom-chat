@@ -41,6 +41,7 @@ type HarnessApi = {
   sendSessionUploadItemsRef: MutableRefObject<TUploadItem[]>;
   uploadsRef: MutableRefObject<Upload[]>;
   mountedRef: MutableRefObject<boolean>;
+  clearEnrollment: Mock;
   hasActiveSendSession: () => boolean;
   joinedSendPending: boolean;
   startSendSession: (options?: StartRoomInputSendSessionOptions) => Promise<void>;
@@ -161,6 +162,19 @@ const TestHarness = ({
   const sendSessionUploadItemsRef = useRef<TUploadItem[]>([]);
   const uploadsRef = useRef<Upload[]>([]);
   const mountedRef = useRef(true);
+  const clearEnrollmentSpy = useMemo(
+    () =>
+      vi.fn((files: TUploadContent[]) => {
+        const dropped = new Set(files);
+        sendSessionUploadItemsRef.current = sendSessionUploadItemsRef.current.filter(
+          (item) => !dropped.has(item.file)
+        );
+        sendSessionFilesRef.current = sendSessionFilesRef.current.filter(
+          (file) => !dropped.has(file)
+        );
+      }),
+    []
+  );
 
   const attachments = useMemo<RoomInputAttachmentAccess>(
     () => ({
@@ -173,13 +187,15 @@ const TestHarness = ({
         selectedFilesRef.current = [...selectedFilesRef.current, ...items];
       },
       enroll: (items) => {
-        sendSessionUploadItemsRef.current = items;
-        sendSessionFilesRef.current = items.map((item) => item.file);
+        const known = new Set(sendSessionUploadItemsRef.current.map((item) => item.file));
+        const next = [
+          ...sendSessionUploadItemsRef.current,
+          ...items.filter((item) => !known.has(item.file)),
+        ];
+        sendSessionUploadItemsRef.current = next;
+        sendSessionFilesRef.current = next.map((item) => item.file);
       },
-      clearEnrollment: () => {
-        sendSessionUploadItemsRef.current = [];
-        sendSessionFilesRef.current = [];
-      },
+      clearEnrollment: clearEnrollmentSpy,
       protectPasteItems: () => () => {},
       subscribe: () => () => {},
       release: (_roomId, files) => {
@@ -203,7 +219,7 @@ const TestHarness = ({
         uploadsRef.current = uploadsRef.current.filter((item) => !uploadList.includes(item.file));
       },
     }),
-    []
+    [clearEnrollmentSpy]
   );
 
   const controller = useRoomInputSendSessionController({
@@ -239,9 +255,10 @@ const TestHarness = ({
       sendSessionUploadItemsRef,
       uploadsRef,
       mountedRef,
+      clearEnrollment: clearEnrollmentSpy,
       ...controller,
     });
-  }, [controller, onReady]);
+  }, [clearEnrollmentSpy, controller, onReady]);
 
   return null;
 };
@@ -2884,5 +2901,47 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
       await Promise.resolve();
     });
     await vi.waitFor(() => expect(onConsumedNoText).toHaveBeenCalledTimes(1));
+  });
+
+  it.each([
+    { label: 'ordinary 413 + caption', paste: false, caption: 'dictated caption', released: true },
+    { label: 'ordinary 413 without caption', paste: false, caption: undefined, released: true },
+    {
+      label: 'paste 413 + caption',
+      paste: true,
+      caption: 'dictated paste caption',
+      released: false,
+    },
+  ])('batch 413 handoff: $label', async ({ paste, caption, released }) => {
+    const { api, mx } = renderHarness();
+    const file = createFile(paste ? 'mindroom-paste-a3f19c.txt' : 'huge.log');
+    const item = paste ? createPasteUploadItem(file) : createUploadItem(file);
+    const err413 = new MatrixError({ errcode: 'M_TOO_LARGE', error: 'too big' }, 413);
+    const onConsumed = vi.fn();
+
+    api.selectedFilesRef.current = [item];
+    api.sendSessionUploadItemsRef.current = [item];
+    api.sendSessionFilesRef.current = [file];
+    api.uploadsRef.current = [{ file, status: UploadStatus.Error, error: err413 }];
+
+    await act(async () => {
+      await api.startSendSession({
+        textContent: caption ? { msgtype: 'm.text', body: caption } : undefined,
+        batch: { fileItems: [item] },
+        composerAlreadyReset: true,
+        onTextConsumed: onConsumed,
+      });
+    });
+
+    expect(sentBodies(mx)).toEqual(caption ? [caption] : []);
+    expect(api.selectedFilesRef.current).toEqual([item]);
+    if (released) {
+      expect(api.clearEnrollment).toHaveBeenCalledWith([file]);
+      expect(api.sendSessionFilesRef.current).toEqual([]);
+      expect(onConsumed).toHaveBeenCalledTimes(1);
+    } else {
+      expect(api.clearEnrollment).not.toHaveBeenCalledWith([file]);
+      expect(api.sendSessionFilesRef.current).toEqual([file]);
+    }
   });
 });

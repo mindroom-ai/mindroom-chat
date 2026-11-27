@@ -8,6 +8,8 @@ export type RoomThreadExitTarget = {
   useHistoryBack?: boolean;
   /** The account that opened the thread; a target recorded before accounts were named has none. */
   sessionId?: string;
+  /** Whether leaving this thread should return to its origin page (e.g., Space All threads). */
+  returnToOrigin?: boolean;
 };
 
 const roomThreadExitTargetMemory = new Map<string, RoomThreadExitTarget>();
@@ -41,7 +43,14 @@ const getStoredRoomThreadExitTarget = (entryKey: string): RoomThreadExitTarget |
       typeof parsedValue.useHistoryBack === 'boolean' ? parsedValue.useHistoryBack : true;
     const sessionId = typeof parsedValue.sessionId === 'string' ? parsedValue.sessionId : undefined;
 
-    const target = { roomId, threadId, exitPath, useHistoryBack, sessionId };
+    const target: RoomThreadExitTarget = {
+      roomId,
+      threadId,
+      exitPath,
+      useHistoryBack,
+      sessionId,
+      ...(parsedValue.returnToOrigin === true ? { returnToOrigin: true } : {}),
+    };
     roomThreadExitTargetMemory.set(entryKey, target);
     return target;
   } catch {
@@ -93,7 +102,14 @@ export const getRoomThreadExitTargetFromHistoryState = (
         const sessionId = typeof target.sessionId === 'string' ? target.sessionId : undefined;
 
         if (typeof roomId === 'string' && typeof threadId === 'string') {
-          return { roomId, threadId, exitPath, useHistoryBack, sessionId };
+          return {
+            roomId,
+            threadId,
+            exitPath,
+            useHistoryBack,
+            sessionId,
+            ...(target.returnToOrigin === true ? { returnToOrigin: true } : {}),
+          };
         }
       }
     }

@@ -16,12 +16,14 @@ export function SettingsModalRenderer() {
 
   return (
     <Modal500 requestClose={closeSettings} className={phone ? undefined : SettingsDialog}>
-      <Settings
-        key={state.requestId}
-        initialPage={state.initialPage}
-        initialSetting={state.initialSetting}
-        requestClose={closeSettings}
-      />
+      <div data-settings-modal="" style={{ display: 'contents' }}>
+        <Settings
+          key={state.requestId}
+          initialPage={state.initialPage}
+          initialSetting={state.initialSetting}
+          requestClose={closeSettings}
+        />
+      </div>
     </Modal500>
   );
 }

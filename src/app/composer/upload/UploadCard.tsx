@@ -78,6 +78,30 @@ export function UploadCardProgress({
   );
 }
 
+/** The progress line while a media attachment is compressing before upload. */
+export function UploadCardCompressionProgress({
+  progress,
+  label,
+}: {
+  progress: number;
+  label: string;
+}) {
+  const percentage = Math.min(100, Math.max(0, Math.round(progress * 100)));
+  return (
+    <Box direction="Column" gap="200">
+      <ProgressBar variant="Secondary" size="300" min={0} max={100} value={percentage} />
+      <Box alignItems="Center" justifyContent="SpaceBetween">
+        <Text as="span" size="T200" priority="300">
+          {label}
+        </Text>
+        <Text as="span" size="T200">
+          {`${percentage}%`}
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
 /** An upload error line under the file row. */
 export function UploadCardError({
   children,

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { EventEmitter } from 'node:events';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { Button } from 'folds';
 import { MatrixEvent, type IContent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { createStore, Provider as JotaiProvider } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -386,6 +387,7 @@ describe('WorkflowRunCard', () => {
         groups: [],
         nodes: [],
         edges: [],
+        messages: [],
         log: [],
         omitted: {
           queued: 0,
@@ -397,6 +399,7 @@ describe('WorkflowRunCard', () => {
           groups: 0,
           phases: 0,
           log: 0,
+          messages: 0,
         },
       },
     });
@@ -464,6 +467,7 @@ describe('WorkflowRunCard', () => {
           groups: [],
           nodes: [],
           edges: [],
+          messages: [],
           log: [],
           omitted: {
             queued: 0,
@@ -475,6 +479,7 @@ describe('WorkflowRunCard', () => {
             groups: 0,
             phases: 0,
             log: 0,
+            messages: 0,
           },
         },
       },
@@ -581,6 +586,7 @@ describe('WorkflowRunCard', () => {
             groups: [],
             nodes: [],
             edges: [],
+            messages: [],
             omitted: {
               queued: 0,
               running: 0,
@@ -591,6 +597,7 @@ describe('WorkflowRunCard', () => {
               groups: 0,
               phases: 0,
               log: 0,
+              messages: 0,
             },
             log: [],
           },
@@ -638,6 +645,7 @@ describe('WorkflowRunCard', () => {
         groups: [],
         nodes: [],
         edges: [],
+        messages: [],
         log: [],
         omitted: {
           queued: 0,
@@ -649,6 +657,7 @@ describe('WorkflowRunCard', () => {
           groups: 0,
           phases: 0,
           log: 0,
+          messages: 0,
         },
       },
     });
@@ -688,5 +697,104 @@ describe('WorkflowRunCard', () => {
       </JotaiProvider>
     );
     expect(screen.getByRole('button', { name: 'Graph' })).toBeTruthy();
+  });
+
+  it('makes Graph Primary, demotes Resume/Run again to Secondary, and requires 2-step confirm for Run again', async () => {
+    const sendEvent = vi.fn(async () => ({ event_id: '$resume-2' }));
+    const { mx } = makeClient({ userId: VIEWER, sendEvent });
+    const graph = {
+      phases: ['Audit'],
+      groups: [],
+      nodes: [],
+      edges: [],
+      messages: [],
+      log: [],
+      omitted: {
+        queued: 0,
+        running: 0,
+        waiting: 0,
+        completed: 0,
+        failed: 0,
+        edges: 0,
+        groups: 0,
+        phases: 0,
+        log: 0,
+        messages: 0,
+      },
+    };
+    const outerKeyDown = vi.fn();
+    const wrap = (card: ReturnType<typeof makeCard>) => (
+      <div onKeyDown={outerKeyDown}>
+        <Button data-testid="ref-primary" type="button" size="300" variant="Primary" fill="Soft" />
+        <Button
+          data-testid="ref-secondary"
+          type="button"
+          size="300"
+          variant="Secondary"
+          fill="Soft"
+        />
+        <JotaiProvider>
+          <MatrixClientProvider value={mx}>
+            <WorkflowRunCard card={card} roomId={ROOM_ID} threadId={THREAD_ID} sender={AGENT} />
+          </MatrixClientProvider>
+        </JotaiProvider>
+      </div>
+    );
+
+    const { rerender } = render(
+      wrap(makeCard({ status: 'completed', endedAt: 1795389800, graph }))
+    );
+    const primaryClass = screen.getByTestId('ref-primary').className;
+    const secondaryClass = screen.getByTestId('ref-secondary').className;
+    expect(primaryClass).not.toBe(secondaryClass);
+    expect(screen.getByRole('button', { name: 'Graph' }).className).toBe(primaryClass);
+    expect(screen.getByRole('button', { name: 'Run again' }).className).toBe(secondaryClass);
+
+    // 1st click enters confirmation and moves focus to Cancel; Cancel restores focus to Run again.
+    fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    expect(sendEvent).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Confirm run again' }).className).toBe(primaryClass);
+    const cancelBtn = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancelBtn.className).toBe(secondaryClass);
+    expect(document.activeElement).toBe(cancelBtn);
+
+    // Escape outside the confirmation container is not swallowed and leaves confirmation open.
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Graph' }), { key: 'Escape' });
+    expect(outerKeyDown).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Confirm run again' })).toBeTruthy();
+
+    fireEvent.click(cancelBtn);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Run again' }));
+
+    // Scoped Escape inside confirmation stops propagation and restores focus to Run again.
+    outerKeyDown.mockClear();
+    fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Confirm run again' }), { key: 'Escape' });
+    expect(outerKeyDown).not.toHaveBeenCalled();
+    expect(sendEvent).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Run again' }));
+
+    // Confirm sends resume.
+    fireEvent.click(screen.getByRole('button', { name: 'Run again' }));
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm run again' }));
+    });
+    expect(sendEvent).toHaveBeenCalledWith(
+      ROOM_ID,
+      WORKFLOW_CONTROL_EVENT_TYPE,
+      { run: RUN, action: 'resume', 'm.relates_to': { rel_type: 'm.thread', event_id: THREAD_ID } },
+      'txn-1'
+    );
+
+    // Failed run keeps 1-click Secondary Resume.
+    sendEvent.mockClear();
+    rerender(wrap(makeCard({ status: 'failed', attempt: 2, endedAt: 1795389850, graph })));
+    const resumeBtn = screen.getByRole('button', { name: 'Resume' });
+    expect(resumeBtn.className).toBe(secondaryClass);
+    await act(async () => {
+      fireEvent.click(resumeBtn);
+    });
+    expect(sendEvent).toHaveBeenCalledTimes(1);
   });
 });

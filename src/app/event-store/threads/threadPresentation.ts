@@ -9,12 +9,15 @@ import {
 import {
   getThreadSummaryInfosFromEventSources,
   getThreadSummaryEventInfo,
-  isThreadSummaryEvent,
   pickLatestThreadSummaryInfo,
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
+import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequestPreview';
 import { getMemberDisplayName } from '../../matrix/room';
-import { getThreadSummaryReply } from '../../matrix/client/unopenedThreadEdits';
+import {
+  getRetainedThreadSummaryReply,
+  getThreadSummaryReply,
+} from '../../matrix/client/unopenedThreadEdits';
 import { getBundledThreadPreviews, getThreadPreviewRevisionTs } from './threadBundledPreviews';
 import {
   getCompactThreadRootBodyPreviewText,
@@ -22,9 +25,11 @@ import {
 } from './compactThreadRootData';
 import {
   getLatestRenderableVisibleThreadReplyEvent,
+  getEventPreviewContent,
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadEventBodyPreviewText,
   getVisibleThreadMessageCount,
+  isRenderableThreadReplyPreviewEvent,
   isVisibleThreadReplyEvent,
   type VisibleThreadEventCollectionLike,
 } from './threadUtils';
@@ -117,37 +122,71 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackLastActivityTs,
   bundledPreviews,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
+  const viewerUserId = room.myUserId || undefined;
+  const isFolded = (event: MatrixEvent) => isFoldedSecretRequestEvent(event, viewerUserId);
   const bundle = bundledPreviews ?? getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
   const cachedReplyTs = fallbackLatestReplyTs ?? fallbackLastActivityTs;
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
   const summaryReply = getThreadSummaryReply(thread);
+  const knownReplies = [
+    ...replyEvents,
+    thread?.replyToEvent,
+    getRetainedThreadSummaryReply(thread),
+  ];
   // A root fetched earlier keeps the server's previews of that moment. Once this device knows a
   // newer thread event, or a newer revision of the bundle's latest one, its reply is out of date.
   const bundleLatest = bundle.latest;
   const outgrown =
     !!bundleLatest &&
-    [...replyEvents, thread?.replyToEvent, summaryReply].some(
+    [...knownReplies, summaryReply].some(
       (event) =>
         !!event &&
         (event.getId() === bundleLatest.id
           ? getThreadPreviewRevisionTs(event) > bundleLatest.ts
           : event.getTs() > bundleLatest.ts)
     );
-  const bundled = { title: bundle.title, reply: outgrown ? undefined : bundle.reply };
-  const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
+  const bundledReplyFolded =
+    !!bundle.reply &&
+    knownReplies.some(
+      (event) => !!event && event.getId() === bundle.reply?.getId() && isFolded(event)
+    );
+  const bundled = {
+    title: bundle.title,
+    reply: outgrown || bundledReplyFolded ? undefined : bundle.reply,
+  };
+  const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents, viewerUserId);
   // The SDK restores the bundled reply before loading the thread timeline.
   // Use it for presentation without treating one event as the full reply count. Like the server's
   // bundled reply, it replaces a cached copy of the reply older than its newest revision.
   const bundledReply = bundled.reply ?? summaryReply;
+  // A cached prompt from a secret request that has since folded must not outlive its folding edit
+  // and shadow an older agent reply; cached answers predating the request (< event.getTs()), from
+  // another sender, or genuinely newer after the fold (> revisionTs) still win.
+  const cachedSupersededByFoldedSecret =
+    cachedReplyTs !== undefined &&
+    knownReplies.some(
+      (event) =>
+        !!event &&
+        isFolded(event) &&
+        (!fallbackLastSenderId || fallbackLastSenderId === event.getSender()) &&
+        cachedReplyTs >= event.getTs() &&
+        getThreadPreviewRevisionTs(event) >= cachedReplyTs
+    );
+  const cachedFallback = cachedSupersededByFoldedSecret
+    ? undefined
+    : {
+        previewText: fallbackLatestReplyPreviewText,
+        replyTs: fallbackLatestReplyTs,
+        lastSenderId: fallbackLastSenderId,
+      };
   const candidatePreviewEvent =
-    (!fallbackLatestReplyPreviewText ||
+    (!cachedFallback?.previewText ||
       (bundledReply &&
         cachedReplyTs !== undefined &&
         getThreadPreviewRevisionTs(bundledReply) > cachedReplyTs)) &&
     bundledReply &&
-    !isThreadSummaryEvent(bundledReply) &&
     isVisibleThreadReplyEvent(bundledReply) &&
-    getVisibleThreadEventBodyPreviewText(bundledReply) &&
+    isRenderableThreadReplyPreviewEvent(bundledReply, viewerUserId) &&
     (!loadedPreviewEvent ||
       (bundledReply.getId() === loadedPreviewEvent.getId()
         ? getThreadPreviewRevisionTs(bundledReply) > getThreadPreviewRevisionTs(loadedPreviewEvent)
@@ -156,7 +195,7 @@ export const resolveThreadPresentationSnapshot = ({
       : loadedPreviewEvent;
   const preferCachedReply =
     bundled.reply &&
-    fallbackLatestReplyPreviewText &&
+    cachedFallback?.previewText &&
     cachedReplyTs !== undefined &&
     (!candidatePreviewEvent || cachedReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
   const latestPreviewEvent = preferCachedReply ? undefined : candidatePreviewEvent;
@@ -165,10 +204,12 @@ export const resolveThreadPresentationSnapshot = ({
   const lastEvent = preferCachedReply
     ? undefined
     : (latestPreviewEvent ??
-      (fallbackLatestReplyPreviewText ? undefined : replyEvents[replyEvents.length - 1]));
+      (cachedFallback?.previewText
+        ? undefined
+        : replyEvents.findLast((event) => !isFolded(event))));
   const lastSenderId =
     lastEvent?.getSender?.() ??
-    fallbackLastSenderId ??
+    cachedFallback?.lastSenderId ??
     fallbackParticipantIds?.find((candidateId) => !!candidateId);
   const lastSenderDisplayName = lastSenderId
     ? (getMemberDisplayName(room, lastSenderId) ?? lastSenderId)
@@ -192,13 +233,13 @@ export const resolveThreadPresentationSnapshot = ({
     preferredPreviewText: preferredRootPreviewText,
   });
   const latestReplyPreviewText =
-    getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? fallbackLatestReplyPreviewText;
+    getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? cachedFallback?.previewText;
   const rootPreviewLocalization = getThreadPreviewLocalization(
-    rootEvent?.getContent?.(),
+    getEventPreviewContent(rootEvent),
     rootPreviewText
   );
   const latestReplyPreviewLocalization = getThreadPreviewLocalization(
-    latestPreviewEvent?.getContent?.(),
+    getEventPreviewContent(latestPreviewEvent),
     latestReplyPreviewText
   );
 
@@ -207,12 +248,9 @@ export const resolveThreadPresentationSnapshot = ({
     summaryText: summaryInfo?.summaryText,
     rootPreviewText,
     latestReplyPreviewText,
-    // A title notice shown for want of a reply has no reply time.
     latestReplyTs: latestPreviewEvent
-      ? isThreadSummaryEvent(latestPreviewEvent)
-        ? undefined
-        : getThreadPreviewRevisionTs(latestPreviewEvent)
-      : fallbackLatestReplyTs,
+      ? getThreadPreviewRevisionTs(latestPreviewEvent)
+      : cachedFallback?.replyTs,
     ...(rootPreviewLocalization ? { rootPreviewLocalization } : {}),
     ...(latestReplyPreviewLocalization ? { latestReplyPreviewLocalization } : {}),
     lastSenderId,

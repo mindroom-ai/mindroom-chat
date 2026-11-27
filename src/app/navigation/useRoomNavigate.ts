@@ -21,7 +21,7 @@ import {
   getThreadsRoomPath,
   withSearchParam,
 } from '../routes/pathUtils';
-import { navigateToRoomThread } from './threadNavigation';
+import { navigateToRoomThread, type NavigateRoomThreadOptions } from './threadNavigation';
 import { useRoomRouteParams } from './useRoomRouteParams';
 import { isJoinedRoom } from './routeVisibility';
 import { currentHistoryLocation } from '../routes/historyStack';
@@ -199,7 +199,7 @@ export const useRoomNavigate = () => {
    * steps back there when that page is the thread's room.
    */
   const navigateRoomThread = useCallback(
-    (roomId: string, threadId: string, eventId?: string, opts?: NavigateOptions) =>
+    (roomId: string, threadId: string, eventId?: string, opts?: NavigateRoomThreadOptions) =>
       navigateToRoomThread({
         navigateRoomThreadDirect,
         roomId,

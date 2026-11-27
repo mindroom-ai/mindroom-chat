@@ -188,10 +188,16 @@ for (const theme of THEME_NAMES) {
         return { x: box.x + box.width / 2 + window.scrollX, y: box.y + window.scrollY };
       });
       // The gap above this banner is plain page background, without overlapping text.
-      const [edge, backdrop] = await sampleScreenshot(page, [top, { ...top, y: top.y - 2 }]);
-      expect(pixelDifference(edge!, backdrop!), 'top rim stays visible on white').toBeGreaterThan(
-        24
-      );
+      // Sum the outer 0.5px contrast hairline and the inner 1px specular rim across the top edge.
+      const [outerEdge, innerEdge, backdrop] = await sampleScreenshot(page, [
+        { ...top, y: Math.floor(top.y) - 1 },
+        { ...top, y: Math.floor(top.y) },
+        { ...top, y: Math.floor(top.y) - 3 },
+      ]);
+      expect(
+        pixelDifference(outerEdge!, backdrop!) + pixelDifference(innerEdge!, backdrop!),
+        'top rim stays visible on white'
+      ).toBeGreaterThan(24);
     }
   });
 }
@@ -646,8 +652,8 @@ test('real controls keep focus, editing, playback, and narrow layout', async ({ 
   }
 });
 
-// Outlined rail buttons sit on the opaque rail and use glassSurface for their rim, shadow, and
-// highlight. Leaving backdrop-filter on creates a WebKit backdrop layer that paints over sibling
+// Outlined rail buttons sit on the opaque rail and use glassSurface for their rim and shadow.
+// Leaving backdrop-filter on creates a WebKit backdrop layer that paints over sibling
 // unread badges while the clipped phone navigation drawer slides in.
 test('outlined rail buttons drop backdrop-filter while keeping their glass rim @webkit', async ({
   page,
@@ -664,13 +670,15 @@ test('outlined rail buttons drop backdrop-filter while keeping their glass rim @
       return {
         webkitFilter,
         backgroundImage: style.backgroundImage,
+        rimBackgroundImage: rim.backgroundImage,
         rimDisplay: rim.display,
         rimContent: rim.content,
       };
     })
   ).toEqual({
     webkitFilter: expect.stringMatching(/^(none|)$/),
-    backgroundImage: expect.stringContaining('radial-gradient('),
+    backgroundImage: 'none',
+    rimBackgroundImage: expect.stringContaining('linear-gradient('),
     rimDisplay: expect.not.stringMatching(/^none$/),
     rimContent: expect.not.stringMatching(/^none$/),
   });

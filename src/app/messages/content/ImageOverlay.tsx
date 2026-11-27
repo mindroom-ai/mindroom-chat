@@ -102,7 +102,7 @@ const shouldDeactivateOnOutsideInteraction = (event: MouseEvent | TouchEvent): b
  */
 export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverlayProps) {
   const { src, alt, requestClose } = viewer;
-  const { centerClassName, modalClassName, modalStyle } = useViewerFrame();
+  const { centerClassName, modalClassName, modalStyle, modalAppearance } = useViewerFrame();
   // The whole modal, its safe-area padding too: on phones it is the viewer's screen.
   const screenRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -133,6 +133,7 @@ export function ImageOverlay({ openWhileLoading = false, ...viewer }: ImageOverl
             aria-modal="true"
             aria-label={revealDirectionControls(alt)}
             size="500"
+            appearance={modalAppearance}
             className={modalClassName}
             style={modalStyle}
             onContextMenu={keepContextMenu}

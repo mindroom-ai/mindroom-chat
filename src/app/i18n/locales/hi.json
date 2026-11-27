@@ -1454,7 +1454,7 @@
         "configuredModel": "कॉन्फ़िगर किया गया मॉडल",
         "runId": "रन ID",
         "sessionId": "सत्र ID",
-        "newInput": "नया इनपुट",
+        "newInput": "बिना कैश इनपुट",
         "replyCount_one": "{{count}} जवाब",
         "replyCount_other": "{{count}} जवाब",
         "loadedReplyCount_one": "{{count}} लोड किया गया जवाब",

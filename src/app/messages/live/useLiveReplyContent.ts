@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { IContent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { isRecord } from '../../lib/isRecord';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getStreamStatusFromContent, STREAM_STATUS_KEY } from '../../matrix/protocol/aiRun';
@@ -10,6 +11,7 @@ import {
 import {
   getContentToolTraceEvents,
   MINDROOM_TOOL_TRACE_KEY,
+  toolStartedAt,
   type ToolTraceEvent,
 } from '../../matrix/protocol/toolTrace';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
@@ -37,9 +39,6 @@ export const LIVE_COMPACTIONS_KEY = 'io.mindroom.live_compactions';
 const WARMUP_SUFFIX_KEY = 'io.mindroom.warmup_suffix';
 const LONG_TEXT_KEY = 'io.mindroom.long_text';
 const LIVE_DURABLE_STATUSES = new Set(['pending', 'streaming']);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const getLiveCheckpoint = (content: IContent): LiveOrder | undefined => {
   const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
@@ -162,8 +161,9 @@ const withWarmupActivity = (content: IContent): IContent => {
 };
 
 /**
- * The frames' output on the calls a covering checkpoint still shows running: progress edits never
- * carry it, so it would vanish until the next frame while a quiet command keeps running.
+ * The frames' live output and start time on the calls a covering checkpoint still shows running:
+ * progress edits never carry them, so they would vanish until the next frame while a quiet command
+ * keeps running.
  */
 const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IContent => {
   const trace = content[MINDROOM_TOOL_TRACE_KEY];
@@ -174,13 +174,21 @@ const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IConten
     if (
       !isRecord(event) ||
       event.type !== 'tool_call_started' ||
-      typeof live?.progress !== 'string' ||
+      live?.type !== 'tool_call_started' ||
       live.tool_name !== event.tool_name
     ) {
       return event;
     }
+    const progress = typeof live.progress === 'string' ? live.progress : undefined;
+    const durableStart = toolStartedAt(event);
+    const startedAt = durableStart ?? toolStartedAt(live);
+    if (progress === undefined && startedAt === durableStart) return event;
     changed = true;
-    return { ...event, progress: live.progress };
+    return {
+      ...event,
+      ...(progress === undefined ? {} : { progress }),
+      ...(startedAt === durableStart ? {} : { started_at: startedAt }),
+    };
   });
   return changed ? { ...content, [MINDROOM_TOOL_TRACE_KEY]: { ...trace, events } } : content;
 };
@@ -253,8 +261,8 @@ export type LiveReplyContent = {
 /**
  * The reply's content with its live frames over the resolved durable `content`, while the
  * durable reply streams and no durable checkpoint covers them; otherwise `content` itself.
- * A covering checkpoint keeps the live reasoning and running calls' output, which progress edits
- * never carry.
+ * A covering checkpoint keeps the live reasoning and running calls' output and start time, which
+ * progress edits never carry.
  */
 export const useLiveReplyContent = (
   mx: MatrixClient,

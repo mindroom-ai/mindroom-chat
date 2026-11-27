@@ -78,6 +78,8 @@ case "$(body /runtime-config.js)" in
 esac
 expect '/.well-known/apple-app-site-association Content-Type' \
   "$(header /.well-known/apple-app-site-association Content-Type)" 'application/json'
+expect '/.well-known/assetlinks.json Content-Type' \
+  "$(header /.well-known/assetlinks.json Content-Type)" 'application/json'
 
 passed=1
 echo "PASS: $image serves $tag"

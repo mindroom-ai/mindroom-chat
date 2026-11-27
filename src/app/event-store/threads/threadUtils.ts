@@ -2,6 +2,8 @@ import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../matrix/types/room';
+import { getLatestMessageContent } from '../../matrix/room';
+import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequestPreview';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
@@ -23,6 +25,7 @@ type VisibleThreadEventLike = ThreadEventLike & {
 
 export type VisibleThreadEventCollectionLike = {
   id?: string;
+  room?: Room;
   rootEvent?: MatrixEvent;
   replyToEvent?: MatrixEvent | null;
   length?: number;
@@ -95,24 +98,41 @@ export const isVisibleThreadReplyEvent = (event: VisibleThreadEventLike): boolea
   return isVisibleThreadReplyEventType(event.getType?.());
 };
 
-export const getVisibleThreadEventBodyPreviewText = (
+/**
+ * The event content used for thread previews and preview localization, merging outer-edit
+ * MindRoom metadata when a replacement is applied while staying safe for minimal test mocks.
+ */
+export const getEventPreviewContent = (
   event: MatrixEvent | undefined
-): string | undefined => {
-  const content =
-    event && typeof event.getContent === 'function'
-      ? (event.getContent() as Record<string, unknown> | null | undefined)
-      : undefined;
-  return getThreadMessagePreviewText(content);
+): Record<string, unknown> | null | undefined => {
+  if (!event) return undefined;
+  const replacingEvent =
+    typeof event.replacingEvent === 'function' ? (event.replacingEvent() ?? undefined) : undefined;
+  if (replacingEvent) {
+    return getLatestMessageContent(event, replacingEvent);
+  }
+  return typeof event.getContent === 'function' ? event.getContent() : undefined;
 };
 
+export const getVisibleThreadEventBodyPreviewText = (
+  event: MatrixEvent | undefined
+): string | undefined => getThreadMessagePreviewText(getEventPreviewContent(event));
+
+export const isRenderableThreadReplyPreviewEvent = (
+  event: MatrixEvent,
+  viewerUserId?: string
+): boolean =>
+  !!getVisibleThreadEventBodyPreviewText(event) &&
+  !isThreadSummaryEvent(event) &&
+  !isFoldedSecretRequestEvent(event, viewerUserId);
+
 export const getLatestRenderableVisibleThreadReplyEvent = (
-  replyEvents: MatrixEvent[]
-): MatrixEvent | undefined => {
-  // A title notice is never a reply preview: the card's title line already shows it.
-  return replyEvents.findLast(
-    (event) => !!getVisibleThreadEventBodyPreviewText(event) && !isThreadSummaryEvent(event)
-  );
-};
+  replyEvents: MatrixEvent[],
+  viewerUserId?: string
+): MatrixEvent | undefined =>
+  // Title notices show on the card's title line, and answered anchored secret requests fold into
+  // their reply's tool call, so neither replaces the conversational reply preview.
+  replyEvents.findLast((event) => isRenderableThreadReplyPreviewEvent(event, viewerUserId));
 
 export const getPreferredVisibleThreadReplyEvents = (
   thread: VisibleThreadEventCollectionLike | null | undefined

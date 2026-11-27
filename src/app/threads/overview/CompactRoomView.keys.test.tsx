@@ -13,6 +13,7 @@ const state = vi.hoisted(() => ({
   pinned: [] as string[],
   resolved: [] as string[],
   sections: undefined as CompactThreadSection[] | undefined,
+  emptyModels: false,
   setResolved: vi.fn(async () => undefined),
 }));
 
@@ -40,7 +41,10 @@ vi.mock('./compactThreadCardViewModel', () => ({
   }: {
     room: Room;
     threadRootIds: string[];
-  }) => threadRootIds.map((threadRootId) => viewModel(room.roomId, threadRootId)),
+  }) =>
+    state.emptyModels
+      ? []
+      : threadRootIds.map((threadRootId) => viewModel(room.roomId, threadRootId)),
 }));
 vi.mock('../tags/useRoomThreadTags', () => ({
   useToggleThreadResolution: () => ({
@@ -103,6 +107,7 @@ beforeEach(() => {
   state.pinned = [];
   state.resolved = [];
   state.sections = undefined;
+  state.emptyModels = false;
   layout = stubCompactLayout();
 });
 
@@ -130,6 +135,15 @@ describe('the thread keys on the compact thread list', () => {
     expect(resolveKeys()).toBe(true);
     expect(state.setResolved).toHaveBeenLastCalledWith('$c', false);
     expect(document.activeElement).toBe(card('$b'));
+  });
+
+  it('keeps a saved scroll position when threadRootIds are present but no card view models have rendered', () => {
+    state.emptyModels = true;
+    const saved = { scrollTop: 360, anchors: [{ key: '$b', offset: 12 }] };
+    const memory = new Map([['!empty-models:example.org', saved]]);
+    const { unmount } = render(list('!empty-models:example.org', ['$a', '$b'], undefined, memory));
+    unmount();
+    expect(memory.get('!empty-models:example.org')).toBe(saved);
   });
 
   describe('windowed keyboard and Tab navigation', () => {

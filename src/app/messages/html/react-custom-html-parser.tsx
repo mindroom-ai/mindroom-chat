@@ -26,8 +26,9 @@ import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
 import * as footnoteCss from '../../rich-text/Footnote.css';
-import { ImageOverlay } from '../content/ImageOverlay';
+import * as taskListCss from '../../rich-text/TaskList.css';
 import { renderCustomHtmlElement } from './customHtmlRenderers';
+import { InlineImage } from './InlineImage';
 import { MermaidBlock } from './MermaidBlock';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
 import {
@@ -47,15 +48,13 @@ import { isFootnoteHref, isFootnoteId } from '../../rich-text/sanitize';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
 import { Callout, extractCallout } from '../../rich-text/Callout';
+import { TaskListItem, extractTaskListItem, hasTaskListMarker } from '../../rich-text/TaskList';
 import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
 import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
-import { AuthenticatedImage } from '../../avatars/AuthenticatedImage';
-import type { AvatarMediaClient } from '../../avatars/avatarMedia';
-import { useAvatarImage } from '../../avatars/useAvatarImage';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
 import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
@@ -71,48 +70,6 @@ import {
 // Renders `org.matrix.custom.html` message bodies as React: html-react-parser options that
 // style the Matrix formatting tags, render mentions, spoilers, math, code blocks and emoji,
 // link URLs in text, and hand tables, Matrix math and MindRoom blocks to the MindRoom renderers.
-
-/** An inline homeserver image opens the same full-size viewer as link preview pictures. */
-function InlineImage({
-  alt = '',
-  client,
-  src,
-  ...props
-}: ComponentPropsWithoutRef<'img'> & { client?: AvatarMediaClient }) {
-  const { t } = useTranslation();
-  const [viewerOpen, setViewerOpen] = useState(false);
-  // Resolve a live URL on open so an inline image whose cached blob was evicted still opens.
-  const viewer = useAvatarImage(viewerOpen ? src : undefined, client);
-  const label = alt || t('sharedUi.imageContent.view');
-  const openViewer = (event: SyntheticEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setViewerOpen(true);
-  };
-  return (
-    <>
-      <button
-        type="button"
-        className={css.InlineImageButton}
-        aria-label={revealDirectionControls(label)}
-        onClick={openViewer}
-      >
-        <AuthenticatedImage
-          {...props}
-          client={client}
-          src={src}
-          alt={revealDirectionControls(alt)}
-          fallback={alt ? revealDirectionControls(alt) : null}
-          className={css.InlineImage}
-          loading="lazy"
-        />
-      </button>
-      {viewerOpen && (
-        <ImageOverlay src={viewer.imageSrc} alt={label} requestClose={() => setViewerOpen(false)} />
-      )}
-    </>
-  );
-}
 
 /** Links that leave the app open in a new tab and do not hand it their opener. */
 const NEW_TAB_LINK = { rel: 'noreferrer noopener', target: '_blank' } as const;
@@ -724,6 +681,17 @@ const hasAncestor = (node: ChildNode, names: string[]): boolean => {
 const hasClass = (classAttr: string | undefined, name: string): boolean =>
   !!classAttr && classAttr.split(/\s+/).includes(name);
 
+const isFootnoteListItem = (attribs: Record<string, string>): boolean =>
+  isFootnoteId(attribs.id) || hasClass(attribs.class, 'footnote-item');
+
+const isTaskList = (children: ChildNode[]): boolean => {
+  const items = children.filter((child): child is Element => isTag(child) && child.name === 'li');
+  return (
+    items.length > 0 &&
+    items.every((item) => !isFootnoteListItem(item.attribs) && hasTaskListMarker(item.children))
+  );
+};
+
 const withoutAttribute = (attribs: Record<string, string>, name: string) => {
   const rest = { ...attribs };
   delete rest[name];
@@ -874,15 +842,21 @@ export const getReactCustomHtmlParser = (
             </blockquote>
           );
         }
-        case 'ul':
+        case 'ul': {
+          const taskList = isTaskList(children);
           return (
-            <ul {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
+            <ul
+              {...props}
+              {...(taskList ? { role: 'list' } : undefined)}
+              className={classNames(css.List, taskList && taskListCss.TaskList, props.className)}
+            >
               {domToReact(children as DOMNode[], parserOptions)}
             </ul>
           );
+        }
         case 'ol':
           return (
-            <ol {...props} className={classNames(css.List, css.MarginSpaced, props.className)}>
+            <ol {...props} className={classNames(css.List, props.className)}>
               {domToReact(children as DOMNode[], parserOptions)}
             </ol>
           );
@@ -899,6 +873,19 @@ export const getReactCustomHtmlParser = (
                 {domToReact(children as DOMNode[], parserOptions)}
               </FootnoteItem>
             );
+          }
+          if (domNode.parent && isTag(domNode.parent) && domNode.parent.name === 'ul') {
+            const task = extractTaskListItem(children);
+            if (task) {
+              const highlightMarker =
+                params.highlightRegex !== undefined &&
+                hasNonEmptyMatch(task.marker, params.highlightRegex);
+              return (
+                <TaskListItem {...props} checked={task.checked} highlightMarker={highlightMarker}>
+                  {domToReact(task.bodyNodes as DOMNode[], parserOptions)}
+                </TaskListItem>
+              );
+            }
           }
           return undefined;
         }
@@ -1010,37 +997,29 @@ export const getReactCustomHtmlParser = (
           if (params.mxcImages === false) return <>{alt ?? ''}</>;
           const url = mxcUrlToHttp(mx, src, params.useAuthentication) ?? src;
           if ('data-mx-emoticon' in attribs) {
-            const emoticonAlt = alt ?? title ?? '';
             return (
               <span className={css.EmoticonBase}>
-                <AuthenticatedImage
+                <InlineImage
                   client={mx}
-                  className={css.Emoticon()}
+                  mxcUri={src}
                   src={url}
-                  alt={emoticonAlt}
-                  fallback={emoticonAlt}
+                  alt={alt ?? title ?? ''}
                   title={title ?? alt}
-                  loading="lazy"
+                  kind="emoticon"
                 />
               </span>
             );
           }
-          if (hasAncestor(domNode, ['a'])) {
-            const linkedAlt = revealDirectionControls(alt ?? '');
-            return (
-              <AuthenticatedImage
-                {...props}
-                client={mx}
-                src={url}
-                alt={linkedAlt}
-                fallback={linkedAlt}
-                showFallbackWhileLoading
-                className={css.InlineImage}
-                loading="lazy"
-              />
-            );
-          }
-          return <InlineImage {...props} client={mx} src={url} alt={alt ?? ''} />;
+          return (
+            <InlineImage
+              {...props}
+              client={mx}
+              mxcUri={src}
+              src={url}
+              alt={alt ?? ''}
+              kind={hasAncestor(domNode, ['a']) ? 'linked' : 'standalone'}
+            />
+          );
         }
         default:
           return undefined;

@@ -185,9 +185,31 @@ describe('LiveTranscriptPanel', () => {
   });
 
   it("has Pause in its header while it shows this device's call", () => {
-    render(inCall());
+    const store = inCall();
+    render(store);
     const header = container.querySelector('header');
-    expect(header?.querySelector('[aria-label="Pause transcription"]')).not.toBeNull();
+    const pause = header?.querySelector<HTMLButtonElement>('[aria-label="Pause transcription"]');
+    const close = header?.querySelector<HTMLButtonElement>(
+      '[aria-label="Close the live transcript"]'
+    );
+    expect(pause).not.toBeNull();
+    expect(close).not.toBeNull();
+    expect(Array.from(pause!.classList)).toEqual(
+      expect.arrayContaining(Array.from(close!.classList))
+    );
+
+    act(() =>
+      store.set(liveTranscriptAtom, {
+        roomId: ROOM_ID,
+        call: { ...CALL, pausedBy: BOB },
+        lines: LINES,
+        names: {},
+      })
+    );
+    expect(pause!.getAttribute('aria-pressed')).toBe('true');
+    expect(Array.from(pause!.classList)).not.toEqual(
+      expect.arrayContaining(Array.from(close!.classList))
+    );
   });
 
   it('shows the call with an agent started from this conversation, as its reader has it, without Pause', () => {

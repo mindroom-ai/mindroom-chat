@@ -170,6 +170,8 @@ type RowProps = {
   // Shows the job's run in the Sub-agents panel, from a press anywhere on the row; only for a job
   // whose run the panel has.
   onOpen?: () => void;
+  // Opens the approval review dialog for a job waiting for approval.
+  onReviewApproval?: (trigger: HTMLElement) => void;
   // The job's Stop, or its Stopping.
   stop: ReactNode;
   // The folded bar's one job, on the title line: its title lists it, and Open shows its run.
@@ -212,6 +214,7 @@ export function BackgroundJobRow({
   viewThreadId,
   endedAt,
   onOpen,
+  onReviewApproval,
   stop,
   folded,
 }: RowProps) {
@@ -247,6 +250,11 @@ export function BackgroundJobRow({
     : undefined;
   const detail = details && ((described && meta) || tool || doing);
   const headlineTitle = meta?.task || item.name;
+  const reviewLabel = onReviewApproval
+    ? t('mindroomUi.backgroundJobs.reviewApprovalFor', { tool: headline })
+    : undefined;
+  const reviewableRow = !folded && !onOpen && !!onReviewApproval;
+  const pillIsButton = !!onReviewApproval && (!!folded || !!onOpen);
   let title: ReactNode = (
     <span className={css.Task} title={headlineTitle} dir="auto">
       {headline}
@@ -281,6 +289,21 @@ export function BackgroundJobRow({
         {headline}
       </button>
     );
+  } else if (reviewableRow) {
+    title = (
+      // The row's way to its approval: its title, whose reach is the whole row.
+      <button
+        type="button"
+        className={classNames(css.Task, css.RowOpen)}
+        title={reviewLabel}
+        aria-label={reviewLabel}
+        onClick={(event) => onReviewApproval(event.currentTarget)}
+        data-job-review-approval=""
+        dir="auto"
+      >
+        {headline}
+      </button>
+    );
   }
   const Element = folded ? 'div' : 'li';
   return (
@@ -290,19 +313,35 @@ export function BackgroundJobRow({
       data-job-kind={isWorkflow ? 'workflow' : item.subagent ? 'subagent' : 'tool'}
       data-job-depth={item.depth}
       data-job-folded={folded ? '' : undefined}
+      data-job-reviewable={reviewableRow ? '' : undefined}
     >
       <JobLogo room={room} item={item} small={nested || !!folded} />
       <span className={folded ? css.FoldedText : css.JobText}>
         <span className={css.Headline}>
           {title}
-          {waitingLabel && (
-            <span className={css.Pill.waiting} title={waitingLabel}>
-              <span className={css.PillIcon}>
-                <IconAlertCircle size={14} stroke={1.8} aria-hidden />
+          {waitingLabel &&
+            (pillIsButton ? (
+              <button
+                type="button"
+                className={classNames(css.Pill.waiting, css.PillButton)}
+                aria-label={reviewLabel}
+                title={reviewLabel}
+                data-job-review-approval=""
+                onClick={(event) => onReviewApproval(event.currentTarget)}
+              >
+                <span className={css.PillIcon}>
+                  <IconAlertCircle size={14} stroke={1.8} aria-hidden />
+                </span>
+                <span className={css.PillText}>{waitingLabel}</span>
+              </button>
+            ) : (
+              <span className={css.Pill.waiting} title={waitingLabel}>
+                <span className={css.PillIcon}>
+                  <IconAlertCircle size={14} stroke={1.8} aria-hidden />
+                </span>
+                <span className={css.PillText}>{waitingLabel}</span>
               </span>
-              <span className={css.PillText}>{waitingLabel}</span>
-            </span>
-          )}
+            ))}
           {item.finished && (
             <span className={css.Pill.done} data-job-done>
               {t('mindroomUi.subagents.completed')}

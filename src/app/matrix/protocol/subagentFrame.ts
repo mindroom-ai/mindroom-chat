@@ -1,6 +1,6 @@
+import { isRecord } from '../../lib/isRecord';
 import { parseAiRunModel, type AiRunModelInfo } from './aiRun';
 import { parseLiveFrame, type LiveDelta, type LiveDocs, type LiveOrder } from './liveFrame';
-import type { ToolTraceEvent } from './toolTrace';
 
 /** Event type of the ephemeral frames that stream a MindRoom sub-agent run. */
 export const SUBAGENT_FRAME_EVENT_TYPE = 'io.mindroom.subagents';
@@ -56,6 +56,8 @@ export type SubagentMeta = {
   result?: string;
   /** On a failed turn a restart cut short, which MindRoom may continue with a later turn. */
   interruptedByRestart?: true;
+  /** The parent reply's `run_subagent`/`continue_subagent` `tool_call_id`, when sent. */
+  callerToolCallId?: string;
 };
 
 export type SubagentFrame = { run: string; meta: SubagentMeta } & LiveOrder &
@@ -66,9 +68,6 @@ const ACTIVE_STATUSES: ReadonlySet<SubagentStatus> = new Set([
   'awaiting_approval',
   'paused',
 ]);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const isNullableString = (value: unknown): value is string | null =>
   value === null || typeof value === 'string';
@@ -92,7 +91,11 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
   if (!isRecord(value)) return null;
   const { agent, caller, root, parent, thread_id: threadId, source, status } = value;
   const { subagent = run, started_at: startedAt, ended_at: endedAt, model, task, result } = value;
-  const { interrupted_by_restart: interruptedByRestart, title } = value;
+  const {
+    interrupted_by_restart: interruptedByRestart,
+    title,
+    caller_tool_call_id: callerToolCallId,
+  } = value;
   const usage = parseUsage(value.usage);
   if (typeof agent !== 'string' || typeof caller !== 'string' || typeof root !== 'string') {
     return null;
@@ -125,6 +128,7 @@ const parseMeta = (value: unknown, run: string): SubagentMeta | null => {
     ...(typeof title === 'string' && title ? { title } : {}),
     ...(typeof result === 'string' ? { result } : {}),
     ...(interruptedByRestart === true ? { interruptedByRestart } : {}),
+    ...(typeof callerToolCallId === 'string' && callerToolCallId ? { callerToolCallId } : {}),
   };
 };
 
@@ -140,16 +144,6 @@ export const parseSubagentFrame = (content: unknown): SubagentFrame | null => {
   const { reply: _reply, ...order } = live;
   return { ...order, run, meta };
 };
-
-/**
- * When a tool call of a sub-agent run started, in Unix seconds on the clock of the run's
- * `started_at`. MindRoom before the field sends none, and a value that is not a finite number
- * counts as none, so the frame still shows.
- */
-export const subagentToolStartedAt = ({
-  started_at: startedAt,
-}: ToolTraceEvent): number | undefined =>
-  typeof startedAt === 'number' && Number.isFinite(startedAt) ? startedAt : undefined;
 
 export const isActiveSubagentStatus = (status: SubagentStatus): boolean =>
   ACTIVE_STATUSES.has(status);

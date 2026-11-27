@@ -23,6 +23,7 @@ import { ComposerIconButton } from './ComposerIconButton';
 import { ComposerSendButton } from './ComposerSendButton';
 
 type EditorProps = {
+  className?: string;
   editableName?: string;
   placeholder?: string;
   onKeyDown?: (event: unknown) => void;
@@ -43,6 +44,7 @@ const state = vi.hoisted(() => ({
   staged: [] as TUploadItem[],
   uploads: [] as Upload[],
   hasVoice: false,
+  isPreparing: false,
   sendAtPress: vi.fn(
     (
       _takeText: () => IContent | undefined,
@@ -61,7 +63,7 @@ vi.mock('folds', () => {
     Icons: {},
     PopOut: () => null,
     Text: passthrough,
-    color: { Primary: {}, Critical: {} },
+    color: { Primary: {}, Warning: {}, Critical: {} },
     config: { space: {}, radii: {}, borderWidth: {} },
   };
 });
@@ -200,6 +202,9 @@ vi.mock('./useRoomInputAttachments', () => ({
     lostPastes: false,
     dismissLostPastes: vi.fn(),
     settlePastes: () => true,
+    isPreparing: state.isPreparing,
+    isPreparingNow: () => state.isPreparing,
+    prepareForSend: vi.fn(async (_room: unknown, items: unknown[] = []) => items),
   }),
 }));
 vi.mock('./useRoomInputDraft', () => ({ useRoomInputDraft: () => vi.fn() }));
@@ -251,6 +256,7 @@ afterEach(() => {
   state.staged = [];
   state.uploads = [];
   state.hasVoice = false;
+  state.isPreparing = false;
   state.sendAtPress.mockReset();
   state.sendAtPress.mockReturnValue(undefined);
 });
@@ -467,6 +473,12 @@ describe('composer', () => {
       view: VIEW,
       forkFrom: { roomId: '!source:example.org', threadId: '$root', eventId: '$point' },
     });
+    const { ComposerForkDraft } = await import('./RoomInput.css');
+    expect(
+      renderer!.root.findAll((node) => node.props['data-fork-draft-composer'] === 'true')
+    ).toHaveLength(1);
+    expect(state.editorProps?.className).toContain(ComposerForkDraft);
+    expect(state.editorProps?.placeholder).toBe('Send first message to create fork in Room…');
 
     const emojiButton = renderer!.root
       .findAllByType(ComposerIconButton)
@@ -693,5 +705,19 @@ describe('composer', () => {
         expect(invite).toHaveBeenCalledWith('@bob:example.org');
       });
     });
+  });
+
+  it('blocks Enter submit while attachments are preparing and resumes once ready', async () => {
+    state.mentionHasSuggestions = false;
+    state.isPreparing = true;
+    const text = [{ type: 'paragraph', children: [{ text: 'Caption' }] }];
+    await mountComposer(text);
+    await pressEnter();
+    expect(state.startSendSession).not.toHaveBeenCalled();
+
+    state.isPreparing = false;
+    await mountComposer(text);
+    await pressEnter();
+    expect(state.startSendSession).toHaveBeenCalledTimes(1);
   });
 });

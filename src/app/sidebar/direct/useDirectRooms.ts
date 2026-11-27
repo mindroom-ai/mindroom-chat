@@ -24,13 +24,14 @@ export const useDirectRoomIds = (): string[] => {
 /**
  * The joined direct rooms the user has not archived, by latest activity. A new message that
  * moves its conversation re-renders the list; messages that keep the order (a streamed reply's
- * edits in the top conversation) do not.
+ * edits in the top conversation) do not. The returned array stays referentially stable across
+ * unrelated renders while membership and order are unchanged.
  */
 export function useDirectRooms(): Room[] {
   const client = useMatrixClient();
   const directIds = useAtomValue(mDirectAtom);
   const roomIds = useDirectRoomIds();
-  const [, resort] = useReducer((count: number) => count + 1, 0);
+  const [orderVersion, resort] = useReducer((count: number) => count + 1, 0);
 
   const directs = useMemo(
     () =>
@@ -40,7 +41,10 @@ export function useDirectRooms(): Room[] {
       }),
     [client, roomIds]
   );
-  const sorted = [...directs].sort(byLatestActivity);
+  const sorted = useMemo(() => {
+    void orderVersion;
+    return [...directs].sort(byLatestActivity);
+  }, [directs, orderVersion]);
   const shown = useRef(sorted);
   shown.current = sorted;
 

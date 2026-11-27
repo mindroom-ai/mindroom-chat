@@ -286,7 +286,7 @@ describe('ReplyDetails', () => {
     expect(tokens?.querySelector('[role="group"]')).toBeNull();
     expect([...(tokens?.querySelectorAll('li') ?? [])].map((item) => item.textContent)).toEqual([
       'From cache 1,408',
-      'New input 266',
+      'Uncached input 266',
       'Output 31',
     ]);
   });
@@ -324,7 +324,7 @@ describe('ReplyDetails', () => {
     expect(legend()).toEqual([
       'From cache 52.1M',
       'Written to cache 8.3M',
-      'New input 100K',
+      'Uncached input 100K',
       'Input 1M',
       'Output 200K',
     ]);
@@ -359,7 +359,7 @@ describe('ReplyDetails', () => {
     // Without a legend, the bar names its parts to screen readers.
     expect(
       section('Context window')?.querySelector('[role="img"]')?.getAttribute('aria-label')
-    ).toBe('From cache 49,886 · 19.3%, New input 1,777 · 0.7%');
+    ).toBe('From cache 49,886 · 19.3%, Uncached input 1,777 · 0.7%');
     expect(section('Tokens')?.querySelector('[role="img"]')).toBeNull();
   });
 
@@ -418,5 +418,44 @@ describe('ReplyDetails', () => {
     expect(hasRenderableAiRunDetails({ modelConfig: 'default' })).toBe(true);
     expect(hasRenderableAiRunDetails({ runId: 'run-1' })).toBe(true);
     expect(hasRenderableAiRunDetails({ sessionId: 'session-1' })).toBe(true);
+    expect(
+      hasRenderableAiRunDetails({
+        error: {
+          kind: 'stream_stalled',
+          title: 'Model stopped responding',
+          summary: 'Provider sent no data.',
+          retryable: true,
+        },
+      })
+    ).toBe(true);
+  });
+
+  it('shows a compact error detail line inside technical details when info.error is present', () => {
+    render({
+      status: 'error',
+      runId: 'run-err-1',
+      error: {
+        kind: 'rate_limited',
+        title: 'Rate limit reached',
+        summary: 'Too many requests.',
+        code: 'rate_limited',
+        statusCode: 429,
+        retryable: true,
+      },
+    });
+
+    const details = container.querySelector('details');
+    expect(details).not.toBeNull();
+    expect(
+      Object.fromEntries(
+        [...(details?.querySelectorAll('dt') ?? [])].map((term) => [
+          term.textContent,
+          term.nextElementSibling?.textContent,
+        ])
+      )
+    ).toEqual({
+      'Run ID': 'run-err-1',
+      Error: 'Rate limit reached · 429 · rate_limited · Too many requests.',
+    });
   });
 });

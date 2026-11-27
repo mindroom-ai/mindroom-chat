@@ -20,6 +20,13 @@ export const BlockType = {
 
 export type BlockType = (typeof BlockType)[keyof typeof BlockType];
 
+/** Atomic inline void element types that carry meaningful composer content even with empty text. */
+export const VOID_BLOCK_TYPES: ReadonlySet<string> = new Set([
+  BlockType.Mention,
+  BlockType.Emoticon,
+  BlockType.PasteMarker,
+]);
+
 /** Text marks; each is a boolean property on a Slate text leaf. */
 export const MarkType = {
   Bold: 'bold',

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAppLanguageCode } from './useAppLanguageCode';
+import { subscribeRelativeTimeClock } from '../lib/hooks/useLiveClock';
 import {
   daysToMs,
   formatCompactRelativeTime,
@@ -9,55 +10,7 @@ import {
   secondsToMs,
 } from '../lib/time';
 
-type RelativeTimeClockListener = () => void;
-
-type RelativeTimeClock = {
-  listeners: Set<RelativeTimeClockListener>;
-  intervalId?: number;
-};
-
-const relativeTimeClocks = new Map<number, RelativeTimeClock>();
-
-const getRelativeTimeClock = (intervalMs: number): RelativeTimeClock => {
-  const existingClock = relativeTimeClocks.get(intervalMs);
-  if (existingClock) return existingClock;
-
-  const nextClock: RelativeTimeClock = {
-    listeners: new Set<RelativeTimeClockListener>(),
-  };
-  relativeTimeClocks.set(intervalMs, nextClock);
-
-  return nextClock;
-};
-
-/**
- * Calls `listener` every `intervalMs` on one timer that every listener of that interval shares.
- * Returns a function that unsubscribes it.
- */
-export const subscribeRelativeTimeClock = (
-  intervalMs: number,
-  listener: RelativeTimeClockListener
-): (() => void) => {
-  const clock = getRelativeTimeClock(intervalMs);
-  clock.listeners.add(listener);
-
-  if (clock.intervalId === undefined) {
-    clock.intervalId = window.setInterval(() => {
-      clock.listeners.forEach((currentListener) => currentListener());
-    }, intervalMs);
-  }
-
-  return () => {
-    const currentClock = relativeTimeClocks.get(intervalMs);
-    if (!currentClock) return;
-
-    currentClock.listeners.delete(listener);
-    if (currentClock.listeners.size > 0) return;
-
-    window.clearInterval(currentClock.intervalId);
-    relativeTimeClocks.delete(intervalMs);
-  };
-};
+export { subscribeRelativeTimeClock };
 
 export const getRelativeTimeUpdateInterval = (ts: number, now = Date.now()): number => {
   const ageMs = Math.max(0, now - ts);

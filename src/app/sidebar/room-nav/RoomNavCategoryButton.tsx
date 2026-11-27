@@ -13,7 +13,7 @@ type RoomNavCategoryButtonProps = {
   after?: ReactNode;
 };
 
-/** The collapsible heading of a sidebar section such as Rooms or Threads. */
+/** The collapsible heading of a sidebar section such as Rooms, Direct messages, or Threads. */
 export const RoomNavCategoryButton = as<'button', RoomNavCategoryButtonProps>(
   (
     { as: AsButton = 'button', closed, ownDirection, after, children, style, className, ...props },

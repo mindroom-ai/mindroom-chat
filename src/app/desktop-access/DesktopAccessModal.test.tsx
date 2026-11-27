@@ -86,6 +86,7 @@ import { findPairedController, resolveRoomAgents } from './desktopAccessHelpers'
 import { DesktopAccessModalRenderer } from './DesktopAccessModal';
 import { IncomingPairInviteModal } from './IncomingPairInviteModal';
 import { incomingPairInviteAtom } from './macPairInvite';
+import * as css from './desktopAccess.css';
 
 type SnapshotOverrides = {
   accessibility?: 'granted' | 'missing' | 'unknown';
@@ -398,6 +399,87 @@ describe('DesktopAccessModal', () => {
 
     expect(screen.queryByRole('button', { name: /check again/i })).toBeNull();
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy();
+  });
+
+  it('refreshes Screen Recording permission on window focus: stays retryable if dismissed and flips to Relaunch when granted on disk', async () => {
+    const controllers = [
+      {
+        controller_key: 'ctrl:code',
+        user_id: '@mindroom_code:example.org',
+        device_id: 'DEV1',
+        ed25519: 'KEY1',
+        allowed_requester_ids: ['@alice:example.org'],
+        allowed_agent_names: ['code'],
+      },
+    ];
+    const consent = { 'ctrl:code': { mode: 'full' as const, grantedAt: 1000, agentName: 'code' } };
+    const dismissedSnapshot = makeSnapshot({
+      accessibility: 'granted',
+      screenRecording: 'missing',
+      relaunchRequired: false,
+      controllers,
+      consent,
+    });
+    const grantedOnDiskSnapshot = makeSnapshot({
+      accessibility: 'granted',
+      screenRecording: 'missing',
+      relaunchRequired: true,
+      controllers,
+      consent,
+    });
+    let current = dismissedSnapshot;
+    const access = makeDesktopAccessMock(dismissedSnapshot);
+    vi.mocked(access.status).mockImplementation(async () => ({ ok: true, value: current }));
+    mocks.mx = makeRoomClient([{ userId: '@mindroom_code:example.org', name: 'Code' }]);
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, { roomId: '!room:example.org' });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    expect(await screen.findByRole('button', { name: 'Allow Screen Recording' })).toBeTruthy();
+    expect(access.status).toHaveBeenCalledTimes(1);
+
+    // Dismissing System Settings without granting keeps Allow Screen Recording retryable.
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(access.status).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('button', { name: 'Allow Screen Recording' })).toBeTruthy();
+    expect(
+      screen.queryByRole('button', { name: 'Relaunch to activate screen control' })
+    ).toBeNull();
+
+    // Toggling Screen Recording ON on disk + clicking Later flips to Relaunch on focus even with helper status constant.
+    current = grantedOnDiskSnapshot;
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(access.status).toHaveBeenCalledTimes(3);
+    expect(
+      await screen.findByRole('button', { name: 'Relaunch to activate screen control' })
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Allow Screen Recording' })).toBeNull();
+
+    // Once both permissions are granted, focus stops polling status.
+    current = makeSnapshot({
+      accessibility: 'granted',
+      screenRecording: 'granted',
+      relaunchRequired: false,
+      controllers,
+      consent,
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(access.status).toHaveBeenCalledTimes(4);
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'));
+      await Promise.resolve();
+    });
+    expect(access.status).toHaveBeenCalledTimes(4);
   });
 
   it('places the Mac-wide shell toggle in the shared section and keeps per-agent approval separate in Choose limits...', async () => {
@@ -989,6 +1071,82 @@ describe('DesktopAccessModal', () => {
       },
     ]);
   });
+
+  it('renders Edit limits with a separate scrollable body, pinned footer, plain label app rows, and status bar errors', async () => {
+    const paired = makeSnapshot({
+      controllers: [
+        {
+          controller_key: 'ctrl:code',
+          user_id: '@mindroom_code:example.org',
+          device_id: 'DEV1',
+          ed25519: 'KEY1',
+          allowed_requester_ids: ['@alice:example.org'],
+          allowed_agent_names: ['code'],
+        },
+      ],
+    });
+    const access = makeDesktopAccessMock(paired);
+    vi.mocked(access.updateLimits).mockResolvedValueOnce({
+      ok: false,
+      code: 'helper_error',
+      message: 'Helper rejected limits',
+    });
+    mocks.mx = makeRoomClient([]);
+
+    const store = createStore();
+    store.set(desktopAccessModalAtom, {
+      agentUserId: '@mindroom_code:example.org',
+      agentName: 'code',
+    });
+    renderWithStore(<DesktopAccessModalRenderer />, store);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit limits...' }));
+    const perAgentSection = await screen.findByTestId('limits-per-agent-section');
+    const sharedSection = screen.getByTestId('limits-shared-section');
+    const safariCheckbox = await within(sharedSection).findByRole<HTMLInputElement>('checkbox', {
+      name: 'Safari',
+    });
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.classList.contains(css.ModalDialogLimits)).toBe(true);
+
+    const bodies = Array.from(dialog.getElementsByClassName(css.ModalBody));
+    const footers = Array.from(dialog.getElementsByClassName(css.ModalFooter));
+    expect(bodies).toHaveLength(1);
+    expect(footers).toHaveLength(1);
+
+    const body = bodies[0] as HTMLElement;
+    const footer = footers[0] as HTMLElement;
+    expect(body.contains(perAgentSection)).toBe(true);
+    expect(body.contains(sharedSection)).toBe(true);
+    expect(body.contains(footer)).toBe(false);
+    expect(within(body).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(within(body).queryByRole('button', { name: 'Save limits' })).toBeNull();
+    expect(within(footer).getByRole('button', { name: 'Cancel' })).toBeTruthy();
+    expect(within(footer).getByRole('button', { name: 'Save limits' })).toBeTruthy();
+
+    const appRows = Array.from(sharedSection.querySelectorAll('label'));
+    expect(appRows.length).toBeGreaterThanOrEqual(2);
+    for (const row of appRows) {
+      expect(row.classList.contains(css.ChecklistRow)).toBe(true);
+    }
+
+    expect(safariCheckbox.checked).toBe(false);
+    fireEvent.click(within(sharedSection).getByText('Safari'));
+    expect(safariCheckbox.checked).toBe(true);
+    fireEvent.click(within(sharedSection).getByText('com.apple.Safari'));
+    expect(safariCheckbox.checked).toBe(false);
+
+    fireEvent.click(within(footer).getByRole('button', { name: 'Save limits' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toBe('Helper rejected limits');
+    expect(alert.classList.contains(css.StatusBanner)).toBe(true);
+    expect(alert.classList.contains(css.StatusBannerTone.critical)).toBe(true);
+    const statusBars = Array.from(dialog.getElementsByClassName(css.ModalStatusBar));
+    expect(statusBars).toHaveLength(1);
+    expect(statusBars[0]?.contains(alert)).toBe(true);
+    expect(body.contains(alert)).toBe(false);
+  });
 });
 
 describe('IncomingPairInviteModal', () => {
@@ -1061,5 +1219,43 @@ describe('IncomingPairInviteModal', () => {
     expect(
       await screen.findByText('Shell ready - Waiting for macOS screen & input permissions')
     ).toBeTruthy();
+  });
+
+  it('renders Choose limits with a separate scrollable body, pinned footer, and plain label app rows', async () => {
+    makeDesktopAccessMock(makeSnapshot());
+    mocks.mx = makeRoomClient([]);
+
+    const store = createStore();
+    store.set(incomingPairInviteAtom, sampleIncoming);
+    renderWithStore(<IncomingPairInviteModal />, store);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Choose limits...' }));
+    const perAgentSection = await screen.findByTestId('limits-per-agent-section');
+    const sharedSection = screen.getByTestId('limits-shared-section');
+    await within(sharedSection).findByRole('checkbox', { name: 'Safari' });
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.classList.contains(css.ModalDialogLimits)).toBe(true);
+
+    const bodies = Array.from(dialog.getElementsByClassName(css.ModalBody));
+    const footers = Array.from(dialog.getElementsByClassName(css.ModalFooter));
+    expect(bodies).toHaveLength(1);
+    expect(footers).toHaveLength(1);
+
+    const body = bodies[0] as HTMLElement;
+    const footer = footers[0] as HTMLElement;
+    expect(body.contains(perAgentSection)).toBe(true);
+    expect(body.contains(sharedSection)).toBe(true);
+    expect(body.contains(footer)).toBe(false);
+    expect(within(body).queryByRole('button', { name: 'Cancel' })).toBeNull();
+    expect(within(body).queryByRole('button', { name: 'Allow with limits' })).toBeNull();
+    expect(within(footer).getByRole('button', { name: 'Cancel' })).toBeTruthy();
+    expect(within(footer).getByRole('button', { name: 'Allow with limits' })).toBeTruthy();
+
+    const appRows = Array.from(sharedSection.querySelectorAll('label'));
+    expect(appRows.length).toBeGreaterThanOrEqual(2);
+    for (const row of appRows) {
+      expect(row.classList.contains(css.ChecklistRow)).toBe(true);
+    }
   });
 });

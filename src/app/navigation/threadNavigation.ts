@@ -15,11 +15,15 @@ export type NavigateRoomThreadDirect = (
   opts?: NavigateOptions
 ) => void;
 
+export type NavigateRoomThreadOptions = NavigateOptions & {
+  returnToOrigin?: boolean;
+};
+
 export type RoomThreadNavigationOptions = {
   roomId: string;
   threadId: string;
   eventId?: string;
-  opts?: NavigateOptions;
+  opts?: NavigateRoomThreadOptions;
   navigateRoomThreadDirect: NavigateRoomThreadDirect;
   location?: Path;
   getHistoryState?: () => unknown;
@@ -51,7 +55,9 @@ export const navigateToRoomThread = ({
   isNativeIOSDevice = isNativeIOS,
   getSessionId = () => getActiveSession()?.sessionId,
 }: RoomThreadNavigationOptions): void => {
-  const seededExitTarget = !opts?.replace;
+  const { returnToOrigin, ...navigateOpts } = opts ?? {};
+  const routerOpts: NavigateOptions | undefined = opts ? navigateOpts : undefined;
+  const seededExitTarget = !routerOpts?.replace;
   const exitTarget = seededExitTarget
     ? {
         exitPath: location && joinPathComponent(location),
@@ -59,14 +65,15 @@ export const navigateToRoomThread = ({
         threadId,
         useHistoryBack: !isNativeIOSDevice(),
         sessionId: getSessionId(),
+        ...(returnToOrigin ? { returnToOrigin: true } : {}),
       }
     : undefined;
   const nextOpts = exitTarget
     ? {
-        ...opts,
-        state: withRoomThreadExitTargetState(opts?.state, exitTarget),
+        ...routerOpts,
+        state: withRoomThreadExitTargetState(routerOpts?.state, exitTarget),
       }
-    : opts;
+    : routerOpts;
 
   // A step back (the browser's Back) to the room at an event, when that is the page left here,
   // stays the room: the event may be in this thread, and would open it again.

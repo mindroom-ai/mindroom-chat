@@ -1,6 +1,6 @@
 import { BaseRange, Descendant, Editor, Element, Node, Path, Range, Text, Transforms } from 'slate';
 import { HistoryEditor } from 'slate-history';
-import { BlockType } from './types';
+import { BlockType, VOID_BLOCK_TYPES } from './types';
 import type {
   CustomElement,
   EmoticonElement,
@@ -50,22 +50,11 @@ export const createLinkElement = (href: string, text: string): LinkElement => ({
   children: [{ text }],
 });
 
-const INLINE_TYPES: ReadonlySet<string> = new Set([
-  BlockType.Link,
-  BlockType.Mention,
-  BlockType.Emoticon,
-  BlockType.PasteMarker,
-]);
-
-const VOID_TYPES: ReadonlySet<string> = new Set([
-  BlockType.Mention,
-  BlockType.Emoticon,
-  BlockType.PasteMarker,
-]);
+const INLINE_TYPES: ReadonlySet<string> = new Set([BlockType.Link, ...VOID_BLOCK_TYPES]);
 
 const isInlineElement = (element: CustomElement): boolean => INLINE_TYPES.has(element.type);
 
-const isVoidElement = (element: CustomElement): boolean => VOID_TYPES.has(element.type);
+const isVoidElement = (element: CustomElement): boolean => VOID_BLOCK_TYPES.has(element.type);
 
 /** Teaches an editor which elements are inline and which are atomic (void). */
 export const withInlineElements = <T extends Editor>(editor: T): T => {

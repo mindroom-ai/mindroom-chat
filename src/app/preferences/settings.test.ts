@@ -44,11 +44,27 @@ describe('getSettings', () => {
     expect(getSettings().voiceHoldShortcut).toBe(true);
   });
 
-  it.each(['showToolCalls', 'showUsageDetails'] as const)('defaults %s to false', async (key) => {
-    const { getSettings } = await import('./settings');
-    storageValue = null;
+  it.each(['showToolCalls', 'showUsageDetails', 'autoZipLargeFiles'] as const)(
+    'defaults %s to false',
+    async (key) => {
+      const { getSettings } = await import('./settings');
+      storageValue = null;
 
-    expect(getSettings()[key]).toBe(false);
+      expect(getSettings()[key]).toBe(false);
+    }
+  );
+
+  it('persists autoZipLargeFiles as a boolean', async () => {
+    const { getSettings } = await import('./settings');
+    for (const [raw, expected] of [
+      [true, true],
+      [false, false],
+      [0, false],
+    ] as const) {
+      storageValue = JSON.stringify({ autoZipLargeFiles: raw });
+      expect(getSettings().autoZipLargeFiles).toBe(expected);
+    }
+    storageValue = null;
   });
 
   it('sends with Auto while an agent replies, as a message without a mode does, unless a known mode is stored', async () => {
@@ -64,6 +80,27 @@ describe('getSettings', () => {
     expect(stored('steer')).toBe('steer');
     expect(stored('Queue')).toBe('auto');
     expect(stored(1)).toBe('auto');
+
+    storageValue = null;
+  });
+
+  it('defaults mediaCompression to balanced and preserves only known presets', async () => {
+    const { getSettings } = await import('./settings');
+    const stored = (mediaCompression: unknown) => {
+      storageValue = JSON.stringify({ mediaCompression });
+      return getSettings().mediaCompression;
+    };
+
+    storageValue = null;
+    expect(getSettings().mediaCompression).toBe('balanced');
+    expect(stored('off')).toBe('off');
+    expect(stored('balanced')).toBe('balanced');
+    expect(stored('small')).toBe('small');
+    expect(stored('Balanced')).toBe('balanced');
+    expect(stored('high')).toBe('balanced');
+    expect(stored('')).toBe('balanced');
+    expect(stored(1)).toBe('balanced');
+    expect(stored(null)).toBe('balanced');
 
     storageValue = null;
   });

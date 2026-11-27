@@ -9,6 +9,7 @@ import { atom, useAtomValue, useStore, type Atom, type WritableAtom } from 'jota
 import type { MatrixClient, MatrixError, UploadProgress, UploadResponse } from 'matrix-js-sdk';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import type { PasteMarker } from '../protocol/pasteAttachmentMarker';
+import type { ZipFailureReason } from '../../lib/media/zipFile';
 import { toMatrixUploadError, uploadContent, type TUploadContent } from '../matrix';
 
 /** Where one file's upload stands. String values keep logged and stored states readable. */
@@ -64,13 +65,43 @@ type UploadPayload = {
   encInfo: EncryptedAttachmentInfo | undefined;
 };
 
+export type { ZipFailureReason };
+
+export type UploadCompression =
+  | {
+      status: 'compressing';
+      progressAtom: Atom<number>;
+      cancel: () => void;
+      /** Present when the user can abort compression and fall back to the original file. */
+      useOriginal?: () => void;
+    }
+  | {
+      status: 'compressed';
+      /** Present when the original source file can be restored (omitted for oversized `.zip` archives). */
+      sourceFile?: File;
+      originalSize: number;
+    }
+  | {
+      status: 'zipFailed';
+      reason: ZipFailureReason;
+    }
+  | { status: 'original' };
+
 /** A file staged in the composer: what the user chose, what is uploaded for it, and how. */
 export type TUploadItem = UploadPayload & {
   originalFile: TUploadContent;
   metadata: TUploadMetadata;
   /** Preparing the file (for example encrypting it) failed; it cannot be uploaded. */
   prepError?: MatrixError;
+  /** Client-side media compression state for staged images and videos. */
+  compression?: UploadCompression;
 };
+
+/** Whether a staged upload item is ready to enroll in a send session or voice bundle. */
+export const isUploadItemReady = (item: TUploadItem): boolean =>
+  !item.prepError &&
+  item.compression?.status !== 'compressing' &&
+  item.compression?.status !== 'zipFailed';
 
 export const createUploadAtom = (file: TUploadContent): TUploadAtom => {
   const uploadAtom = atom<Upload>({ file, status: UploadStatus.Idle });

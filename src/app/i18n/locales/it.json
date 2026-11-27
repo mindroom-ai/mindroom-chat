@@ -2781,7 +2781,7 @@
         "configuredModel": "Modello configurato",
         "runId": "ID esecuzione",
         "sessionId": "ID sessione",
-        "newInput": "Nuovo input",
+        "newInput": "Input non in cache",
         "replyCount_one": "{{count}} risposta",
         "replyCount_other": "{{count}} risposte",
         "replyCount_many": "{{count}} risposte",

@@ -111,6 +111,26 @@ describe('imageOriginal', () => {
 
     expect(await load('mxc://ex/shared')).toEqual({ src: 'blob:img-2', downloadBlob: heic });
     expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(2);
+
+    // Encrypted HEIC is cached per key and IV, never across different keys or IVs.
+    const encInfo = {
+      v: 'v2',
+      key: { alg: 'A256CTR', key_ops: ['encrypt', 'decrypt'], kty: 'oct', k: 'secret' },
+      iv: 'iv',
+      hashes: { sha256: 'hash' },
+    };
+    await loadImageOriginal(mx, { url: 'mxc://ex/enc', mimeType: 'image/heic', encInfo });
+    await loadImageOriginal(mx, { url: 'mxc://ex/enc', mimeType: 'image/heic', encInfo });
+    expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(3);
+    const otherKey = { ...encInfo, key: { ...encInfo.key, k: 'other' } };
+    await loadImageOriginal(mx, { url: 'mxc://ex/enc', mimeType: 'image/heic', encInfo: otherKey });
+    expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(4);
+    await loadImageOriginal(mx, {
+      url: 'mxc://ex/enc',
+      mimeType: 'image/heic',
+      encInfo: { ...encInfo, iv: 'other-iv' },
+    });
+    expect(mocks.decodeHeicBlob).toHaveBeenCalledTimes(5);
   });
 
   it('wraps decode/budget errors in HeicDecodeError without caching and preserves network errors', async () => {

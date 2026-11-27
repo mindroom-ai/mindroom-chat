@@ -38,6 +38,16 @@
       "fileCount_one": "{{count}} Datei",
       "fileCount_other": "{{count}} Dateien"
     },
+    "uploadCardRenderer": {
+      "compressing": "Wird komprimiert...",
+      "useOriginal": "Original verwenden",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "Komprimieren (.zip)",
+      "zipFailedTooLarge": "Auch nach der Komprimierung als .zip noch zu groß.",
+      "zipFailedTooLargeWithMax": "Auch nach der Komprimierung als .zip noch zu groß (Maximum: {{maxSize}}).",
+      "zipFailedNoSavings": "Die Komprimierung als .zip hat diese Datei nicht verkleinert.",
+      "zipFailedError": "Diese Datei konnte nicht als .zip komprimiert werden."
+    },
     "passwordInput": {
       "show": "Passwort anzeigen",
       "hide": "Passwort verbergen"
@@ -432,6 +442,8 @@
       "sidebar": {
         "title": "Seitenleiste",
         "navigation": "Navigation",
+        "direct": "Direktnachrichten in der Seitenleiste anzeigen",
+        "directDescription": "Direktnachrichten als eigener Reiter in der Seitenleiste. Ausgeblendet öffnest du sie auf der Startseite oder über das ⋮-Menü auf der Startseite.",
         "threads": "Threads in der Seitenleiste anzeigen",
         "threadsDescription": "Threads aus allen Räumen in einer Liste. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
         "canvasesDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
@@ -528,7 +540,9 @@
         "midTurn": "lenken, einreihen, Warteschlange, automatisch, Agent, Antwort, unterbrechen",
         "usage": "Tokens, Kosten, Preis, Modell, Tool-Aufrufe, Sub-Agenten, Hintergrundaufgaben",
         "plugins": "Plugins, Erweiterungen, Add-ons, Integrationen",
-        "appUpdates": "Update, Updates, Aktualisierung, Version, Upgrade, Neustart"
+        "appUpdates": "Update, Updates, Aktualisierung, Version, Upgrade, Neustart",
+        "mediaCompression": "Screenshots, Bildschirmaufnahmen, Bilder, Videos, Komprimierung, Upload-Größe",
+        "autoZipLargeFiles": "zip, Archiv, komprimieren, json, csv, Log, große Dateien, Upload-Größe"
       },
       "errorReports": {
         "title": "Fehlerberichte senden",
@@ -550,13 +564,30 @@
         "updateReady": "Version {{version}} kann installiert werden.",
         "restartToUpdate": "Zum Aktualisieren neu starten",
         "updateInstallFailed": "Neustart zum Installieren des Updates fehlgeschlagen. Versuche es erneut."
+      },
+      "mediaCompression": {
+        "title": "Medienkomprimierung",
+        "description": "Komprimiere angehängte Fotos, Screenshots und Videos vor dem Hochladen. Für jeden Anhang kannst du weiterhin das Original verwenden.",
+        "off": "Aus",
+        "balanced": "Ausgewogen",
+        "small": "Klein"
+      },
+      "autoZipLargeFiles": {
+        "title": "Große Dateien komprimieren (.zip)",
+        "description": "Komprimiere komprimierbare Dateien über 1 MB vor dem Hochladen automatisch als .zip. Für jeden Anhang kannst du weiterhin das Original verwenden."
       }
     },
     "createChat": {
       "failed": "Der Chat konnte nicht gestartet werden. Versuche es erneut."
     },
     "homeNav": {
-      "options": "Optionen für die Startseite"
+      "options": "Optionen für die Startseite",
+      "addRooms": "Räume hinzufügen",
+      "directMessages": "Direktnachrichten",
+      "newDirectMessage": "Neue Direktnachricht",
+      "showAllDirectMessages": "Alle anzeigen ({{count}})",
+      "agents": "Agenten",
+      "agentActive": "Agent aktiv"
     },
     "directNav": {
       "options": "Optionen für Direktnachrichten"
@@ -1087,6 +1118,14 @@
       "unavailable": {
         "description": "Mac-Computerzugriff ist auf diesem Gerät nicht verfügbar."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "du",
+        "draft": "Entwurf",
+        "groupMemberCount_one": "{{count}} Mitglied",
+        "groupMemberCount_other": "{{count}} Mitglieder"
+      }
     }
   },
   "mindroomUi": {
@@ -1374,6 +1413,43 @@
       "stopReply": {
         "label": "Antwort stoppen",
         "stopping": "Wird gestoppt…"
+      },
+      "runError": {
+        "cardLabel": "Ausführungsfehler",
+        "actions": {
+          "continue": "Fortsetzen",
+          "retry": "Erneut versuchen",
+          "compact": "Komprimieren"
+        },
+        "chips": {
+          "streamStalled": "Stream unterbrochen",
+          "providerUnavailable": "Nicht verfügbar",
+          "rateLimited": "Ratenlimit",
+          "timeout": "Zeitüberschreitung",
+          "contextWindow": "Kontextlimit",
+          "tokensPerMinute": "Token-Limit",
+          "safeguardRefusal": "Abgelehnt",
+          "quotaExhausted": "Kontingent",
+          "missingApiKey": "API-Schlüssel",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Fehler"
+        },
+        "technicalDetails": "Technische Details",
+        "details": {
+          "model": "Modell",
+          "provider": "Anbieter",
+          "code": "Code",
+          "detail": "Details",
+          "error": "Fehler"
+        },
+        "receipt": {
+          "continue": "Fortgesetzt",
+          "retry": "Erneut versucht",
+          "compact": "Komprimiert"
+        },
+        "sendFailed": "Nachricht konnte nicht gesendet werden. Erneut versuchen.",
+        "restartSeam": "Dienst neu gestartet · Kontext erhalten",
+        "restartSeamRepeated": "Dienst neu gestartet ({{times}}×) · Kontext erhalten"
       }
     },
     "message-search": {
@@ -1521,7 +1597,9 @@
       "jobTotal_one": "{{count}} Hintergrundaufgabe",
       "jobTotal_other": "{{count}} Hintergrundaufgaben",
       "jobTotalFinished_one": "{{count}} Hintergrundaufgabe abgeschlossen",
-      "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen"
+      "jobTotalFinished_other": "{{count}} Hintergrundaufgaben abgeschlossen",
+      "reviewApprovalFor": "Freigabe prüfen: {{tool}}",
+      "checkingApproval": "Freigabe wird geprüft…"
     },
     "workflowRun": {
       "title": "Workflow",
@@ -1544,6 +1622,8 @@
       "stopping": "Wird gestoppt…",
       "resume": "Fortsetzen",
       "runAgain": "Erneut ausführen",
+      "confirmRunAgain": "Erneutes Ausführen bestätigen",
+      "cancel": "Abbrechen",
       "starting": "Wird gestartet…",
       "failedCount_one": "{{count}} fehlgeschlagen",
       "failedCount_other": "{{count}} fehlgeschlagen",
@@ -1569,6 +1649,20 @@
         "waitingForUpdate": "Wartet auf das nächste Update des Laufs…",
         "stale": "Wird nicht aktualisiert. Letztes Update {{time}}.",
         "log": "Protokoll",
+        "viewsLabel": "Workflow-Ansichten",
+        "flow": "Ablauf",
+        "steps": "Schritte",
+        "selectStep": "Wähle einen Schritt, um Ausgabe, Kennzahlen und Verbindungen anzusehen.",
+        "noMessages": "Noch keine Nachrichten zwischen Schritten.",
+        "noLog": "Noch keine Protokolleinträge.",
+        "omittedEdges_one": "{{count}} Nachrichtenroute ausgelassen.",
+        "omittedEdges_other": "{{count}} Nachrichtenrouten ausgelassen.",
+        "omittedMessages_one": "{{count}} Nachricht ausgelassen.",
+        "omittedMessages_other": "{{count}} Nachrichten ausgelassen.",
+        "omittedLog_one": "{{count}} Protokolleintrag ausgelassen.",
+        "omittedLog_other": "{{count}} Protokolleinträge ausgelassen.",
+        "setupSteps_one": "{{count}} Vorbereitungsschritt",
+        "setupSteps_other": "{{count}} Vorbereitungsschritte",
         "showMore": "{{count}} weitere anzeigen",
         "omitted": {
           "queued_one": "und {{count}} weitere in der Warteschlange",
@@ -1607,8 +1701,18 @@
         "error": "Fehler",
         "messages": "Nachrichten",
         "messagesTo": "Nachrichten an {{name}}: {{count}}",
+        "messagesFrom": "Nachrichten von {{name}}: {{count}}",
+        "timeout": "Zeitüberschreitung",
+        "routeTo": "{{from}} an {{to}}: {{count}}",
+        "messageRoute": "{{from}} an {{to}}",
+        "script": "Skript",
+        "routeBetween": "{{from}} und {{to}}: {{count}}",
+        "duration": "Dauer",
+        "tokens": "Tokens",
+        "cost": "Kosten",
         "open": "Öffnen",
         "detailsUnavailable": "Details sind nach dem Neuladen nicht mehr verfügbar.",
+        "transcriptUnavailable": "Das vollständige Protokoll ist nach dem Neuladen nicht mehr verfügbar.",
         "stop": "Agent stoppen"
       }
     },
@@ -1754,7 +1858,62 @@
       "unattributed": "Nicht zugeordnet",
       "allUsageAndLimits": "Alle Nutzung & Limits →",
       "noAccounts": "Noch keine Anbieterkonten gemeldet.",
-      "noDailyData": "In den letzten 7 Tagen wurde keine tägliche Nutzung aufgezeichnet."
+      "noDailyData": "In den letzten 7 Tagen wurde keine tägliche Nutzung aufgezeichnet.",
+      "kpiSpend7d": "7-Tage-Ausgaben (gesch.)",
+      "kpiTokens7d": "7-Tage-Token",
+      "perDayAvg": "~{{value}}/Tag Ø",
+      "peakAndAvg": "Spitze {{day}} · {{tokens}} · ~{{avg}}/T",
+      "trendVsPrior3d": "{{delta}} ggü. den vorherigen 3 Tagen",
+      "tokenMixTitle": "Token- & Cache-Mix (7 T.)",
+      "savedViaCache": "~{{cost}} durch Cache gespart",
+      "cacheRead": "Cache-Lesezugriff",
+      "cacheWrite": "Cache-Schreibzugriff",
+      "inputTokens": "Eingabe",
+      "outputTokens": "Ausgabe",
+      "inputShort": "Ein",
+      "outputShort": "Aus",
+      "tokenMixAria": "Cache-Lesezugriff {{cacheRead}}, Cache-Schreibzugriff {{cacheWrite}}, Eingabe {{input}}, Ausgabe {{output}}",
+      "subscriptionQuotas": "Abo-Kontingente",
+      "paceLegend": "Markierung = Gleichmäßiges Tempo",
+      "paceAhead": "+{{delta}} % voraus",
+      "paceFastBurn": "-{{delta}} % schneller Verbrauch",
+      "paceOnPace": "Im Plan",
+      "dailySpendTitle": "Tägliche geschätzte Ausgaben",
+      "dailyTokensTitle": "Tägliche Token",
+      "dailySubtitleCost": "Balken antippen für genaue Token & Kosten",
+      "dailySubtitleTokens": "Balken antippen für genaue Token",
+      "chartMetricLabel": "Diagramm-Metrik",
+      "metricSpend": "Ausgaben ($)",
+      "metricTokens": "Token",
+      "hideDominant": "Größtes ausblenden",
+      "resetFilter": "Filter zurücksetzen",
+      "hideDominantTooltip": "{{account}} ausblenden, um kleinere Konten zu prüfen",
+      "resetFilterTooltip": "Alle Konten inkl. {{account}} anzeigen",
+      "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} Token",
+      "vs7dAvg": "{{delta}} ggü. 7-Tage-Ø",
+      "tokensShortUnit": "{{tokens}} Tok.",
+      "noDayActivity": "An diesem Tag wurde keine Nutzung erfasst.",
+      "whereUsageGoes": "Wohin die Nutzung fließt",
+      "whereUsageGoesSub": "Zeile antippen für Token-Aufteilung & 7-Tage-Trend",
+      "tabModels": "Modelle",
+      "tabAgents": "Agenten",
+      "tabAccounts": "Konten",
+      "shareOfSpend": "Anteil an 7-Tage-Ausgaben: {{share}}",
+      "shareOfTokens": "Anteil an 7-Tage-Token: {{share}}",
+      "trend7d": "7-Tage-Trend",
+      "runCount_one": "{{count}} Durchlauf",
+      "runCount_other": "{{count}} Durchläufe",
+      "idleAccountsLabel_one": "{{count}} inaktives Konto (0 Token in 7 T.)",
+      "idleAccountsLabel_other": "{{count}} inaktive Konten (0 Token in 7 T.)",
+      "show": "Anzeigen",
+      "hide": "Ausblenden",
+      "zeroTokens": "0 Token"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "In der Seitenleiste anzeigen",
+        "sidebarSettings": "Seitenleisten-Einstellungen…"
+      }
     }
   },
   "composer": {
@@ -1789,6 +1948,7 @@
     "newThreadWith": "Neuer Thread mit {{name}}…",
     "dictation": {
       "label": "Diktieren",
+      "temporarilyUnavailable": "Diktat nicht verfügbar — Verbindung wird wiederhergestellt",
       "cancel": "Diktat abbrechen",
       "pause": "Diktat pausieren",
       "resume": "Diktat fortsetzen",
@@ -1796,6 +1956,8 @@
       "finishAndSend": "Beenden und senden",
       "retry": "Erneut versuchen",
       "retryAndSend": "Erneut versuchen und senden",
+      "sendAsVoice": "Als Sprachnachricht senden",
+      "attachAsVoice": "Als Sprachnachricht anhängen",
       "insertPartial": "Teiltext einfügen",
       "discard": "Verwerfen",
       "dismissError": "Diktatfehler schließen",
@@ -1808,6 +1970,7 @@
       "noSpeech": "Keine Sprache erkannt.",
       "noSpeechOffThread": "Keine Sprache in {{room}} erkannt.",
       "sendFailedOffThread": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Öffne den Raum, um es erneut zu versuchen.",
+      "sendFailedOffTarget": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Wähle {{room}} erneut aus, um es erneut zu versuchen.",
       "statusPendingRetry_one": "{{count}} Abschnitt wartet auf Wiederholung",
       "statusPendingRetry_other": "{{count}} Abschnitte warten auf Wiederholung",
       "capReached": "Limit von 5:00 erreicht",
@@ -1968,20 +2131,25 @@
     "openInOriginalThread": "Im ursprünglichen Thread öffnen",
     "forkFromHere": "Ab hier abzweigen",
     "forkThread": "Thread abzweigen",
-    "forking": "Abzweigen von {{title}}",
-    "continueInNewThread": "In einem neuen Thread fortsetzen",
+    "forking": "Entwurf · Sende unten eine Nachricht, um diese Abzweigung zu starten",
+    "continueInNewThread": "Erste Nachricht senden, um Abzweigung zu erstellen…",
     "forkCount_one": "{{count}} Abzweigung",
     "forkCount_other": "{{count}} Abzweigungen",
     "forkedFromInRoom": "Abgezweigt von {{title}} in {{room}}",
     "forkedFromAnotherRoom": "Aus einem anderen Raum abgezweigt",
-    "forkingIntoRoom": "Abzweigen von {{title}} nach {{room}}",
+    "forkingIntoRoom": "Entwurf · Sende unten eine Nachricht, um nach {{room}} abzuzweigen",
     "forkToRoom": "In Raum abzweigen…",
     "forkToRoomTitle": "In Raum abzweigen",
     "forkToRoomSearchPlaceholder": "Räume durchsuchen…",
     "forkToRoomEmpty": "Keine passenden Räume",
     "forkToRoomAgentWarning": "Agenten in diesem Raum sind nicht in {{room}} und sehen den ursprünglichen Thread nicht",
     "forkingFromRoom": "Abzweigen aus {{room}}",
-    "forkDraftAgentWarning": "Agenten hier sind nicht in {{room}} und sehen den ursprünglichen Thread nicht"
+    "forkDraftAgentWarning": "Agenten hier sind nicht in {{room}} und sehen den ursprünglichen Thread nicht",
+    "draftBadge": "Entwurf",
+    "forkingThread": "Thread wird abgezweigt",
+    "forkDraftHint": "Noch nicht erstellt. Sende unten eine Nachricht, um diesen abgezweigten Thread zu starten.",
+    "forkDraftHintInRoom": "Noch nicht in {{room}}. Sende unten eine Nachricht, um diesen Thread zu erstellen.",
+    "continueInNewThreadInRoom": "Erste Nachricht senden, um Abzweigung in {{room}} zu erstellen…"
   },
   "activity": {
     "title": "Aktivität",

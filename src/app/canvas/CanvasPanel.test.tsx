@@ -79,8 +79,21 @@ vi.mock('folds', () => ({
   }) => <button {...props}>{children}</button>,
   color: { Critical: { Main: 'red' } },
   Icon: () => <span />,
-  IconButton: ({ children, ref, ...props }: React.ComponentPropsWithRef<'button'>) => (
-    <button {...props} ref={ref}>
+  IconButton: ({
+    children,
+    ref,
+    variant,
+    fill,
+    size: _size,
+    radii: _radii,
+    ...props
+  }: React.ComponentPropsWithRef<'button'> & {
+    variant?: string;
+    fill?: string;
+    size?: string;
+    radii?: string;
+  }) => (
+    <button {...props} data-variant={variant} data-fill={fill} ref={ref}>
       {children}
     </button>
   ),
@@ -135,6 +148,7 @@ vi.mock('./CanvasPanel.css.ts', () => ({
   Footer: 'Footer',
   VersionRow: 'VersionRow',
   VersionPill: 'VersionPill',
+  VersionSeparator: 'VersionSeparator',
   Error: 'Error',
   Notice: 'Notice',
   Version: 'Version',
@@ -1177,6 +1191,14 @@ describe('CanvasPanel', () => {
     render({ version: { current: 2, total: 3 }, onSelectVersion });
     expect(container.textContent).toContain('Version 2 of 3');
     expect(container.textContent).toContain('This is an earlier version.');
+    for (const label of ['Previous version', 'Next version']) {
+      const control = button(`[aria-label="${label}"]`);
+      expect(control.dataset.variant).toBe('Surface');
+      expect(control.dataset.fill).toBe('None');
+    }
+    expect(
+      container.querySelector('.VersionRow > .VersionSeparator[aria-hidden="true"]')
+    ).not.toBeNull();
     await act(async () => button('[aria-label="Previous version"]').click());
     expect(onSelectVersion).toHaveBeenLastCalledWith(1);
     await act(async () => button('[aria-label="Next version"]').click());

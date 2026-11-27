@@ -8,8 +8,7 @@ import {
   useState,
 } from 'react';
 import classNames from 'classnames';
-import { Icon, IconButton, Icons, Line, toRem, type RectCords } from 'folds';
-import { FocusTrap } from 'focus-trap-react';
+import { Icon, IconButton, Icons, Line, type IconSrc, type RectCords } from 'folds';
 import { atom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -18,11 +17,8 @@ import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { type RoomSortInheritOption, RoomSortMenuContent } from '../room-nav/RoomSortMenu';
 import type { RoomSortMode } from '../room-nav/roomOrder';
 import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
-import { PopOut, revealDirectionControls } from '../../ui/directional';
-import { Menu } from '../../ui/glass/GlassPrimitives';
+import { revealDirectionControls } from '../../ui/directional';
 import { MenuGroup } from '../../ui/MenuEntry';
-import * as scrollableMenuCss from '../../ui/ScrollableMenu.css';
-import { stopPropagation } from '../../lib/keyboard';
 import { useLongPress } from '../../lib/hooks/useLongPress';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { navigationRoomToUnreadAtom } from '../../notifications/navigationUnread';
@@ -39,13 +35,14 @@ import {
   type CollapsedSectionUnread,
   getCollapsedSectionUnread,
 } from '../../spaces/spaceRoomSections';
+import { SectionMenuPopOut } from '../SectionMenuPopOut';
 import * as css from './SpaceSectionHeader.css';
 
 const EMPTY_UNREAD_ATOM = atom((): CollapsedSectionUnread | undefined => undefined);
 // Clears NavCategoryHeader's inline 32px minHeight so css.Header controls compact desktop/touch heights.
-const COMPACT_HEADER_STYLE = { minHeight: undefined };
+export const COMPACT_HEADER_STYLE = { minHeight: undefined };
 
-type SectionHeaderButtonProps = {
+export type SectionHeaderButtonProps = {
   buttonRef?: Ref<HTMLButtonElement>;
   label: string;
   ownDirection?: boolean;
@@ -58,10 +55,10 @@ type SectionHeaderButtonProps = {
 };
 
 /**
- * Collapsible heading for a space room section. Keeps one button mounted across toggles
+ * Collapsible heading for a sidebar room section. Keeps one button mounted across toggles
  * (preserving keyboard focus) and subscribes to unread state only while collapsed.
  */
-function SectionHeaderButton({
+export function SectionHeaderButton({
   buttonRef,
   label,
   ownDirection,
@@ -122,6 +119,41 @@ function SectionHeaderButton({
   );
 }
 
+export type SectionActionButtonProps = {
+  icon: IconSrc;
+  label: string;
+  className?: string;
+  hasMenu?: boolean;
+  menuOpen?: boolean;
+  onClick: MouseEventHandler<HTMLButtonElement>;
+};
+
+/** Compact hover/focus action icon button inside a collapsible sidebar section header. */
+export function SectionActionButton({
+  icon,
+  label,
+  className,
+  hasMenu,
+  menuOpen,
+  onClick,
+}: SectionActionButtonProps) {
+  return (
+    <IconButton
+      size="300"
+      radii="300"
+      variant="Background"
+      fill="None"
+      className={classNames(css.ActionButton, className)}
+      aria-label={label}
+      aria-haspopup={hasMenu ? 'menu' : undefined}
+      aria-expanded={hasMenu ? Boolean(menuOpen) : undefined}
+      onClick={onClick}
+    >
+      <Icon size="50" src={icon} />
+    </IconButton>
+  );
+}
+
 /** Sub-space options menu with live immediate-parent permissions; mounts only while open. */
 function SubspaceOptionsWithParent({
   subspace,
@@ -166,6 +198,7 @@ type OpenSectionMenu = {
   anchor: RectCords;
   position: 'Bottom' | 'Right';
   align: 'Start' | 'End';
+  opener: HTMLElement | null;
 };
 
 const pointerAnchor = (event: MouseEvent): RectCords => ({
@@ -243,39 +276,22 @@ export function SpaceSectionHeader({
   const [menu, setMenu] = useState<OpenSectionMenu>();
   const headerRef = useRef<HTMLDivElement>(null);
   const headingButtonRef = useRef<HTMLButtonElement>(null);
-  const returnFocusRef = useRef<HTMLElement | null>(null);
-  const refocusOnCloseRef = useRef(false);
-
-  const closeMenu = useCallback(() => {
-    setMenu(undefined);
-    if (refocusOnCloseRef.current) {
-      refocusOnCloseRef.current = false;
-      returnFocusRef.current?.focus();
-    }
-    returnFocusRef.current = null;
-  }, []);
+  const closeMenu = useCallback(() => setMenu(undefined), []);
 
   const canOpenContextMenu = !isRoot || permissions.canAdd;
   const contextKind: SectionMenuKind = isRoot ? 'add' : 'context';
   const actionCount = (permissions.canAdd ? 1 : 0) + (!isRoot ? 1 : 0);
   const hasActions = actionCount > 0;
 
-  const openMenu = (next: OpenSectionMenu, focusBackTo: HTMLElement | null) => {
-    refocusOnCloseRef.current = false;
-    returnFocusRef.current = focusBackTo;
-    setMenu(next);
-  };
-
   const openAtHeader = useCallback(() => {
     const header = headerRef.current;
     if (!header) return;
-    refocusOnCloseRef.current = false;
-    returnFocusRef.current = headingButtonRef.current;
     setMenu({
       kind: contextKind,
       anchor: header.getBoundingClientRect(),
       position: 'Bottom',
       align: 'Start',
+      opener: headingButtonRef.current,
     });
   }, [contextKind]);
 
@@ -287,34 +303,33 @@ export function SpaceSectionHeader({
       openAtHeader();
       return;
     }
-    openMenu(
-      { kind: contextKind, anchor: pointerAnchor(event), position: 'Right', align: 'Start' },
-      headingButtonRef.current
-    );
+    setMenu({
+      kind: contextKind,
+      anchor: pointerAnchor(event),
+      position: 'Right',
+      align: 'Start',
+      opener: headingButtonRef.current,
+    });
   };
 
   const openAddFromButton = (event: MouseEvent<HTMLButtonElement>) => {
-    openMenu(
-      {
-        kind: 'add',
-        anchor: event.currentTarget.getBoundingClientRect(),
-        position: 'Bottom',
-        align: 'End',
-      },
-      event.currentTarget
-    );
+    setMenu({
+      kind: 'add',
+      anchor: event.currentTarget.getBoundingClientRect(),
+      position: 'Bottom',
+      align: 'End',
+      opener: event.currentTarget,
+    });
   };
 
   const openOptionsFromButton = (event: MouseEvent<HTMLButtonElement>) => {
-    openMenu(
-      {
-        kind: isTouchOrNoHover(event) ? 'context' : 'options',
-        anchor: event.currentTarget.getBoundingClientRect(),
-        position: 'Bottom',
-        align: 'End',
-      },
-      event.currentTarget
-    );
+    setMenu({
+      kind: isTouchOrNoHover(event) ? 'context' : 'options',
+      anchor: event.currentTarget.getBoundingClientRect(),
+      position: 'Bottom',
+      align: 'End',
+      opener: event.currentTarget,
+    });
   };
 
   return (
@@ -344,135 +359,102 @@ export function SpaceSectionHeader({
         {hasActions && (
           <div className={css.SectionActions}>
             {permissions.canAdd && (
-              <IconButton
-                size="300"
-                radii="300"
-                variant="Background"
-                fill="None"
+              <SectionActionButton
+                icon={Icons.Plus}
+                label={t('featureUi.spaceNav.addToSpace', { name: label })}
                 className={classNames(
-                  css.ActionButton,
                   !isRoot && css.SubspaceAddButton,
                   isEmpty && css.EmptyAddButton
                 )}
-                aria-label={t('featureUi.spaceNav.addToSpace', { name: label })}
-                aria-haspopup="menu"
-                aria-expanded={menu?.kind === 'add'}
+                hasMenu
+                menuOpen={menu?.kind === 'add'}
                 onClick={openAddFromButton}
-              >
-                <Icon size="50" src={Icons.Plus} />
-              </IconButton>
+              />
             )}
             {!isRoot && (
-              <IconButton
-                size="300"
-                radii="300"
-                variant="Background"
-                fill="None"
-                className={css.ActionButton}
-                aria-label={t('featureUi.spaceNav.subspaceOptions', { name: spaceName })}
-                aria-haspopup="menu"
-                aria-expanded={menu?.kind === 'options' || menu?.kind === 'context'}
+              <SectionActionButton
+                icon={Icons.VerticalDots}
+                label={t('featureUi.spaceNav.subspaceOptions', { name: spaceName })}
+                hasMenu
+                menuOpen={menu?.kind === 'options' || menu?.kind === 'context'}
                 onClick={openOptionsFromButton}
-              >
-                <Icon size="50" src={Icons.VerticalDots} />
-              </IconButton>
+              />
             )}
           </div>
         )}
       </NavCategoryHeader>
       {menu && (
-        <PopOut
+        <SectionMenuPopOut
           anchor={menu.anchor}
           position={menu.position}
           align={menu.align}
-          offset={4}
-          content={
-            <FocusTrap
-              focusTrapOptions={{
-                initialFocus: false,
-                returnFocusOnDeactivate: false,
-                clickOutsideDeactivates: true,
-                escapeDeactivates: (event) => {
-                  if (!stopPropagation(event)) return false;
-                  refocusOnCloseRef.current = true;
-                  return true;
-                },
-                onDeactivate: closeMenu,
-              }}
-            >
-              <Menu
-                className={scrollableMenuCss.ScrollableMenu}
-                style={{ width: '100vw', maxWidth: toRem(220) }}
-              >
-                <div className={scrollableMenuCss.ScrollableMenuRows}>
-                  {menu.kind === 'add' ? (
-                    <MenuGroup>
-                      <SpaceAddMenuEntries
-                        spaceId={space.roomId}
-                        roomsOnly={isRoot}
-                        onClose={closeMenu}
-                        onAddRooms={dialogs.openAddRooms}
-                        onAddSpaces={dialogs.openAddSpaces}
-                      />
-                    </MenuGroup>
-                  ) : (
-                    <>
-                      {sort && (
-                        <>
-                          <RoomSortMenuContent
-                            mode={sort.mode}
-                            showTimes={sort.showTimes}
-                            hasSavedOrder={sort.hasSavedOrder}
-                            inherit={
-                              sort.inherit
-                                ? {
-                                    ...sort.inherit,
-                                    onReset: () => {
-                                      sort.inherit!.onReset();
-                                      closeMenu();
-                                    },
-                                  }
-                                : undefined
-                            }
-                            onModeChange={(nextMode) => {
-                              sort.onModeChange(nextMode);
+          returnFocusTo={menu.opener}
+          onClose={closeMenu}
+        >
+          {menu.kind === 'add' ? (
+            <MenuGroup>
+              <SpaceAddMenuEntries
+                spaceId={space.roomId}
+                roomsOnly={isRoot}
+                onClose={closeMenu}
+                onAddRooms={dialogs.openAddRooms}
+                onAddSpaces={dialogs.openAddSpaces}
+              />
+            </MenuGroup>
+          ) : (
+            <>
+              {sort && (
+                <>
+                  <RoomSortMenuContent
+                    mode={sort.mode}
+                    showTimes={sort.showTimes}
+                    hasSavedOrder={sort.hasSavedOrder}
+                    inherit={
+                      sort.inherit
+                        ? {
+                            ...sort.inherit,
+                            onReset: () => {
+                              sort.inherit!.onReset();
                               closeMenu();
-                            }}
-                            onShowTimesChange={sort.onShowTimesChange}
-                            inlineDisplay
-                          />
-                          <Line size="300" />
-                        </>
-                      )}
-                      {parentSpace ? (
-                        <SubspaceOptionsWithParent
-                          subspace={space}
-                          parentSpace={parentSpace}
-                          permissions={permissions}
-                          dialogs={dialogs}
-                          showAdd={menu.kind === 'context'}
-                          pinMode={pinMode}
-                          showOverview={showOverview}
-                          onClose={closeMenu}
-                        />
-                      ) : (
-                        <SpaceMenuGroups
-                          space={space}
-                          permissions={permissions}
-                          dialogs={dialogs}
-                          onClose={closeMenu}
-                          showAdd={menu.kind === 'context'}
-                          showOverview={showOverview}
-                          pinMode={pinMode}
-                        />
-                      )}
-                    </>
-                  )}
-                </div>
-              </Menu>
-            </FocusTrap>
-          }
-        />
+                            },
+                          }
+                        : undefined
+                    }
+                    onModeChange={(nextMode) => {
+                      sort.onModeChange(nextMode);
+                      closeMenu();
+                    }}
+                    onShowTimesChange={sort.onShowTimesChange}
+                    inlineDisplay
+                  />
+                  <Line size="300" />
+                </>
+              )}
+              {parentSpace ? (
+                <SubspaceOptionsWithParent
+                  subspace={space}
+                  parentSpace={parentSpace}
+                  permissions={permissions}
+                  dialogs={dialogs}
+                  showAdd={menu.kind === 'context'}
+                  pinMode={pinMode}
+                  showOverview={showOverview}
+                  onClose={closeMenu}
+                />
+              ) : (
+                <SpaceMenuGroups
+                  space={space}
+                  permissions={permissions}
+                  dialogs={dialogs}
+                  onClose={closeMenu}
+                  showAdd={menu.kind === 'context'}
+                  showOverview={showOverview}
+                  pinMode={pinMode}
+                />
+              )}
+            </>
+          )}
+        </SectionMenuPopOut>
       )}
       {dialogs.dialog}
     </>

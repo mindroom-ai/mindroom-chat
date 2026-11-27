@@ -7,6 +7,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import {
   composerUploadItemsAtom,
+  getRoomInputDraftKey,
   readKeptFileNames,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
@@ -100,9 +101,9 @@ it("keeps a file staged in one composer of the room out of the other one's send"
     viewFile,
   ]);
   // The room page's files are the ones a reload names, and the view's take nothing from them.
-  expect(readKeptFileNames(ME, ROOM_ID)).toEqual(['page.txt']);
+  expect(readKeptFileNames(getRoomInputDraftKey(ME, ROOM_ID))).toEqual(['page.txt']);
   act(() => composers.view.attachments.access.remove(ROOM_ID, [viewFile.file]));
-  expect(readKeptFileNames(ME, ROOM_ID)).toEqual(['page.txt']);
+  expect(readKeptFileNames(getRoomInputDraftKey(ME, ROOM_ID))).toEqual(['page.txt']);
 });
 
 it("uploads a file only while it is staged in the view's list, not in the room page's", async () => {

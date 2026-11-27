@@ -28,11 +28,20 @@ describe('readRoamingSettings', () => {
         version: ROAMING_SETTINGS_VERSION,
         isMarkdown: false,
         hour24Clock: true,
+        autoZipLargeFiles: true,
         hideActivity: 'true',
         urlPreview: 0,
         dateFormatString: 'YYYY-MM-DD',
       })
-    ).toEqual({ isMarkdown: false, hour24Clock: true, dateFormatString: 'YYYY-MM-DD' });
+    ).toEqual({
+      isMarkdown: false,
+      hour24Clock: true,
+      autoZipLargeFiles: true,
+      dateFormatString: 'YYYY-MM-DD',
+    });
+    expect(
+      readRoamingSettings({ version: ROAMING_SETTINGS_VERSION, autoZipLargeFiles: 'true' })
+    ).toEqual({});
   });
 
   it('takes a date format only when it is a non-empty string within the cap', () => {
@@ -55,6 +64,19 @@ describe('readRoamingSettings', () => {
     expect(read('later')).toEqual({});
     expect(read('')).toEqual({});
     expect(read(true)).toEqual({});
+  });
+
+  it('takes only a known preset for media compression', () => {
+    const read = (mediaCompression: unknown) =>
+      readRoamingSettings({ version: ROAMING_SETTINGS_VERSION, mediaCompression });
+    for (const preset of ['off', 'balanced', 'small']) {
+      expect(read(preset)).toEqual({ mediaCompression: preset });
+    }
+    expect(read('medium')).toEqual({});
+    expect(read('Balanced')).toEqual({});
+    expect(read('')).toEqual({});
+    expect(read(true)).toEqual({});
+    expect(read(1)).toEqual({});
   });
 
   it('never reads a setting that stays on the device, whatever the content holds', () => {
@@ -198,6 +220,7 @@ describe('roamingMigration', () => {
         // The clock has no default (it follows the language), so a choice differs from it.
         if (value === undefined) return [key, true];
         if (key === 'midTurnSend') return [key, 'queue'];
+        if (key === 'mediaCompression') return [key, 'small'];
         return [key, typeof value === 'boolean' ? !value : 'YYYY-MM-DD'];
       })
     );
@@ -205,6 +228,8 @@ describe('roamingMigration', () => {
     expect(patch.hideActivity).toBe(true);
     expect(patch.urlPreview).toBe(false);
     expect(patch.midTurnSend).toBe('queue');
+    expect(patch.mediaCompression).toBe('small');
+    expect(patch.autoZipLargeFiles).toBe(true);
     ROAMING_KEYS.forEach((key) => expect(patch[key], key).not.toBe(DEFAULT_SETTINGS[key]));
     expect(roamingMigration({}, device(), DEFAULT_SETTINGS)).toEqual({});
   });

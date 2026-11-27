@@ -17,6 +17,11 @@ import { ThreadsTab } from './rail/ThreadsTab';
 import { UnverifiedTab } from '../account/switcher/UnverifiedTab';
 import { CreateTab } from './rail/CreateTab';
 import { RailScrollArea } from './rail/RailScrollArea';
+import { RailVisibilityMenuProvider } from './rail/RailVisibilityMenu';
+import {
+  useRailEmptyContextMenu,
+  useRailVisibilityMenuTrigger,
+} from './rail/railVisibilityMenuContext';
 import { useRailButtons } from '../settings/railButtons';
 import { CallTab } from '../calls/CallTab';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
@@ -25,37 +30,29 @@ type SidebarNavProps = {
   /** Shown under a rule below the account controls, such as the panel collapse toggle. */
   footer?: ReactNode;
   /**
-   * Called when a section button is pressed, with whether that section is
-   * already shown; returning true means the click was handled (the page
-   * navigation toggled) and the tab does not navigate.
+   * Called when a section button is pressed, with whether that section is already shown and
+   * whether an open navigation panel may collapse (defaults to true); returning true means the
+   * click was handled (the page navigation toggled) and the tab does not navigate.
    */
-  onPageNavSelect?: (selected: boolean) => boolean;
+  onPageNavSelect?: (selected: boolean, allowCollapse?: boolean) => boolean;
 };
 
-/**
- * The icon rail. On top: Home, Direct Messages, the Activity bell, Threads and Canvases, then the
- * joined spaces, Explore and Create Space; while the window leaves room for enough spaces, the top
- * group stays put and only the spaces scroll (`RailScrollArea`). Pinned to the foot: the call this
- * device is in, the command palette, device and Local MindRoom notices when they apply, Help &
- * guides, the account, and the footer. Threads, Canvases, Explore, Create Space, the command
- * palette, Local MindRoom and Help & guides show where the deployment offers them and the person
- * has not hidden them in Settings (`useRailButtons`). On phones the top bar holds the command
- * palette, and the account shows there too; the rail keeps its account button, as on wider screens.
- */
-export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
+function SidebarNavRail({ footer, onPageNavSelect }: SidebarNavProps) {
   const { t } = useTranslation();
   const shown = useRailButtons();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const railMenuProps = useRailEmptyContextMenu();
+  const searchMenuProps = useRailVisibilityMenuTrigger('search', { disabled: phone });
 
   return (
-    <Sidebar aria-label={t('sharedUi.a11y.mainNavigation')}>
+    <Sidebar aria-label={t('sharedUi.a11y.mainNavigation')} {...railMenuProps}>
       <SidebarContent
         scrollable={
           <RailScrollArea
             top={
               <SidebarStack>
                 <HomeTab onSelect={onPageNavSelect} />
-                <DirectTab onSelect={onPageNavSelect} />
+                {shown.direct && <DirectTab onSelect={onPageNavSelect} />}
                 <ActivityTab onSelect={onPageNavSelect} />
                 {shown.threads && <ThreadsTab onSelect={onPageNavSelect} />}
                 {shown.canvases && <CanvasesTab />}
@@ -80,7 +77,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
             <SidebarStackSeparator />
             <SidebarStack>
               <CallTab />
-              {shown.search && !phone && <SearchTab />}
+              {shown.search && !phone && <SearchTab contextMenuProps={searchMenuProps} />}
               <UnverifiedTab />
               {shown.localMindroom && <LocalMindroomTab />}
               {shown.help && <HelpTab />}
@@ -96,5 +93,23 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
         }
       />
     </Sidebar>
+  );
+}
+
+/**
+ * The icon rail. On top: Home, Direct Messages, the Activity bell, Threads and Canvases, then the
+ * joined spaces, Explore and Create Space; while the window leaves room for enough spaces, the top
+ * group stays put and only the spaces scroll (`RailScrollArea`). Pinned to the foot: the call this
+ * device is in, the command palette, device and Local MindRoom notices when they apply, Help &
+ * guides, the account, and the footer. Threads, Canvases, Explore, Create Space, the command
+ * palette, Local MindRoom and Help & guides show where the deployment offers them and the person
+ * has not hidden them in Settings (`useRailButtons`). On phones the top bar holds the command
+ * palette, and the account shows there too; the rail keeps its account button, as on wider screens.
+ */
+export function SidebarNav(props: SidebarNavProps) {
+  return (
+    <RailVisibilityMenuProvider>
+      <SidebarNavRail {...props} />
+    </RailVisibilityMenuProvider>
   );
 }

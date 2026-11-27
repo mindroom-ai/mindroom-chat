@@ -1,3 +1,4 @@
+import { MatrixEvent } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_SECRET_REQUEST_KEY,
@@ -6,6 +7,8 @@ import {
   secretRequestPath,
   type SecretRequest,
 } from './secretRequest';
+import { isFoldedSecretRequestEvent } from './secretRequestPreview';
+import { secretRequestEditContent, secretRequestPayload } from './secretRequest.test.shared';
 
 const inner = (overrides: Record<string, unknown> = {}) => ({
   request_id: 'req-1',
@@ -370,5 +373,141 @@ describe('secretRequestPath', () => {
     expect(secretRequestPath('!room:server', 'a/b')).toBe(
       '/api/rooms/!room%3Aserver/secret-requests/a%2Fb'
     );
+  });
+});
+
+describe('isFoldedSecretRequestEvent', () => {
+  const VIEWER = '@reader:example.org';
+  const AGENT = '@mindroom_helper:example.org';
+  const makeNotice = (overrides: Record<string, unknown> = {}, sender = AGENT): MatrixEvent =>
+    new MatrixEvent({
+      event_id: '$secret',
+      room_id: '!room:example.org',
+      sender,
+      type: 'm.room.message',
+      origin_server_ts: 100,
+      content: {
+        msgtype: 'm.notice',
+        body: 'Secret needed',
+        [MINDROOM_SECRET_REQUEST_KEY]: secretRequestPayload(overrides),
+      },
+    });
+  const makeEdit = (targetId: string, status: 'saved' | 'declined' | 'expired' = 'saved') =>
+    new MatrixEvent({
+      event_id: `${targetId}-edit`,
+      room_id: '!room:example.org',
+      sender: AGENT,
+      type: 'm.room.message',
+      origin_server_ts: 200,
+      content: secretRequestEditContent(targetId, { status }),
+    });
+
+  it.each(['saved', 'declined', 'expired'] as const)(
+    'treats an anchored %s secret request as folded',
+    (status) => {
+      const event = makeNotice();
+      event.makeReplaced(makeEdit('$secret', status));
+      expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(true);
+    }
+  );
+
+  it('does not fold a pending anchored request, even past expires_at', () => {
+    const event = makeNotice({ expires_at: 1 });
+    expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(false);
+  });
+
+  it.each<[string, () => MatrixEvent, string | undefined]>([
+    ['unanchored', () => makeNotice({ status: 'saved', response_event_id: undefined }), VIEWER],
+    [
+      'foreign-homeserver',
+      () => makeNotice({ status: 'saved' }, '@mindroom_helper:other.example'),
+      VIEWER,
+    ],
+    ['non-agent', () => makeNotice({ status: 'saved' }, VIEWER), VIEWER],
+    ['omitted viewer', () => makeNotice({ status: 'saved' }), undefined],
+    [
+      'edit-only spoof',
+      () => {
+        const plain = new MatrixEvent({
+          event_id: '$plain',
+          room_id: '!room:example.org',
+          sender: AGENT,
+          type: 'm.room.message',
+          origin_server_ts: 100,
+          content: { msgtype: 'm.text', body: 'Ordinary reply' },
+        });
+        plain.makeReplaced(makeEdit('$plain'));
+        return plain;
+      },
+      VIEWER,
+    ],
+    [
+      'redacted',
+      () => {
+        const redacted = makeNotice({ status: 'saved' });
+        redacted.makeRedacted(
+          new MatrixEvent({
+            event_id: '$redaction',
+            room_id: '!room:example.org',
+            sender: AGENT,
+            type: 'm.room.redaction',
+            origin_server_ts: 300,
+            redacts: '$secret',
+            content: {},
+          }),
+          null as never
+        );
+        return redacted;
+      },
+      VIEWER,
+    ],
+  ])('rejects %s events', (_label, makeEvent, viewer) => {
+    const event = makeEvent();
+    expect(isFoldedSecretRequestEvent(event, viewer)).toBe(false);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ['unknown status', { status: 'unknown' }],
+    ['empty response_event_id', { status: 'saved', response_event_id: '' }],
+    ['oversized tool_call_id', { status: 'saved', tool_call_id: 'x'.repeat(513) }],
+    ['non-string tool_call_id', { status: 'saved', tool_call_id: 42 }],
+  ])('rejects invalid preview metadata (%s)', (_label, overrides) => {
+    const event = makeNotice(overrides);
+    expect(isFoldedSecretRequestEvent(event, VIEWER)).toBe(false);
+  });
+
+  it('reads replacingEvent m.new_content and direct secret-request content, and falls back on untrusted edits', () => {
+    const makeMock = (replacingEvent: () => Record<string, unknown> | null) => ({
+      getType: () => 'm.room.message',
+      getSender: () => AGENT,
+      isRedacted: () => false,
+      isRedaction: () => false,
+      getOriginalContent: () => content(secretRequestPayload()),
+      getContent: () => content(secretRequestPayload()),
+      replacingEvent,
+    });
+
+    const newContentEdit = makeMock(() => ({
+      getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
+    }));
+    expect(isFoldedSecretRequestEvent(newContentEdit, VIEWER)).toBe(true);
+
+    const directEdit = makeMock(() => ({
+      getContent: () => content(secretRequestPayload({ status: 'declined' })),
+    }));
+    expect(isFoldedSecretRequestEvent(directEdit, VIEWER)).toBe(true);
+
+    const foreignSenderEdit = makeMock(() => ({
+      getSender: () => VIEWER,
+      getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
+    }));
+    expect(isFoldedSecretRequestEvent(foreignSenderEdit, VIEWER)).toBe(false);
+
+    const decryptionFailureEdit = makeMock(() => ({
+      getSender: () => AGENT,
+      isDecryptionFailure: () => true,
+      getContent: () => ({ 'm.new_content': content(secretRequestPayload({ status: 'saved' })) }),
+    }));
+    expect(isFoldedSecretRequestEvent(decryptionFailureEdit, VIEWER)).toBe(false);
   });
 });

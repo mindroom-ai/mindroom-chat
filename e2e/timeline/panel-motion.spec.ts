@@ -398,7 +398,7 @@ test('the page navigation and the members panel open and close in one motion', a
   await page.screenshot({ path: test.info().outputPath('panels-rtl.png') });
 });
 
-test('a drag below the smallest width follows the pointer and closes or springs back', async ({
+test('a drag below the smallest width holds while charging and glides out or settles', async ({
   page,
 }) => {
   test.setTimeout(180_000);
@@ -413,29 +413,33 @@ test('a drag below the smallest width follows the pointer and closes or springs 
   const x = bounds.x + bounds.width / 2;
   const y = bounds.y + 240;
 
-  // Toward the window's edge the panel narrows past its smallest width with the pointer, and its
-  // content keeps that smallest width, clipped instead of squeezed.
+  // Toward the window's edge the panel holds at its smallest width while pointer travel past it
+  // charges collapse and arms the fold chip.
   await page.mouse.move(x, y);
   await page.mouse.down();
-  const dragged: number[] = [];
   for (const offset of [40, 80, 120, 150, 180, 200]) {
     await page.mouse.move(x + offset, y);
-    await expect.poll(() => widthOf(members)).toBe(266 - offset);
-    dragged.push(266 - offset);
+    const held = Math.max(200, 266 - offset);
+    await expect.poll(() => widthOf(members)).toBe(held);
     const content = members.locator(':scope > :first-child > *');
-    expect(await widthOf(content)).toBe(Math.max(200, 266 - offset));
+    expect(await widthOf(content)).toBe(held);
+    if (offset === 80) {
+      await expect(members).toHaveAttribute('data-collapse-charging', 'true');
+      await expect(members).not.toHaveAttribute('data-collapse-preview', 'true');
+    }
   }
+  await expect(members).toHaveAttribute('data-collapse-charging', 'true');
   await expect(members).toHaveAttribute('data-collapse-preview', 'true');
-  // Released below the threshold, it moves the rest of the way out.
+  await expect(members.locator('[data-panel-collapse-badge]')).toHaveText('Hide Members');
+  // Released past the threshold, it glides smoothly out from minWidth to 0.
   const release = await stepMotion(page, MEMBERS, () => page.mouse.up());
-  await expectStepped(page, MEMBERS, release, 66, 0);
+  await expectStepped(page, MEMBERS, release, 200, 0);
   // The content kept its smallest width all the way out.
   release.contentWidths.forEach((width) => expect(Math.round(width)).toBe(200));
-  await expect(page.getByRole('button', { name: 'Show Members', exact: true })).toBeVisible();
+  await expect(showMembers).toBeVisible();
 
-  // Opened again it has its old width; a drag released above the threshold springs back to the
-  // smallest width.
-  await page.getByRole('button', { name: 'Show Members', exact: true }).click();
+  // Opened again it has its old width; a drag released short of the threshold settles at minWidth.
+  await showMembers.click();
   await expect.poll(() => widthOf(members)).toBe(266);
   const again = await handle.boundingBox();
   if (!again) throw new Error('Missing member resize handle');
@@ -443,15 +447,14 @@ test('a drag below the smallest width follows the pointer and closes or springs 
   await page.mouse.move(start.x, start.y);
   await page.mouse.down();
   await page.mouse.move(start.x + 90, start.y, { steps: 6 });
-  await expect.poll(() => widthOf(members)).toBe(176);
+  await expect.poll(() => widthOf(members)).toBe(200);
+  await expect(members).toHaveAttribute('data-collapse-charging', 'true');
   await expect(members).not.toHaveAttribute('data-collapse-preview', 'true');
-  await expectStepped(
-    page,
-    MEMBERS,
-    await stepMotion(page, MEMBERS, () => page.mouse.up()),
-    176,
-    200
-  );
+  await expect(members.locator('[data-panel-collapse-badge]')).toHaveCount(0);
+  await page.mouse.up();
+  await expect.poll(() => widthOf(members)).toBe(200);
+  await expect(members).not.toHaveAttribute('data-collapse-charging', 'true');
+  await expect(showMembers).toHaveCount(0);
 });
 
 test('the conversation keeps its place while a panel moves', async ({ page }) => {

@@ -49,6 +49,21 @@ const getReconnects = (mx: AvatarMediaClient | undefined): Reconnects => {
   return entry;
 };
 
+/** Increments each time the client's sync recovers, so failed media loads can retry. */
+export function useSyncReconnectCount(mx: AvatarMediaClient | undefined): number {
+  const sync = getReconnects(mx);
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      sync.listeners.add(onChange);
+      return () => {
+        sync.listeners.delete(onChange);
+      };
+    },
+    [sync]
+  );
+  return useSyncExternalStore(subscribe, () => sync.count);
+}
+
 /** The active account's client, or undefined outside `MatrixClientProvider` (tests, previews). */
 const useClientIfAny = (): AvatarMediaClient | undefined => {
   try {
@@ -94,17 +109,7 @@ export function useAvatarImage(
   const mx = clientOverride ?? contextClient;
   const versions = useSpecVersions();
   const [state, setState] = useState<ImageState>(() => startFor(src, mx, versions));
-  const sync = getReconnects(mx);
-  const subscribe = useCallback(
-    (onChange: () => void) => {
-      sync.listeners.add(onChange);
-      return () => {
-        sync.listeners.delete(onChange);
-      };
-    },
-    [sync]
-  );
-  const reconnectCount = useSyncExternalStore(subscribe, () => sync.count);
+  const reconnectCount = useSyncReconnectCount(mx);
   const reconnectRef = useRef(reconnectCount);
   reconnectRef.current = reconnectCount;
 

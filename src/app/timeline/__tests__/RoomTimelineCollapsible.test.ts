@@ -350,6 +350,7 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
 
 vi.mock('../RoomTimeline.css', () => ({
   ExpandAllToggle: 'ExpandAllToggle',
+  ForkDraftPrefixRow: 'ForkDraftPrefixRow',
   FloatingAction: 'FloatingAction',
   JumpToLatestButton: 'JumpToLatestButton',
   JumpToLatestFloat: 'JumpToLatestFloat',
@@ -587,6 +588,7 @@ vi.mock('../../event-store/threads/threadUtils', () => ({
     mEvent: { getId: () => string; threadRootId?: string },
     threadId: string
   ) => !!threadId && mEvent.threadRootId === threadId && mEvent.getId() !== threadId,
+  getEventPreviewContent: () => undefined,
   getLatestRenderableVisibleThreadReplyEvent: () => undefined,
   getPreferredVisibleThreadReplyEvents: () => [],
   getVisibleThreadEventBodyPreviewText: () => undefined,

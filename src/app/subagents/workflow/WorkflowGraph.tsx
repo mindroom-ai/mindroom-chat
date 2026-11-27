@@ -1,89 +1,167 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Fragment, memo, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Button, ProgressBar, Text } from 'folds';
+import { Text } from 'folds';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import { getAiRunCompactModelLabel } from '../../matrix/protocol/aiRunModelLabel';
-import type {
-  WorkflowNodeStatus,
-  WorkflowRunEdge,
-  WorkflowRunGroup,
-  WorkflowRunNode,
-} from '../../matrix/protocol/workflowFrame';
-import { formatCostUsd } from '../../messages/agent-run/aiRunDisplay';
+import { localDigits } from '../../lib/localDigits';
+import type { WorkflowRunGroup, WorkflowRunNode } from '../../matrix/protocol/workflowFrame';
 import type { SubagentRun } from '../../messages/live/subagentRunStore';
 import {
   formatWorkflowElapsed,
   workflowNodeWaitLabel,
 } from '../../messages/workflow-run/workflowRunLabels';
-import * as cardCss from '../../messages/workflow-run/WorkflowRunCard.css';
 import { ownDirectionLine } from '../../ui/directional';
 import { AgentAvatar, useAgentProfile } from '../AgentAvatar';
-import { formatTokens } from '../runUsage';
 import {
-  edgePath,
+  bandPrecedesBand,
   foldGroupItems,
-  type Box,
+  getWorkflowNodeMetrics,
+  groupFlowItems,
+  isCollapsiblePlumbingItem,
+  isLiveWorkflowNodeStatus,
+  itemPrecedesItem,
   type WorkflowGraphBand,
   type WorkflowGraphItem,
+  type WorkflowPeerBridge,
+  type WorkflowSessionInfo,
 } from './workflowGraphModel';
+import {
+  formatNodeErrorBadge,
+  GroupHeaderRow,
+  isSessionHighlighted,
+  resolveSessionLabel,
+  ShowMoreButton,
+  WorkflowStepsItems,
+} from './WorkflowSteps';
 import * as css from './workflowPanel.css';
 
-const GROUP_KIND_KEYS = new Map([
-  ['foreach', 'mindroomUi.workflowRun.group.foreach'],
-  ['parallel', 'mindroomUi.workflowRun.group.parallel'],
-  ['run', 'mindroomUi.workflowRun.group.run'],
-  ['workflow', 'mindroomUi.workflowRun.group.workflow'],
-] as const);
+export { isLiveWorkflowNodeStatus };
 
-export const isLiveWorkflowNodeStatus = (status: WorkflowNodeStatus): boolean =>
-  status === 'queued' || status === 'running' || status === 'waiting';
-
-type RenderCtx = {
+export type WorkflowGraphViewProps = {
+  bands: readonly WorkflowGraphBand[];
   room: Room;
   subagentsByRun: ReadonlyMap<string, SubagentRun>;
+  sessionsById: ReadonlyMap<string, WorkflowSessionInfo>;
+  peerBridgesByGroup: ReadonlyMap<string, readonly WorkflowPeerBridge[]>;
   selectedId: string | null;
+  selectedSessionId: string | null;
   now: number;
-  t: TFunction;
-  language: string;
   onSelect: (id: string) => void;
-  onLayoutChange: () => void;
-};
-type ChipProps = Omit<RenderCtx, 'subagentsByRun' | 'selectedId' | 'onLayoutChange'> & {
-  node: WorkflowRunNode;
-  subagentRun?: SubagentRun;
-  selected: boolean;
 };
 
-/** Leaf chip memoized by shallow props so deltas re-render only the nodes they update. */
-const WorkflowNodeChip = memo(function WorkflowNodeChip({
+type RenderCtx = Omit<WorkflowGraphViewProps, 'bands'> & { t: TFunction; language: string };
+
+const FORK_ONE = ['M 50 0 L 50 18'];
+const FORK_TWO = ['M 50 0 C 50 9, 25 9, 25 18', 'M 50 0 C 50 9, 75 9, 75 18'];
+const JOIN_TWO = ['M 25 0 C 25 9, 50 9, 50 18', 'M 75 0 C 75 9, 50 9, 50 18'];
+const JOIN_TWO_ODD = ['M 25 0 C 25 9, 50 9, 50 18'];
+const FORK_THREE = ['M 50 0 C 50 9, 17 9, 17 18', 'M 50 0 L 50 18', 'M 50 0 C 50 9, 83 9, 83 18'];
+const JOIN_THREE = ['M 17 0 C 17 9, 50 9, 50 18', 'M 50 0 L 50 18', 'M 83 0 C 83 9, 50 9, 50 18'];
+
+function FlowArrowSvg() {
+  return (
+    <div className={css.FlowConnector} aria-hidden="true">
+      <svg viewBox="0 0 16 16" width="16" height="16">
+        <path d="M 8 0 L 8 13 M 4.5 9.5 L 8 13.5 L 11.5 9.5" className={css.ConnectorPath} />
+      </svg>
+    </div>
+  );
+}
+
+/** Responsive fork/join curves synced via CSS @container queries to BranchGrid's 1/2/3 columns. */
+function ForkJoinSvg({ direction, count }: { direction: 'fork' | 'join'; count: number }) {
+  const two = direction === 'fork' ? FORK_TWO : JOIN_TWO;
+  const twoMid = direction === 'join' && count > 2 && count % 2 === 1 ? JOIN_TWO_ODD : two;
+  const three = direction === 'fork' ? FORK_THREE : JOIN_THREE;
+  const draw = (paths: readonly string[]) =>
+    paths.map((d) => (
+      <path key={d} d={d} className={css.ConnectorPath} vectorEffect="non-scaling-stroke" />
+    ));
+  return (
+    <svg
+      className={css.ForkJoinSvg}
+      viewBox="0 0 100 18"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      {count <= 1 ? (
+        draw(FORK_ONE)
+      ) : count === 2 ? (
+        <>
+          <g className={css.ForkVis.two}>{draw(two)}</g>
+          <g className={css.ForkVis.one}>{draw(FORK_ONE)}</g>
+        </>
+      ) : (
+        <>
+          <g className={css.ForkVis.three}>{draw(three)}</g>
+          <g className={css.ForkVis.twoMid}>{draw(twoMid)}</g>
+          <g className={css.ForkVis.one}>{draw(FORK_ONE)}</g>
+        </>
+      )}
+    </svg>
+  );
+}
+
+function PeerBridges({
+  bridges,
+  t,
+  language,
+}: {
+  bridges: readonly WorkflowPeerBridge[];
+  t: TFunction;
+  language: string;
+}) {
+  if (!bridges.length) return null;
+  return (
+    <div className={css.CenterWrap}>
+      {bridges.map((b) => (
+        <span key={b.key} className={css.PeerBridgePill}>
+          <span dir="ltr" aria-hidden="true">
+            <bdi>{b.fromLabel}</bdi> {b.bidirectional ? '↔' : '→'} <bdi>{b.toLabel}</bdi> ·{' '}
+            {localDigits(String(b.count), language)}
+          </span>
+          <span className={css.VisuallyHidden}>
+            {t(
+              b.bidirectional
+                ? 'mindroomUi.workflowRun.node.routeBetween'
+                : 'mindroomUi.workflowRun.node.routeTo',
+              { from: b.fromLabel, to: b.toLabel, count: b.count }
+            )}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Leaf card memoized by shallow props so live deltas re-render only the nodes they update. */
+const WorkflowNodeCard = memo(function WorkflowNodeCard({
   node,
   subagentRun,
+  sessionLabel,
   room,
   selected,
+  sessionHighlighted,
   now,
   t,
   language,
   onSelect,
-}: ChipProps) {
+}: {
+  node: WorkflowRunNode;
+  subagentRun?: SubagentRun;
+  sessionLabel?: string;
+  room: Room;
+  selected: boolean;
+  sessionHighlighted: boolean;
+  now: number;
+  t: TFunction;
+  language: string;
+  onSelect: (id: string) => void;
+}) {
   const agentProfile = useAgentProfile(room, node.agent ?? '');
-  const isLive = isLiveWorkflowNodeStatus(node.status);
-  const model = subagentRun?.meta.model
-    ? getAiRunCompactModelLabel(subagentRun.meta.model)
-    : node.model;
-  const usage = isLive ? (subagentRun?.meta.usage ?? node.usage) : node.usage;
-  const tokens = usage ? usage.inputTokens + usage.outputTokens : 0;
-  const cost =
-    usage?.costUsd !== undefined && (usage.costUsd > 0 || tokens > 0)
-      ? formatCostUsd(usage.costUsd, language)
-      : undefined;
-  const elapsed = formatWorkflowElapsed(
-    node.startedAt,
-    node.endedAt,
-    isLive ? now : null,
-    language
-  );
+  const { model, tokens, cost, elapsed } = getWorkflowNodeMetrics(node, subagentRun, now, language);
+  const errorBadge = node.status === 'failed' ? formatNodeErrorBadge(node.error, t) : undefined;
   const note = node.cached
     ? t('mindroomUi.workflowRun.node.reused')
     : node.status === 'queued'
@@ -99,7 +177,7 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
     node.kind === 'session' && node.turns > 0
       ? t('mindroomUi.workflowRun.node.sessionTurns', { count: node.turns })
       : undefined,
-    tokens > 0 ? formatTokens(tokens, language) : undefined,
+    tokens,
     cost,
     elapsed,
   ].filter(Boolean);
@@ -111,6 +189,7 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
       aria-pressed={selected}
       data-workflow-chip-id={node.id}
       data-workflow-node-status={node.status}
+      data-session-highlighted={sessionHighlighted || undefined}
       onClick={() => onSelect(node.id)}
     >
       <span className={css.ChipTop}>
@@ -120,17 +199,123 @@ const WorkflowNodeChip = memo(function WorkflowNodeChip({
           {node.label}
         </span>
       </span>
-      <span className={css.ChipMeta}>
-        {meta.map((part, i) => (
-          // Metadata fragments are static positional badges per chip.
-          // eslint-disable-next-line react/no-array-index-key
-          <span key={i}>{part}</span>
-        ))}
-      </span>
+      {(sessionLabel || meta.length > 0) && (
+        <span className={css.ChipMeta}>
+          {sessionLabel && (
+            <span className={css.SessionBadge} {...ownDirectionLine}>
+              @{sessionLabel}
+            </span>
+          )}
+          {meta.map((part, i) => (
+            // Metadata fragments are static positional badges per card.
+            // eslint-disable-next-line react/no-array-index-key
+            <span key={i}>{part}</span>
+          ))}
+        </span>
+      )}
+      {errorBadge && (
+        <span className={css.ErrorPill} {...ownDirectionLine}>
+          {errorBadge}
+        </span>
+      )}
       {note && <span className={css.ChipNote}>{note}</span>}
     </button>
   );
 });
+
+const WorkflowPlumbingChip = memo(function WorkflowPlumbingChip({
+  node,
+  selected,
+  language,
+  onSelect,
+}: {
+  node: WorkflowRunNode;
+  selected: boolean;
+  language: string;
+  onSelect: (id: string) => void;
+}) {
+  const elapsed = formatWorkflowElapsed(node.startedAt, node.endedAt, null, language);
+  return (
+    <button
+      type="button"
+      className={css.PlumbingPill}
+      aria-pressed={selected}
+      data-workflow-chip-id={node.id}
+      data-workflow-node-status={node.status}
+      onClick={() => onSelect(node.id)}
+    >
+      <span className={css.NodeDot[node.status]} aria-hidden />
+      <span className={css.ChipLabel} {...ownDirectionLine}>
+        {node.label}
+      </span>
+      {elapsed && <span className={css.MutedNum}>{elapsed}</span>}
+    </button>
+  );
+});
+
+function PlumbingGroupPill({ nodes, ctx }: { nodes: readonly WorkflowRunNode[]; ctx: RenderCtx }) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className={css.CenterWrap}>
+      <button
+        type="button"
+        className={css.PlumbingPill}
+        aria-expanded={expanded}
+        onClick={() => setExpanded((cur) => !cur)}
+      >
+        <span className={css.NodeDot.completed} aria-hidden />
+        <span>{ctx.t('mindroomUi.workflowRun.panel.setupSteps', { count: nodes.length })}</span>
+      </button>
+      {expanded &&
+        nodes.map((node) => (
+          <WorkflowPlumbingChip
+            key={node.id}
+            node={node}
+            selected={ctx.selectedId === node.id}
+            language={ctx.language}
+            onSelect={ctx.onSelect}
+          />
+        ))}
+    </div>
+  );
+}
+
+function renderFlowNode(item: Extract<WorkflowGraphItem, { type: 'node' }>, ctx: RenderCtx) {
+  const selected = ctx.selectedId === item.node.id;
+  if (isCollapsiblePlumbingItem(item)) {
+    return (
+      <div className={css.CenterWrap}>
+        <WorkflowPlumbingChip
+          node={item.node}
+          selected={selected}
+          language={ctx.language}
+          onSelect={ctx.onSelect}
+        />
+      </div>
+    );
+  }
+  return (
+    <div className={css.Stack}>
+      <WorkflowNodeCard
+        node={item.node}
+        subagentRun={item.node.run ? ctx.subagentsByRun.get(item.node.run) : undefined}
+        sessionLabel={resolveSessionLabel(item.node, ctx.sessionsById)}
+        room={ctx.room}
+        selected={selected}
+        sessionHighlighted={isSessionHighlighted(item.node, selected, ctx.selectedSessionId)}
+        now={isLiveWorkflowNodeStatus(item.node.status) ? ctx.now : 0}
+        t={ctx.t}
+        language={ctx.language}
+        onSelect={ctx.onSelect}
+      />
+      {item.children && item.children.length > 0 && (
+        <div className={css.IndentRail}>
+          <WorkflowFlowList items={item.children} ctx={ctx} />
+        </div>
+      )}
+    </div>
+  );
+}
 
 function WorkflowGroupBox({
   group,
@@ -142,179 +327,125 @@ function WorkflowGroupBox({
   ctx: RenderCtx;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const { shown, more } = expanded ? { shown: items, more: 0 } : foldGroupItems(items);
-  const kindKey = GROUP_KIND_KEYS.get(group.kind as never);
+  const parallel = group.kind === 'parallel' || group.kind === 'foreach';
+  const { shown, more } = expanded
+    ? { shown: items, more: 0 }
+    : foldGroupItems(items, 24, !parallel);
+  const total = Math.max(1, group.total);
+  const done = Math.min(group.done, group.total);
+  const pct = Math.min(100, Math.round((done / total) * 100));
+  const tone =
+    group.failed > 0 ? 'failed' : group.total > 0 && done >= group.total ? 'done' : 'live';
+  const branchVariant = shown.length <= 1 ? 'one' : shown.length === 2 ? 'two' : 'many';
+  const bridges = ctx.peerBridgesByGroup.get(group.id) ?? [];
+
   return (
     <div className={css.GroupBox} data-workflow-group-id={group.id}>
-      <div className={cardCss.Row} style={{ justifyContent: 'space-between' }}>
-        <Text as="span" size="T300" className={css.StrongText}>
-          {kindKey ? ctx.t(kindKey) : group.kind}
-        </Text>
-        <Text as="span" size="T200" priority="300">
-          {ctx.t('mindroomUi.workflowRun.group.progress', { done: group.done, total: group.total })}
-        </Text>
-        {group.failed > 0 && (
-          <Text as="span" size="T200" className={cardCss.CriticalText}>
-            {ctx.t('mindroomUi.workflowRun.group.failed', { count: group.failed })}
-          </Text>
-        )}
+      <GroupHeaderRow group={group} t={ctx.t} />
+      <div className={css.ProgressTrack} aria-hidden="true">
+        <div className={css.ProgressFill[tone]} style={{ inlineSize: `${pct}%` }} />
       </div>
-      <ProgressBar
-        variant="Primary"
-        size="300"
-        min={0}
-        max={Math.max(1, group.total)}
-        value={Math.min(group.done, group.total)}
-      />
-      <WorkflowItemsList items={shown} ctx={ctx} />
-      {more > 0 && (
-        <div>
-          <Button
-            type="button"
-            size="300"
-            variant="Secondary"
-            fill="Soft"
-            onClick={() => {
-              setExpanded(true);
-              ctx.onLayoutChange();
-            }}
-          >
-            <Text size="B300">
-              {ctx.t('mindroomUi.workflowRun.panel.showMore', { count: more })}
-            </Text>
-          </Button>
-        </div>
+      {parallel ? (
+        <>
+          {shown.length > 0 && <ForkJoinSvg direction="fork" count={shown.length} />}
+          {shown.length > 0 && (
+            <div className={css.BranchGrid[branchVariant]}>
+              {shown.map((item) =>
+                item.type === 'group' ? (
+                  <WorkflowGroupBox
+                    key={item.group.id}
+                    group={item.group}
+                    items={item.items}
+                    ctx={ctx}
+                  />
+                ) : (
+                  <Fragment key={item.node.id}>{renderFlowNode(item, ctx)}</Fragment>
+                )
+              )}
+            </div>
+          )}
+          <PeerBridges bridges={bridges} t={ctx.t} language={ctx.language} />
+          {shown.length > 0 && <ForkJoinSvg direction="join" count={shown.length} />}
+        </>
+      ) : (
+        <>
+          <WorkflowFlowList items={shown} ctx={ctx} />
+          <PeerBridges bridges={bridges} t={ctx.t} language={ctx.language} />
+        </>
       )}
+      {more > 0 && <ShowMoreButton count={more} t={ctx.t} onExpand={() => setExpanded(true)} />}
     </div>
   );
 }
 
-function WorkflowItemsList({
-  items,
-  ctx,
-}: {
-  items: readonly WorkflowGraphItem[];
-  ctx: RenderCtx;
-}) {
+function WorkflowFlowList({ items, ctx }: { items: readonly WorkflowGraphItem[]; ctx: RenderCtx }) {
+  const flowItems = groupFlowItems(items);
   return (
-    <div className={css.ItemsGrid}>
-      {items.map((item) =>
-        item.type === 'group' ? (
-          <WorkflowGroupBox key={item.group.id} group={item.group} items={item.items} ctx={ctx} />
-        ) : (
-          <div key={item.node.id} className={css.Stack}>
-            <WorkflowNodeChip
-              node={item.node}
-              subagentRun={item.node.run ? ctx.subagentsByRun.get(item.node.run) : undefined}
-              room={ctx.room}
-              selected={ctx.selectedId === item.node.id}
-              now={isLiveWorkflowNodeStatus(item.node.status) ? ctx.now : 0}
-              t={ctx.t}
-              language={ctx.language}
-              onSelect={ctx.onSelect}
-            />
-            {item.children && item.children.length > 0 && (
-              <div className={css.NestedChildren}>
-                <WorkflowItemsList items={item.children} ctx={ctx} />
-              </div>
-            )}
-          </div>
-        )
-      )}
+    <div className={css.GraphCanvas}>
+      {flowItems.map((item, idx) => (
+        <Fragment
+          key={
+            item.type === 'group'
+              ? item.group.id
+              : item.type === 'plumb_group'
+                ? item.id
+                : item.node.id
+          }
+        >
+          {idx > 0 &&
+            (itemPrecedesItem(flowItems[idx - 1]!, item) ? (
+              <FlowArrowSvg />
+            ) : (
+              <div className={css.ItemGap} aria-hidden="true" />
+            ))}
+          {item.type === 'group' ? (
+            <WorkflowGroupBox group={item.group} items={item.items} ctx={ctx} />
+          ) : item.type === 'plumb_group' ? (
+            <PlumbingGroupPill nodes={item.nodes} ctx={ctx} />
+          ) : (
+            renderFlowNode(item, ctx)
+          )}
+        </Fragment>
+      ))}
     </div>
   );
 }
 
-/** Renders phase bands, nested groups/turns, memoized chips, and the measured SVG edge overlay. */
-export function WorkflowGraphCanvas({
+/** Visual flow graph (`flow`) or compact outline tree (`steps`) for a workflow run. */
+export function WorkflowGraphView({
   bands,
-  edges,
+  mode,
   ...rest
-}: Omit<RenderCtx, 't' | 'language' | 'onLayoutChange'> & {
-  bands: readonly WorkflowGraphBand[];
-  edges: readonly WorkflowRunEdge[];
-}) {
+}: WorkflowGraphViewProps & { mode: 'flow' | 'steps' }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const canvasRef = useRef<HTMLDivElement>(null);
-  const edgesRef = useRef(edges);
-  edgesRef.current = edges;
-  const [layoutTick, setLayoutTick] = useState(0);
-  const onLayoutChange = useCallback(() => setLayoutTick((n) => n + 1), []);
-  const [paths, setPaths] = useState<{ key: string; d: string }[]>([]);
-
-  const measure = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !edgesRef.current.length) return setPaths((p) => (p.length ? [] : p));
-    const root = canvas.getBoundingClientRect();
-    const boxes = new Map<string, Box>();
-    canvas.querySelectorAll<HTMLElement>('[data-workflow-chip-id]').forEach((el) => {
-      const id = el.dataset.workflowChipId;
-      if (!id) return;
-      const r = el.getBoundingClientRect();
-      boxes.set(id, {
-        x: r.left - root.left,
-        y: r.top - root.top,
-        width: r.width,
-        height: r.height,
-      });
-    });
-    const next = edgesRef.current.flatMap((e) => {
-      const [a, b] = [boxes.get(e.from), boxes.get(e.to)];
-      return a && b ? [{ key: `${e.from}->${e.to}`, d: edgePath(a, b) }] : [];
-    });
-    return setPaths((p) =>
-      p.length === next.length && p.every((x, i) => x.key === next[i]?.key && x.d === next[i]?.d)
-        ? p
-        : next
-    );
-  }, []);
-
-  useLayoutEffect(() => {
-    void bands;
-    void edges;
-    void layoutTick;
-    measure();
-  }, [bands, edges, layoutTick, measure]);
-
-  const hasEdges = edges.length > 0;
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !hasEdges || typeof ResizeObserver === 'undefined') return undefined;
-    let rafId = 0;
-    const observer = new ResizeObserver(() => {
-      if (!rafId)
-        rafId = window.requestAnimationFrame(() => {
-          rafId = 0;
-          measure();
-        });
-    });
-    observer.observe(canvas);
-    return () => {
-      observer.disconnect();
-      if (rafId) window.cancelAnimationFrame(rafId);
-    };
-  }, [hasEdges, measure]);
-
-  const ctx: RenderCtx = { ...rest, t, language, onLayoutChange };
+  const ctx: RenderCtx = { ...rest, t, language };
   return (
-    <div ref={canvasRef} className={css.GraphCanvas}>
-      {paths.length > 0 && (
-        <svg className={css.EdgeOverlay} aria-hidden="true">
-          {paths.map((edge) => (
-            <path key={edge.key} d={edge.d} className={css.EdgePath} />
-          ))}
-        </svg>
-      )}
+    <div className={mode === 'flow' ? css.GraphCanvas : css.Band}>
       {bands.map((band, index) => (
-        <section key={band.phase ?? `unphased-${index}`} className={css.Band}>
-          {band.phase !== null && (
-            <Text as="h3" size="T300" className={css.StrongText} {...ownDirectionLine}>
-              {band.phase}
-            </Text>
-          )}
-          <WorkflowItemsList items={band.items} ctx={ctx} />
-        </section>
+        <Fragment key={band.phase ?? `unphased-${index}`}>
+          {mode === 'flow' &&
+            index > 0 &&
+            (bandPrecedesBand(bands[index - 1]!, band) ? (
+              <FlowArrowSvg />
+            ) : (
+              <div className={css.BandGap} aria-hidden="true" />
+            ))}
+          <section className={css.Band}>
+            {band.phase !== null && (
+              <div className={css.PhaseHeader}>
+                <Text as="h3" size="T200" className={css.PhaseHeading} {...ownDirectionLine}>
+                  {band.phase}
+                </Text>
+              </div>
+            )}
+            {mode === 'flow' ? (
+              <WorkflowFlowList items={band.items} ctx={ctx} />
+            ) : (
+              <WorkflowStepsItems items={band.items} ctx={ctx} />
+            )}
+          </section>
+        </Fragment>
       ))}
     </div>
   );

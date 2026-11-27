@@ -54,7 +54,26 @@ type Place = { path: string; room: string | null; thread: string | null };
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
-const seed = async (engine: Engine, label: string): Promise<Seed> => {
+const EXTRA_GARDEN_THREADS = [
+  'Compost bay hinges came loose on the east bin; anyone have brass screws handy?',
+  'Rain barrel diverter filter needs a quick rinse before Thursday showers.',
+  'Greenhouse roof vent latch sticks above 24 degrees; oiled it for now.',
+  'Raised bed cedar boards arrive Tuesday morning by the south alley.',
+  'Drip line timers reset to 6:15 AM for the herb beds and strawberry troughs.',
+  'Cold frame polycarbonate panel has a hairline crack on the north hinge.',
+  'Tool shed padlock combo updated for spring; check the pinned note inside.',
+  'Berry net hoops are stacked behind the potting bench if anyone needs two.',
+  'Pollinator border bulbs are sprouting early along the sunny fence line.',
+  'Garlic scapes should be ready to snip by next weekend; bring shears.',
+  'Leaf mold bin is sifted and ready for top-dressing the perennial beds.',
+  'Watering can spouts are back on the pegboard after the gasket swap.',
+];
+
+const seed = async (
+  engine: Engine,
+  label: string,
+  options?: { extraGardenThreads?: boolean }
+): Promise<Seed> => {
   const username = `iswipe_${engine[0]}_${label}_${RUN}`;
   const reader = await matrixFetch<{ user_id: string; access_token: string }>(
     HOMESERVER,
@@ -121,6 +140,13 @@ const seed = async (engine: Engine, label: string): Promise<Seed> => {
     garden,
     text('Saturday mulch drop starts at 9:00 by the north gate. Bring wheelbarrows if you can.')
   );
+  if (options?.extraGardenThreads) {
+    for (const body of EXTRA_GARDEN_THREADS) {
+      // Sequential sends ensure every newer thread sorts above `gardenRoot` in Compact view.
+      // eslint-disable-next-line no-await-in-loop
+      await say(garden, text(body));
+    }
+  }
 
   const harbor = await create('Harbor Plans', [agent.userId]);
   await say(harbor, text('Crane schedule for the north pier next week: who still needs a slot?'));
@@ -439,6 +465,431 @@ for (const engine of ENGINES) {
           inRoom(garden)
         );
         await expectDrawer(page, false, 'drawer remains closed after exiting thread');
+      } finally {
+        await context.close();
+      }
+    } finally {
+      if (engine === 'webkit') await own.close();
+    }
+  });
+
+  test(`${engine}: back swipe from a newly created thread reveals room preview across keyboard height change`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.setTimeout(240_000);
+    const own = engine === 'webkit' ? await launchWebKit() : browser;
+    try {
+      const seeded = await seed(engine, 'newthread');
+      const { garden, gardenRoot } = seeded;
+      const { context, page } = await signIn(own, seeded);
+      try {
+        await openFromList(page, 'Garden Club', garden);
+        await expect(
+          page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first()
+        ).toBeVisible();
+
+        const composer = page.locator('[data-editable-name="RoomInput"]');
+        await expect(composer).toBeVisible();
+        await composer.tap();
+        await expect(composer).toBeFocused();
+        const newThreadText = 'Fresh seedlings ready for the weekend swap?';
+        await page.keyboard.type(newThreadText);
+
+        const stageHeight = () =>
+          page
+            .locator('[data-phone-stage]')
+            .evaluate((element) => Math.round(element.getBoundingClientRect().height));
+
+        // Let focusin's 80ms keyboard-viewport settle timer finish before shrinking --app-height.
+        await page.waitForTimeout(120);
+        await page.evaluate(() => {
+          document.documentElement.style.setProperty('--app-height', '500px');
+        });
+        await waitAnimationFrames(page, 2);
+        expect(await stageHeight(), 'stage shrinks to simulated soft keyboard height').toBe(500);
+
+        await page.getByRole('button', { name: 'Send message', exact: true }).tap();
+
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText(newThreadText, { exact: true }).first()).toBeVisible();
+        await expect
+          .poll(() => place(page).thread, {
+            message: 'new thread URL confirms to a $... event ID',
+            timeout: 20_000,
+          })
+          .toMatch(/^\$/);
+        expect(place(page).room, 'new thread opens inside Garden Club').toBe(garden);
+
+        await page.evaluate(() => {
+          document.documentElement.style.removeProperty('--app-height');
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await waitAnimationFrames(page, 2);
+        expect(await stageHeight(), 'stage returns to full phone height').toBe(844);
+
+        const drag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await drag.moveTo(180, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          const preview = page.locator('[data-swipe-preview="under"]');
+          await expect(
+            preview,
+            'retained room preview is visible behind the newly created thread'
+          ).toBeVisible();
+          await expect(
+            preview,
+            'retained room preview shows the existing room thread card'
+          ).toContainText('Seed order for spring');
+          await expect(
+            page.locator('[data-swipe-preview="backdrop"]'),
+            'no blank backdrop fallback when room preview matches'
+          ).toHaveCount(0);
+
+          await saveShot(page, testInfo, engine, 'new-thread-back-mid-drag');
+
+          await drag.moveTo(240, { steps: 6, stepMs: 16 });
+        } finally {
+          await drag.release();
+        }
+
+        await expectAt(page, inRoom(garden), 'committed back swipe returns to Garden Club');
+        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expectDrawer(page, false, 'drawer remains closed after exiting new thread');
+
+        // Repeat from a short keyboard height (room area <= 240px, hiding the floating room header
+        // and setting inline --room-header-height: 0px): swiping back at full height must refresh
+        // the cloned header inset so the visible header never overlaps the filter bar.
+        await expect(composer).toBeVisible();
+        await composer.tap();
+        await expect(composer).toBeFocused();
+        const shortAreaThreadText = 'Short landscape keyboard thread preview check?';
+        await page.keyboard.type(shortAreaThreadText);
+
+        await page.waitForTimeout(120);
+        await page.evaluate(() => {
+          document.documentElement.style.setProperty('--app-height', '280px');
+        });
+        await waitAnimationFrames(page, 2);
+        expect(await stageHeight(), 'stage shrinks to short keyboard height').toBe(280);
+        await expect
+          .poll(
+            () =>
+              page.evaluate(() => {
+                const header = document.querySelector<HTMLElement>('[data-room-header="true"]');
+                const area = header?.parentElement;
+                return {
+                  headerHeight: header?.offsetHeight ?? -1,
+                  inlineHeaderInset:
+                    area?.style.getPropertyValue('--room-header-height').trim() ?? '',
+                };
+              }),
+            { message: 'short room area hides header and sets --room-header-height: 0px' }
+          )
+          .toEqual({ headerHeight: 0, inlineHeaderInset: '0px' });
+        const shortAreaHeight = await page.evaluate(() => {
+          const area = document.querySelector<HTMLElement>(
+            '[data-room-header="true"]'
+          )?.parentElement;
+          return area ? Math.round(area.getBoundingClientRect().height) : -1;
+        });
+        expect(shortAreaHeight, 'room area height is <= 240px').toBeGreaterThan(0);
+        expect(shortAreaHeight, 'room area height is <= 240px').toBeLessThanOrEqual(240);
+
+        const shortSendButton = page.getByRole('button', { name: 'Send message', exact: true });
+        await expect(shortSendButton).toBeVisible();
+        await shortSendButton.tap();
+
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText(shortAreaThreadText, { exact: true }).first()).toBeVisible();
+        await expect
+          .poll(() => place(page).thread, {
+            message: 'short-area new thread URL confirms to a $... event ID',
+            timeout: 20_000,
+          })
+          .toMatch(/^\$/);
+
+        await page.evaluate(() => {
+          document.documentElement.style.removeProperty('--app-height');
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await waitAnimationFrames(page, 2);
+        expect(await stageHeight(), 'stage returns to full phone height after short send').toBe(
+          844
+        );
+
+        const shortBackDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await shortBackDrag.moveTo(180, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          const preview = page.locator('[data-swipe-preview="under"]');
+          await expect(
+            preview,
+            'short-area retained room preview is visible behind the newly created thread'
+          ).toBeVisible();
+          await expect(
+            page.locator('[data-swipe-preview="backdrop"]'),
+            'no blank backdrop fallback after short-area capture'
+          ).toHaveCount(0);
+
+          const previewLayout = await preview.evaluate((copy) => {
+            const header = copy.querySelector<HTMLElement>('[data-room-header="true"]');
+            const area = header?.parentElement;
+            const overview = copy.querySelector<HTMLElement>('[data-room-thread-overview="true"]');
+            const headerRect = header?.getBoundingClientRect();
+            const overviewRect = overview?.getBoundingClientRect();
+            return {
+              headerOffsetHeight: header?.offsetHeight ?? 0,
+              inlineHeaderInset: area?.style.getPropertyValue('--room-header-height').trim() ?? '',
+              headerBottom: headerRect?.bottom ?? -1,
+              overviewTop: overviewRect?.top ?? -1,
+              overviewHeight: overviewRect?.height ?? 0,
+            };
+          });
+          expect(
+            previewLayout.headerOffsetHeight,
+            'cloned room header becomes visible at full height'
+          ).toBeGreaterThan(0);
+          expect(
+            previewLayout.inlineHeaderInset,
+            'cloned --room-header-height refreshes to match the visible header'
+          ).toBe(`${previewLayout.headerOffsetHeight}px`);
+          expect(previewLayout.overviewHeight, 'cloned filter bar is visible').toBeGreaterThan(0);
+          expect(
+            previewLayout.headerBottom,
+            'visible cloned room header does not overlap the thread filter bar'
+          ).toBeLessThanOrEqual(previewLayout.overviewTop + 0.5);
+
+          await shortBackDrag.moveTo(240, { steps: 6, stepMs: 16 });
+        } finally {
+          await shortBackDrag.release();
+        }
+
+        await expectAt(
+          page,
+          inRoom(garden),
+          'committed back swipe from short-area new thread returns to Garden Club'
+        );
+        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expectDrawer(page, false, 'drawer remains closed after exiting short-area thread');
+      } finally {
+        await context.close();
+      }
+    } finally {
+      if (engine === 'webkit') await own.close();
+    }
+  });
+
+  test(`${engine}: live room peek reveals Garden Club when swiping back from a directly opened thread`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.setTimeout(240_000);
+    const own = engine === 'webkit' ? await launchWebKit() : browser;
+    try {
+      const seeded = await seed(engine, 'fallback', { extraGardenThreads: true });
+      const { garden, gardenRoot } = seeded;
+      const { context, page } = await signIn(own, seeded);
+      try {
+        // Navigate directly to the thread without visiting the room first (simulates cold reload,
+        // notification, or direct link so roomPreview is guaranteed empty).
+        await page.goto(
+          `/home/${encodeURIComponent(garden)}/?threadId=${encodeURIComponent(gardenRoot)}`
+        );
+        await expectAt(page, { room: garden, thread: gardenRoot }, 'directly entering the thread');
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText('Add marigolds for the border')).toBeVisible({
+          timeout: 20_000,
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await waitAnimationFrames(page, 2);
+
+        // 1. Drag from left edge mid-way -> verify live room underneath, no backdrop -> cancel.
+        const cancelDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await cancelDrag.moveTo(180, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          await expect(
+            page.locator('[data-swipe-preview="backdrop"]'),
+            'no blank backdrop fallback when live room peek is available'
+          ).toHaveCount(0);
+          await expect(
+            page.locator('[data-swipe-preview="under"]'),
+            'no cached snapshot preview on direct thread load'
+          ).toHaveCount(0);
+
+          const liveUnder = page.locator('[data-swipe-under-thread]');
+          await expect(
+            liveUnder,
+            'live room area is revealed underneath the sliding thread column'
+          ).toBeVisible();
+          await expect(liveUnder).toContainText('Garden Club');
+          await expect(liveUnder).toContainText('Seed order for spring');
+          await expect(page.locator('[data-swipe-dim="live-back"]')).toBeVisible();
+
+          const overX = await page
+            .locator('[data-swipe-over-thread]')
+            .evaluate((element) => element.getBoundingClientRect().x);
+          expect(overX, 'thread column tracks finger horizontally').toBeGreaterThan(100);
+          expect(place(page), 'URL stays on the thread mid-drag').toMatchObject({
+            room: garden,
+            thread: gardenRoot,
+          });
+
+          await saveShot(page, testInfo, engine, 'live-room-fallback-mid-drag');
+
+          await cancelDrag.moveTo(60, { steps: 8, stepMs: 16 });
+          await cancelDrag.hold(150);
+        } finally {
+          await cancelDrag.release();
+        }
+
+        // Cancelled drag returns cleanly to the thread with the room re-collapsed.
+        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expect(page.locator('[data-room-header="true"]')).toHaveCount(1);
+        expect(place(page), 'URL still on thread after cancel').toMatchObject({
+          room: garden,
+          thread: gardenRoot,
+        });
+
+        // 2. Drag past threshold and release to commit return to Garden Club.
+        const commitDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await commitDrag.moveTo(240, { steps: 12, stepMs: 16 });
+        } finally {
+          await commitDrag.release();
+        }
+
+        await expectAt(page, inRoom(garden), 'committed live-peek swipe returns to Garden Club');
+        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await expect(
+          page.getByRole('banner').getByRole('heading', { name: 'Garden Club', exact: true })
+        ).toBeVisible();
+        const focusedCard = page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first();
+        await expect(
+          focusedCard,
+          'directly opened older thread card is placed in viewport after commit'
+        ).toBeInViewport();
+        await expect
+          .poll(
+            () =>
+              page.locator('[data-compact-room-view="true"]').evaluate((view) => ({
+                overflows: view.scrollHeight > view.clientHeight,
+                scrolled: view.scrollTop > 0,
+              })),
+            { message: 'compact list scrolled down to reveal the initially offscreen older card' }
+          )
+          .toEqual({ overflows: true, scrolled: true });
+
+        // No double-slide: stays in Garden Club with the drawer closed.
+        await page.waitForTimeout(500);
+        expect(place(page), 'stays in Garden Club without double-sliding').toMatchObject(
+          inRoom(garden)
+        );
+        await expectDrawer(page, false, 'drawer remains closed after live-peek exit');
+        expect(
+          new URL(page.url()).searchParams.get('focusEvent'),
+          'direct-exit lands on focused room URL'
+        ).toBe('1');
+
+        // 3. Re-open the thread from that focused room URL, reload to clear scroll memory and
+        // room preview cache, then swipe back: live peek still focuses the offscreen older card.
+        await focusedCard.tap();
+        await expectAt(
+          page,
+          { room: garden, thread: gardenRoot },
+          're-entering thread from focused room entry'
+        );
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText('Add marigolds for the border')).toBeVisible({
+          timeout: 20_000,
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+
+        await page.reload();
+        await expectAt(
+          page,
+          { room: garden, thread: gardenRoot },
+          'thread reloads with focused room history entry behind it'
+        );
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText('Add marigolds for the border')).toBeVisible({
+          timeout: 20_000,
+        });
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await waitAnimationFrames(page, 2);
+
+        const reloadDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await reloadDrag.moveTo(240, { steps: 12, stepMs: 16 });
+          await expect(
+            page.locator('[data-swipe-preview="under"]'),
+            'no cached room preview after reload'
+          ).toHaveCount(0);
+          await expect(
+            page.locator('[data-swipe-under-thread]'),
+            'live room peek reveals focused room entry after reload'
+          ).toBeVisible();
+        } finally {
+          await reloadDrag.release();
+        }
+
+        await expectAt(
+          page,
+          inRoom(garden),
+          'committed swipe back after reload returns to focused Garden Club entry'
+        );
+        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
+        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        expect(
+          new URL(page.url()).searchParams.get('focusEvent'),
+          'returns to focused room URL after reload'
+        ).toBe('1');
+        await expect(
+          focusedCard,
+          'focused older thread card stays in viewport after reload and swipe back'
+        ).toBeInViewport();
+        await expect
+          .poll(
+            () =>
+              page.locator('[data-compact-room-view="true"]').evaluate((view) => ({
+                overflows: view.scrollHeight > view.clientHeight,
+                scrolled: view.scrollTop > 0,
+              })),
+            { message: 'compact list stays scrolled to the focused older card after reload' }
+          )
+          .toEqual({ overflows: true, scrolled: true });
+        await expectDrawer(page, false, 'drawer remains closed after reloaded live-peek exit');
       } finally {
         await context.close();
       }

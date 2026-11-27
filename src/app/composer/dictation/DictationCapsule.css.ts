@@ -16,7 +16,12 @@ export const Preview = style({
 });
 
 export const StatusNote = style({
-  paddingInline: config.space.S200,
+  inlineSize: '100%',
+  minInlineSize: 0,
+  overflowWrap: 'anywhere',
+  paddingInline: config.space.S100,
+  paddingBlockStart: config.space.S100,
+  borderBlockStart: `${config.borderWidth.B300} solid color-mix(in srgb, ${color.SurfaceVariant.ContainerLine} 60%, transparent)`,
   color: color.SurfaceVariant.OnContainer,
   opacity: 0.85,
 });
@@ -43,5 +48,20 @@ export const RecoveryActions = style({
   flexWrap: 'wrap',
   alignItems: 'center',
   gap: config.space.S100,
-  flexShrink: 0,
+  minInlineSize: 0,
+  maxInlineSize: '100%',
+});
+
+// Locks every recovery button (Primary solid, Secondary with icon, Secondary text-only, Critical)
+// to identical 32px border-box height so solid vs outlined and icon vs text-only stay pixel-aligned.
+export const RecoveryButton = style({
+  selectors: {
+    '&&': {
+      blockSize: toRem(32),
+      minBlockSize: toRem(32),
+      maxBlockSize: toRem(32),
+      boxSizing: 'border-box',
+      whiteSpace: 'nowrap',
+    },
+  },
 });

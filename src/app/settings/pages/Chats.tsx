@@ -1,8 +1,17 @@
 import { useState } from 'react';
+import type { ParseKeys } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { ImagePack } from '../../emoji/custom/ImagePack';
 import { ImagePackView } from '../../emoji/packs/ImagePackView';
 import { isMacOS } from '../../lib/user-agent';
+import {
+  MEDIA_COMPRESSION_PRESETS,
+  type MediaCompressionPreset,
+} from '../../preferences/mediaCompression';
+import { settingsAtom } from '../../preferences/settings';
+import { useSetting } from '../../preferences/useSetting';
+import { SettingTile } from '../../ui/SettingTile';
+import { ChoiceButton } from '../../ui/settings/ChoiceButton';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
 import { SettingSwitchTile } from '../../ui/settings/SettingSwitchTile';
@@ -10,6 +19,38 @@ import { GlobalPacks } from '../../emoji/settings/GlobalPacks';
 import { ServerPack } from '../../emoji/settings/ServerPack';
 import { UserPack } from '../../emoji/settings/UserPack';
 import { formatShortcut } from '../../shortcuts/shortcuts';
+
+const MEDIA_COMPRESSION_LABEL_KEYS = {
+  off: 'featureUi.settings.mediaCompression.off',
+  balanced: 'featureUi.settings.mediaCompression.balanced',
+  small: 'featureUi.settings.mediaCompression.small',
+} as const satisfies Record<MediaCompressionPreset, ParseKeys>;
+
+/** Client-side quality preset for compressing attached images and videos before upload. */
+function MediaCompressionTile() {
+  const { t } = useTranslation();
+  const [preset, setPreset] = useSetting(settingsAtom, 'mediaCompression');
+  const label = t('featureUi.settings.mediaCompression.title');
+
+  return (
+    <SettingTile
+      focusId="mediaCompression"
+      title={label}
+      description={t('featureUi.settings.mediaCompression.description')}
+      after={
+        <ChoiceButton
+          label={label}
+          value={preset}
+          choices={MEDIA_COMPRESSION_PRESETS.map((value) => ({
+            value,
+            label: t(MEDIA_COMPRESSION_LABEL_KEYS[value]),
+          }))}
+          onChoose={setPreset}
+        />
+      }
+    />
+  );
+}
 
 /** The composer's keys, what the timeline shows, and the emoji and sticker packs. */
 export function Chats({ requestClose }: SettingsPageProps) {
@@ -41,6 +82,13 @@ export function Chats({ requestClose }: SettingsPageProps) {
           focusId="markdown"
           setting="isMarkdown"
           title={t('settings.general.editor.markdownFormatting')}
+        />
+        <MediaCompressionTile />
+        <SettingSwitchTile
+          focusId="autoZipLargeFiles"
+          setting="autoZipLargeFiles"
+          title={t('featureUi.settings.autoZipLargeFiles.title')}
+          description={t('featureUi.settings.autoZipLargeFiles.description')}
         />
       </SettingsSection>
       <SettingsSection title={t('settings.general.messages.sectionTitle')}>

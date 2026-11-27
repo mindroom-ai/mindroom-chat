@@ -5,6 +5,7 @@ import type { RailButtons } from '../../settings/railButtons';
 import { HiddenRailPages } from './HiddenRailPages';
 
 const ALL: RailButtons = {
+  direct: true,
   threads: true,
   canvases: true,
   usage: true,
@@ -42,6 +43,7 @@ vi.mock('react-i18next', async () => {
 });
 vi.mock('folds', () => ({
   Icons: {
+    User: 'User',
     Thread: 'Thread',
     Category: 'Category',
     Clock: 'Clock',
@@ -80,24 +82,37 @@ describe('HiddenRailPages', () => {
 
   it('lists every hidden button in rail order, and each one opens its page', () => {
     state.offered = ALL;
-    state.shown = { ...ALL, threads: false, canvases: false, usage: false, explore: false };
-    state.shown = { ...state.shown, createSpace: false, search: false };
+    state.shown = {
+      ...ALL,
+      direct: false,
+      threads: false,
+      canvases: false,
+      usage: false,
+      explore: false,
+      createSpace: false,
+      search: false,
+    };
     const onClose = vi.fn();
     const buttons = entries(onClose);
     expect(buttons.map((entry) => entry.children)).toEqual([
+      ['Direct Messages'],
       ['Threads'],
       ['Canvases'],
       ['Usage'],
       ['Explore Community'],
       ['Create Space'],
     ]);
-    const [threads, canvases, usage, explore, createSpace] = buttons;
+    const [direct, threads, canvases, usage, explore, createSpace] = buttons;
 
+    act(() => {
+      direct?.props.onClick();
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(state.navigate).toHaveBeenCalledWith('/direct/');
     act(() => {
       threads?.props.onClick();
     });
-    expect(onClose).toHaveBeenCalledTimes(1);
-    expect(state.navigate).toHaveBeenCalledWith('/threads/');
+    expect(state.navigate).toHaveBeenLastCalledWith('/threads/');
     act(() => {
       canvases?.props.onClick();
     });
@@ -114,7 +129,7 @@ describe('HiddenRailPages', () => {
       createSpace?.props.onClick();
     });
     expect(state.openCreateSpace).toHaveBeenCalledTimes(1);
-    expect(onClose).toHaveBeenCalledTimes(5);
+    expect(onClose).toHaveBeenCalledTimes(6);
   });
 
   it('lists only the hidden buttons', () => {

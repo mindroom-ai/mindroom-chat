@@ -397,6 +397,36 @@ export const BannerSnoozed = style([
   { color: color.Warning.OnContainer },
 ]);
 
+// Unsent fork drafts share the Warning glass surface with a dashed edge in place of the solid rim.
+export const BannerForkDraft = style([
+  BannerSnoozed,
+  {
+    border: `1px dashed ${color.Warning.Main}`,
+    selectors: { '&&&::before': { display: 'none' } },
+  },
+]);
+
+export const ForkDraftBadge = style({
+  flexShrink: 0,
+  paddingBlock: '0.125rem',
+  paddingInline: config.space.S200,
+  borderRadius: config.radii.Pill,
+  backgroundColor: color.Warning.Main,
+  color: color.Warning.OnMain,
+  fontSize: '0.6875rem',
+  lineHeight: 1.3,
+  fontWeight: 700,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+  whiteSpace: 'nowrap',
+});
+
+export const ForkDraftHint = style({
+  opacity: 0.85,
+  minWidth: 0,
+  overflowWrap: 'anywhere',
+});
+
 export const BannerDisabled = style({
   opacity: 0.6,
   pointerEvents: 'none',

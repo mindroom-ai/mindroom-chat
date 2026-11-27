@@ -116,10 +116,23 @@ def tool_properties(tools: list[dict]) -> Mapping[str, frozenset[str]]:
     return MappingProxyType(by_name)
 
 
+def schedule_tool_name(turn: Turn) -> str:
+    """Return the unified `scheduler` tool when offered, otherwise legacy `schedule`."""
+    return "scheduler" if "scheduler" in turn.tool_properties else "schedule"
+
+
 def schedule_arguments(delay_seconds: int) -> Callable[[Turn], dict]:
-    """Arguments for `schedule`, matching structured (`message`/`delay_seconds`) or legacy (`request`) schemas."""
+    """Arguments for `scheduler` or `schedule`, matching unified, structured, or legacy schemas."""
 
     def build(turn: Turn) -> dict:
+        if "scheduler" in turn.tool_properties:
+            return {
+                "action": "create",
+                "message": "@helper remind me to stretch",
+                "new_thread": False,
+                "delay_seconds": delay_seconds,
+                "description": "Stretch reminder",
+            }
         properties = turn.tool_properties.get("schedule", frozenset())
         if "delay_seconds" in properties or "message" in properties:
             return {
@@ -152,8 +165,8 @@ TOOL_SCENARIOS: dict[str, list[Step]] = {
     "#tag": [("tag_thread", {"tag": "stub-tag", "note": "tagged by the stub model"})],
     "#resolve": [("resolve_thread", {})],
     "#expire": [("untag_thread", {"tag": "stub-tag"})],
-    "#schedulesoon": [("schedule", schedule_arguments(20))],
-    "#schedule": [("schedule", schedule_arguments(150))],
+    "#schedulesoon": [(schedule_tool_name, schedule_arguments(20))],
+    "#schedule": [(schedule_tool_name, schedule_arguments(150))],
     "#canvas": [("show_canvas", {"title": "Stub canvas", "html": CANVAS_PAGE})],
     "#canvasrtl": [("show_canvas", {"title": "لوحة التخطيط deploy.yaml للإطلاق", "html": CANVAS_PAGE})],
     "#job": [
@@ -206,7 +219,7 @@ class Turn:
     tool_properties: Mapping[str, frozenset[str]] = field(default_factory=lambda: MappingProxyType({}))
 
 
-Step = tuple[str, dict | Callable[[Turn], dict | str]]
+Step = tuple[str | Callable[[Turn], str], dict | Callable[[Turn], dict | str]]
 
 
 def guarded(
@@ -374,10 +387,11 @@ def schema_value(schema: dict, defs: dict, text: str, key: str = ""):
         return "scout" if "scout" in routed else "helper"
     if key == "summary" and "<transcript>" in text:
         return "Stub notes of the call."
-    if key == "summary":
-        person = re.search(r"@tester_[a-z0-9]+:[a-z.]+: ([^\n]+)", text)
-        words = " ".join((person.group(1) if person else text).replace("#", "").split()[:6])
-        return f"Stub title: {words}"[:120]
+    if key in ("summary", "title") and "<transcript>" not in text:
+        person = re.search(r"@tester_[a-z0-9_]+:[a-z0-9.-]+(?::\d+)?: ([^\n]+)", text)
+        words = (person.group(1) if person else text).replace("#", "").split()[:4]
+        title = f"Stub title: {' '.join(words)}" if words else "Stub title"
+        return title[:80].rstrip()
     return "stub"
 
 
@@ -508,13 +522,15 @@ def plan(body: dict, scenarios: dict[str, list[Step]]) -> tuple:
             continue
         if len(results) < len(steps):
             name, args = steps[len(results)]
-            if callable(args):
+            if callable(name) or callable(args):
                 system = "\n".join(
                     text_of(m.get("content")) for m in messages if m.get("role") in ("system", "developer")
                 )
-                args = args(
-                    Turn(tuple(results), person_said(messages), system, tuple(available), tool_properties(tools))
-                )
+                turn = Turn(tuple(results), person_said(messages), system, tuple(available), tool_properties(tools))
+                if callable(name):
+                    name = name(turn)
+                if callable(args):
+                    args = args(turn)
                 if isinstance(args, str):
                     return ("text", args)
             if name not in available:

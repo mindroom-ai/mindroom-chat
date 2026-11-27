@@ -2,40 +2,54 @@ import {
   type ComponentProps,
   type MouseEventHandler,
   type ReactNode,
+  type RefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
-import { Avatar, Box, Icon, Icons, Text } from 'folds';
-import type { IconSrc } from 'folds';
-import type { Room } from 'matrix-js-sdk';
+import classNames from 'classnames';
+import { Box, Icon, Icons, Text } from 'folds';
+import { useAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
 import {
-  NavButton,
-  NavCategory,
-  NavEmptyLayout,
-  NavItem,
-  NavItemContent,
-  NavLink,
-} from '../../ui/nav/NavItem';
-import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
+  RelationType,
+  RoomEvent,
+  RoomStateEvent,
+  type MatrixEvent,
+  type Room,
+  type RoomEventHandlerMap,
+  type RoomState,
+} from 'matrix-js-sdk';
+import { PageNav, PageNavContent } from '../../ui/page/Page';
+import { NavCategory, NavEmptyLayout } from '../../ui/nav/NavItem';
 import { VirtualTile } from '../../ui/VirtualTile';
 import { JoinAddressPrompt } from '../../rooms/join/JoinAddressPrompt';
-import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { HOME_ROOM_LIST, type RoomOrder } from '../room-nav/roomOrder';
 import { getRoomActivityTimestamp } from '../room-nav/roomActivity';
-import { RoomSortMenu } from '../room-nav/RoomSortMenu';
 import {
   SortableRoomGroup,
   SortableRoomList,
   SortableRoomRow,
   useRoomSectionDrop,
 } from '../room-nav/SortableRoomList';
+import { useMDirectContent } from '../../matrix/state/mDirectList';
+import { mergeSearchRoomSources } from '../../matrix/state/useSpaceSearchRooms';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { SubRoomRows, type SubRoomTree } from '../room-nav/SubRoomRows';
+import { useDirectRooms } from '../direct/useDirectRooms';
 import { useRoomListShortcuts } from '../useRoomListShortcuts';
+import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import {
+  useStateEventCallback,
+  type StateEventCallback,
+} from '../../matrix/hooks/useStateEventCallback';
+import { isAgentTrustStateEvent } from '../../matrix/protocol/agentRoomState';
+import { StateEvent } from '../../matrix/types/room';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { useHomeCreateSelected } from '../../routes/useHomeSelected';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';
@@ -47,118 +61,50 @@ import {
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
-import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { CommandPaletteSearchField } from '../../command-palette/CommandPaletteSearchField';
 import * as searchFieldCss from '../../ui/SearchField.css';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { MenuGroup } from '../../ui/MenuEntry';
-import { PairedTouchTarget } from '../../ui/styles/TouchTarget.css';
 import { getHomeCreatePath, getHomeRoomPath, withSearchParam } from '../../routes/pathUtils';
-import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
+import { useRailButtons } from '../../settings/railButtons';
 import { type RenderedSpaceRoomSection, SpaceRoomSection } from '../space/SpaceRoomSection';
 import * as spaceSectionCss from '../space/SpaceRoomSection.css';
-import { HiddenRailPages } from './HiddenRailPages';
-import { MacAppMenuEntry } from './MacAppMenuEntry';
+import { useHomeAgents } from './homeAgents';
+import { HomeAgentsSection, HomeDirectSection } from './HomeDirectAndAgentSections';
+import {
+  getExpandedHomeDirectSectionsAtom,
+  HOME_AGENTS_CATEGORY_ID,
+  HOME_DIRECT_CATEGORY_ID,
+} from '../../ui/nav/homeExpandedDirectSections';
+import {
+  selectRenderedAgents,
+  selectRenderedDirectRooms,
+  splitHomeDirectSections,
+} from './homeDirectSections';
+import {
+  type HomeAddRoomsMenu,
+  HomeAddRoomsRow,
+  HomeEmptyRoomAction,
+  HomeSectionHeader,
+  useHomeAddRoomsMenu,
+} from './HomeSectionChrome';
+import * as homeSectionsCss from './HomeSections.css';
+import { HomeHeader } from './HomeHeader';
 import { useHomeRoomSections } from './useHomeRoomSections';
 
 const ROOM_ROW_HEIGHT = 36;
 const homePinMode = (section: RenderedSpaceRoomSection): 'toggle' | undefined =>
   section.ancestorSpaceIds.length > 0 ? 'toggle' : undefined;
 
-type HomeHeaderProps = {
-  roomIds: string[];
-  sort?: Pick<RoomOrder, 'mode' | 'showTimes' | 'hasSavedOrder' | 'setMode' | 'setShowTimes'>;
-};
-
-function HomeHeader({ roomIds, sort }: HomeHeaderProps) {
-  const { t } = useTranslation();
-  const title = t('nav.home');
-
-  return (
-    <PageNavHeader>
-      <Box gap="300" grow="Yes" alignItems="Center">
-        <Box grow="Yes">
-          <Text as="h2" truncate size="H4">
-            {title}
-          </Text>
-        </Box>
-        <Box alignItems="Center" gap="100" shrink="No">
-          {sort && (
-            <RoomSortMenu
-              mode={sort.mode}
-              showTimes={sort.showTimes}
-              hasSavedOrder={sort.hasSavedOrder}
-              onModeChange={sort.setMode}
-              onShowTimesChange={sort.setShowTimes}
-              buttonClassName={PairedTouchTarget}
-            />
-          )}
-          {/* Its own name, so it is not taken for a room's More Options button. */}
-          <NavOptionsMenu
-            label={t('featureUi.homeNav.options')}
-            width={200}
-            buttonClassName={PairedTouchTarget}
-          >
-            {(close) => (
-              <>
-                <MenuGroup>
-                  <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
-                </MenuGroup>
-                <HiddenRailPages onClose={close} />
-                <MacAppMenuEntry onClose={close} />
-              </>
-            )}
-          </NavOptionsMenu>
-        </Box>
-      </Box>
-    </PageNavHeader>
-  );
-}
-
-type RoomActionProps = {
-  /** Value of `data-home-room-action`, which tests and styles select on. */
-  action: 'create' | 'join';
-  icon: IconSrc;
-  label: string;
-  selected?: boolean;
-} & ({ onSelect: () => void; to?: undefined } | { to: string; onSelect?: undefined });
-
-/** One of the shortcuts above the room list: a link when it opens a page, else a button. */
-function RoomAction({ action, icon, label, selected, onSelect, to }: RoomActionProps) {
-  const content = (
-    <NavItemContent>
-      <Box as="span" alignItems="Center" gap="200" grow="Yes">
-        <Avatar radii="400" size="200">
-          <Icon size="100" src={icon} />
-        </Avatar>
-        <Text as="span" size="Inherit" truncate>
-          {label}
-        </Text>
-      </Box>
-    </NavItemContent>
-  );
-  return (
-    <NavItem aria-selected={selected} radii="400" variant="Background">
-      {to === undefined ? (
-        <NavButton data-home-room-action={action} onClick={onSelect}>
-          {content}
-        </NavButton>
-      ) : (
-        <NavLink data-home-room-action={action} to={to}>
-          {content}
-        </NavLink>
-      )}
-    </NavItem>
-  );
-}
-
 type HomeUnspacedRoomsSectionProps = {
   roomsCategoryId: string;
   roomsClosed: boolean;
   listedRoomIds: string[];
+  shownRoomIds: string[];
+  selectedRoomId: string | undefined;
   tree: SubRoomTree;
   roomOrder: Pick<RoomOrder, 'mode' | 'save'>;
   virtualizer: ReturnType<typeof useNavVirtualizer<HTMLDivElement, Element>>;
+  addRoomsMenu: HomeAddRoomsMenu;
   onCategoryClick: MouseEventHandler<HTMLElement>;
   rowProps: (room: Room) => ComponentProps<typeof SortableRoomRow>;
   renderSubRoom: (room: Room) => ReactNode;
@@ -169,28 +115,43 @@ function HomeUnspacedRoomsSection({
   roomsCategoryId,
   roomsClosed,
   listedRoomIds,
+  shownRoomIds,
+  selectedRoomId,
   tree,
   roomOrder,
   virtualizer,
+  addRoomsMenu,
   onCategoryClick,
   rowProps,
   renderSubRoom,
 }: HomeUnspacedRoomsSectionProps) {
   const client = useMatrixClient();
   const { t } = useTranslation();
-  const sectionDrop = useRoomSectionDrop(HOME_ROOM_LIST);
+  const { className: sectionDropClassName, ...sectionDropProps } =
+    useRoomSectionDrop(HOME_ROOM_LIST);
 
   return (
-    <NavCategory data-testid="room-nav-category" {...sectionDrop}>
-      <NavCategoryHeader>
-        <RoomNavCategoryButton
-          closed={roomsClosed}
-          data-category-id={roomsCategoryId}
-          onClick={onCategoryClick}
-        >
-          {t('nav.rooms')}
-        </RoomNavCategoryButton>
-      </NavCategoryHeader>
+    <NavCategory
+      data-testid="room-nav-category"
+      {...sectionDropProps}
+      className={classNames(sectionDropClassName, spaceSectionCss.SpaceSectionNode)}
+      data-depth="0"
+      data-expanded={!roomsClosed || listedRoomIds.length > 0 ? 'true' : undefined}
+    >
+      <HomeSectionHeader
+        label={t('nav.rooms')}
+        categoryId={roomsCategoryId}
+        closed={roomsClosed}
+        roomIds={shownRoomIds}
+        selectedRoomId={selectedRoomId}
+        onCategoryClick={onCategoryClick}
+        addAction={{
+          label: t('featureUi.homeNav.addRooms'),
+          hasMenu: true,
+          menuOpen: addRoomsMenu.source === 'header',
+          onClick: addRoomsMenu.openFromHeader,
+        }}
+      />
       <SortableRoomList
         listId={HOME_ROOM_LIST}
         roomIds={listedRoomIds}
@@ -223,11 +184,77 @@ function HomeUnspacedRoomsSection({
           })}
         </div>
       </SortableRoomList>
+      {!roomsClosed && <HomeAddRoomsRow addRoomsMenu={addRoomsMenu} />}
     </NavCategory>
   );
 }
 
-/** The Home navigation: room actions, unspaced rooms, space sections, threads, and recently opened. */
+/** Tracks mutable DM membership, summary, timeline ordering, and router-roster updates for Direct vs Agents. */
+const useDirectSectionMetaVersion = (
+  directRooms: readonly Room[],
+  topAgentDmRoomIdRef: RefObject<string | undefined>
+): number => {
+  const mx = useMatrixClient();
+  const [version, bump] = useForceUpdate();
+  const directIds = useMemo(() => new Set(directRooms.map((room) => room.roomId)), [directRooms]);
+  const directIdsRef = useRef<ReadonlySet<string>>(directIds);
+  useLayoutEffect(() => {
+    directIdsRef.current = directIds;
+  }, [directIds]);
+
+  const onStateEvent = useCallback<StateEventCallback>(
+    (event, roomState) => {
+      const roomId = roomState?.roomId ?? event.getRoomId();
+      if (!roomId || !directIdsRef.current.has(roomId)) return;
+      const type = event.getType();
+      if (type === (StateEvent.RoomMember as string) || isAgentTrustStateEvent(type)) bump();
+    },
+    [bump]
+  );
+  useStateEventCallback(mx, onStateEvent);
+
+  useEffect(() => {
+    const onMembers = (_event?: MatrixEvent, roomState?: RoomState) => {
+      if (!roomState?.roomId || directIdsRef.current.has(roomState.roomId)) bump();
+    };
+    const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (
+      event,
+      room,
+      toStartOfTimeline,
+      _removed,
+      data
+    ) => {
+      if (!room || toStartOfTimeline || !data.liveEvent || !directIdsRef.current.has(room.roomId))
+        return;
+      if (event.isState() || event.getRelation()?.rel_type === RelationType.Replace) return;
+      if (room.roomId === topAgentDmRoomIdRef.current) return;
+      bump();
+    };
+    const hasClientEvents = typeof mx.on === 'function' && typeof mx.removeListener === 'function';
+    if (hasClientEvents) {
+      mx.on(RoomStateEvent.Members, onMembers);
+      mx.on(RoomEvent.Timeline, onTimeline);
+    }
+    const summaryRooms: Room[] = [];
+    directRooms.forEach((room) => {
+      if (typeof room.on === 'function' && typeof room.removeListener === 'function') {
+        room.on(RoomEvent.Summary, bump);
+        summaryRooms.push(room);
+      }
+    });
+    return () => {
+      if (hasClientEvents) {
+        mx.removeListener(RoomStateEvent.Members, onMembers);
+        mx.removeListener(RoomEvent.Timeline, onTimeline);
+      }
+      summaryRooms.forEach((room) => room.removeListener(RoomEvent.Summary, bump));
+    };
+  }, [mx, directRooms, topAgentDmRoomIdRef, bump]);
+
+  return version;
+};
+
+/** The Home navigation: rooms, space sections, direct messages, agents, threads, and recently opened. */
 export function Home() {
   const client = useMatrixClient();
   const { t } = useTranslation();
@@ -240,13 +267,23 @@ export function Home() {
   const createSelected = useHomeCreateSelected();
   // A phone's top bar holds the same field.
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  const [joinOpen, setJoinOpen] = useState(false);
+  const [joinPrompt, setJoinPrompt] = useState<{ returnFocusTo?: HTMLElement | null } | null>(null);
+  const userId = client.getSafeUserId();
+  const expandedDirectSectionsAtom = useMemo(
+    () => getExpandedHomeDirectSectionsAtom(userId),
+    [userId]
+  );
+  const [expandedIds, toggleExpandedDirectSection] = useAtom(expandedDirectSectionsAtom);
+  const showAllDms = expandedIds.has(HOME_DIRECT_CATEGORY_ID);
+  const showAllAgents = expandedIds.has(HOME_AGENTS_CATEGORY_ID);
 
   const {
     allVisibleHomeRooms,
     unspaced,
+    closedCategories,
     roomsCategoryId,
     roomsClosed,
+    unspacedShownRoomIds,
     tree,
     listedRoomIds,
     roomOrder,
@@ -255,9 +292,64 @@ export function Home() {
     onCategoryClick,
     onReorder,
   } = useHomeRoomSections(selectedRoomId);
-  const homeRoomPath = (roomId: string) =>
-    getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId));
-  useRoomListShortcuts(shortcutRoomIds, selectedRoomId, homeRoomPath);
+  const directRooms = useDirectRooms();
+  const homeAgents = useHomeAgents();
+  const mDirect = useMDirectContent();
+  const { direct: directTabShown } = useRailButtons();
+
+  const topAgentDmRoomIdRef = useRef<string | undefined>(undefined);
+  const dmMetaVersion = useDirectSectionMetaVersion(directRooms, topAgentDmRoomIdRef);
+  const { humanDms, agents, agentDmRoomIds } = useMemo(() => {
+    void dmMetaVersion;
+    return splitHomeDirectSections(directRooms, homeAgents, mDirect);
+  }, [directRooms, homeAgents, mDirect, dmMetaVersion]);
+  const topAgentDmRoomId = agents[0]?.dmRoom?.roomId;
+  useLayoutEffect(() => {
+    topAgentDmRoomIdRef.current = topAgentDmRoomId;
+  }, [topAgentDmRoomId]);
+  const humanDmRoomIds = useMemo(() => humanDms.map((room) => room.roomId), [humanDms]);
+  const directClosed = closedCategories.has(HOME_DIRECT_CATEGORY_ID);
+  const agentsClosed = closedCategories.has(HOME_AGENTS_CATEGORY_ID);
+  const showDirectSection = directRooms.length > 0 || !directTabShown;
+  const isEmptyHome =
+    unspaced.length === 0 &&
+    sectionTree.length === 0 &&
+    humanDms.length === 0 &&
+    agents.length === 0;
+
+  const visibleDirectRooms = useMemo(
+    () => selectRenderedDirectRooms(humanDms, selectedRoomId, directClosed, showAllDms),
+    [humanDms, selectedRoomId, directClosed, showAllDms]
+  );
+  const visibleAgents = useMemo(
+    () => selectRenderedAgents(agents, selectedRoomId, agentsClosed, showAllAgents),
+    [agents, selectedRoomId, agentsClosed, showAllAgents]
+  );
+
+  const allShortcutRoomIds = useMemo(
+    () =>
+      mergeSearchRoomSources(
+        shortcutRoomIds,
+        visibleDirectRooms.map((room) => room.roomId),
+        visibleAgents.flatMap((agent) => (agent.dmRoom ? [agent.dmRoom.roomId] : []))
+      ),
+    [shortcutRoomIds, visibleDirectRooms, visibleAgents]
+  );
+  const allMarkReadRoomIds = useMemo(
+    () => mergeSearchRoomSources(allVisibleHomeRooms, humanDmRoomIds, agentDmRoomIds),
+    [allVisibleHomeRooms, humanDmRoomIds, agentDmRoomIds]
+  );
+
+  const homeRoomPath = useCallback(
+    (roomId: string) => getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId)),
+    [client]
+  );
+  useRoomListShortcuts(allShortcutRoomIds, selectedRoomId, homeRoomPath);
+  const addRoomsMenu = useHomeAddRoomsMenu({
+    onCreate: () => void navigate(getHomeCreatePath()),
+    onJoin: (opener) => setJoinPrompt({ returnFocusTo: opener }),
+  });
+
   // A room's row, the same at top level and under the room it sits under, except that there it
   // frames its hash.
   const rowProps = (room: Room) => ({
@@ -273,7 +365,7 @@ export function Home() {
 
   // The list reopens where it was left: after a space, or a room or thread that took a phone's
   // whole screen.
-  const virtualizer = useNavVirtualizer(makeNavScrollMemoryKey(client.getSafeUserId(), 'home'), {
+  const virtualizer = useNavVirtualizer(makeNavScrollMemoryKey(userId, 'home'), {
     getScrollElement: () => listScrollRef.current,
     count: listedRoomIds.length,
     // A room's tile grows with the sub-rooms under it, so its height goes with the room.
@@ -283,7 +375,7 @@ export function Home() {
   });
 
   const handleJoinOpen = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) => {
-    setJoinOpen(false);
+    setJoinPrompt(null);
     void navigate(
       withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
         viaServers: viaServers && viaServers.length > 0 ? viaServers.join(',') : undefined,
@@ -291,40 +383,45 @@ export function Home() {
     );
   };
 
-  const roomActions = (
+  const emptyRoomActions = (
     <NavCategory>
       {!phone && <CommandPaletteSearchField className={searchFieldCss.NavSearchField} />}
-      <RoomAction
+      <HomeEmptyRoomAction
         action="create"
         icon={Icons.Plus}
         label={t('nav.createRoom')}
         selected={createSelected}
         onSelect={() => void navigate(getHomeCreatePath())}
       />
-      <RoomAction
+      <HomeEmptyRoomAction
         action="join"
         icon={Icons.Link}
         label={t('sharedUi.joinAddressPrompt.joinARoom')}
-        onSelect={() => setJoinOpen(true)}
+        onSelect={() => setJoinPrompt({})}
       />
     </NavCategory>
   );
 
   return (
     <PageNav label={t('nav.home')}>
-      {joinOpen && (
-        <JoinAddressPrompt onOpen={handleJoinOpen} onCancel={() => setJoinOpen(false)} />
+      {joinPrompt && (
+        <JoinAddressPrompt
+          returnFocusTo={joinPrompt.returnFocusTo}
+          onOpen={handleJoinOpen}
+          onCancel={() => setJoinPrompt(null)}
+        />
       )}
+      {addRoomsMenu.popover}
       <PageNavContent
         scrollRef={listScrollRef}
         header={
           <HomeHeader
-            roomIds={allVisibleHomeRooms}
+            roomIds={allMarkReadRoomIds}
             sort={unspaced.length > 0 ? roomOrder : undefined}
           />
         }
       >
-        {unspaced.length === 0 && sectionTree.length === 0 ? (
+        {isEmptyHome ? (
           <NavEmptyLayout
             icon={<Icon size="600" src={Icons.Hash} />}
             title={
@@ -337,27 +434,32 @@ export function Home() {
                 {t('nav.noRoomsDescription')}
               </Text>
             }
-            options={roomActions}
+            options={emptyRoomActions}
           />
         ) : (
-          <Box direction="Column" gap="300">
-            {roomActions}
-            <SortableRoomGroup>
-              {unspaced.length > 0 && (
-                <HomeUnspacedRoomsSection
-                  roomsCategoryId={roomsCategoryId}
-                  roomsClosed={roomsClosed}
-                  listedRoomIds={listedRoomIds}
-                  tree={tree}
-                  roomOrder={roomOrder}
-                  virtualizer={virtualizer}
-                  onCategoryClick={onCategoryClick}
-                  rowProps={rowProps}
-                  renderSubRoom={renderSubRoom}
-                />
-              )}
-              {sectionTree.length > 0 && (
+          <Box direction="Column" gap="200">
+            {!phone && (
+              <CommandPaletteSearchField className={homeSectionsCss.PopulatedSearchField} />
+            )}
+            {(unspaced.length > 0 || sectionTree.length > 0) && (
+              <SortableRoomGroup>
                 <div className={spaceSectionCss.SpaceSectionStack}>
+                  {unspaced.length > 0 && (
+                    <HomeUnspacedRoomsSection
+                      roomsCategoryId={roomsCategoryId}
+                      roomsClosed={roomsClosed}
+                      listedRoomIds={listedRoomIds}
+                      shownRoomIds={unspacedShownRoomIds}
+                      selectedRoomId={selectedRoomId}
+                      tree={tree}
+                      roomOrder={roomOrder}
+                      virtualizer={virtualizer}
+                      addRoomsMenu={addRoomsMenu}
+                      onCategoryClick={onCategoryClick}
+                      rowProps={rowProps}
+                      renderSubRoom={renderSubRoom}
+                    />
+                  )}
                   {sectionTree.map((node) => (
                     <SpaceRoomSection
                       key={node.section.categoryId}
@@ -376,9 +478,48 @@ export function Home() {
                     />
                   ))}
                 </div>
+              </SortableRoomGroup>
+            )}
+            {unspaced.length === 0 && (
+              <NavCategory>
+                <HomeAddRoomsRow addRoomsMenu={addRoomsMenu} />
+              </NavCategory>
+            )}
+            <div
+              className={classNames(
+                spaceSectionCss.SpaceSectionStack,
+                homeSectionsCss.SecondarySectionGroup
               )}
-            </SortableRoomGroup>
-            <ThreadNavCategory />
+            >
+              {showDirectSection && (
+                <HomeDirectSection
+                  visibleRooms={visibleDirectRooms}
+                  allRoomIds={humanDmRoomIds}
+                  closed={directClosed}
+                  selectedRoomId={selectedRoomId}
+                  showAll={showAllDms}
+                  onToggleShowAll={() => toggleExpandedDirectSection(HOME_DIRECT_CATEGORY_ID)}
+                  onCategoryClick={onCategoryClick}
+                  homeRoomPath={homeRoomPath}
+                  notificationPreferences={notificationPreferences}
+                />
+              )}
+              {agents.length > 0 && (
+                <HomeAgentsSection
+                  visibleAgents={visibleAgents}
+                  totalCount={agents.length}
+                  agentDmRoomIds={agentDmRoomIds}
+                  closed={agentsClosed}
+                  selectedRoomId={selectedRoomId}
+                  showAll={showAllAgents}
+                  onToggleShowAll={() => toggleExpandedDirectSection(HOME_AGENTS_CATEGORY_ID)}
+                  onCategoryClick={onCategoryClick}
+                  homeRoomPath={homeRoomPath}
+                  notificationPreferences={notificationPreferences}
+                />
+              )}
+              <ThreadNavCategory />
+            </div>
           </Box>
         )}
       </PageNavContent>

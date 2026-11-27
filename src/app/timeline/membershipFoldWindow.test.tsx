@@ -170,8 +170,6 @@ const fakeTimeline = (token: string | null, newerToken: string | null = null) =>
 type Handles = {
   setTimeline?: (update: (current: Timeline) => Timeline) => void;
   paginator?: ReturnType<typeof useRoomWindowPaginator>['paginator'];
-  /** The height of the rows that pages mounted above the reader, which the ledger took. */
-  foldedPx: number;
   toggle?: (id: string) => void;
   /** As of the last commit. */
   stateRange?: ItemRange;
@@ -236,12 +234,21 @@ function RoomWindow({
   const loadedRangeOfRef = useRef((rows: ItemRange) =>
     loadedRangeOfRows(projectionRef.current, rows)
   );
-  const threadIdRef = useRef<string>(undefined);
   const firstRoomTimelineRef = useLatestRef(chain as unknown as EventTimeline | undefined);
   const lastRoomTimelineRef = firstRoomTimelineRef;
   const scrollRef = useRef<HTMLElement | null>(scroller.element);
   const suppressFocusPaginationRef = useRef(false);
+  const prevWindowRef = useRef<{ rows: MatrixEvent[]; start: number } | undefined>(undefined);
   useLayoutEffect(() => {
+    const nextRows = roomRows.slice(rowRange.start, rowRange.end);
+    const prev = prevWindowRef.current;
+    // Upstream anchorTo: 'end' restores scrollTop when the window widens towards older rows.
+    if (prev && rowRange.start < prev.start) {
+      const added = roomRows.slice(rowRange.start, Math.min(prev.start, rowRange.end));
+      const addedPx = added.reduce((sum, row) => sum + scroller.rowPx(row), 0);
+      if (addedPx !== 0) scroller.element.scrollBy({ top: addedPx });
+    }
+    prevWindowRef.current = { rows: nextRows, start: rowRange.start };
     scroller.shown.current = {
       rows: roomRows.slice(rowRange.start, rowRange.end),
       range: rowRange,
@@ -253,14 +260,6 @@ function RoomWindow({
     handles.stateRange = timeline.range;
     handles.rowRange = rowRange;
     handles.roomRowIds = roomRows.map((event) => event.getId());
-    // The offset ledger: the rows a page mounts above the reader take their priced height, and
-    // the reader's rows stay where they are.
-    const foldPx = pendingRoomFoldPxRef.current;
-    if (foldPx !== 0) {
-      pendingRoomFoldPxRef.current = 0;
-      scroller.element.scrollBy({ top: foldPx });
-      handles.foldedPx += foldPx;
-    }
   });
   useWindowHoldsWholeFolds({ timeline, roomWindow: true, stateRange, loadedRange, setTimeline });
   useWindowKeepsNewestRow({
@@ -270,34 +269,25 @@ function RoomWindow({
     threadId: undefined,
     setTimeline,
   });
-  const { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, settledRoomPage } =
-    useRoomWindowPaginator({
-      alive: () => true,
-      roomRows,
-      roomRowsRef,
-      activeTimelineRange: rowRange,
-      activeRangeRef,
-      loadedRangeOfRef,
-      threadIdRef,
-      firstRoomTimelineRef,
-      lastRoomTimelineRef,
-      scrollRef,
-      setTimeline,
-      paginateRoom,
-      suppressFocusPaginationRef,
-      windowLimit,
-      getScrollElement: () => scroller.element,
-      deferAutomaticPagination: () => false,
-      readAhead: true,
-    });
-  useRetryAfterPageWithoutRows(settledRoomPage, roomRowsRef, paginator.retryPagination);
-  // The ledger prices a row it has measured at that height: here every row is.
-  useLayoutEffect(() => {
-    roomFoldPriceRef.current = (_key, index) => {
-      const row = roomRowsRef.current[activeRangeRef.current.start + index];
-      return row ? scroller.rowPx(row) : 0;
-    };
+  const { paginator, settledRoomPage } = useRoomWindowPaginator({
+    alive: () => true,
+    roomRows,
+    roomRowsRef,
+    activeTimelineRange: rowRange,
+    activeRangeRef,
+    loadedRangeOfRef,
+    firstRoomTimelineRef,
+    lastRoomTimelineRef,
+    scrollRef,
+    setTimeline,
+    paginateRoom,
+    suppressFocusPaginationRef,
+    windowLimit,
+    getScrollElement: () => scroller.element,
+    deferAutomaticPagination: () => false,
+    readAhead: true,
   });
+  useRetryAfterPageWithoutRows(settledRoomPage, roomRowsRef, paginator.retryPagination);
   handles.setTimeline = setTimeline;
   handles.paginator = paginator;
   handles.toggle = (id) => {
@@ -315,7 +305,7 @@ const mountRoomWindow = (
   } = {}
 ) => {
   const scroller = fakeRoomScroller();
-  const handles: Handles = { foldedPx: 0 };
+  const handles: Handles = {};
   let renderer: ReactTestRenderer | undefined;
   const element = (loaded: MatrixEvent[]) =>
     createElement(RoomWindow, {
@@ -392,10 +382,9 @@ describe('the room window paginator over a closed fold', () => {
       { start: FOLD_END + 20, end: FOLD_END + 120 },
       { eventId: '$b60', windowLimit: 30 }
     );
-    const { scroller, handles, windowIds } = room;
+    const { handles, windowIds } = room;
     expect(handles.rowRange).toEqual({ start: 51, end: 151 });
     expect(windowIds()[0]).toBe('$b20');
-    const readerTop = scroller.screenTop('$b20');
     act(() => handles.paginator?.retryPagination());
 
     // Thirty rows mount above: 20 messages, the fold and 9 messages before it. No window starts
@@ -406,10 +395,6 @@ describe('the room window paginator over a closed fold', () => {
       '$j0',
       '$b0',
     ]);
-    expect(handles.foldedPx).toBe(29 * MESSAGE_PX + BREAK_PX);
-    // What the ledger took is what the rows above the reader's row take in the list: it is
-    // where it was.
-    expect(scroller.screenTop('$b20')).toBe(readerTop);
     expect(handles.stateRange?.start).toBe(21);
   });
 

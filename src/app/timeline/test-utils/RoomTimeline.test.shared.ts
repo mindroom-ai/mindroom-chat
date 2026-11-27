@@ -63,6 +63,7 @@ const {
   loadCachedThreadSummariesMock,
   saveRoomEventsToCacheMock,
   saveCachedThreadSummaryMock,
+  isScrollNearBottomMock,
   isTimelineAtLiveEndMock,
   virtualPaginatorState,
   roomTimelineVirtualizerState,
@@ -146,6 +147,9 @@ const {
   loadCachedThreadSummariesMock: vi.fn(async () => new Map()),
   saveRoomEventsToCacheMock: vi.fn(async () => undefined),
   saveCachedThreadSummaryMock: vi.fn(async () => undefined),
+  isScrollNearBottomMock: vi.fn(
+    (_metrics?: { scrollHeight: number; scrollTop: number; clientHeight: number }) => true
+  ),
   isTimelineAtLiveEndMock: vi.fn(() => true),
   settingsState: {
     prefetchDepth: 300,
@@ -183,12 +187,6 @@ const {
           scrollMargin?: number;
         }
       | undefined,
-    // Every options object passed to useVirtualizer, in render order.
-    // `lastOptions` cannot pin FIRST-render values (later renders
-    // overwrite it) — the stale-scrollMargin-on-switch pin needs the
-    // first post-switch render specifically (mutant audit 2026-07-07,
-    // survivor 7b). Tests that read it should reset it first.
-    optionsHistory: [] as { count: number; scrollMargin?: number }[],
     virtualIndexes: undefined as number[] | undefined,
     totalSize: undefined as number | undefined,
     // The row at the reader's top. Like virtual-core's offset lookup, it
@@ -383,11 +381,13 @@ vi.mock('../../emoji/useImagePackRooms', () => ({
   useImagePackRooms: () => [],
 }));
 
-vi.mock('../../messages/useMemberEventParser', () => ({
+vi.mock('../../messages/useMemberEventParser', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../messages/useMemberEventParser')>()),
   useMemberEventParser: () => () => undefined,
 }));
 
-vi.mock('../useVirtualPaginator', () => ({
+vi.mock('../useVirtualPaginator', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../useVirtualPaginator')>()),
   useVirtualPaginator: (options: {
     count: number;
     range: { start: number; end: number };
@@ -463,7 +463,6 @@ vi.mock('@tanstack/react-virtual', () => {
       scrollMargin?: number;
     }) => {
       roomTimelineVirtualizerState.lastOptions = options;
-      roomTimelineVirtualizerState.optionsHistory.push(options);
       const latestOptionsRef = { current: options };
       const key = roomTimelineVirtualizerState as unknown as object;
       let instance = instances.get(key) as
@@ -640,6 +639,7 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
 
 vi.mock('../RoomTimeline.css', () => ({
   ExpandAllToggle: 'ExpandAllToggle',
+  ForkDraftPrefixRow: 'ForkDraftPrefixRow',
   FloatingAction: 'FloatingAction',
   JumpToLatestButton: 'JumpToLatestButton',
   JumpToLatestFloat: 'JumpToLatestFloat',
@@ -1021,6 +1021,13 @@ vi.mock('../../event-store/threads/threadUtils', () => ({
     }
     return 0;
   },
+  getEventPreviewContent: (
+    event:
+      | {
+          getContent?: () => Record<string, unknown> | undefined;
+        }
+      | undefined
+  ) => event?.getContent?.(),
   getVisibleThreadEventBodyPreviewText: (
     event:
       | {
@@ -1191,7 +1198,7 @@ vi.mock('../../event-store/timeline/timelineScrollUtils', async (importOriginal)
     await importOriginal<typeof import('../../event-store/timeline/timelineScrollUtils')>();
   return {
     ...actual,
-    isScrollNearBottom: () => true,
+    isScrollNearBottom: isScrollNearBottomMock,
     isTimelineAtLiveEnd: isTimelineAtLiveEndMock,
     shouldAutoScrollThreadOnLiveEvent: () => false,
   };
@@ -1316,6 +1323,7 @@ const makeEvent = (
     threadRootId: opts.threadRootId,
     getAssociatedId: () => opts.associatedId,
     getContent: () => opts.content ?? { body: eventId },
+    getPrevContent: () => ({}),
     getOriginalContent: () => opts.content ?? { body: eventId },
     getWireContent: () => opts.content ?? { body: eventId },
     getId: () => eventId,
@@ -1598,6 +1606,8 @@ beforeEach(() => {
   roomTimelineVirtualizerState.scrollToEndMock.mockClear();
   roomTimelineVirtualizerState.scrollToIndexMock.mockClear();
   roomTimelineVirtualizerState.scrollToOffsetMock.mockClear();
+  isScrollNearBottomMock.mockReset();
+  isScrollNearBottomMock.mockReturnValue(true);
   isTimelineAtLiveEndMock.mockReturnValue(true);
   reactionOrEditEventMock.mockImplementation(() => false);
   isMembershipChangedMock.mockImplementation(() => false);
@@ -1948,6 +1958,7 @@ export {
   virtualPaginatorState,
   waitForCondition,
   wrapWithSyncEngine,
+  isScrollNearBottomMock,
   isTimelineAtLiveEndMock,
 };
 

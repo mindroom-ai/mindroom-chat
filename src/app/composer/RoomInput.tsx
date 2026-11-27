@@ -34,7 +34,9 @@ import { toggleKeyboardShortcut } from '../editor/keyboard';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { type EmojiBoardTab } from '../emoji/board/EmojiBoard';
 import { IconButton } from '../ui/glass/GlassPrimitives';
+import classNames from 'classnames';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
+import { ComposerForkDraft } from './RoomInput.css';
 import {
   getAudioMsgContent,
   getFileMsgContent,
@@ -52,7 +54,6 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 import { useSetting } from '../preferences/useSetting';
 import {
-  getHomeAskDraftKey,
   getRoomInputDraftKey,
   homeAskDestinationAtomFamily,
   type IReplyDraft,
@@ -105,7 +106,11 @@ import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 import { useKeptComposerState } from './useKeptComposerState';
 import { useOptionalClientConfig } from '../config/useClientConfig';
-import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
+import {
+  skipsRootModel,
+  useRoomInputSendSessionController,
+} from './useRoomInputSendSessionController';
+import type { ThreadModelContent } from '../matrix/protocol/threadModel';
 import {
   getVoiceMessageContentOptions,
   useRoomInputUploadTransport,
@@ -122,6 +127,8 @@ import { useThreadStreamingState } from '../event-store/threads/useThreadStreami
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import type { MidTurnMode } from '../preferences/midTurnModes';
+import { listSessions } from '../matrix/session/sessions';
+import { captureAccountGuard } from './capture/liveCapture';
 
 export type RoomInputProps = {
   editor: Editor;
@@ -141,15 +148,22 @@ export type RoomInputProps = {
    */
   forkFrom?: ThreadForkRef;
   /**
-   * Home's ask field: text and attachments, kept under the account's Home draft whichever room it goes to.
-   * Each message starts a thread addressed to `agentUserId`; `pickers` (who answers, and where)
-   * take the row's controls' place. Nothing sends while `canSend` says no: asked at the press,
-   * and again for the question on its way, with the room it goes to (`sentTo`), just before its
-   * message goes out, when that room or the agent may have changed. `onSendingChange` hears
-   * while a send is on its way, to its end, and `onLocalEcho` of the message the client made for
-   * it and the room that is in, both also after the composer has gone. A send keeps the three as
-   * they were at its press, whatever the field shows by then. `isDirect` says the room was picked
-   * as the agent's direct chat, which a question returned to Home's draft keeps.
+   * Keeps text, pastes, and staged files under one draft key across target room changes, and
+   * defers attachment encryption and upload until Send.
+   */
+  stagedDraftKey?: string;
+  /** Restores the picker owner's destination room when a failed send falls back off-room. */
+  onRestoreDestination?: (roomId: string) => void;
+  /**
+   * Home's ask field: each message starts a thread addressed to `agentUserId`, paired with
+   * `stagedDraftKey` for the account's Home draft. `pickers` (who answers, and where) take the
+   * row's controls' place. Nothing sends while `canSend` says no: asked at the press, and again
+   * for the question on its way, with the room it goes to (`sentTo`), just before its message
+   * goes out, when that room or the agent may have changed. `onSendingChange` hears while a send
+   * is on its way, to its end, and `onLocalEcho` of the message the client made for it and the
+   * room that is in, both also after the composer has gone. A send keeps the three as they were
+   * at its press, whatever the field shows by then. `isDirect` says the room was picked as the
+   * agent's direct chat, which a question returned to Home's draft keeps.
    */
   ask?: {
     agentUserId: string;
@@ -253,6 +267,8 @@ export function RoomInput({
   threadingEnabled = true,
   onRoomMessageSent,
   forkFrom,
+  stagedDraftKey,
+  onRestoreDestination,
   ask,
   ref,
 }: RoomInputProps) {
@@ -263,19 +279,20 @@ export function RoomInput({
   const [enterForNewline] = useSetting(settingsAtom, 'enterForNewline');
   const [midTurnSend] = useSetting(settingsAtom, 'midTurnSend');
   const userId = mx.getUserId() ?? '';
+  // A staged-draft composer (Home Ask, Space All threads) keeps text and files under one key
+  // and defers encryption/upload until Send.
+  const deferredDraft = stagedDraftKey !== undefined;
   // A fork draft keeps its text under a key of its own, not its thread's.
   const draftThreadId = forkFrom ? threadForkDraftId(forkFrom) : threadId;
-  const textKey = ask
-    ? getHomeAskDraftKey(userId)
-    : getRoomInputDraftKey(userId, roomId, draftThreadId);
-  // Home's ask field scopes paste cleanup to its own draft key, never touching the destination
-  // room's saved pastes.
-  const draftKey = ask || draftThreadId ? textKey : undefined;
-  // Another view of the room (a plugin's thread view) has a reply of its own. A fork draft takes
-  // none: the reply chosen in its thread stays for the thread.
+  const textKey = stagedDraftKey ?? getRoomInputDraftKey(userId, roomId, draftThreadId);
+  // A staged-draft composer scopes paste cleanup to its own draft key, never touching the
+  // destination room's saved pastes.
+  const draftKey = deferredDraft || draftThreadId ? textKey : undefined;
+  // Another view of the room (a plugin's thread view) has a reply of its own. Fork and staged
+  // drafts take none: a room's timeline reply stays with that room's own composer.
   const view = useContext(ConversationViewContext);
   const viewReplyDraft = useAtomValue(composerReplyDraftAtom(roomId, view));
-  const replyDraft = forkFrom || ask ? undefined : viewReplyDraft;
+  const replyDraft = forkFrom || deferredDraft ? undefined : viewReplyDraft;
   // The placeholder says where sent text goes: into the thread it joins, or, from the timeline, a
   // new thread only where every agent of the room answers in threads (mode `thread`); mixed or
   // unknown modes promise nothing. Files sent with text, or several files, start a thread of their
@@ -291,8 +308,12 @@ export function RoomInput({
   const roomName = revealDirectionControls(useRoomName(room) || t('composer.roomFallback'));
   const direct = useAtomValue(mDirectAtom).has(roomId);
   let placeholder = t('composer.placeholder');
-  if (forkFrom) placeholder = t('threadFork.continueInNewThread');
-  else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
+  if (forkFrom) {
+    placeholder =
+      forkFrom.roomId && forkFrom.roomId !== roomId
+        ? t('threadFork.continueInNewThreadInRoom', { room: roomName })
+        : t('threadFork.continueInNewThread');
+  } else if (hasExplicitThreadContext(threadId, replyDraft, threadingEnabled))
     placeholder = t('composer.replyInThread');
   else if (newThread)
     placeholder = direct
@@ -311,6 +332,9 @@ export function RoomInput({
     []
   );
   const [submitPending, setSubmitPending] = useState(false);
+  // Guards against a second Send claiming the same deferred files before upload/send finishes.
+  const deferredSendPendingRef = useRef(false);
+  const [deferredSendPending, setDeferredSendPending] = useState(false);
   const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
   // Whether the editor holds no text to send, blank lines at most, for the Send button's menu.
   // It changes only as it flips, so typing renders nothing more.
@@ -356,7 +380,7 @@ export function RoomInput({
     onConfirmedRef: rootConfirmedRef,
   });
   const saveDraft = useRoomInputDraft(editor, textKey);
-  const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
+  const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId, stagedDraftKey);
   const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
   const commands = useCommands(room, threadingEnabled ? threadId : undefined);
   // Home's ask field does not run client slash commands (such as /leave) on an unseen room.
@@ -385,9 +409,8 @@ export function RoomInput({
     isMarkdown,
     fileDropContainerRef,
     createUploadItems,
-    stagedListKey: ask ? textKey : undefined,
-    deferUpload: !!ask,
-    inlineUploadBoard: !!ask,
+    stagedListKey: stagedDraftKey,
+    sendingDeferred: deferredDraft && submitPending,
   });
   const { settlePastes, dismissLostPastes } = attachments;
   const transport = useRoomInputUploadTransport(mx, store, room);
@@ -445,17 +468,17 @@ export function RoomInput({
           roomId: fallbackRoomId,
           ...(askedDirect ? { isDirect: true } : {}),
         });
+      } else {
+        onRestoreDestination?.(fallbackRoomId);
       }
       // After any text typed there since: a failed caption is never dropped.
       restoreTextToDraft(
         store,
-        askedAgent === undefined
-          ? getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId)
-          : textKey,
+        stagedDraftKey ?? getRoomInputDraftKey(userId, fallbackRoomId, fallbackThreadId),
         fragment
       );
     },
-    [askedAgent, askedDirect, store, textKey, userId]
+    [askedAgent, askedDirect, onRestoreDestination, stagedDraftKey, store, userId]
   );
 
   const rootModelContext = useLatestRef({ roomId, newThread });
@@ -488,6 +511,7 @@ export function RoomInput({
     onRoomMessageSent,
     forkFrom,
     takeRootModelDraft,
+    stagedDraftKey,
   });
 
   const { restoreText: restoreSentText } = sessions;
@@ -525,6 +549,27 @@ export function RoomInput({
     ]
   );
 
+  const prepareDictationVoiceItems = useCallback(
+    async (
+      file: File,
+      duration: number,
+      waveform: number[] | undefined
+    ): Promise<TUploadItem[]> => {
+      if (deferredDraft) {
+        return [
+          {
+            file,
+            originalFile: file,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
+          },
+        ];
+      }
+      return transport.createVoiceUploadItems(file, duration, waveform, room);
+    },
+    [deferredDraft, room, transport]
+  );
+
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dictationOwnerKey = `${textKey}:${view ?? 'room'}`;
   const dictation = useRoomInputDictation({
@@ -538,6 +583,8 @@ export function RoomInput({
     rootRef,
     containerRef: fileDropContainerRef,
     onCommandProblem: setCommandProblem,
+    prepareVoiceUploadItems: prepareDictationVoiceItems,
+    appendAttachments: attachments.access.append,
     restoreAttachments: restoreDictationAttachments,
     restoreReplyDraft,
     saveDraft,
@@ -547,6 +594,7 @@ export function RoomInput({
   // Home's ask field neither shows nor sends a voice recording either. Neither
   // brings one back from disk: it would hold it from a tab that can show it.
   const voiceActive = !forkFrom && !ask;
+  const prepareAttachmentsForSend = deferredDraft ? attachments.prepareForSend : undefined;
   const voice = useRoomInputVoice({
     mx,
     composer,
@@ -556,6 +604,9 @@ export function RoomInput({
     takeRootModelDraft,
     onRoomMessageSent,
     recover: voiceActive,
+    stagedList: attachments.itemsAtom,
+    stagedDraftKey,
+    prepareAttachmentsForSend,
   });
 
   // Every text message says what MindRoom does with it should it arrive while an agent replies
@@ -627,7 +678,9 @@ export function RoomInput({
       options?: { voiceOnly?: boolean }
     ) => {
       const voiceOnly = options?.voiceOnly === true;
+      if (deferredSendPendingRef.current) return;
       if (voiceActive && voice.blocksSubmit()) return;
+      if (attachments.isPreparingNow()) return;
       const mode = explicitMode ?? midTurnSend;
       const liveDictation = voiceOnly ? 'idle' : dictation.getLiveStatus();
       if (liveDictation === 'blocked') return;
@@ -661,13 +714,14 @@ export function RoomInput({
           takeRootModelDraft,
           restoreRootModelDraft: (target, content) =>
             getModelController(mx).restoreRootModelDraft(target, content),
+          createVoiceUploadItems: transport.createVoiceUploadItems,
           uploadItem: transport.uploadItem,
-          prepareAttachmentsForSend: live.ask ? attachments.prepareForSend : undefined,
+          prepareAttachmentsForSend,
           clearReplyDraft,
           resetComposer: composer.resetText,
           stopTyping: () => sendTypingStatus(false),
           dismissLostNotices: () => {
-            if (!ask) dismissLostFiles();
+            dismissLostFiles();
             dismissLostPastes();
           },
         });
@@ -696,7 +750,7 @@ export function RoomInput({
       const takeText = (resolvedMode: MidTurnMode = mode) => {
         const content = buildTextContent(resolvedMode);
         if (content) {
-          if (!ask) dismissLostFiles();
+          dismissLostFiles();
           dismissLostPastes();
         }
         return content;
@@ -719,69 +773,95 @@ export function RoomInput({
       if (settled !== true && !(await settled)) return;
       if (holdForRoot({ kind: 'message', mode: explicitMode })) return;
       const textContent = takeText();
-      // With nothing to send on Home, there is no send to track.
-      if (ask && !textContent && !attachments.hasSendableFiles) return;
-      const initialSnapshot = ask ? attachments.access.snapshot() : undefined;
+      // With nothing to send in a deferred composer, there is no send to track.
+      if (deferredDraft && !textContent && !attachments.hasSendableFiles) return;
+      const initialSnapshot = deferredDraft ? attachments.access.snapshot() : undefined;
       if (
-        ask &&
+        deferredDraft &&
         !attachments.hasSendableFiles &&
         hasMissingPasteAttachmentForText(textContent, initialSnapshot!.staged, [])
       ) {
         return;
       }
+      const sameAccount = captureAccountGuard(store);
       setSubmitPending(true);
       ask?.onSendingChange?.(true);
       let releaseInitialLeases: (() => void) | undefined;
       let releasePreparedLeases: (() => void) | undefined;
       let pendingFallback: Descendant[] | undefined;
+      let pendingRootModel: ThreadModelContent | undefined;
+      let claimedDeferredSend = false;
+      const restorePendingFallback = () => {
+        if (!pendingFallback) return;
+        const fragment = pendingFallback;
+        pendingFallback = undefined;
+        if (sameAccount()) sessions.restoreText({ roomId, threadId: draftThreadId }, fragment);
+        else if (userId && listSessions().some((s) => s.userId === userId)) {
+          restoreTextToDraft(store, textKey, fragment);
+        }
+      };
       try {
-        if (ask && attachments.hasSendableFiles) {
+        if (deferredDraft && attachments.hasSendableFiles) {
+          claimedDeferredSend = true;
+          deferredSendPendingRef.current = true;
+          setDeferredSendPending(true);
           releaseInitialLeases = attachments.access.protectPasteItems(initialSnapshot!.staged);
+          pendingRootModel = !skipsRootModel(textContent) ? takeRootModelDraft(room) : undefined;
           if (textContent) {
             pendingFallback = composer.snapshotText();
             composer.resetText();
             sendTypingStatus(false);
           }
-          const { uploadedItems, missingPasteMarker } = await prepareAndUploadDeferredAttachments({
-            room,
-            batchItems: initialSnapshot!.staged,
-            textContent,
-            prepareForSend: attachments.prepareForSend,
-            uploadItem: (item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item),
-            onPrepared: (prepared) => {
-              releasePreparedLeases = attachments.access.protectPasteItems(prepared);
-            },
-          });
+          const { aborted, uploadedItems, missingPasteMarker } =
+            await prepareAndUploadDeferredAttachments({
+              room,
+              batchItems: initialSnapshot!.staged,
+              textContent,
+              prepareForSend: attachments.prepareForSend,
+              uploadItem: (item) => transport.uploadItemWhileStaged(attachments.itemsAtom, item),
+              onPrepared: (prepared) => {
+                releasePreparedLeases = attachments.access.protectPasteItems(prepared);
+              },
+              isAborted: () => !sameAccount(),
+            });
           if (
-            !ask.canSend(room) ||
+            aborted ||
+            !sameAccount() ||
+            (ask && !ask.canSend(room)) ||
             missingPasteMarker ||
             (!textContent && uploadedItems.length === 0)
           ) {
-            if (pendingFallback) {
-              sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
-              pendingFallback = undefined;
-            }
+            restorePendingFallback();
             return;
           }
-          const fallbackForSession = pendingFallback;
-          pendingFallback = undefined;
+          const rootModelForSession = pendingRootModel;
+          pendingRootModel = undefined;
           const sending = sessions.startSendSession({
             textContent,
             midTurnMode: mode,
             explicitMidTurnMode: explicitMode !== undefined,
+            rootModel: rootModelForSession ?? null,
             batch: { fileItems: uploadedItems },
             completeWithinCall: uploadedItems.length > 0,
-            composerFallback: fallbackForSession,
+            composerFallback: pendingFallback,
             composerAlreadyReset: Boolean(textContent),
-            beforeSend: (sentTo) => ask.canSend(sentTo),
-            onLocalEchoCreated: ask.onLocalEcho,
+            beforeSend: ask
+              ? (sentTo) => sameAccount() && ask.canSend(sentTo)
+              : () => sameAccount(),
+            onLocalEchoCreated:
+              ask?.onLocalEcho &&
+              ((id, sent) => {
+                if (sameAccount()) ask.onLocalEcho?.(id, sent);
+              }),
+            onTextConsumed: () => {
+              pendingFallback = undefined;
+            },
           });
           sendTypingStatus(false);
           try {
             await sending;
           } catch (error) {
-            // `completeWithinCall` already restored fallback text and cleared the failed session
-            // while keeping uploaded files staged on the Home board for retry in any room.
+            restorePendingFallback();
             // eslint-disable-next-line no-console
             console.warn('[room-input] could not send the message', error);
           }
@@ -791,24 +871,35 @@ export function RoomInput({
           textContent,
           midTurnMode: mode,
           explicitMidTurnMode: explicitMode !== undefined,
-          batch: ask ? { fileItems: [] } : undefined,
+          batch: deferredDraft ? { fileItems: [] } : undefined,
           // Home's question is asked about, and told of, as it was at this press.
-          beforeSend: ask && ((sentTo) => ask.canSend(sentTo)),
-          onLocalEchoCreated: ask?.onLocalEcho,
+          beforeSend: ask && ((sentTo) => sameAccount() && ask.canSend(sentTo)),
+          onLocalEchoCreated:
+            ask?.onLocalEcho &&
+            ((id, sent) => {
+              if (sameAccount()) ask.onLocalEcho?.(id, sent);
+            }),
         });
         // The composer is free again once the send session owns the text.
         sendTypingStatus(false);
         await sending;
       } catch (error) {
-        if (pendingFallback) {
-          sessions.restoreText({ roomId, threadId: draftThreadId }, pendingFallback);
-        }
+        restorePendingFallback();
         throw error;
       } finally {
+        if (pendingRootModel && sameAccount()) {
+          getModelController(mx).restoreRootModelDraft(room, pendingRootModel);
+        }
+        if (claimedDeferredSend) {
+          deferredSendPendingRef.current = false;
+          if (mountedRef.current) setDeferredSendPending(false);
+        }
         releasePreparedLeases?.();
         releaseInitialLeases?.();
-        ask?.onSendingChange?.(false);
-        if (mountedRef.current) setSubmitPending(false);
+        if (sameAccount()) {
+          ask?.onSendingChange?.(false);
+          if (mountedRef.current) setSubmitPending(false);
+        }
       }
     },
     [
@@ -818,6 +909,7 @@ export function RoomInput({
       clearReplyDraft,
       commands,
       composer,
+      deferredDraft,
       dictation,
       dictationHandoffRef,
       dismissLostFiles,
@@ -826,6 +918,7 @@ export function RoomInput({
       holdForRoot,
       midTurnSend,
       mx,
+      prepareAttachmentsForSend,
       runActingCommand,
       sendTypingStatus,
       sessions,
@@ -836,7 +929,9 @@ export function RoomInput({
       draftThreadId,
       room,
       roomId,
+      textKey,
       transport,
+      userId,
       voice,
       voiceActive,
     ]
@@ -1033,7 +1128,12 @@ export function RoomInput({
     : t('composer.sendMessage');
   const emojiLabel = t('composer.emoji');
   const boardOpen = emojiAnchor !== undefined;
-  const composerEmpty = noText && !attachments.hasSendableFiles && !hasVoice && !dictationCanSend;
+  const composerEmpty =
+    noText &&
+    !attachments.hasSendableFiles &&
+    !attachments.isPreparing &&
+    !hasVoice &&
+    !dictationCanSend;
   const showPhoneEmptyVoice =
     phone && !ask && dictation.available && !forkFrom && !dictation.active && composerEmpty;
 
@@ -1083,6 +1183,7 @@ export function RoomInput({
       // Home's column sets the field's width itself.
       style={ask ? undefined : COMPOSER_STYLE}
       data-composer-expanded={expanded}
+      data-fork-draft-composer={forkFrom ? 'true' : undefined}
       // Only a press on the expanded composer holds it open (`isComposerExpanded`).
       onPointerDown={phone && expanded ? focus.onPointerDown : undefined}
     >
@@ -1107,7 +1208,7 @@ export function RoomInput({
           {commandProblem}
         </Text>
       )}
-      {!ask && lostFileNames.length > 0 && (
+      {lostFileNames.length > 0 && (
         <LostNotice
           text={t('composer.lostFiles', {
             files: lostFileNames.map(revealDirectionControls).join(', '),
@@ -1133,7 +1234,7 @@ export function RoomInput({
         linkSchemes={linkSchemes}
         markdownCommands
         // The composer floats over the timeline and the cards, which scroll beneath it.
-        className={glassDenseOverBackdrop}
+        className={classNames(glassDenseOverBackdrop, forkFrom && ComposerForkDraft)}
         // A phone keeps the formatting toolbar in a row of its own however wide its composer.
         inlineBottom={!phone}
         placeholder={ask?.placeholder ?? placeholder}
@@ -1257,7 +1358,7 @@ export function RoomInput({
                 agentReplying={agentReplying}
                 hasContent={() =>
                   buildTextContent(midTurnSend) !== undefined ||
-                  (ask
+                  (deferredDraft
                     ? attachments.hasSendableFiles
                     : hasSendableStagedFiles(attachments.access.snapshot())) ||
                   hasVoice ||
@@ -1265,7 +1366,12 @@ export function RoomInput({
                 }
                 empty={composerEmpty}
                 defaultMode={midTurnSend}
-                disabled={askBlocked || dictation.blocksSubmit}
+                disabled={
+                  askBlocked ||
+                  deferredSendPending ||
+                  dictation.blocksSubmit ||
+                  attachments.isPreparing
+                }
                 onSend={handleSend}
               />
             )}

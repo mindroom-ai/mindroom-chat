@@ -10,6 +10,7 @@ import { createSessionId } from '../../matrix/session/sessions';
 import { hasCanvases, subscribeCanvasList } from '../../canvas/canvasIndexStore';
 import { PINNED_CANVASES_TYPE, readPinnedCanvases } from '../../canvas/pinnedCanvases';
 import { getCanvasesPath } from '../../routes/pathUtils';
+import { useRailVisibilityMenuTrigger } from './railVisibilityMenuContext';
 
 /** Settles bursts of list writes (an agent sharing several panels) into one read. */
 const LIST_CHANGE_DELAY_MS = 100;
@@ -61,6 +62,7 @@ export function CanvasesTab() {
   const active = useCanvasesSelected();
   const { t } = useTranslation();
   const hasCanvases = useHasCanvases();
+  const railMenuProps = useRailVisibilityMenuTrigger('canvases');
   const label = t('mindroomUi.canvases.title');
 
   // Stays visible while the Canvases page is open, even after its last canvas went away.
@@ -74,6 +76,7 @@ export function CanvasesTab() {
       aria-label={label}
       outlined
       onClick={() => void navigate(getCanvasesPath())}
+      {...railMenuProps}
     >
       <Icon filled={active} src={Icons.Category} />
     </SidebarAvatar>

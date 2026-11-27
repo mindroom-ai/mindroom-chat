@@ -8,6 +8,8 @@ import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
 import {
   PHONE_PAGE,
   PHONE_STAGE,
+  SWIPE_THREAD_STAGE,
+  SWIPE_UNDER_THREAD,
   afterWaitingSlide,
   capturePhoneSwipePreview,
   captureStageSnapshot,
@@ -17,6 +19,7 @@ import {
   createThreadForwardSwipeScene,
   isInteractivePhoneSlideClaimed,
   movePhoneNavDrawer,
+  rekeyPhoneSwipePreviewThread,
   setActivePhoneSwipeContext,
   slidePhonePage,
   withPhonePageSlide,
@@ -1517,7 +1520,7 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     }
   });
 
-  it('binds roomPreview to the entered threadId, keeps it unshown through a height-only resize, and invalidates on width resize', async () => {
+  it('binds roomPreview to the entered threadId, keeps and displays it across height-only resizes, and invalidates on width resize', async () => {
     const pageMock = browser();
     const { stage, page } = makeStage('Room Overview', 145);
     setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
@@ -1541,18 +1544,23 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
     t2Scene!.cleanup(false);
 
-    // Thread 1 still hits the room preview before resize.
+    const expectUnderPreview = (expectedText: string, expectedScrollTop: number) => {
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
+        fromLocationKey: 'k-t1',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+      expect(under?.textContent).toContain(expectedText);
+      expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(expectedScrollTop);
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
+      scene!.cleanup(false);
+    };
+
+    // Thread 1 hits the room preview before resize.
     setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' });
-    const t1Scene = createThreadBackSwipeScene({
-      key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
-      fromLocationKey: 'k-t1',
-      onCommit: vi.fn(),
-      dirSign: 1,
-    });
-    expect(stage.querySelector('[data-swipe-preview="under"]')?.textContent).toContain(
-      'Room Overview'
-    );
-    t1Scene!.cleanup(false);
+    expectUnderPreview('Room Overview', 145);
 
     const origWidth = window.innerWidth;
     const origHeight = window.innerHeight;
@@ -1570,37 +1578,25 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
       });
     };
     try {
-      // Stage-height shrink with window.innerHeight unchanged (iOS soft keyboard via --app-height):
-      // the preview is kept, but not shown while stage height differs; themed backdrop shows instead.
+      // Full height -> keyboard-open height (iOS --app-height shrink and Android innerHeight
+      // resize): the preview stays retained and is displayed.
       setStageHeight(844 - 280);
-      const whileKeyboardOpen = createThreadBackSwipeScene({
-        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
-        fromLocationKey: 'k-t1',
-        onCommit: vi.fn(),
-        dirSign: 1,
-      });
-      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
-      expect(stage.querySelector('[data-swipe-preview="under"]')).toBeNull();
-      whileKeyboardOpen!.cleanup(false);
+      expectUnderPreview('Room Overview', 145);
 
-      // Android soft keyboard also dispatches window resize with unchanged width: preview still kept.
       Object.defineProperty(window, 'innerHeight', { value: origHeight - 280, configurable: true });
       window.dispatchEvent(new Event('resize'));
+      expectUnderPreview('Room Overview', 145);
 
-      // The keyboard closes: stage height returns and the retained preview shows again, scrolled as it was.
+      // Keyboard-open height -> full height: capture while keyboard is open, then dismiss it.
+      const { page: keyboardPage } = makeStage('Keyboard Room Overview', 95);
+      setStageHeight(844 - 280);
+      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' });
+      keyboardPage.textContent = 'Thread 1';
+
       Object.defineProperty(window, 'innerHeight', { value: origHeight, configurable: true });
       setStageHeight(844);
       window.dispatchEvent(new Event('resize'));
-      const afterKeyboardClosed = createThreadBackSwipeScene({
-        key: { sessionId: SESSION, roomId: ROOM, threadId: '$thread-1' },
-        fromLocationKey: 'k-t1',
-        onCommit: vi.fn(),
-        dirSign: 1,
-      });
-      const restored = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
-      expect(restored?.textContent).toContain('Room Overview');
-      expect(restored?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(145);
-      afterKeyboardClosed!.cleanup(false);
+      expectUnderPreview('Keyboard Room Overview', 95);
 
       // Width resize (even if rotated back to original width): preview invalidated immediately!
       Object.defineProperty(window, 'innerWidth', { value: origWidth + 200, configurable: true });
@@ -1615,11 +1611,153 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
         dirSign: 1,
       });
       expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      expect(stage.querySelector('[data-swipe-preview="under"]')).toBeNull();
       afterRotateBack!.cleanup(false);
     } finally {
       Object.defineProperty(window, 'innerWidth', { value: origWidth, configurable: true });
       Object.defineProperty(window, 'innerHeight', { value: origHeight, configurable: true });
     }
+  });
+
+  it('refreshes inline --room-header-height on mounted previews before restoring scroll offsets', () => {
+    const { stage, page, scroller } = makeStage('Short Area Room', 120);
+    const area = document.createElement('div');
+    area.setAttribute('data-test-area', 'with-inset');
+    area.style.setProperty('--room-header-height', '0px');
+    const header = document.createElement('div');
+    header.setAttribute('data-room-header', 'true');
+    area.append(header, scroller);
+
+    const plainParent = document.createElement('div');
+    plainParent.setAttribute('data-test-area', 'without-inset');
+    const plainHeader = document.createElement('div');
+    plainHeader.setAttribute('data-room-header', 'true');
+    plainParent.append(plainHeader);
+
+    page.append(area, plainParent);
+
+    let clonedHeaderHeight = 0;
+    const offsetHeightSpy = vi
+      .spyOn(HTMLElement.prototype, 'offsetHeight', 'get')
+      .mockImplementation(function (this: HTMLElement) {
+        return this.getAttribute('data-room-header') === 'true' ? clonedHeaderHeight : 0;
+      });
+    const origScrollTop = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+    const headerHeightAtScrollRestore: string[] = [];
+    const scrollTopSpy = vi
+      .spyOn(Element.prototype, 'scrollTop', 'set')
+      .mockImplementation(function (this: Element, value: number) {
+        if (this.classList.contains('scroller') && this.closest('[data-page-slide-copy]')) {
+          const clonedArea = this.closest<HTMLElement>('[data-test-area="with-inset"]');
+          headerHeightAtScrollRestore.push(
+            clonedArea?.style.getPropertyValue('--room-header-height') ?? ''
+          );
+        }
+        origScrollTop.set!.call(this, value);
+      });
+
+    try {
+      capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: THREAD });
+      page.textContent = 'Thread View';
+
+      // Mounted at full height: cloned header becomes visible (48px), updating the inset before
+      // scroll restoration while leaving headers without an inline inset untouched.
+      clonedHeaderHeight = 48;
+      const tallScene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+        fromLocationKey: 'k-tall',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      const underTall = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+      const tallArea = underTall?.querySelector<HTMLElement>('[data-test-area="with-inset"]');
+      const tallPlain = underTall?.querySelector<HTMLElement>('[data-test-area="without-inset"]');
+      expect(tallArea?.style.getPropertyValue('--room-header-height')).toBe('48px');
+      expect(tallPlain?.style.getPropertyValue('--room-header-height')).toBe('');
+      expect(underTall?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(120);
+      expect(headerHeightAtScrollRestore).toEqual(['48px']);
+      tallScene!.cleanup(false);
+
+      // Mounted again at a short height: cloned header collapses back to 0px before scroll restore.
+      clonedHeaderHeight = 0;
+      const shortScene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+        fromLocationKey: 'k-short',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      const underShort = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+      const shortArea = underShort?.querySelector<HTMLElement>('[data-test-area="with-inset"]');
+      expect(shortArea?.style.getPropertyValue('--room-header-height')).toBe('0px');
+      expect(underShort?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(120);
+      expect(headerHeightAtScrollRestore).toEqual(['48px', '0px']);
+      shortScene!.cleanup(false);
+    } finally {
+      scrollTopSpy.mockRestore();
+      offsetHeightSpy.mockRestore();
+    }
+  });
+
+  it('rekeys a retained preview from local-echo threadId to confirmed threadId and ignores mismatches', () => {
+    const { stage, page } = makeStage('Room Before Send', 60);
+    const localId = `~${ROOM}:txn1`;
+    const confirmedId = '$confirmed-1';
+    capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: localId });
+    page.textContent = 'New Thread';
+
+    const expectBackdropFor = (threadId: string) => {
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId },
+        fromLocationKey: `k-${threadId}`,
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      expect(stage.querySelector('[data-swipe-preview="under"]')).toBeNull();
+      scene!.cleanup(false);
+    };
+
+    // Mismatched session, room, threadId, or empty nextThreadId leave the preview untouched.
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: 'other-session', roomId: ROOM, threadId: localId },
+      confirmedId
+    );
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: SESSION, roomId: '!other:example.org', threadId: localId },
+      confirmedId
+    );
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: SESSION, roomId: ROOM, threadId: '$other' },
+      confirmedId
+    );
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: SESSION, roomId: ROOM, threadId: localId },
+      ''
+    );
+    expectBackdropFor(confirmedId);
+
+    rekeyPhoneSwipePreviewThread(
+      'room',
+      { sessionId: SESSION, roomId: ROOM, threadId: localId },
+      confirmedId
+    );
+    expectBackdropFor(localId);
+
+    const confirmedScene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: confirmedId },
+      fromLocationKey: 'k-confirmed',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+    expect(under?.textContent).toContain('Room Before Send');
+    expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(60);
+    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
+    confirmedScene!.cleanup(false);
   });
 
   it('preserves loaded images inside a horizontally translated page via horizontalShiftPx', async () => {
@@ -1821,5 +1959,599 @@ describe('interactive swipe snapshots, preview cache, scenes, and async handoff'
     expect(drawerScrim.hasAttribute('data-swiping')).toBe(false);
     expect(drawerScrim.style.translate).toBe('');
     forwardScene!.cleanup(false);
+  });
+
+  it('captures roomPreview on 1 -> 2 slide from Space All threads when returnToSpaceThreads is set', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('Space All Threads', 85);
+    setActivePhoneSwipeContext({
+      sessionId: SESSION,
+      roomId: '!space:example.org',
+      isSpaceThreads: true,
+    });
+
+    slidePhonePage(() => {
+      showThread(true);
+      setActivePhoneSwipeContext({
+        sessionId: SESSION,
+        roomId: ROOM,
+        threadId: THREAD,
+        returnToSpaceThreads: true,
+      });
+      page.textContent = 'Thread View';
+    });
+    pageMock.frame();
+    await pageMock.finish();
+
+    const scene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-thread',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    expect(scene).not.toBeNull();
+    const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]');
+    expect(under?.textContent).toContain('Space All Threads');
+    expect(under?.querySelector<HTMLElement>('.scroller')?.scrollTop).toBe(85);
+    scene!.cleanup(false);
+  });
+
+  it('rejects Space All threads capture without returnToSpaceThreads or across sessions, and clears stale roomPreview', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('Room Overview');
+    const slideIntoThread = async (
+      label: string,
+      departing: Parameters<typeof setActivePhoneSwipeContext>[0],
+      returnToSpaceThreads?: boolean
+    ) => {
+      showThread(false);
+      page.textContent = label;
+      setActivePhoneSwipeContext(departing);
+      slidePhonePage(() => {
+        showThread(true);
+        setActivePhoneSwipeContext({
+          sessionId: SESSION,
+          roomId: ROOM,
+          threadId: THREAD,
+          ...(returnToSpaceThreads ? { returnToSpaceThreads: true } : {}),
+        });
+        page.textContent = 'Thread View';
+      });
+      pageMock.frame();
+      await pageMock.finish();
+    };
+    const expectBackdrop = (fromLocationKey: string) => {
+      const scene = createThreadBackSwipeScene({
+        key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+        fromLocationKey,
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
+      scene!.cleanup(false);
+    };
+
+    // Entering a thread from an overlay over Space All threads (no returnToSpaceThreads) must
+    // neither capture Space All threads nor retain an earlier room preview.
+    await slideIntoThread('Room Overview', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread('Space All Threads', {
+      sessionId: SESSION,
+      roomId: '!space:example.org',
+      isSpaceThreads: true,
+    });
+    expectBackdrop('k-overlay');
+
+    // Cross-session isSpaceThreads must never capture even with returnToSpaceThreads.
+    await slideIntoThread('Room Overview Again', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread(
+      'Other Account Space Threads',
+      {
+        sessionId: 'https://other.org::@bob:other.org',
+        roomId: '!space:other.org',
+        isSpaceThreads: true,
+      },
+      true
+    );
+    expectBackdrop('k-cross');
+
+    // Entering from an unmatched surface without swipe context clears any stale roomPreview.
+    await slideIntoThread('Room Overview Third', { sessionId: SESSION, roomId: ROOM });
+    await slideIntoThread('Activity', undefined);
+    expectBackdrop('k-activity');
+  });
+
+  const addCanvas = (parent: HTMLElement, width = 48, height = 32) => {
+    const canvas = Object.assign(document.createElement('canvas'), { width, height });
+    parent.append(canvas);
+    return canvas;
+  };
+  const mockCanvas2d = () =>
+    vi
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockReturnValue({ drawImage: vi.fn() } as unknown as CanvasRenderingContext2D);
+  const expectDisposed = (el: HTMLElement, canvas: HTMLCanvasElement) =>
+    expect([canvas.width, canvas.height, el.childElementCount]).toEqual([0, 0, 0]);
+  const key = { sessionId: SESSION, roomId: ROOM, threadId: THREAD };
+  const openScene = (
+    create: typeof createThreadBackSwipeScene | typeof createThreadForwardSwipeScene,
+    fromLocationKey = 'k-thread'
+  ) => create({ key, fromLocationKey, onCommit: vi.fn(), dirSign: 1 })!;
+
+  it('retains roomPreview canvas on cancel for retry and disposes on commit release or stale claim', async () => {
+    const pageMock = browser();
+    const ctxSpy = mockCanvas2d();
+    try {
+      const { stage, page } = makeStage('Room Overview', 145);
+      addCanvas(page);
+      capturePhoneSwipePreview('room', key);
+      const { router, emit } = routerAt('k-thread');
+      unsubscribes.push(withPhonePageSlide(router).subscribe(vi.fn()));
+
+      const cancelled = openScene(createThreadBackSwipeScene);
+      const under = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]')!;
+      const canvas = under.querySelector('canvas')!;
+      await cancelled.settle(false, 0, 120);
+      cancelled.cleanup(false);
+      expect([canvas.width, canvas.height]).toEqual([48, 32]);
+      expect(under.childElementCount).toBeGreaterThan(0);
+
+      const cancelAnim = vi.fn();
+      under.getAnimations = vi.fn(() => [{ cancel: cancelAnim } as unknown as Animation]);
+      const retry = openScene(createThreadBackSwipeScene);
+      expect(stage.querySelector('[data-swipe-preview="under"]')).toBe(under);
+      await retry.settle(true, 0, 260);
+      retry.commit();
+      retry.cleanup(true);
+      expect([canvas.width, canvas.height]).toEqual([48, 32]);
+      emit(stateAt('k-room', 'POP'));
+      pageMock.frame();
+      expect(cancelAnim).toHaveBeenCalledOnce();
+      expectDisposed(under, canvas);
+
+      const stale = captureStageSnapshot(stage);
+      const staleCanvas = stale.copy.querySelector('canvas')!;
+      claimInteractivePhoneSlide({
+        fromLocationKey: 'k-stale',
+        holdElement: stale.copy,
+        holdSnapshot: stale,
+      });
+      expectDisposed(stale.copy, staleCanvas);
+      expect(stale.scrolled).toHaveLength(0);
+    } finally {
+      ctxSpy.mockRestore();
+    }
+  });
+
+  it('disposes evicted previews on replace, resize, and clear, deferring disposal while mounted', () => {
+    const ctxSpy = mockCanvas2d();
+    const { stage, page } = makeStage('Room Overview');
+    addCanvas(page);
+    const origWidth = window.innerWidth;
+    const mountCaptured = () => {
+      capturePhoneSwipePreview('room', key);
+      const scene = openScene(createThreadBackSwipeScene, 'k1');
+      const el = stage.querySelector<HTMLElement>('[data-swipe-preview="under"]')!;
+      return { scene, el, canvas: el.querySelector('canvas')! };
+    };
+    try {
+      const a = mountCaptured();
+      a.scene.cleanup(false);
+      capturePhoneSwipePreview('room', key);
+      expectDisposed(a.el, a.canvas);
+
+      const b = mountCaptured();
+      b.scene.cleanup(false);
+      Object.defineProperty(window, 'innerWidth', { value: origWidth + 100, configurable: true });
+      window.dispatchEvent(new Event('resize'));
+      expectDisposed(b.el, b.canvas);
+
+      const c = mountCaptured();
+      c.scene.cleanup(false);
+      clearPhoneSwipePreviews();
+      expectDisposed(c.el, c.canvas);
+
+      const d = mountCaptured();
+      clearPhoneSwipePreviews();
+      expect([d.canvas.width, d.canvas.height]).toEqual([48, 32]);
+      expect(d.el.childElementCount).toBeGreaterThan(0);
+      d.scene.cleanup(false);
+      expectDisposed(d.el, d.canvas);
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { value: origWidth, configurable: true });
+      ctxSpy.mockRestore();
+    }
+  });
+
+  it('settles matched snapshots via CSS translate transition without WAAPI .animate(), snapping on 0ms/reduced motion', async () => {
+    const pageMock = browser();
+    const { stage } = makeStage('Snapshot View');
+    const { router, emit } = routerAt('k-0');
+    unsubscribes.push(withPhonePageSlide(router).subscribe(vi.fn()));
+
+    const animated: HTMLElement[] = [];
+    const finishers: Array<() => void> = [];
+    const origAnimate = HTMLElement.prototype.animate;
+    const origMatchMedia = window.matchMedia;
+    HTMLElement.prototype.animate = vi.fn(function (this: HTMLElement) {
+      animated.push(this);
+      let finish: () => void = () => undefined;
+      const finished = new Promise<void>((r) => {
+        finish = r;
+      });
+      finishers.push(finish);
+      return { finished, cancel: vi.fn() } as unknown as Animation;
+    });
+    const finishAll = async (p: Promise<void>) => {
+      finishers.splice(0).forEach((fn) => fn());
+      await p;
+    };
+
+    try {
+      const fallback = openScene(createThreadBackSwipeScene, 'k-0');
+      const backdrop = stage.querySelector<HTMLElement>('[data-swipe-preview="backdrop"]')!;
+      await finishAll(fallback.settle(false, 200, 130));
+      expect(animated).toContain(backdrop);
+      fallback.cleanup(false);
+
+      for (const [kind, selector, create, from, to] of [
+        ['room', '[data-swipe-preview="under"]', createThreadBackSwipeScene, 'k-0', 'k-1'],
+        ['thread', '[data-swipe-preview="over"]', createThreadForwardSwipeScene, 'k-1', 'k-2'],
+      ] as const) {
+        capturePhoneSwipePreview(kind, key);
+
+        animated.length = 0;
+        const scene = openScene(create, from);
+        const clone = stage.querySelector<HTMLElement>(selector)!;
+        const settling = scene.settle(false, 200, 130);
+        expect(animated).not.toContain(clone);
+        expect(animated.length).toBeGreaterThan(0);
+        expect(clone.hasAttribute('data-swiping')).toBe(false);
+        expect(clone.style.transition).toBe('translate 200ms cubic-bezier(0.2, 0, 0, 1)');
+        await finishAll(settling);
+        expect(clone.style.transition).toBe('');
+        scene.cleanup(false);
+
+        const aborted = openScene(create, from);
+        const abortClone = stage.querySelector<HTMLElement>(selector)!;
+        const abortSettle = aborted.settle(false, 200, 130);
+        aborted.cleanup(false);
+        expect(abortClone.style.transition).toBe('');
+        await finishAll(abortSettle);
+
+        const zero = openScene(create, from);
+        const zeroClone = stage.querySelector<HTMLElement>(selector)!;
+        await zero.settle(true, 0, 260);
+        expect([zeroClone.style.transition, zeroClone.style.translate]).toEqual(['', '0px']);
+        zero.cleanup(false);
+
+        window.matchMedia = ((q: string) => ({
+          matches: q.includes('reduce'),
+        })) as typeof window.matchMedia;
+        const reduced = openScene(create, from);
+        const reducedClone = stage.querySelector<HTMLElement>(selector)!;
+        await reduced.settle(true, 200, 260);
+        expect([reducedClone.style.transition, reducedClone.style.translate]).toEqual(['', '0px']);
+        reduced.cleanup(false);
+        window.matchMedia = origMatchMedia;
+
+        animated.length = 0;
+        const committed = openScene(create, from);
+        const commitClone = stage.querySelector<HTMLElement>(selector)!;
+        const commitSettle = committed.settle(true, 200, 260);
+        expect(animated).not.toContain(commitClone);
+        await finishAll(commitSettle);
+        committed.commit();
+        committed.cleanup(true);
+        expect(commitClone.style.transition).toBe('');
+        emit(stateAt(to, 'POP'));
+        pageMock.frame();
+      }
+    } finally {
+      window.matchMedia = origMatchMedia;
+      HTMLElement.prototype.animate = origAnimate;
+    }
+  });
+
+  it('disposes non-retained slidePhonePage snapshots on completion, early exit, and error while keeping retained previews', async () => {
+    const pageMock = browser();
+    const ctxSpy = mockCanvas2d();
+    const { page } = makeStage('Room');
+    addCanvas(page, 64, 48);
+    const origAdopt = document.adoptNode.bind(document);
+    let last!: { copy: HTMLElement; canvas: HTMLCanvasElement };
+    const adoptSpy = vi.spyOn(document, 'adoptNode').mockImplementation((node) => {
+      const adopted = origAdopt(node);
+      if (adopted instanceof HTMLElement && adopted.querySelector('canvas')) {
+        last = { copy: adopted, canvas: adopted.querySelector('canvas')! };
+      }
+      return adopted;
+    });
+    const slideRetained = () => {
+      showThread(false);
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+      slidePhonePage(() => {
+        showThread(true);
+        setActivePhoneSwipeContext(key);
+      });
+      pageMock.frame();
+      return last;
+    };
+    try {
+      slidePhonePage(() => showThread(true));
+      pageMock.frame();
+      const nonRetained = last;
+      await pageMock.finish();
+      expectDisposed(nonRetained.copy, nonRetained.canvas);
+
+      slidePhonePage(() => undefined);
+      pageMock.frame();
+      expectDisposed(last.copy, last.canvas);
+
+      slidePhonePage(() => {
+        throw new Error('boom');
+      });
+      expect(() => pageMock.frame()).toThrow('boom');
+      expectDisposed(last.copy, last.canvas);
+
+      const retained = slideRetained();
+      await pageMock.finish();
+      expect([retained.canvas.width, retained.canvas.height]).toEqual([64, 48]);
+      expect(retained.copy.childElementCount).toBeGreaterThan(0);
+
+      const evictedMidSlide = slideRetained();
+      clearPhoneSwipePreviews();
+      expect([evictedMidSlide.canvas.width, evictedMidSlide.canvas.height]).toEqual([64, 48]);
+      await pageMock.finish();
+      expectDisposed(evictedMidSlide.copy, evictedMidSlide.canvas);
+    } finally {
+      adoptSpy.mockRestore();
+      ctxSpy.mockRestore();
+    }
+  });
+
+  it('clears and disposes roomPreview when a Back button slide (2 -> 1) leaves a thread', async () => {
+    const pageMock = browser();
+    const ctxSpy = mockCanvas2d();
+    const { stage, page } = makeStage('Room');
+    addCanvas(page, 64, 48);
+    const origAdopt = document.adoptNode.bind(document);
+    let last!: { copy: HTMLElement; canvas: HTMLCanvasElement };
+    const adoptSpy = vi.spyOn(document, 'adoptNode').mockImplementation((node) => {
+      const adopted = origAdopt(node);
+      if (adopted instanceof HTMLElement && adopted.querySelector('canvas')) {
+        last = { copy: adopted, canvas: adopted.querySelector('canvas')! };
+      }
+      return adopted;
+    });
+    try {
+      setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+      slidePhonePage(() => {
+        showThread(true);
+        setActivePhoneSwipeContext(key);
+      });
+      pageMock.frame();
+      const retainedRoom = last;
+      await pageMock.finish();
+      expect([retainedRoom.canvas.width, retainedRoom.canvas.height]).toEqual([64, 48]);
+
+      // Back button slide (2 -> 1) disposes roomPreview while storing threadPreview for forward swipe.
+      slidePhonePage(() => {
+        showThread(false);
+        setActivePhoneSwipeContext({ sessionId: SESSION, roomId: ROOM });
+      });
+      pageMock.frame();
+      await pageMock.finish();
+      expectDisposed(retainedRoom.copy, retainedRoom.canvas);
+
+      const forwardScene = createThreadForwardSwipeScene({
+        key,
+        fromLocationKey: 'k-room',
+        onCommit: vi.fn(),
+        dirSign: 1,
+      });
+      expect(stage.querySelector('[data-swipe-preview="over"]')).not.toBeNull();
+      forwardScene!.cleanup(false);
+    } finally {
+      adoptSpy.mockRestore();
+      ctxSpy.mockRestore();
+    }
+  });
+
+  it('falls back to live under-layer on room preview miss, excludes under from thread snapshot, and hands off across async popstate', async () => {
+    const pageMock = browser();
+    const { stage, page } = makeStage('');
+    page.innerHTML = '';
+    const liveStage = document.createElement('div');
+    const under = document.createElement('div');
+    under.textContent = 'Live Room Content';
+    const over = document.createElement('div');
+    over.textContent = 'Live Thread Content';
+    liveStage.append(under, over);
+    page.append(liveStage);
+    showThread(true);
+
+    const { router, emit } = routerAt('k-thread');
+    const listener = vi.fn(() => {
+      over.remove();
+      showThread(false);
+    });
+    unsubscribes.push(withPhonePageSlide(router).subscribe(listener));
+
+    const exit = vi.fn(() => {
+      liveStage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+    });
+    const onCommit = vi.fn();
+    const scene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-thread',
+      onCommit,
+      dirSign: 1,
+      enterLiveUnder: () => {
+        liveStage.setAttribute(SWIPE_THREAD_STAGE, '');
+        under.setAttribute(SWIPE_UNDER_THREAD, '');
+        return { stage: liveStage, over, under, exit };
+      },
+    });
+    expect(scene).not.toBeNull();
+    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
+    expect(liveStage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(true);
+    expect(under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(true);
+    expect(under.hasAttribute('data-swiping')).toBe(true);
+    expect(over.hasAttribute('data-swipe-over-thread')).toBe(true);
+    expect(over.hasAttribute('data-swiping')).toBe(true);
+    expect(over.hasAttribute('data-swipe-shadow')).toBe(true);
+    const dim = liveStage.querySelector<HTMLElement>('[data-swipe-dim="live-back"]');
+    expect(dim).not.toBeNull();
+
+    scene!.update(195, 0.5);
+    expect(over.style.translate).toBe('195px');
+    expect(under.style.translate).toBe(`${-0.3 * 390 * 0.5}px`);
+    expect(dim!.style.opacity).toBe('0.06');
+
+    await scene!.settle(true, 0, 260);
+    expect(stage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
+
+    scene!.commit();
+    scene!.cleanup(true);
+
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(liveStage.querySelector('[data-swipe-dim]')).toBeNull();
+    expect(under.hasAttribute('data-swiping')).toBe(false);
+    expect(under.style.translate).toBe('');
+    expect(over.style.visibility).toBe('hidden');
+    expect(over.style.translate).toBe('390px');
+    expect(exit).not.toHaveBeenCalled();
+
+    // Async popstate flushes synchronously with no slidePhonePage double-slide.
+    const next = stateAt('k-room', 'POP');
+    emit(next);
+    expect(listener).toHaveBeenCalledWith(next, expect.objectContaining({ flushSync: true }));
+    expect(pageMock.plays).toEqual([]);
+    expect(root.dataset.pageSlide).toBeUndefined();
+    expect(exit).not.toHaveBeenCalled();
+
+    pageMock.frame();
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    expect(liveStage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+    expect(under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
+    expect(over.hasAttribute('data-swipe-over-thread')).toBe(false);
+    expect(over.style.visibility).toBe('');
+    expect(over.style.translate).toBe('');
+    expect(exit).toHaveBeenCalledTimes(1);
+    expect(exit).toHaveBeenCalledWith(true);
+
+    // Captured departing thread snapshot excludes live room and live swipe attributes.
+    const forward = createThreadForwardSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-room',
+      onCommit: vi.fn(),
+      dirSign: 1,
+    });
+    const overPreview = stage.querySelector<HTMLElement>('[data-swipe-preview="over"]');
+    expect(overPreview?.textContent).toContain('Live Thread Content');
+    expect(overPreview?.textContent).not.toContain('Live Room Content');
+    expect(overPreview?.querySelector(`[${SWIPE_UNDER_THREAD}]`)).toBeNull();
+    expect(overPreview?.querySelector(`[${SWIPE_THREAD_STAGE}]`)).toBeNull();
+    expect(overPreview?.querySelector('[data-swipe-over-thread]')).toBeNull();
+    expect(overPreview?.querySelector('[data-swipe-dim]')).toBeNull();
+    forward!.cleanup(false);
+  });
+
+  it('cleans up live under-layer on cancel and restores parked over-layer if handoff skips or times out', async () => {
+    browser();
+    const { stage, page } = makeStage('');
+    page.innerHTML = '';
+    const liveStage = document.createElement('div');
+    const under = document.createElement('div');
+    const over = document.createElement('div');
+    liveStage.append(under, over);
+    page.append(liveStage);
+
+    // 1. Cancelled drag cleans up styles, attributes, dim, shield, and calls exit(false).
+    const cancelExit = vi.fn(() => {
+      liveStage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+    });
+    const cancelScene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-cancel',
+      onCommit: vi.fn(),
+      dirSign: 1,
+      enterLiveUnder: () => {
+        liveStage.setAttribute(SWIPE_THREAD_STAGE, '');
+        under.setAttribute(SWIPE_UNDER_THREAD, '');
+        return { stage: liveStage, over, under, exit: cancelExit };
+      },
+    });
+    cancelScene!.update(90, 90 / 390);
+    await cancelScene!.settle(false, 0, 90);
+    cancelScene!.cleanup(false);
+
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    expect(liveStage.querySelector('[data-swipe-dim]')).toBeNull();
+    expect(liveStage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+    expect(under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
+    expect(under.hasAttribute('data-swiping')).toBe(false);
+    expect(under.style.translate).toBe('');
+    expect(over.hasAttribute('data-swipe-over-thread')).toBe(false);
+    expect(over.hasAttribute('data-swiping')).toBe(false);
+    expect(over.hasAttribute('data-swipe-shadow')).toBe(false);
+    expect(over.style.translate).toBe('');
+    expect(cancelExit).toHaveBeenCalledTimes(1);
+    expect(cancelExit).toHaveBeenCalledWith(false);
+
+    // 2. Committed drag whose handoff skips (e.g. drawer opens or timeout fires) restores over.
+    const skipExit = vi.fn(() => {
+      liveStage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+    });
+    const skipScene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-skip',
+      onCommit: vi.fn(),
+      dirSign: 1,
+      enterLiveUnder: () => {
+        liveStage.setAttribute(SWIPE_THREAD_STAGE, '');
+        under.setAttribute(SWIPE_UNDER_THREAD, '');
+        return { stage: liveStage, over, under, exit: skipExit };
+      },
+    });
+    await skipScene!.settle(true, 0, 260);
+    skipScene!.commit();
+    skipScene!.cleanup(true);
+    expect(over.style.visibility).toBe('hidden');
+    expect(over.style.translate).toBe('390px');
+
+    await movePhoneNavDrawer(true, () => undefined);
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    expect(over.style.visibility).toBe('');
+    expect(over.style.translate).toBe('');
+    expect(over.hasAttribute('data-swipe-over-thread')).toBe(false);
+    expect(liveStage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+    expect(under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
+    expect(skipExit).toHaveBeenCalledTimes(1);
+    expect(skipExit).toHaveBeenCalledWith(true);
+  });
+
+  it('prefers cached roomPreview over enterLiveUnder when room preview matches', () => {
+    const { stage, page } = makeStage('Cached Room Snapshot');
+    capturePhoneSwipePreview('room', { sessionId: SESSION, roomId: ROOM, threadId: THREAD });
+    page.textContent = 'Thread View';
+
+    const enterLiveUnder = vi.fn(() => null);
+    const scene = createThreadBackSwipeScene({
+      key: { sessionId: SESSION, roomId: ROOM, threadId: THREAD },
+      fromLocationKey: 'k-thread',
+      onCommit: vi.fn(),
+      dirSign: 1,
+      enterLiveUnder,
+    });
+    expect(scene).not.toBeNull();
+    expect(enterLiveUnder).not.toHaveBeenCalled();
+    expect(stage.querySelector('[data-swipe-preview="under"]')?.textContent).toContain(
+      'Cached Room Snapshot'
+    );
+    scene!.cleanup(false);
   });
 });

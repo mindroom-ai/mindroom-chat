@@ -60,7 +60,7 @@ export const offersJumpToUnread = ({
   roomUnread,
   unreadMarkerShown,
 }: {
-  threadId: string | undefined;
+  threadId?: string;
   unreadInfo: RoomUnread;
   roomUnread: boolean;
   unreadMarkerShown: boolean;
@@ -76,13 +76,12 @@ export const offersJumpToUnread = ({
  */
 export const useMarkRoomAsRead = (
   handleMarkAsRead: () => void,
-  setUnreadInfo: Dispatch<SetStateAction<RoomUnread>>,
-  threadId: string | undefined
+  setUnreadInfo: Dispatch<SetStateAction<RoomUnread>>
 ) =>
   useCallback(() => {
     handleMarkAsRead();
-    if (!threadId) setUnreadInfo(undefined);
-  }, [handleMarkAsRead, setUnreadInfo, threadId]);
+    setUnreadInfo(undefined);
+  }, [handleMarkAsRead, setUnreadInfo]);
 
 /**
  * The Jump to Unread and Mark as Read pills, under the room header, centered; `clearStart` centers

@@ -60,7 +60,7 @@ globalStyle(`:has(> [role="separator"][aria-orientation="vertical"]) > * ${PageN
 /** The inset scrollbar of a navigation column, between its 54 px header and the bottom edge. */
 export const PageNavScrollbar = style({ top: toRem(58), bottom: toRem(4), zIndex: 2 });
 
-/** A dense navigation column: its rows end 8 px before the divider, as far as they start in. */
+/** A dense navigation column: its rows end 8 px from its end edge, as far as they start in. */
 export const PageNavDense = style({ vars: { [pageNavRowInset]: config.space.S200 } });
 
 // Top S200, room at the bottom, rows S200 from the rail and short of the scrollbar at the end.

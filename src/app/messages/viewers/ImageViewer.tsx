@@ -349,7 +349,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
         {...props}
         ref={ref}
       >
-        <Header size="400" className={css.ImageViewerHeader}>
+        <Header size="400" appearance="inherit" className={css.ImageViewerHeader}>
           <IconButton
             aria-label={t('sharedUi.imageViewer.close')}
             onClick={requestClose}

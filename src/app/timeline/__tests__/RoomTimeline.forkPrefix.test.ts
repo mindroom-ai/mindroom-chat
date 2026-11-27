@@ -115,6 +115,10 @@ describe('a forked thread', () => {
       const divider = renderer!.root.find((node) => (node.type as unknown) === 'fork-divider');
       expect(divider.props.parent).toEqual({ threadId: '$parent', eventId: '$p2' });
       expect(divider.props.root).toBe(parentRoot);
+      // Sent forks do not wrap parent context rows with the unsent draft prefix treatment.
+      expect(
+        renderer!.root.findAll((node) => node.props['data-fork-draft-prefix'] === 'true')
+      ).toHaveLength(0);
 
       // The fork's title and count come from its own messages, never from the parent's.
       const stored = onStoreThreadSummary.mock.calls.filter(([threadId]) => threadId === '$fork');
@@ -157,7 +161,7 @@ describe('a forked thread', () => {
         rootEvent: root,
         events: [],
         getUnfilteredTimelineSet: () => timelineSet,
-      } as never);
+      }) as never;
     threadRenderStateMock.threadEvents = own;
     threadRenderStateMock.ownThreadEvents = own;
     threadRenderStateMock.threadEventIndexMapRef.current = new Map([['$fork', 0]]);
@@ -250,6 +254,17 @@ describe('a fork draft', () => {
       expect(divider.props.parent).toEqual({ threadId: '$parent', eventId: '$b' });
 
       // What the fork will show of its parent, as the fork shows it: nothing to answer here.
+      const prefixWrappers = renderer!.root.findAll(
+        (node) => node.type === 'div' && node.props['data-fork-draft-prefix'] === 'true'
+      );
+      expect(prefixWrappers).toHaveLength(3);
+      expect(
+        prefixWrappers.every(
+          (wrapper) =>
+            wrapper.findAll((node) => (node.type as unknown) === 'fork-divider').length === 0
+        )
+      ).toBe(true);
+
       const messages = renderer!.root.findAllByType(Message);
       expect(messages).toHaveLength(3);
       messages.forEach(({ props }) => {
@@ -341,7 +356,7 @@ describe('a fork draft', () => {
           getLiveTimeline: () => timeline,
           getTimelineForEvent: () => undefined,
         }),
-      } as never);
+      }) as never;
     const betaRoom = Object.assign(makeRoom({ roomId: '!beta:example.org' }), {
       name: 'Project Beta',
     });
@@ -385,6 +400,59 @@ describe('a fork draft', () => {
         forkThread: '$parent',
         forkAt: '$a',
       });
+    } finally {
+      act(() => renderer?.unmount());
+    }
+  });
+
+  it('omits the draft compose divider when canCompose is false while keeping parent rows framed', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const root = makeEvent('$parent', { isThreadRoot: true, ts: 1_000 });
+    const a = makeEvent('$a', { threadRootId: '$parent', ts: 2_000 });
+    forkPrefix.value = { events: [], parent: undefined };
+    const rows = [root, a];
+    const timeline = makeTimeline(rows, { backwardToken: null });
+    const timelineSet = {
+      getLiveTimeline: () => timeline,
+      getTimelineForEvent: () => undefined,
+    };
+    const room = makeRoom({ liveEvents: [root] });
+    room.getThread = () =>
+      ({
+        rootEvent: root,
+        events: [a],
+        getUnfilteredTimelineSet: () => timelineSet,
+      }) as never;
+    threadRenderStateMock.threadEvents = rows;
+    threadRenderStateMock.ownThreadEvents = rows;
+    threadRenderStateMock.forkPointIndex = 1;
+    threadRenderStateMock.threadEventIndexMapRef.current = new Map(
+      rows.map((event, index) => [event.getId(), index])
+    );
+    roomTimelineVirtualizerState.virtualIndexes = [0, 1];
+    const Harness = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer: ReturnType<typeof create> | undefined;
+    try {
+      await act(async () => {
+        renderer = create(
+          React.createElement(Harness, {
+            room,
+            threadId: '$parent',
+            forkAt: '$a',
+            extraProps: { canCompose: false },
+          })
+        );
+        await flushAsyncWork();
+      });
+
+      expect(
+        renderer!.root.findAll((node) => (node.type as unknown) === 'fork-divider')
+      ).toHaveLength(0);
+      expect(
+        renderer!.root.findAll(
+          (node) => node.type === 'div' && node.props['data-fork-draft-prefix'] === 'true'
+        )
+      ).toHaveLength(2);
     } finally {
       act(() => renderer?.unmount());
     }

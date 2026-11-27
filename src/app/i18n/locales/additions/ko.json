@@ -35,6 +35,16 @@
     "uploadBoard": {
       "fileCount_other": "파일 {{count}}개"
     },
+    "uploadCardRenderer": {
+      "compressing": "압축 중...",
+      "useOriginal": "원본 사용",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "압축 (.zip)",
+      "zipFailedTooLarge": ".zip으로 압축한 후에도 파일이 너무 큽니다.",
+      "zipFailedTooLargeWithMax": ".zip으로 압축한 후에도 파일이 너무 큽니다(최대 {{maxSize}}).",
+      "zipFailedNoSavings": ".zip으로 압축해도 이 파일 크기가 줄어들지 않았습니다.",
+      "zipFailedError": "이 파일을 .zip으로 압축할 수 없습니다."
+    },
     "passwordInput": {
       "show": "비밀번호 표시",
       "hide": "비밀번호 숨기기"
@@ -419,6 +429,8 @@
       "sidebar": {
         "title": "사이드바",
         "navigation": "탐색",
+        "direct": "사이드바에 다이렉트 메시지 표시",
+        "directDescription": "다이렉트 메시지를 전용 사이드바 탭에 표시합니다. 숨기면 홈 또는 홈의 ⋮ 메뉴에서 열 수 있습니다.",
         "threads": "사이드바에 스레드 표시",
         "threadsDescription": "모든 방의 스레드를 한 목록에서 봅니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
         "canvasesDescription": "에이전트가 만든 대화형 패널이 하나라도 있으면 버튼을 표시합니다. 숨기면 홈의 ⋮ 메뉴에서 열 수 있습니다.",
@@ -515,7 +527,9 @@
         "midTurn": "방향 전환, 대기열, 자동, 에이전트, 답변, 중단",
         "usage": "토큰, 비용, 가격, 모델, 도구 호출, 하위 에이전트, 백그라운드 작업",
         "plugins": "플러그인, 확장 기능, 애드온, 연동",
-        "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작"
+        "appUpdates": "업데이트, 버전, 업그레이드, 재시작, 다시 시작",
+        "mediaCompression": "스크린샷, 화면 녹화, 이미지, 동영상, 압축, 업로드 크기",
+        "autoZipLargeFiles": "zip, 아카이브, 압축, json, csv, 로그, 대용량 파일, 업로드 크기"
       },
       "errorReports": {
         "title": "오류 보고서 보내기",
@@ -537,13 +551,30 @@
         "updateReady": "버전 {{version}}을(를) 설치할 준비가 되었습니다.",
         "restartToUpdate": "다시 시작하여 업데이트",
         "updateInstallFailed": "업데이트를 설치하기 위해 다시 시작하지 못했습니다. 다시 시도하세요."
+      },
+      "mediaCompression": {
+        "title": "미디어 압축",
+        "description": "업로드하기 전에 첨부한 사진, 스크린샷, 동영상을 압축합니다. 어떤 첨부 파일이든 원본을 그대로 사용할 수 있습니다.",
+        "off": "끄기",
+        "balanced": "균형",
+        "small": "작게"
+      },
+      "autoZipLargeFiles": {
+        "title": "대용량 파일 압축 (.zip)",
+        "description": "업로드하기 전에 1 MB를 초과하는 압축 가능한 파일을 자동으로 .zip으로 압축합니다. 어떤 첨부 파일이든 원본을 그대로 사용할 수 있습니다."
       }
     },
     "createChat": {
       "failed": "채팅을 시작하지 못했습니다. 다시 시도하세요."
     },
     "homeNav": {
-      "options": "홈 옵션"
+      "options": "홈 옵션",
+      "addRooms": "방 추가",
+      "directMessages": "다이렉트 메시지",
+      "newDirectMessage": "새 다이렉트 메시지",
+      "showAllDirectMessages": "모두 보기 ({{count}})",
+      "agents": "에이전트",
+      "agentActive": "에이전트 활동 중"
     },
     "directNav": {
       "options": "다이렉트 메시지 옵션"
@@ -1070,6 +1101,13 @@
       "unavailable": {
         "description": "이 기기에서는 Mac 컴퓨터 접근을 사용할 수 없습니다."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "나",
+        "draft": "초안",
+        "groupMemberCount_other": "멤버 {{count}}명"
+      }
     }
   },
   "mindroomUi": {
@@ -1339,6 +1377,43 @@
       "stopReply": {
         "label": "응답 중지",
         "stopping": "중지하는 중…"
+      },
+      "runError": {
+        "cardLabel": "실행 오류",
+        "actions": {
+          "continue": "계속",
+          "retry": "다시 시도",
+          "compact": "압축"
+        },
+        "chips": {
+          "streamStalled": "스트림 중단",
+          "providerUnavailable": "사용 불가",
+          "rateLimited": "요청 제한",
+          "timeout": "시간 초과",
+          "contextWindow": "컨텍스트 한도",
+          "tokensPerMinute": "토큰 한도",
+          "safeguardRefusal": "거부됨",
+          "quotaExhausted": "할당량 초과",
+          "missingApiKey": "API 키 없음",
+          "authenticationFailed": "인증 실패",
+          "runtimeError": "오류"
+        },
+        "technicalDetails": "기술 세부 정보",
+        "details": {
+          "model": "모델",
+          "provider": "제공자",
+          "code": "코드",
+          "detail": "세부 정보",
+          "error": "오류"
+        },
+        "receipt": {
+          "continue": "재개됨",
+          "retry": "다시 시도됨",
+          "compact": "압축됨"
+        },
+        "sendFailed": "메시지를 보낼 수 없습니다. 다시 시도하세요.",
+        "restartSeam": "서비스 재시작됨 · 컨텍스트 유지됨",
+        "restartSeamRepeated": "서비스 재시작됨 ({{times}}×) · 컨텍스트 유지됨"
       }
     },
     "message-search": {
@@ -1475,7 +1550,9 @@
         "use": "{{tool}} 사용"
       },
       "jobTotal_other": "백그라운드 작업 {{count}}개",
-      "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨"
+      "jobTotalFinished_other": "백그라운드 작업 {{count}}개 완료됨",
+      "reviewApprovalFor": "승인 검토: {{tool}}",
+      "checkingApproval": "승인 확인 중…"
     },
     "workflowRun": {
       "title": "워크플로",
@@ -1498,6 +1575,8 @@
       "stopping": "중지 중…",
       "resume": "재개",
       "runAgain": "다시 실행",
+      "confirmRunAgain": "다시 실행 확인",
+      "cancel": "취소",
       "starting": "시작 중…",
       "failedCount_other": "{{count}}개 실패",
       "question": {
@@ -1522,6 +1601,16 @@
         "waitingForUpdate": "다음 업데이트를 기다리는 중…",
         "stale": "업데이트되지 않음. 마지막 업데이트 {{time}}.",
         "log": "로그",
+        "viewsLabel": "워크플로 보기",
+        "flow": "흐름",
+        "steps": "단계",
+        "selectStep": "단계를 선택하여 출력, 지표, 연결을 확인하세요.",
+        "noMessages": "단계 간 메시지가 아직 없습니다.",
+        "noLog": "로그 항목이 아직 없습니다.",
+        "omittedEdges_other": "메시지 경로 {{count}}개가 생략되었습니다.",
+        "omittedMessages_other": "메시지 {{count}}개가 생략되었습니다.",
+        "omittedLog_other": "로그 항목 {{count}}개가 생략되었습니다.",
+        "setupSteps_other": "준비 단계 {{count}}개",
         "showMore": "{{count}}개 더 보기",
         "omitted": {
           "queued_other": "대기열에 {{count}}개 더 있음",
@@ -1554,8 +1643,18 @@
         "error": "오류",
         "messages": "메시지",
         "messagesTo": "{{name}}에게 보낸 메시지: {{count}}",
+        "messagesFrom": "{{name}}에게서 받은 메시지: {{count}}",
+        "timeout": "시간 초과",
+        "routeTo": "{{from}}에서 {{to}}(으)로: {{count}}",
+        "messageRoute": "{{from}}에서 {{to}}(으)로",
+        "script": "스크립트",
+        "routeBetween": "{{from}} 및 {{to}}: {{count}}",
+        "duration": "소요 시간",
+        "tokens": "토큰",
+        "cost": "비용",
         "open": "열기",
         "detailsUnavailable": "새로고침 후에는 세부 정보를 볼 수 없습니다.",
+        "transcriptUnavailable": "새로고침 후에는 전체 기록을 볼 수 없습니다.",
         "stop": "에이전트 중지"
       }
     },
@@ -1696,7 +1795,60 @@
       "unattributed": "미분류",
       "allUsageAndLimits": "전체 사용량 및 한도 →",
       "noAccounts": "보고된 공급자 계정이 아직 없습니다.",
-      "noDailyData": "최근 7일간 기록된 일별 사용량이 없습니다."
+      "noDailyData": "최근 7일간 기록된 일별 사용량이 없습니다.",
+      "kpiSpend7d": "7일 예상 비용",
+      "kpiTokens7d": "7일 토큰",
+      "perDayAvg": "일평균 ~{{value}}",
+      "peakAndAvg": "최고 {{day}} · {{tokens}} · ~{{avg}}/일",
+      "trendVsPrior3d": "이전 3일 대비 {{delta}}",
+      "tokenMixTitle": "토큰 및 캐시 구성 (7일)",
+      "savedViaCache": "캐시로 약 {{cost}} 절감",
+      "cacheRead": "캐시 읽기",
+      "cacheWrite": "캐시 쓰기",
+      "inputTokens": "입력",
+      "outputTokens": "출력",
+      "inputShort": "입력",
+      "outputShort": "출력",
+      "tokenMixAria": "캐시 읽기 {{cacheRead}}, 캐시 쓰기 {{cacheWrite}}, 입력 {{input}}, 출력 {{output}}",
+      "subscriptionQuotas": "구독 한도",
+      "paceLegend": "눈금 = 균등 사용 목표",
+      "paceAhead": "+{{delta}}% 여유",
+      "paceFastBurn": "-{{delta}}% 빠른 소진",
+      "paceOnPace": "적정 속도",
+      "dailySpendTitle": "일별 예상 비용",
+      "dailyTokensTitle": "일별 토큰",
+      "dailySubtitleCost": "막대를 눌러 정확한 토큰과 비용 확인",
+      "dailySubtitleTokens": "막대를 눌러 정확한 토큰 확인",
+      "chartMetricLabel": "차트 지표",
+      "metricSpend": "비용 ($)",
+      "metricTokens": "토큰",
+      "hideDominant": "최대 항목 숨기기",
+      "resetFilter": "필터 초기화",
+      "hideDominantTooltip": "작은 계정을 보려면 {{account}} 숨기기",
+      "resetFilterTooltip": "{{account}} 포함 모든 계정 표시",
+      "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} 토큰",
+      "vs7dAvg": "7일 평균 대비 {{delta}}",
+      "tokensShortUnit": "{{tokens}} 토큰",
+      "noDayActivity": "이 날짜에는 기록된 사용량이 없습니다.",
+      "whereUsageGoes": "사용처 분석",
+      "whereUsageGoesSub": "행을 눌러 토큰 구성 및 7일 추세 확인",
+      "tabModels": "모델",
+      "tabAgents": "에이전트",
+      "tabAccounts": "계정",
+      "shareOfSpend": "7일 비용 비중: {{share}}",
+      "shareOfTokens": "7일 토큰 비중: {{share}}",
+      "trend7d": "7일 추세",
+      "runCount_other": "{{count}}회 실행",
+      "idleAccountsLabel_other": "유휴 계정 {{count}}개 (7일간 0 토큰)",
+      "show": "보기",
+      "hide": "숨기기",
+      "zeroTokens": "0 토큰"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "사이드바에 표시",
+        "sidebarSettings": "사이드바 설정…"
+      }
     }
   },
   "composer": {
@@ -1731,6 +1883,7 @@
     "newThreadWith": "{{name}}에게 새 스레드…",
     "dictation": {
       "label": "받아쓰기",
+      "temporarilyUnavailable": "받아쓰기를 사용할 수 없음 — 다시 연결하는 중",
       "cancel": "받아쓰기 취소",
       "pause": "받아쓰기 일시정지",
       "resume": "받아쓰기 재개",
@@ -1738,6 +1891,8 @@
       "finishAndSend": "완료하고 전송",
       "retry": "다시 시도",
       "retryAndSend": "다시 시도하고 전송",
+      "sendAsVoice": "음성으로 전송",
+      "attachAsVoice": "음성으로 첨부",
       "insertPartial": "일부 텍스트 삽입",
       "discard": "폐기",
       "dismissError": "받아쓰기 오류 닫기",
@@ -1750,6 +1905,7 @@
       "noSpeech": "음성이 감지되지 않았습니다.",
       "noSpeechOffThread": "{{room}}에서 음성이 감지되지 않았습니다.",
       "sendFailedOffThread": "{{room}}의 받아쓰기 메시지를 완료할 수 없습니다. 열어서 다시 시도하세요.",
+      "sendFailedOffTarget": "{{room}}의 받아쓰기 메시지를 완료할 수 없습니다. 다시 시도하려면 {{room}}을(를) 다시 선택하세요.",
       "statusPendingRetry_other": "{{count}}개 구간 재시도 대기 중",
       "capReached": "5:00 제한에 도달했습니다",
       "micInterrupted": "마이크 연결이 끊어졌습니다. 재개하거나 완료하세요.",
@@ -1908,19 +2064,24 @@
     "openInOriginalThread": "원래 스레드에서 열기",
     "forkFromHere": "여기서 분기",
     "forkThread": "스레드 분기",
-    "forking": "{{title}} 분기 중",
-    "continueInNewThread": "새 스레드에서 계속",
+    "forking": "초안 · 아래에 메시지를 보내 이 분기를 시작하세요",
+    "continueInNewThread": "첫 메시지를 보내 분기 만들기…",
     "forkCount_other": "분기 {{count}}개",
     "forkedFromInRoom": "{{room}}의 {{title}}에서 분기됨",
     "forkedFromAnotherRoom": "다른 방에서 분기됨",
-    "forkingIntoRoom": "{{title}}을(를) {{room}}(으)로 분기 중",
+    "forkingIntoRoom": "초안 · 아래에 메시지를 보내 {{room}}(으)로 분기하세요",
     "forkToRoom": "다른 방으로 분기…",
     "forkToRoomTitle": "다른 방으로 분기",
     "forkToRoomSearchPlaceholder": "방 검색…",
     "forkToRoomEmpty": "일치하는 방이 없습니다",
     "forkToRoomAgentWarning": "이 방의 에이전트는 {{room}}에 참여하고 있지 않아 원래 스레드를 볼 수 없습니다",
     "forkingFromRoom": "{{room}}에서 분기 중",
-    "forkDraftAgentWarning": "여기의 에이전트는 {{room}}에 참여하고 있지 않아 원래 스레드를 볼 수 없습니다"
+    "forkDraftAgentWarning": "여기의 에이전트는 {{room}}에 참여하고 있지 않아 원래 스레드를 볼 수 없습니다",
+    "draftBadge": "초안",
+    "forkingThread": "스레드 분기 중",
+    "forkDraftHint": "아직 생성되지 않았습니다. 아래에 메시지를 보내 이 분기 스레드를 시작하세요.",
+    "forkDraftHintInRoom": "아직 {{room}}에 없습니다. 아래에 메시지를 보내 이 스레드를 생성하세요.",
+    "continueInNewThreadInRoom": "첫 메시지를 보내 {{room}}에 분기 만들기…"
   },
   "activity": {
     "title": "활동",

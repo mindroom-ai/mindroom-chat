@@ -111,6 +111,7 @@ type StatusCacheEntry = {
   value?: boolean;
   expiresAt: number;
   transient?: boolean;
+  transientFailures?: number;
   pending?: Promise<boolean>;
 };
 
@@ -161,8 +162,25 @@ export const readCachedDictationRetryAt = (
 };
 
 /**
+ * Expires a cached transient status failure immediately and resets its backoff counter while
+ * preserving transient status and any in-flight probe.
+ */
+export const expireTransientDictationCache = (
+  sessions: ClientSessions,
+  roomId?: string
+): void => {
+  const map = statusCache.get(sessions);
+  if (!map) return;
+  const key = roomId ?? '';
+  const entry = map.get(key);
+  if (!entry?.transient) return;
+  map.set(key, { ...entry, expiresAt: 0, transientFailures: 0 });
+};
+
+/**
  * Probes `/api/dictation/v1/status` with a 5-minute TTL cache deduplicated across mounted
- * main and thread composers. `403`/`404` caches false silently.
+ * main and thread composers. `403`/`404` caches false silently; transient failures back off
+ * exponentially from 30 s up to 5 minutes.
  */
 export const probeDictationAvailability = (
   sessions: ClientSessions,
@@ -192,12 +210,30 @@ export const probeDictationAvailability = (
     (error: unknown) => {
       const permanent =
         error instanceof MindroomServerError && (error.status === 403 || error.status === 404);
-      const ttl = permanent ? DICTATION_STATUS_CACHE_TTL_MS : TRANSIENT_CACHE_TTL_MS;
-      map.set(key, { value: false, expiresAt: now() + ttl, transient: !permanent });
+      if (permanent) {
+        map.set(key, {
+          value: false,
+          expiresAt: now() + DICTATION_STATUS_CACHE_TTL_MS,
+          transient: false,
+        });
+        return false;
+      }
+      const transientFailures = (map.get(key)?.transientFailures ?? 0) + 1;
+      const ttl = Math.min(
+        TRANSIENT_CACHE_TTL_MS * 2 ** (transientFailures - 1),
+        DICTATION_STATUS_CACHE_TTL_MS
+      );
+      map.set(key, { value: false, expiresAt: now() + ttl, transient: true, transientFailures });
       return false;
     }
   );
 
-  map.set(key, { value: existing?.value, expiresAt: existing?.expiresAt ?? 0, pending });
+  map.set(key, {
+    value: existing?.value,
+    expiresAt: existing?.expiresAt ?? 0,
+    transient: existing?.transient,
+    transientFailures: existing?.transientFailures,
+    pending,
+  });
   return untilAborted(pending, signal);
 };

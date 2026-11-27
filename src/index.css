@@ -10,15 +10,15 @@
   --app-inset-top: env(safe-area-inset-top, 0px);
 }
 
-html[data-shell='desktop'] {
+html[data-shell='desktop'][data-custom-titlebar] {
   --app-inset-top: 28px;
 }
 
-html[data-shell='desktop'][data-fullscreen] {
+html[data-shell='desktop'][data-custom-titlebar][data-fullscreen] {
   --app-inset-top: 0px;
 }
 
-html[data-shell='desktop'] [data-titlebar-drag] {
+html[data-shell='desktop'][data-custom-titlebar] [data-titlebar-drag] {
   position: fixed;
   inset-block-start: 0;
   inset-inline: 0;
@@ -26,13 +26,13 @@ html[data-shell='desktop'] [data-titlebar-drag] {
   -webkit-app-region: drag;
 }
 
-html[data-shell='desktop'] #portalContainer {
+html[data-shell='desktop'][data-custom-titlebar] #portalContainer {
   position: relative;
   z-index: 1;
 }
 
-html[data-shell='desktop'] body > :not(#root),
-html[data-shell='desktop'] body > :not(#root) * {
+html[data-shell='desktop'][data-custom-titlebar] body > :not(#root),
+html[data-shell='desktop'][data-custom-titlebar] body > :not(#root) * {
   -webkit-app-region: no-drag;
 }
 
@@ -278,12 +278,16 @@ html [data-own-direction][data-own-direction='block'] {
 /* An agent's tool calls and compaction seams inside a message are the interface's, so they keep
    its direction when the message reads the other way. */
 html[dir='rtl'] [data-message-disclosure],
-html[dir='rtl'] [data-compaction-seam] {
+html[dir='rtl'] [data-compaction-seam],
+html[dir='rtl'] [data-restart-seam],
+html[dir='rtl'] [data-run-error-card] {
   direction: rtl;
 }
 
 html[dir='ltr'] [data-message-disclosure],
-html[dir='ltr'] [data-compaction-seam] {
+html[dir='ltr'] [data-compaction-seam],
+html[dir='ltr'] [data-restart-seam],
+html[dir='ltr'] [data-run-error-card] {
   direction: ltr;
 }
 

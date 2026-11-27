@@ -190,4 +190,32 @@ describe('shared surface appearance', () => {
       ).toBe(false);
     }
   );
+
+  it('keeps an inherited header inside a plain modal free of glass-flat overrides', () => {
+    act(() =>
+      root.render(
+        <Modal data-testid="plain-modal" appearance="plain">
+          <Header data-testid="inherited-header" appearance="inherit" />
+          <Header data-testid="default-header" />
+        </Modal>
+      )
+    );
+    const find = (testId: string) =>
+      container.querySelector<HTMLElement>(`[data-testid="${testId}"]`)!;
+    const modal = find('plain-modal');
+    const inherited = find('inherited-header');
+    const defaulted = find('default-header');
+
+    expect(modal.className).not.toContain('glass-surface');
+    expect(pointAt(modal)).toBe('');
+
+    expect(inherited.hasAttribute('data-glass-flat')).toBe(false);
+    expect(inherited.className).toContain('surface-inherit');
+    expect(inherited.className).not.toContain('glass-flat');
+    expect(inherited.className).not.toContain('glass-surface');
+    expect(pointAt(inherited)).toBe('');
+
+    expect(defaulted.getAttribute('data-glass-flat')).toBe('true');
+    expect(defaulted.className).toContain('glass-flat');
+  });
 });

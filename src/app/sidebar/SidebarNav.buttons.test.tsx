@@ -16,7 +16,8 @@ function tab(name: string) {
   return () => React.createElement('div', { 'data-tab': name });
 }
 
-vi.mock('folds', () => ({
+vi.mock('folds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('folds')>()),
   Scroll: ({ children, ref }: { children: React.ReactNode; ref?: React.Ref<HTMLDivElement> }) =>
     React.createElement('div', { ref }, children),
 }));
@@ -78,12 +79,16 @@ vi.mock('../account/switcher/UnverifiedTab', () => ({
 vi.mock('./rail/CreateTab', () => ({ CreateTab: tab('createSpace') }));
 vi.mock('./rail/LocalMindroomTab', () => ({ LocalMindroomTab: tab('localMindroom') }));
 vi.mock('../calls/CallTab', () => ({ CallTab: () => null }));
-vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({
+vi.mock('../matrix/hooks/useMatrixClient', () => {
+  const client = {
     getHomeserverUrl: () => 'https://mindroom.chat',
     getAccessToken: () => 'token',
-  }),
-}));
+  };
+  return {
+    useMatrixClient: () => client,
+    useOptionalMatrixClient: () => client,
+  };
+});
 vi.mock('../matrix/hooks/useAccountSettings', () => ({
   useAccountSettings: () => ({ ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS, ...state.settings }),
 }));
@@ -111,6 +116,7 @@ const renderedTabs = (config: ClientConfig = CANVASES, screenSize = ScreenSize.D
 };
 
 const SWITCHES: Array<[string, keyof AccountSettings]> = [
+  ['direct', 'showDirectInSidebar'],
   ['threads', 'showThreadsInSidebar'],
   ['canvases', 'showCanvasesInSidebar'],
   ['usage', 'showUsageInSidebar'],
@@ -181,7 +187,7 @@ describe('SidebarNav buttons a person can hide', () => {
     state.settings = { ...ALL_OFF, [setting]: true };
     const { tabs } = renderedTabs();
     expect(tabs).toContain(button);
-    expect(tabs).toHaveLength(7);
+    expect(tabs).toHaveLength(6);
   });
 
   it('keeps the rule above Explore and Create Space while one of them shows', () => {

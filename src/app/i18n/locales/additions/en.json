@@ -38,6 +38,16 @@
       "fileCount_one": "{{count}} File",
       "fileCount_other": "{{count}} Files"
     },
+    "uploadCardRenderer": {
+      "compressing": "Compressing...",
+      "useOriginal": "Use original",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "Compress (.zip)",
+      "zipFailedTooLarge": "Still too large after compressing to .zip.",
+      "zipFailedTooLargeWithMax": "Still too large after compressing to .zip (maximum is {{maxSize}}).",
+      "zipFailedNoSavings": "Compressing to .zip did not make this file smaller.",
+      "zipFailedError": "Couldn't compress this file to .zip."
+    },
     "passwordInput": {
       "show": "Show password",
       "hide": "Hide password"
@@ -432,6 +442,8 @@
       "sidebar": {
         "title": "Sidebar",
         "navigation": "Navigation",
+        "direct": "Show Direct Messages in the sidebar",
+        "directDescription": "Direct messages in their own rail tab. When hidden, open them from Home or the ⋮ menu in Home.",
         "threads": "Show Threads in the sidebar",
         "threadsDescription": "Threads from every room in one list. When hidden, open them from the ⋮ menu in Home.",
         "canvasesDescription": "Show a Canvases button for the pages your agents made, once you have one. When hidden, open them from the ⋮ menu in Home.",
@@ -528,7 +540,9 @@
         "midTurn": "steer, queue, auto, agent, reply, interrupt",
         "usage": "tokens, cost, price, model, tool calls, sub-agents, background jobs",
         "plugins": "plugins, extensions, add-ons, integrations",
-        "appUpdates": "update, updates, version, upgrade, restart"
+        "appUpdates": "update, updates, version, upgrade, restart",
+        "mediaCompression": "screenshots, screen recordings, images, videos, compression, upload size",
+        "autoZipLargeFiles": "zip, archive, compress, json, csv, log, large files, upload size"
       },
       "errorReports": {
         "title": "Send error reports",
@@ -550,13 +564,30 @@
         "updateReady": "Version {{version}} is ready to install.",
         "restartToUpdate": "Restart to update",
         "updateInstallFailed": "Couldn't restart to install the update. Try again."
+      },
+      "mediaCompression": {
+        "title": "Media compression",
+        "description": "Compress attached photos, screenshots, and videos before uploading. You can still use the original for any attachment.",
+        "off": "Off",
+        "balanced": "Balanced",
+        "small": "Small"
+      },
+      "autoZipLargeFiles": {
+        "title": "Compress large files (.zip)",
+        "description": "Automatically zip compressible files over 1 MB before uploading. You can still use the original for any attachment."
       }
     },
     "createChat": {
       "failed": "Could not start the chat. Try again."
     },
     "homeNav": {
-      "options": "Home Options"
+      "options": "Home Options",
+      "addRooms": "Add rooms",
+      "directMessages": "Direct messages",
+      "newDirectMessage": "New direct message",
+      "showAllDirectMessages": "Show all ({{count}})",
+      "agents": "Agents",
+      "agentActive": "Agent active"
     },
     "directNav": {
       "options": "Direct Messages Options"
@@ -1087,6 +1118,14 @@
       "unavailable": {
         "description": "Mac Computer Access is not available on this device."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "you",
+        "draft": "Draft",
+        "groupMemberCount_one": "{{count}} member",
+        "groupMemberCount_other": "{{count}} members"
+      }
     }
   },
   "mindroomUi": {
@@ -1374,6 +1413,43 @@
       "stopReply": {
         "label": "Stop reply",
         "stopping": "Stopping…"
+      },
+      "runError": {
+        "cardLabel": "Run error",
+        "actions": {
+          "continue": "Continue",
+          "retry": "Retry",
+          "compact": "Compact"
+        },
+        "chips": {
+          "streamStalled": "Stream stalled",
+          "providerUnavailable": "Unavailable",
+          "rateLimited": "Rate limit",
+          "timeout": "Timed out",
+          "contextWindow": "Context limit",
+          "tokensPerMinute": "Token limit",
+          "safeguardRefusal": "Refused",
+          "quotaExhausted": "Quota",
+          "missingApiKey": "API key",
+          "authenticationFailed": "Auth",
+          "runtimeError": "Error"
+        },
+        "technicalDetails": "Technical details",
+        "details": {
+          "model": "Model",
+          "provider": "Provider",
+          "code": "Code",
+          "detail": "Detail",
+          "error": "Error"
+        },
+        "receipt": {
+          "continue": "Resumed",
+          "retry": "Retried",
+          "compact": "Compacted"
+        },
+        "sendFailed": "Could not send message. Try again.",
+        "restartSeam": "Service restarted · context preserved",
+        "restartSeamRepeated": "Service restarted ({{times}}×) · context preserved"
       }
     },
     "message-search": {
@@ -1521,7 +1597,9 @@
       "jobTotal_one": "{{count}} background job",
       "jobTotal_other": "{{count}} background jobs",
       "jobTotalFinished_one": "{{count}} background job finished",
-      "jobTotalFinished_other": "{{count}} background jobs finished"
+      "jobTotalFinished_other": "{{count}} background jobs finished",
+      "reviewApprovalFor": "Review approval: {{tool}}",
+      "checkingApproval": "Checking approval…"
     },
     "workflowRun": {
       "title": "Workflow",
@@ -1544,6 +1622,8 @@
       "stopping": "Stopping…",
       "resume": "Resume",
       "runAgain": "Run again",
+      "confirmRunAgain": "Confirm run again",
+      "cancel": "Cancel",
       "starting": "Starting…",
       "failedCount_one": "{{count}} failed",
       "failedCount_other": "{{count}} failed",
@@ -1569,6 +1649,20 @@
         "waitingForUpdate": "Waiting for the run's next update…",
         "stale": "Not updating. Last update {{time}}.",
         "log": "Log",
+        "viewsLabel": "Workflow views",
+        "flow": "Flow",
+        "steps": "Steps",
+        "selectStep": "Select a step to inspect its output, metrics, and links.",
+        "noMessages": "No messages between steps yet.",
+        "noLog": "No log entries yet.",
+        "omittedEdges_one": "{{count}} message route omitted.",
+        "omittedEdges_other": "{{count}} message routes omitted.",
+        "omittedMessages_one": "{{count}} message omitted.",
+        "omittedMessages_other": "{{count}} messages omitted.",
+        "omittedLog_one": "{{count}} log entry omitted.",
+        "omittedLog_other": "{{count}} log entries omitted.",
+        "setupSteps_one": "{{count}} setup step",
+        "setupSteps_other": "{{count}} setup steps",
         "showMore": "Show {{count}} more",
         "omitted": {
           "queued_one": "and {{count}} more queued",
@@ -1607,8 +1701,18 @@
         "error": "Error",
         "messages": "Messages",
         "messagesTo": "Messages to {{name}}: {{count}}",
+        "messagesFrom": "Messages from {{name}}: {{count}}",
+        "timeout": "Timeout",
+        "routeTo": "{{from}} to {{to}}: {{count}}",
+        "messageRoute": "{{from}} to {{to}}",
+        "script": "script",
+        "routeBetween": "{{from}} and {{to}}: {{count}}",
+        "duration": "Duration",
+        "tokens": "Tokens",
+        "cost": "Cost",
         "open": "Open",
         "detailsUnavailable": "Details are no longer available after reload.",
+        "transcriptUnavailable": "Full transcript is no longer available after reload.",
         "stop": "Stop agent"
       }
     },
@@ -1754,7 +1858,62 @@
       "unattributed": "Unattributed",
       "allUsageAndLimits": "All usage & limits →",
       "noAccounts": "No provider accounts reported yet.",
-      "noDailyData": "No daily usage recorded in the last 7 days."
+      "noDailyData": "No daily usage recorded in the last 7 days.",
+      "kpiSpend7d": "7-day est. spend",
+      "kpiTokens7d": "7-day tokens",
+      "perDayAvg": "~{{value}}/day avg",
+      "peakAndAvg": "Peak {{day}} · {{tokens}} · ~{{avg}}/d",
+      "trendVsPrior3d": "{{delta}} vs prior 3 days",
+      "tokenMixTitle": "Token & cache mix (7d)",
+      "savedViaCache": "Saved ~{{cost}} via cache",
+      "cacheRead": "Cache read",
+      "cacheWrite": "Cache write",
+      "inputTokens": "Input",
+      "outputTokens": "Output",
+      "inputShort": "In",
+      "outputShort": "Out",
+      "tokenMixAria": "Cache read {{cacheRead}}, cache write {{cacheWrite}}, input {{input}}, output {{output}}",
+      "subscriptionQuotas": "Subscription quotas",
+      "paceLegend": "Tick = even-pace target",
+      "paceAhead": "+{{delta}}% ahead",
+      "paceFastBurn": "-{{delta}}% fast burn",
+      "paceOnPace": "On pace",
+      "dailySpendTitle": "Daily estimated spend",
+      "dailyTokensTitle": "Daily tokens",
+      "dailySubtitleCost": "Tap any bar for exact tokens & price",
+      "dailySubtitleTokens": "Tap any bar for exact tokens",
+      "chartMetricLabel": "Chart metric",
+      "metricSpend": "Spend ($)",
+      "metricTokens": "Tokens",
+      "hideDominant": "Hide dominant",
+      "resetFilter": "Reset filter",
+      "hideDominantTooltip": "Hide {{account}} to inspect smaller accounts",
+      "resetFilterTooltip": "Show all accounts including {{account}}",
+      "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} tokens",
+      "vs7dAvg": "{{delta}} vs 7d avg",
+      "tokensShortUnit": "{{tokens}} tok",
+      "noDayActivity": "No usage recorded on this day.",
+      "whereUsageGoes": "Where usage goes",
+      "whereUsageGoesSub": "Tap a row for token split & 7d trend",
+      "tabModels": "Models",
+      "tabAgents": "Agents",
+      "tabAccounts": "Accounts",
+      "shareOfSpend": "Share of 7d spend: {{share}}",
+      "shareOfTokens": "Share of 7d tokens: {{share}}",
+      "trend7d": "7d trend",
+      "runCount_one": "{{count}} run",
+      "runCount_other": "{{count}} runs",
+      "idleAccountsLabel_one": "{{count}} idle account (0 tokens in 7d)",
+      "idleAccountsLabel_other": "{{count}} idle accounts (0 tokens in 7d)",
+      "show": "Show",
+      "hide": "Hide",
+      "zeroTokens": "0 tokens"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Show in sidebar",
+        "sidebarSettings": "Sidebar settings…"
+      }
     }
   },
   "composer": {
@@ -1789,6 +1948,7 @@
     "newThreadWith": "New thread with {{name}}…",
     "dictation": {
       "label": "Dictate",
+      "temporarilyUnavailable": "Dictation unavailable — reconnecting",
       "cancel": "Cancel dictation",
       "pause": "Pause dictation",
       "resume": "Resume dictation",
@@ -1796,6 +1956,8 @@
       "finishAndSend": "Finish and send",
       "retry": "Retry",
       "retryAndSend": "Retry and send",
+      "sendAsVoice": "Send as voice",
+      "attachAsVoice": "Attach as voice",
       "insertPartial": "Insert partial",
       "discard": "Discard",
       "dismissError": "Dismiss dictation error",
@@ -1808,6 +1970,7 @@
       "noSpeech": "No speech detected.",
       "noSpeechOffThread": "No speech detected in {{room}}.",
       "sendFailedOffThread": "Could not finish dictated message in {{room}}. Open it to retry.",
+      "sendFailedOffTarget": "Could not finish dictated message in {{room}}. Choose {{room}} again to retry.",
       "statusPendingRetry_one": "{{count}} segment pending retry",
       "statusPendingRetry_other": "{{count}} segments pending retry",
       "capReached": "5:00 limit reached",
@@ -1968,20 +2131,25 @@
     "openInOriginalThread": "Open in original thread",
     "forkFromHere": "Fork from here",
     "forkThread": "Fork thread",
-    "forking": "Forking {{title}}",
-    "continueInNewThread": "Continue in a new thread",
+    "forking": "Draft · send a message below to start this fork",
+    "continueInNewThread": "Send first message to create fork…",
     "forkCount_one": "{{count}} fork",
     "forkCount_other": "{{count}} forks",
     "forkedFromInRoom": "Forked from {{title}} in {{room}}",
     "forkedFromAnotherRoom": "Forked from another room",
-    "forkingIntoRoom": "Forking {{title}} into {{room}}",
+    "forkingIntoRoom": "Draft · send a message below to fork into {{room}}",
     "forkToRoom": "Fork to room…",
     "forkToRoomTitle": "Fork to room",
     "forkToRoomSearchPlaceholder": "Search rooms…",
     "forkToRoomEmpty": "No matching rooms",
     "forkToRoomAgentWarning": "Agents in this room are not in {{room}} and won't see the original thread",
     "forkingFromRoom": "Forking from {{room}}",
-    "forkDraftAgentWarning": "Agents here are not in {{room}} and won't see the original thread"
+    "forkDraftAgentWarning": "Agents here are not in {{room}} and won't see the original thread",
+    "draftBadge": "Draft",
+    "forkingThread": "Forking thread",
+    "forkDraftHint": "Not created yet. Send a message below to start this forked thread.",
+    "forkDraftHintInRoom": "Not in {{room}} yet. Send a message below to create this thread.",
+    "continueInNewThreadInRoom": "Send first message to create fork in {{room}}…"
   },
   "activity": {
     "title": "Activity",

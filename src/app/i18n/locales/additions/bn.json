@@ -38,6 +38,16 @@
       "fileCount_one": "{{count}}টি ফাইল",
       "fileCount_other": "{{count}}টি ফাইল"
     },
+    "uploadCardRenderer": {
+      "compressing": "সংকুচিত হচ্ছে...",
+      "useOriginal": "মূল ফাইল ব্যবহার করুন",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "কম্প্রেস করুন (.zip)",
+      "zipFailedTooLarge": ".zip-এ কম্প্রেস করার পরেও ফাইলটি অনেক বড়।",
+      "zipFailedTooLargeWithMax": ".zip-এ কম্প্রেস করার পরেও ফাইলটি অনেক বড় (সর্বোচ্চ {{maxSize}})।",
+      "zipFailedNoSavings": ".zip-এ কম্প্রেস করলে এই ফাইলটি ছোট হয়নি।",
+      "zipFailedError": "এই ফাইলটি .zip-এ কম্প্রেস করা যায়নি।"
+    },
     "passwordInput": {
       "show": "পাসওয়ার্ড দেখান",
       "hide": "পাসওয়ার্ড লুকান"
@@ -432,6 +442,8 @@
       "sidebar": {
         "title": "সাইডবার",
         "navigation": "নেভিগেশন",
+        "direct": "সাইডবারে সরাসরি বার্তা দেখান",
+        "directDescription": "সাইডবারে নিজস্ব ট্যাবে সরাসরি বার্তা। লুকানো থাকলে হোম থেকে বা হোমের ⋮ মেনু থেকে খুলুন।",
         "threads": "সাইডবারে থ্রেড দেখান",
         "threadsDescription": "সব রুমের থ্রেড এক তালিকায়। লুকানো থাকলে হোমের ⋮ মেনু থেকে খুলুন।",
         "canvasesDescription": "আপনার এজেন্টদের বানানো ইন্টারঅ্যাকটিভ প্যানেলের জন্য একটি বোতাম দেখান, অন্তত একটি থাকলে। লুকানো থাকলে হোমের ⋮ মেনু থেকে খুলুন।",
@@ -528,7 +540,9 @@
         "midTurn": "দিক বদলান, সারি, স্বয়ংক্রিয়, এজেন্ট, উত্তর, থামান",
         "usage": "টোকেন, খরচ, দাম, মডেল, টুল কল, সাব-এজেন্ট, ব্যাকগ্রাউন্ড কাজ",
         "plugins": "প্লাগইন, এক্সটেনশন, অ্যাড-অন, ইন্টিগ্রেশন",
-        "appUpdates": "আপডেট, সংস্করণ, আপগ্রেড, রিস্টার্ট, পুনরায় চালু"
+        "appUpdates": "আপডেট, সংস্করণ, আপগ্রেড, রিস্টার্ট, পুনরায় চালু",
+        "mediaCompression": "স্ক্রিনশট, স্ক্রিন রেকর্ডিং, ছবি, ভিডিও, কম্প্রেশন, আপলোডের আকার",
+        "autoZipLargeFiles": "zip, আর্কাইভ, কম্প্রেস, json, csv, লগ, বড় ফাইল, আপলোডের আকার"
       },
       "errorReports": {
         "title": "ত্রুটির রিপোর্ট পাঠান",
@@ -550,13 +564,30 @@
         "updateReady": "সংস্করণ {{version}} ইনস্টল করার জন্য প্রস্তুত।",
         "restartToUpdate": "আপডেট করতে পুনরায় চালু করুন",
         "updateInstallFailed": "আপডেট ইনস্টল করতে পুনরায় চালু করা যায়নি। আবার চেষ্টা করুন।"
+      },
+      "mediaCompression": {
+        "title": "মিডিয়া কম্প্রেশন",
+        "description": "আপলোড করার আগে সংযুক্ত ছবি, স্ক্রিনশট এবং ভিডিও কম্প্রেস করুন। যেকোনো সংযুক্তির জন্য আপনি এখনো আসল ফাইল ব্যবহার করতে পারবেন।",
+        "off": "বন্ধ",
+        "balanced": "ভারসাম্যপূর্ণ",
+        "small": "ছোট"
+      },
+      "autoZipLargeFiles": {
+        "title": "বড় ফাইল কম্প্রেস করুন (.zip)",
+        "description": "আপলোড করার আগে 1 MB-এর বেশি কম্প্রেসযোগ্য ফাইল স্বয়ংক্রিয়ভাবে .zip করুন। যেকোনো সংযুক্তির জন্য আপনি এখনো আসল ফাইল ব্যবহার করতে পারবেন।"
       }
     },
     "createChat": {
       "failed": "চ্যাট শুরু করা যায়নি। আবার চেষ্টা করুন।"
     },
     "homeNav": {
-      "options": "হোম বিকল্প"
+      "options": "হোম বিকল্প",
+      "addRooms": "রুম যোগ করুন",
+      "directMessages": "সরাসরি বার্তা",
+      "newDirectMessage": "নতুন সরাসরি বার্তা",
+      "showAllDirectMessages": "সব দেখান ({{count}})",
+      "agents": "এজেন্ট",
+      "agentActive": "এজেন্ট সক্রিয়"
     },
     "directNav": {
       "options": "সরাসরি বার্তার বিকল্প"
@@ -1087,6 +1118,14 @@
       "unavailable": {
         "description": "এই ডিভাইসে Mac কম্পিউটার অ্যাক্সেস উপলব্ধ নয়।"
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "আপনি",
+        "draft": "খসড়া",
+        "groupMemberCount_one": "{{count}} জন সদস্য",
+        "groupMemberCount_other": "{{count}} জন সদস্য"
+      }
     }
   },
   "mindroomUi": {
@@ -1374,6 +1413,43 @@
       "stopReply": {
         "label": "উত্তর থামান",
         "stopping": "থামানো হচ্ছে…"
+      },
+      "runError": {
+        "cardLabel": "রান ত্রুটি",
+        "actions": {
+          "continue": "চালিয়ে যান",
+          "retry": "আবার চেষ্টা করুন",
+          "compact": "সংক্ষিপ্ত করুন"
+        },
+        "chips": {
+          "streamStalled": "স্ট্রিম থেমে গেছে",
+          "providerUnavailable": "উপলব্ধ নয়",
+          "rateLimited": "রেট সীমা",
+          "timeout": "সময় শেষ",
+          "contextWindow": "প্রসঙ্গ সীমা",
+          "tokensPerMinute": "টোকেন সীমা",
+          "safeguardRefusal": "প্রত্যাখ্যাত",
+          "quotaExhausted": "কোটা শেষ",
+          "missingApiKey": "API কী",
+          "authenticationFailed": "প্রমাণীকরণ",
+          "runtimeError": "ত্রুটি"
+        },
+        "technicalDetails": "প্রযুক্তিগত বিবরণ",
+        "details": {
+          "model": "মডেল",
+          "provider": "প্রোভাইডার",
+          "code": "কোড",
+          "detail": "বিবরণ",
+          "error": "ত্রুটি"
+        },
+        "receipt": {
+          "continue": "পুনরায় শুরু হয়েছে",
+          "retry": "আবার চেষ্টা করা হয়েছে",
+          "compact": "সংক্ষিপ্ত করা হয়েছে"
+        },
+        "sendFailed": "বার্তা পাঠানো যায়নি। আবার চেষ্টা করুন।",
+        "restartSeam": "পরিষেবা পুনরায় চালু হয়েছে · প্রসঙ্গ সংরক্ষিত",
+        "restartSeamRepeated": "পরিষেবা পুনরায় চালু হয়েছে ({{times}}×) · প্রসঙ্গ সংরক্ষিত"
       }
     },
     "message-search": {
@@ -1521,7 +1597,9 @@
       "jobTotal_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotal_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ",
       "jobTotalFinished_one": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
-      "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে"
+      "jobTotalFinished_other": "{{count}}টি ব্যাকগ্রাউন্ড কাজ শেষ হয়েছে",
+      "reviewApprovalFor": "অনুমোদন পর্যালোচনা করুন: {{tool}}",
+      "checkingApproval": "অনুমোদন পরীক্ষা করা হচ্ছে…"
     },
     "workflowRun": {
       "title": "ওয়ার্কফ্লো",
@@ -1544,6 +1622,8 @@
       "stopping": "থামানো হচ্ছে…",
       "resume": "পুনরায় চালু করুন",
       "runAgain": "আবার চালান",
+      "confirmRunAgain": "আবার চালানো নিশ্চিত করুন",
+      "cancel": "বাতিল",
       "starting": "শুরু হচ্ছে…",
       "failedCount_one": "{{count}}টি ব্যর্থ",
       "failedCount_other": "{{count}}টি ব্যর্থ",
@@ -1569,6 +1649,20 @@
         "waitingForUpdate": "রানের পরবর্তী আপডেটের অপেক্ষায়…",
         "stale": "আপডেট হচ্ছে না। শেষ আপডেট {{time}}।",
         "log": "লগ",
+        "viewsLabel": "ওয়ার্কফ্লো ভিউ",
+        "flow": "প্রবাহ",
+        "steps": "ধাপ",
+        "selectStep": "আউটপুট, মেট্রিক্স এবং লিংক দেখতে একটি ধাপ নির্বাচন করুন।",
+        "noMessages": "ধাপগুলোর মধ্যে এখনো কোনো বার্তা নেই।",
+        "noLog": "এখনো কোনো লগ এন্ট্রি নেই।",
+        "omittedEdges_one": "{{count}}টি বার্তার রুট বাদ দেওয়া হয়েছে।",
+        "omittedEdges_other": "{{count}}টি বার্তার রুট বাদ দেওয়া হয়েছে।",
+        "omittedMessages_one": "{{count}}টি বার্তা বাদ দেওয়া হয়েছে।",
+        "omittedMessages_other": "{{count}}টি বার্তা বাদ দেওয়া হয়েছে।",
+        "omittedLog_one": "{{count}}টি লগ এন্ট্রি বাদ দেওয়া হয়েছে।",
+        "omittedLog_other": "{{count}}টি লগ এন্ট্রি বাদ দেওয়া হয়েছে।",
+        "setupSteps_one": "{{count}}টি সেটআপ ধাপ",
+        "setupSteps_other": "{{count}}টি সেটআপ ধাপ",
         "showMore": "আরও {{count}}টি দেখান",
         "omitted": {
           "queued_one": "এবং আরও {{count}}টি সারিতে",
@@ -1607,8 +1701,18 @@
         "error": "ত্রুটি",
         "messages": "বার্তা",
         "messagesTo": "{{name}}-এর কাছে বার্তা: {{count}}",
+        "messagesFrom": "{{name}} থেকে বার্তা: {{count}}",
+        "timeout": "সময় শেষ",
+        "routeTo": "{{from}} থেকে {{to}}: {{count}}",
+        "messageRoute": "{{from}} থেকে {{to}}",
+        "script": "স্ক্রিপ্ট",
+        "routeBetween": "{{from}} এবং {{to}}: {{count}}",
+        "duration": "সময়কাল",
+        "tokens": "টোকেন",
+        "cost": "খরচ",
         "open": "খুলুন",
         "detailsUnavailable": "রিলোডের পরে বিস্তারিত আর উপলব্ধ নেই।",
+        "transcriptUnavailable": "রিলোডের পরে সম্পূর্ণ ট্রান্সক্রিপ্ট আর উপলব্ধ নেই।",
         "stop": "এজেন্ট থামান"
       }
     },
@@ -1754,7 +1858,62 @@
       "unattributed": "অবিন্যস্ত",
       "allUsageAndLimits": "সব ব্যবহার ও সীমা →",
       "noAccounts": "এখনও কোনো প্রোভাইডার অ্যাকাউন্ট রিপোর্ট করা হয়নি।",
-      "noDailyData": "গত ৭ দিনে কোনো দৈনিক ব্যবহার রেকর্ড হয়নি।"
+      "noDailyData": "গত ৭ দিনে কোনো দৈনিক ব্যবহার রেকর্ড হয়নি।",
+      "kpiSpend7d": "৭-দিনের আনুমানিক ব্যয়",
+      "kpiTokens7d": "৭-দিনের টোকেন",
+      "perDayAvg": "~{{value}}/দিন গড়",
+      "peakAndAvg": "সর্বোচ্চ {{day}} · {{tokens}} · ~{{avg}}/দিন",
+      "trendVsPrior3d": "আগের ৩ দিনের তুলনায় {{delta}}",
+      "tokenMixTitle": "টোকেন ও ক্যাশে মিশ্রণ (৭ দিন)",
+      "savedViaCache": "ক্যাশে থেকে ~{{cost}} সাশ্রয়",
+      "cacheRead": "ক্যাশে পড়া",
+      "cacheWrite": "ক্যাশে লেখা",
+      "inputTokens": "ইনপুট",
+      "outputTokens": "আউটপুট",
+      "inputShort": "ইন",
+      "outputShort": "আউট",
+      "tokenMixAria": "ক্যাশে পড়া {{cacheRead}}, ক্যাশে লেখা {{cacheWrite}}, ইনপুট {{input}}, আউটপুট {{output}}",
+      "subscriptionQuotas": "সাবস্ক্রিপশন কোটা",
+      "paceLegend": "চিহ্ন = সম-গতির লক্ষ্য",
+      "paceAhead": "+{{delta}}% এগিয়ে",
+      "paceFastBurn": "-{{delta}}% দ্রুত খরচ",
+      "paceOnPace": "সঠিক গতিতে",
+      "dailySpendTitle": "দৈনিক আনুমানিক ব্যয়",
+      "dailyTokensTitle": "দৈনিক টোকেন",
+      "dailySubtitleCost": "সঠিক টোকেন ও মূল্যের জন্য যেকোনো বারে ট্যাপ করুন",
+      "dailySubtitleTokens": "সঠিক টোকেনের জন্য যেকোনো বারে ট্যাপ করুন",
+      "chartMetricLabel": "চার্ট মেট্রিক",
+      "metricSpend": "ব্যয় ($)",
+      "metricTokens": "টোকেন",
+      "hideDominant": "প্রধানটি লুকান",
+      "resetFilter": "ফিল্টার রিসেট",
+      "hideDominantTooltip": "ছোট অ্যাকাউন্ট দেখতে {{account}} লুকান",
+      "resetFilterTooltip": "{{account}}-সহ সব অ্যাকাউন্ট দেখান",
+      "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} টোকেন",
+      "vs7dAvg": "৭-দিনের গড়ের তুলনায় {{delta}}",
+      "tokensShortUnit": "{{tokens}} টোকেন",
+      "noDayActivity": "এই দিনে কোনো ব্যবহার নথিভুক্ত হয়নি।",
+      "whereUsageGoes": "ব্যবহার কোথায় যাচ্ছে",
+      "whereUsageGoesSub": "টোকেন বিভাজন ও ৭-দিনের প্রবণতা দেখতে সারিতে ট্যাপ করুন",
+      "tabModels": "মডেল",
+      "tabAgents": "এজেন্ট",
+      "tabAccounts": "অ্যাকাউন্ট",
+      "shareOfSpend": "৭-দিনের ব্যয়ের অংশ: {{share}}",
+      "shareOfTokens": "৭-দিনের টোকেনের অংশ: {{share}}",
+      "trend7d": "৭-দিনের প্রবণতা",
+      "runCount_one": "{{count}} রান",
+      "runCount_other": "{{count}} রান",
+      "idleAccountsLabel_one": "{{count}} নিষ্ক্রিয় অ্যাকাউন্ট (৭ দিনে ০ টোকেন)",
+      "idleAccountsLabel_other": "{{count}} নিষ্ক্রিয় অ্যাকাউন্ট (৭ দিনে ০ টোকেন)",
+      "show": "দেখান",
+      "hide": "লুকান",
+      "zeroTokens": "০ টোকেন"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "সাইডবারে দেখান",
+        "sidebarSettings": "সাইডবার সেটিংস…"
+      }
     }
   },
   "composer": {
@@ -1789,6 +1948,7 @@
     "newThreadWith": "{{name}}-এর সাথে নতুন থ্রেড…",
     "dictation": {
       "label": "ডিকটেট",
+      "temporarilyUnavailable": "ডিকটেশন উপলব্ধ নয় — আবার সংযোগ করা হচ্ছে",
       "cancel": "ডিকটেশন বাতিল করুন",
       "pause": "ডিকটেশন বিরতি দিন",
       "resume": "ডিকটেশন পুনরায় শুরু করুন",
@@ -1796,6 +1956,8 @@
       "finishAndSend": "শেষ করে পাঠান",
       "retry": "আবার চেষ্টা করুন",
       "retryAndSend": "আবার চেষ্টা করে পাঠান",
+      "sendAsVoice": "ভয়েস হিসেবে পাঠান",
+      "attachAsVoice": "ভয়েস হিসেবে সংযুক্ত করুন",
       "insertPartial": "আংশিক লেখা যোগ করুন",
       "discard": "বাতিল করুন",
       "dismissError": "ডিকটেশন ত্রুটি বন্ধ করুন",
@@ -1808,6 +1970,7 @@
       "noSpeech": "কোনো কথা শনাক্ত হয়নি।",
       "noSpeechOffThread": "{{room}}-এ কোনো কথা শনাক্ত হয়নি।",
       "sendFailedOffThread": "{{room}}-এ ডিকটেট করা বার্তা শেষ করা যায়নি। আবার চেষ্টা করতে এটি খুলুন।",
+      "sendFailedOffTarget": "{{room}}-এ ডিকটেট করা বার্তা শেষ করা যায়নি। আবার চেষ্টা করতে পুনরায় {{room}} বেছে নিন।",
       "statusPendingRetry_one": "{{count}}টি অংশ পুনরায় চেষ্টার অপেক্ষায়",
       "statusPendingRetry_other": "{{count}}টি অংশ পুনরায় চেষ্টার অপেক্ষায়",
       "capReached": "5:00 সীমা পূর্ণ হয়েছে",
@@ -1968,20 +2131,25 @@
     "openInOriginalThread": "মূল থ্রেডে খুলুন",
     "forkFromHere": "এখান থেকে শাখা তৈরি করুন",
     "forkThread": "থ্রেডের শাখা তৈরি করুন",
-    "forking": "{{title}} থেকে শাখা তৈরি হচ্ছে",
-    "continueInNewThread": "নতুন থ্রেডে চালিয়ে যান",
+    "forking": "খসড়া · এই শাখা শুরু করতে নিচে একটি বার্তা পাঠান",
+    "continueInNewThread": "শাখা তৈরি করতে প্রথম বার্তা পাঠান…",
     "forkCount_one": "{{count}}টি শাখা",
     "forkCount_other": "{{count}}টি শাখা",
     "forkedFromInRoom": "{{room}}-এ {{title}} থেকে শাখা তৈরি",
     "forkedFromAnotherRoom": "অন্য রুম থেকে শাখা তৈরি",
-    "forkingIntoRoom": "{{title}} থেকে {{room}}-এ শাখা তৈরি হচ্ছে",
+    "forkingIntoRoom": "খসড়া · {{room}}-এ শাখা তৈরি করতে নিচে একটি বার্তা পাঠান",
     "forkToRoom": "অন্য রুমে শাখা তৈরি করুন…",
     "forkToRoomTitle": "অন্য রুমে শাখা তৈরি করুন",
     "forkToRoomSearchPlaceholder": "রুম খুঁজুন…",
     "forkToRoomEmpty": "কোনো মিল থাকা রুম নেই",
     "forkToRoomAgentWarning": "এই রুমের এজেন্টরা {{room}}-এ নেই এবং মূল থ্রেডটি দেখতে পাবে না",
     "forkingFromRoom": "{{room}} থেকে শাখা তৈরি হচ্ছে",
-    "forkDraftAgentWarning": "এখানকার এজেন্টরা {{room}}-এ নেই এবং মূল থ্রেডটি দেখতে পাবে না"
+    "forkDraftAgentWarning": "এখানকার এজেন্টরা {{room}}-এ নেই এবং মূল থ্রেডটি দেখতে পাবে না",
+    "draftBadge": "খসড়া",
+    "forkingThread": "থ্রেডের শাখা তৈরি হচ্ছে",
+    "forkDraftHint": "এখনও তৈরি হয়নি। এই শাখা থ্রেডটি শুরু করতে নিচে একটি বার্তা পাঠান।",
+    "forkDraftHintInRoom": "এখনও {{room}}-এ নেই। এই থ্রেডটি তৈরি করতে নিচে একটি বার্তা পাঠান।",
+    "continueInNewThreadInRoom": "{{room}}-এ শাখা তৈরি করতে প্রথম বার্তা পাঠান…"
   },
   "activity": {
     "title": "কার্যকলাপ",

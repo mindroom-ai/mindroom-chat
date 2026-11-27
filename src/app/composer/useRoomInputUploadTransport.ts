@@ -10,7 +10,7 @@ import {
   type StagedList,
   roomUploadAtomFamily,
 } from './roomInputDrafts';
-import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
+import { isUploadItemReady, type TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError, uploadContent } from '../matrix/matrix';
 import { getRoomInputVoiceUploadRelation } from './RoomInputExtensions';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
@@ -52,7 +52,19 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
   /** Uploads `item.file`, or reuses a finished upload of it; resolves with its `mxc://` URI. */
   const uploadItem = useCallback(
     async (item: TUploadItem): Promise<string> => {
-      if (item.prepError) throw item.prepError;
+      if (!isUploadItemReady(item)) {
+        throw (
+          item.prepError ??
+          toMatrixUploadError(
+            new Error(
+              item.compression?.status === 'zipFailed'
+                ? 'The file is too large to upload.'
+                : 'The file is still compressing.'
+            ),
+            'create'
+          )
+        );
+      }
       const uploadAtom = roomUploadAtomFamily(item.file);
       const current = store.get(uploadAtom);
       if (current.status === UploadStatus.Success) return current.mxc;

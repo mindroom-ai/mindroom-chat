@@ -4,7 +4,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { HomeTab } from './HomeTab';
 import { ScreenSize } from '../../lib/hooks/useScreenSize';
 
-const state = vi.hoisted(() => ({ selected: false, mobile: false }));
+const state = vi.hoisted(() => ({
+  selected: false,
+  atRoot: false,
+  mobile: false,
+  directShown: true,
+  homeRooms: [] as string[],
+  directRooms: [] as string[],
+  roomsUnreadCalls: [] as string[][],
+}));
 vi.mock('../../lib/hooks/useScreenSize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../lib/hooks/useScreenSize')>()),
   useScreenSizeContext: () => (state.mobile ? ScreenSize.Mobile : ScreenSize.Desktop),
@@ -113,7 +121,18 @@ vi.mock('../../matrix/state/roomToUnread', () => ({
 }));
 
 vi.mock('../../matrix/state/useUnread', () => ({
-  useRoomsUnread: () => undefined,
+  useRoomsUnread: (rooms: string[]) => {
+    state.roomsUnreadCalls.push(rooms);
+    return undefined;
+  },
+}));
+
+vi.mock('../../settings/railButtons', () => ({
+  useRailButtons: () => ({ direct: state.directShown }),
+}));
+
+vi.mock('../direct/useDirectRooms', () => ({
+  useDirectRoomIds: () => state.directRooms,
 }));
 
 vi.mock('../../ui/sidebar/SidebarItem', () => ({
@@ -138,6 +157,7 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
 
 vi.mock('../../routes/useHomeSelected', () => ({
   useHomeSelected: () => state.selected,
+  useHomeIndexSelected: () => state.atRoot,
 }));
 
 vi.mock('../../ui/UnreadBadge', () => ({
@@ -149,7 +169,7 @@ vi.mock('../../routes/useNavToActivePath', () => ({
 }));
 
 vi.mock('../../matrix/state/useHomeRooms', () => ({
-  useHomeRooms: () => [],
+  useHomeRooms: () => state.homeRooms,
 }));
 
 vi.mock('../../notifications/readReceipts', () => ({
@@ -172,7 +192,12 @@ describe('HomeTab', () => {
   afterEach(() => {
     navigate.mockReset();
     state.selected = false;
+    state.atRoot = false;
     state.mobile = false;
+    state.directShown = true;
+    state.homeRooms = [];
+    state.directRooms = [];
+    state.roomsUnreadCalls = [];
   });
 
   it('restores the saved home path when the home tab is clicked', async () => {
@@ -198,19 +223,65 @@ describe('HomeTab', () => {
     act(() => renderer.unmount());
   });
 
-  it.each([false, true])(
-    'shows the home list on mobile unless already selected: %s',
-    async (selected) => {
+  it.each([
+    { atRoot: false, handled: false, allowCollapse: false, expectedPath: '/home/' },
+    { atRoot: false, handled: true, allowCollapse: false, expectedPath: undefined },
+    { atRoot: true, handled: true, allowCollapse: true, expectedPath: undefined },
+  ])(
+    'handles desktop click when selected (atRoot=$atRoot, handled=$handled)',
+    async ({ atRoot, handled, allowCollapse, expectedPath }) => {
+      state.selected = true;
+      state.atRoot = atRoot;
+      const onSelect = vi.fn(() => handled);
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(React.createElement(HomeTab, { onSelect }));
+      });
+      await act(() => renderer.root.findByType('button').props.onClick());
+      expect(onSelect).toHaveBeenCalledWith(true, allowCollapse);
+      if (expectedPath) {
+        expect(navigate).toHaveBeenCalledWith(expectedPath);
+      } else {
+        expect(navigate).not.toHaveBeenCalled();
+      }
+      act(() => renderer.unmount());
+    }
+  );
+
+  it.each([
+    { selected: false, atRoot: false, expected: '/home/' },
+    { selected: true, atRoot: true, expected: '/home/%23room%3Amindroom.chat?threadId=%24thread' },
+    { selected: true, atRoot: false, expected: '/home/' },
+  ])(
+    'navigates on mobile (selected=$selected, atRoot=$atRoot) to $expected',
+    async ({ selected, atRoot, expected }) => {
       state.mobile = true;
       state.selected = selected;
+      state.atRoot = atRoot;
       let renderer!: ReturnType<typeof create>;
       act(() => {
         renderer = create(React.createElement(HomeTab));
       });
       await act(() => renderer.root.findByType('button').props.onClick());
-      expect(navigate).toHaveBeenCalledWith(
-        selected ? '/home/%23room%3Amindroom.chat?threadId=%24thread' : '/home/'
-      );
+      expect(navigate).toHaveBeenCalledWith(expected);
+      act(() => renderer.unmount());
+    }
+  );
+
+  it.each([
+    [true, ['!general:example.org']],
+    [false, ['!general:example.org', '!dm-maya:example.org', '!dm-dev:example.org']],
+  ])(
+    'rolls direct room unreads into Home only when Direct Messages rail is hidden (directShown=%s)',
+    (directShown, expectedRooms) => {
+      state.directShown = directShown;
+      state.homeRooms = ['!general:example.org'];
+      state.directRooms = ['!dm-maya:example.org', '!dm-dev:example.org'];
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(React.createElement(HomeTab));
+      });
+      expect(state.roomsUnreadCalls.at(-1)).toEqual(expectedRooms);
       act(() => renderer.unmount());
     }
   );

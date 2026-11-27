@@ -21,13 +21,13 @@ import {
   trimLeadingToolRefBoundary,
 } from '../agent-run/toolRefDom';
 import { PasteMarker, parsePasteMarker } from '../../matrix/protocol/pasteAttachmentMarker';
-import { subagentToolStartedAt } from '../../matrix/protocol/subagentFrame';
 import {
   MINDROOM_TOOL_TRACE_KEY,
   ToolTraceEvent,
   ToolMetadataStatus,
   getToolTraceV2Events,
   isToolTraceV2,
+  toolStartedAt,
   toolTraceCallId,
 } from '../../matrix/protocol/toolTrace';
 import type { SecretRequest } from '../../matrix/protocol/secretRequest';
@@ -39,26 +39,29 @@ import {
 import { SecretRequestLine } from '../../approvals/SecretRequestLine';
 import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
-import {
-  ActivityIcon,
-  ActivityResult,
-  ActivityTone,
-  ThreadActivity,
-} from '../../ui/ThreadActivity';
+import { hasReplyEnded } from '../../matrix/protocol/compactions';
+import { ActivityIcon, ActivityResult, ThreadActivity } from '../../ui/ThreadActivity';
 import {
   ReasoningSegmentsContext,
   resolveToolCallStates,
   runningToolElapsed,
   summarizeToolCalls,
+  TOOL_STATE_ICON,
   TOOL_STATE_TITLE,
   ToolCallClockContext,
   ToolCallMessageContext,
   ToolCallsFoldContext,
   ToolCallState,
+  ToolCallWaitingStatusContext,
   useFoldedToolCalls,
   withFailures,
 } from '../agent-run/toolCallStatus';
 import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/ReasoningAnchors';
+import {
+  LiveToolPreview,
+  normalizeToolOutput,
+  type LiveToolItem,
+} from '../agent-run/LiveToolPreview';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import {
   getEffectiveToolApprovalStatus,
@@ -218,35 +221,17 @@ function NamedBlock({
 
 type ToolBlockStatus = 'pending' | 'completed' | 'completed_with_result' | ToolMetadataStatus;
 
-type ToolBlockRenderData = {
-  index: number;
+type ToolBlockRenderData = LiveToolItem & {
   status: ToolBlockStatus;
-  command: string;
-  toolName: string;
-  argsPreview?: string;
-  /** The call's ID from its trace entry, which an approval card may name. */
-  toolCallId?: string;
   result?: string;
   resultInline: boolean;
   /** Whether the completed call's trace entry says it did not succeed (`is_error`). */
   failed?: boolean;
-  progress?: string;
-  /** When a running call started, in Unix seconds, from frames that say (subagentToolStartedAt). */
-  startedAt?: number;
 };
-
-// How many of a running call's last output lines show under its tool calls.
-const TOOL_OUTPUT_LINES = 6;
 
 // A tool's name, arguments and output show their direction controls as code points.
 const asToolTraceText = (value: unknown): string | undefined =>
   typeof value === 'string' ? revealDirectionControls(value.trim()) || undefined : undefined;
-
-// Output drops leading blank lines but keeps its first line's indentation, as in YAML or a tree listing.
-const asToolOutput = (value: unknown): string | undefined =>
-  typeof value === 'string'
-    ? revealDirectionControls(value.replace(/^(?:[ \t\r]*\n)+/, '').trimEnd()) || undefined
-    : undefined;
 
 const buildToolRefRenderData = (
   toolRef: ToolRefParseResult,
@@ -282,8 +267,8 @@ const buildToolRefRenderData = (
       toolName: traceToolName,
       argsPreview,
       resultInline: false,
-      progress: asToolOutput(eventRaw?.progress),
-      startedAt: eventRaw && subagentToolStartedAt(eventRaw),
+      progress: normalizeToolOutput(eventRaw?.progress),
+      startedAt: toolStartedAt(eventRaw),
     };
   }
 
@@ -311,17 +296,6 @@ const buildToolRefRenderData = (
     resultInline: false,
     failed: eventRaw?.is_error === true,
   };
-};
-
-const TOOL_STATE_ICON: Record<ToolCallState, { src: IconSrc; tone: ActivityTone }> = {
-  running: { src: Icons.Terminal, tone: 'neutral' },
-  waiting: { src: Icons.Pause, tone: 'warning' },
-  done: { src: Icons.Check, tone: 'success' },
-  // A call that did not complete (an error, refusal, denial, cancellation or interruption: its
-  // result says which) is not the green check, nor a red alarm.
-  failed: { src: Icons.Warning, tone: 'warning' },
-  denied: { src: Icons.Cross, tone: 'critical' },
-  expired: { src: Icons.Clock, tone: 'neutral' },
 };
 
 /**
@@ -481,12 +455,15 @@ const useToolCallStates = (reply: ReplyToolCalls): ReadonlyMap<number, ToolCallS
 function ToolRefGroupBlock({
   parsedTools,
   replyTools,
+  replyEnded = false,
 }: {
   parsedTools: ToolBlockRenderData[];
   replyTools: ReplyToolCalls;
+  replyEnded?: boolean;
 }) {
   const { t } = useTranslation();
   const message = useContext(ToolCallMessageContext);
+  const waitingStatus = useContext(ToolCallWaitingStatusContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
   const loadedTools = parsedTools.filter(isLoadedTool);
   const replyStates = useToolCallStates(replyTools);
@@ -505,8 +482,7 @@ function ToolRefGroupBlock({
   // Without a cog to open them (no ToolCallsFold), the calls show.
   const fold = shown ? undefined : use(ToolCallsFoldContext);
   if (fold && !fold.open) return null;
-  const running = loadedTools.filter((_tool, index) => states[index] === 'running');
-  const outputTool = running.filter((tool) => tool.progress).at(-1);
+  const running = calls.filter((tool) => isLoadedTool(tool) && stateOf(tool) === 'running');
   // Only a running call shows how long it has run; the line shows the one that started first.
   const starts = running.flatMap(({ startedAt }) => (startedAt === undefined ? [] : [startedAt]));
   // Without the trace details the calls' states are unknown, so only count them.
@@ -536,15 +512,14 @@ function ToolRefGroupBlock({
       detail={summary.names}
       aside={starts.length > 0 && <ToolElapsed startedAt={Math.min(...starts)} />}
       preview={
-        outputTool?.progress && (
-          <>
-            {running.length > 1 && (
-              <div className={activityCss.OutputLabel}>{outputTool.command}</div>
-            )}
-            <pre className={activityCss.Output}>
-              {outputTool.progress.split('\n').slice(-TOOL_OUTPUT_LINES).join('\n')}
-            </pre>
-          </>
+        running.length > 0 &&
+        (!replyEnded || waitingStatus !== undefined) && (
+          <LiveToolPreview
+            running={running}
+            roomId={message?.roomId}
+            threadId={message?.threadId}
+            sender={message?.sender}
+          />
         )
       }
     >
@@ -590,10 +565,12 @@ function InlineSecretRequestBlock({
   secret,
   tool,
   replyTools,
+  replyEnded,
 }: {
   secret: InlineSecretRequest;
   tool: ToolBlockRenderData;
   replyTools: ReplyToolCalls;
+  replyEnded: boolean;
 }) {
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
@@ -606,7 +583,10 @@ function InlineSecretRequestBlock({
   useFoldedToolCalls(
     shown || taken ? undefined : [{ toolName, state: SECRET_REQUEST_CALL_STATE[request.status] }]
   );
-  if (taken) return <ToolRefGroupBlock parsedTools={[tool]} replyTools={replyTools} />;
+  if (taken)
+    return (
+      <ToolRefGroupBlock parsedTools={[tool]} replyTools={replyTools} replyEnded={replyEnded} />
+    );
   if (!roomId || !line) return null;
   if (hidden) return <div ref={lineRef} hidden />;
   return (
@@ -656,9 +636,11 @@ const splitToolRunAtSecretRequests = (
 function ToolRun({
   tools,
   replyTools,
+  replyEnded,
 }: {
   tools: ToolBlockRenderData[];
   replyTools: ReplyToolCalls;
+  replyEnded: boolean;
 }) {
   const secrets = secretRequestMarkers(
     replyTools,
@@ -674,12 +656,14 @@ function ToolRun({
             secret={part.secret}
             tool={part.tool}
             replyTools={replyTools}
+            replyEnded={replyEnded}
           />
         ) : (
           <ToolRefGroupBlock
             key={`tools-${part.tools[0]!.index}`}
             parsedTools={part.tools}
             replyTools={replyTools}
+            replyEnded={replyEnded}
           />
         )
       )}
@@ -759,7 +743,9 @@ const createToolTraceMarkerParserOptions = (
   // The markers a run of calls ends at, because reasoning or a compaction shows after them.
   splitAfter: ReadonlySet<number>,
   // Whether a tool marker draws a row. Anyone can type one, so only an agent's does.
-  toolRows = true
+  toolRows = true,
+  // Whether the reply itself carries terminal stream/run metadata, so lingering started calls do not tick.
+  replyEnded = false
 ): HTMLReactParserOptions => {
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
@@ -885,6 +871,7 @@ const createToolTraceMarkerParserOptions = (
               key={`tool-group-${firstItem.data.index}`}
               tools={items.map((item) => item.data)}
               replyTools={replyTools}
+              replyEnded={replyEnded}
             />
           );
           if (!trailingElement) return toolBlock;
@@ -912,7 +899,12 @@ const createToolTraceMarkerParserOptions = (
             groupRootIndexes.add(toolRef.index);
             addReplyTool(data);
             chainedToolBlocks.push(
-              <ToolRun key={`tool-group-${toolRef.index}`} tools={[data]} replyTools={replyTools} />
+              <ToolRun
+                key={`tool-group-${toolRef.index}`}
+                tools={[data]}
+                replyTools={replyTools}
+                replyEnded={replyEnded}
+              />
             );
             return true;
           });
@@ -1026,6 +1018,7 @@ export const useToolTraceMarkerParserOptions = (
 ): HtmlReactParserOptionsSource => {
   const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
+  const replyEnded = hasReplyEnded(content);
   // The markers that reasoning or a compaction shows after (withReasoning in Reasoning.tsx), where
   // a run of calls ends so that the thinking or the compaction between two calls shows between
   // them; none while none shows after a call, and runs then group as they do without them.
@@ -1053,7 +1046,8 @@ export const useToolTraceMarkerParserOptions = (
         traceEvents,
         metadataStatus,
         splitAfter,
-        toolRows
+        toolRows,
+        replyEnded
       );
-  }, [baseOpts, hasMarkers, toolTrace, metadataStatus, splitAfterKey, toolRows]);
+  }, [baseOpts, hasMarkers, toolTrace, metadataStatus, splitAfterKey, toolRows, replyEnded]);
 };

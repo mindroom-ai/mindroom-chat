@@ -4,13 +4,16 @@ import { createStore, Provider } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
+import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { DEFAULT_SETTINGS, settingsAtom } from '../preferences/settings';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 import type { TUploadItem } from '../matrix/state/upload';
 import {
   composerUploadItemsAtom,
+  getSpaceThreadsDraftKey,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
+  type StagedList,
 } from './roomInputDrafts';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import type { StartRoomInputSendSessionOptions } from './useRoomInputSendSessionController';
@@ -56,7 +59,14 @@ const createSession = (name = 'voice.ogg'): VoiceCaptureSession =>
     reset: () => undefined,
   }) as unknown as VoiceCaptureSession;
 
-const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
+const setup = (
+  defaultMidTurn: MidTurnMode = 'queue',
+  extra?: {
+    encrypted?: boolean;
+    stagedList?: StagedList;
+    prepareAttachmentsForSend?: (room: Room, items?: TUploadItem[]) => Promise<TUploadItem[]>;
+  }
+) => {
   vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
     this: HTMLElement
   ) {
@@ -67,7 +77,7 @@ const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
     name: 'Harbour',
     getMyMembership: () => 'join',
     getMembers: () => [],
-    hasEncryptionStateEvent: () => false,
+    hasEncryptionStateEvent: () => Boolean(extra?.encrypted),
   } as unknown as Room;
   const store = createStore();
   store.set(settingsAtom, { ...DEFAULT_SETTINGS, midTurnSend: defaultMidTurn });
@@ -94,6 +104,7 @@ const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
     store.set(roomUploadAtomFamily(item.file), { mxc });
     return mxc;
   });
+  const restoreText = vi.fn();
   const sendVoiceItem = vi.fn<ReturnType<typeof useRoomInputUploadTransport>['sendVoiceItem']>(
     async () => '$voice-evt'
   );
@@ -113,9 +124,9 @@ const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
           replyDraft: undefined,
           threadingEnabled: true,
         }),
-        snapshotText: () => [],
+        snapshotText: () => [{ type: 'paragraph', children: [{ text: 'caption' }] }] as never,
         resetText: vi.fn(),
-        restoreText: vi.fn(),
+        restoreText,
         clearConsumedReply: vi.fn(),
       },
       attachments,
@@ -136,6 +147,8 @@ const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
         sendVoiceItem,
       },
       sessions: { hasActiveSendSession: () => false, startSendSession },
+      stagedList: extra?.stagedList ?? composerUploadItemsAtom(ROOM_ID, undefined),
+      prepareAttachmentsForSend: extra?.prepareAttachmentsForSend,
     });
     return <>{voice.renderRecorder(() => void voice.sendAtPress(() => undefined, false))}</>;
   }
@@ -145,7 +158,15 @@ const setup = (defaultMidTurn: MidTurnMode = 'queue') => {
       <Harness />
     </Provider>
   );
-  return { store, staged, getVoice: () => voice, sendVoiceItem, startSendSession };
+  return {
+    store,
+    staged,
+    getVoice: () => voice,
+    uploadItem,
+    restoreText,
+    sendVoiceItem,
+    startSendSession,
+  };
 };
 
 afterEach(() => {
@@ -229,5 +250,97 @@ describe('useRoomInputVoice mid-turn mode', () => {
     });
     expect(sendVoiceItem.mock.calls[2]?.[4]).toBe('steer');
     expect(store.get(pendingVoiceSendDraftAtom)).toBeUndefined();
+  });
+
+  it('prepares deferred staged companions for an encrypted target room before combining with voice', async () => {
+    const spaceKey = getSpaceThreadsDraftKey('@alice:example.org', '!space:example.org');
+    const stagedList = composerUploadItemsAtom(spaceKey, undefined);
+    const rawFile = new File(['img'], 'photo.png', { type: 'image/png' });
+    const rawItem: TUploadItem = {
+      file: rawFile,
+      originalFile: rawFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    const encItem: TUploadItem = {
+      ...rawItem,
+      file: new File(['enc'], 'photo.png', { type: 'application/octet-stream' }),
+      encInfo: { v: 'v2' } as TUploadItem['encInfo'],
+    };
+    const storeRef: { current?: ReturnType<typeof createStore> } = {};
+    const prepareAttachmentsForSend = vi.fn(async () => {
+      storeRef.current!.set(stagedList, { type: 'REPLACE', item: rawItem, replacement: encItem });
+      return [encItem];
+    });
+    const { store, staged, getVoice, startSendSession } = setup('auto', {
+      encrypted: true,
+      stagedList,
+      prepareAttachmentsForSend,
+    });
+    storeRef.current = store;
+    staged.push(rawItem);
+    store.set(stagedList, { type: 'PUT', item: [rawItem] });
+
+    await act(async () => {
+      await getVoice().sendAtPress(() => undefined, false);
+    });
+
+    expect(prepareAttachmentsForSend).toHaveBeenCalledTimes(1);
+    expect(startSendSession.mock.calls[0]?.[0]?.batch?.fileItems[0]).toBe(encItem);
+  });
+
+  it('blocks voice handoff and restores caption when a referenced paste companion upload fails, while unrelated failures still send', async () => {
+    const pasteFile = new File(['big paste'], 'mindroom-paste-abc123.txt', { type: 'text/plain' });
+    const pasteMeta = { id: 'paste-abc123', chars: 9, fileName: pasteFile.name };
+    const pasteItem: TUploadItem = {
+      file: pasteFile,
+      originalFile: pasteFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false, mindroomPasteAttachment: pasteMeta },
+    };
+    const { store, staged, getVoice, uploadItem, restoreText, startSendSession } = setup('auto');
+    staged.push(pasteItem);
+    store.set(composerUploadItemsAtom(ROOM_ID, undefined), { type: 'PUT', item: [pasteItem] });
+    uploadItem.mockImplementation(async (item) => {
+      if (item.file === pasteFile) throw new Error('paste upload failed');
+      const mxc = `mxc://example.org/${item.file.name}`;
+      store.set(roomUploadAtomFamily(item.file), { mxc });
+      return mxc;
+    });
+
+    const marker = createPasteMarker(pasteMeta);
+    await act(async () => {
+      await getVoice().sendAtPress(
+        () => ({ msgtype: 'm.text', body: `${marker} check this` }),
+        false
+      );
+    });
+    expect(startSendSession).not.toHaveBeenCalled();
+    expect(restoreText).toHaveBeenCalledTimes(1);
+
+    // Unrelated failed file does not block voice + caption.
+    cleanup();
+    const otherFile = new File(['x'], 'photo.png', { type: 'image/png' });
+    const otherItem: TUploadItem = {
+      file: otherFile,
+      originalFile: otherFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+    const next = setup('auto');
+    next.staged.push(otherItem);
+    next.store.set(composerUploadItemsAtom(ROOM_ID, undefined), { type: 'PUT', item: [otherItem] });
+    next.uploadItem.mockImplementation(async (item) => {
+      if (item.file === otherFile) throw new Error('photo upload failed');
+      const mxc = `mxc://example.org/${item.file.name}`;
+      next.store.set(roomUploadAtomFamily(item.file), { mxc });
+      return mxc;
+    });
+    await act(async () => {
+      await next
+        .getVoice()
+        .sendAtPress(() => ({ msgtype: 'm.text', body: 'Plain caption' }), false);
+    });
+    expect(next.startSendSession).toHaveBeenCalledTimes(1);
   });
 });

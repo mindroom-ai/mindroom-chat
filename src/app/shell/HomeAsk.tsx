@@ -5,6 +5,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import {
   EventStatus,
   RoomEvent,
+  RoomStateEvent,
   type MatrixEvent,
   type Room,
   type RoomEventHandlerMap,
@@ -25,12 +26,15 @@ import { useEditor } from '../editor/Editor';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { nameInitials } from '../lib/common';
 import { useAlive } from '../lib/hooks/useAlive';
+import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useCapabilities } from '../matrix/hooks/useCapabilities';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
+import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
 import { getRoomThreadMode } from '../matrix/protocol/roomThreadMode';
+import { StateEvent } from '../matrix/types/room';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { ConversationViewContext, HOME_ASK_VIEW } from '../navigation/conversationView';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
@@ -46,7 +50,7 @@ import {
   type HomeAgent,
   isDirectRoomWith,
   startDirectChat,
-} from './homeAgents';
+} from '../sidebar/home/homeAgents';
 import * as css from './Home.css';
 
 type BadgeProps = { id: string; name: string; mxc?: string; src?: string; square?: boolean };
@@ -234,7 +238,31 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
   const waiting =
     isDirect && valid && !!room && isDirectRoomWith(room, agentId, ['invite', undefined]);
   const composerRoom = room && !waiting ? room : null;
+  const composerThreadMode = useRoomThreadMode(composerRoom?.roomId ?? '', Boolean(composerRoom));
   const busy = starting === 'busy' || (valid && isDirect && roomId !== null && !room);
+  const [, bumpRoomMeta] = useForceUpdate();
+  const selectedNonDirectRoom = isDirect && (valid || !room) ? null : room;
+  useEffect(() => {
+    if (
+      !selectedNonDirectRoom ||
+      typeof selectedNonDirectRoom.on !== 'function' ||
+      typeof selectedNonDirectRoom.removeListener !== 'function'
+    ) {
+      return undefined;
+    }
+    const onState = (event: MatrixEvent) => {
+      const type = event.getType();
+      if (type === (StateEvent.RoomName as string) || type === (StateEvent.RoomAvatar as string)) {
+        bumpRoomMeta();
+      }
+    };
+    selectedNonDirectRoom.on(RoomEvent.Name, bumpRoomMeta);
+    selectedNonDirectRoom.on(RoomStateEvent.Events, onState);
+    return () => {
+      selectedNonDirectRoom.removeListener(RoomEvent.Name, bumpRoomMeta);
+      selectedNonDirectRoom.removeListener(RoomStateEvent.Events, onState);
+    };
+  }, [selectedNonDirectRoom, bumpRoomMeta]);
 
   useEffect(() => {
     if (focusOnMount && composerRoom) {
@@ -402,7 +430,8 @@ function HomeAskField({ agents, first, failedNotice, open, fileDropContainerRef 
             editor={editor}
             room={composerRoom}
             roomId={composerRoom.roomId}
-            threadingEnabled={getRoomThreadMode(composerRoom) !== 'room'}
+            stagedDraftKey={draftKey}
+            threadingEnabled={composerThreadMode !== 'room'}
             fileDropContainerRef={fileDropContainerRef ?? askRef}
             onRoomMessageSent={(eventId) => {
               if (isLocalEchoEventId(eventId)) return false;

@@ -18,8 +18,10 @@ import {
   isOpenable,
   openableHref,
   registerExternalOpenHandler,
+  shouldRefuseUnsandboxedAppImage,
   supportsQuickCaptureScreenshots,
   supportsSystemScreenShare,
+  UNSANDBOXED_APPIMAGE_ERROR,
 } from './security';
 
 const createFakeWebContents = (
@@ -607,6 +609,65 @@ describe('guardSession screenShare', () => {
       fake.runPermissionRequest(other.contents, 'display-capture', {
         isMainFrame: true,
         requestingUrl: `${APP_ORIGIN}/home`,
+      })
+    ).toBe(false);
+  });
+});
+
+describe('shouldRefuseUnsandboxedAppImage', () => {
+  it('returns true for a packaged Linux AppImage launched with no-sandbox', () => {
+    expect(
+      shouldRefuseUnsandboxedAppImage({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: '/opt/MindRoom-Chat.AppImage',
+        hasNoSandboxSwitch: true,
+      })
+    ).toBe(true);
+    expect(UNSANDBOXED_APPIMAGE_ERROR).toContain(
+      'MindRoom Chat cannot start with Chromium sandboxing disabled'
+    );
+  });
+
+  it('returns false when unpackaged, non-Linux, without APPIMAGE, or without no-sandbox', () => {
+    expect(
+      shouldRefuseUnsandboxedAppImage({
+        isPackaged: false,
+        platform: 'linux',
+        appImageEnv: '/opt/MindRoom-Chat.AppImage',
+        hasNoSandboxSwitch: true,
+      })
+    ).toBe(false);
+    expect(
+      shouldRefuseUnsandboxedAppImage({
+        isPackaged: true,
+        platform: 'darwin',
+        appImageEnv: '/opt/MindRoom-Chat.AppImage',
+        hasNoSandboxSwitch: true,
+      })
+    ).toBe(false);
+    expect(
+      shouldRefuseUnsandboxedAppImage({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: undefined,
+        hasNoSandboxSwitch: true,
+      })
+    ).toBe(false);
+    expect(
+      shouldRefuseUnsandboxedAppImage({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: '   ',
+        hasNoSandboxSwitch: true,
+      })
+    ).toBe(false);
+    expect(
+      shouldRefuseUnsandboxedAppImage({
+        isPackaged: true,
+        platform: 'linux',
+        appImageEnv: '/opt/MindRoom-Chat.AppImage',
+        hasNoSandboxSwitch: false,
       })
     ).toBe(false);
   });

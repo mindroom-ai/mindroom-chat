@@ -1,13 +1,10 @@
-import { useRef, useState } from 'react';
 import { Box, color, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SequenceCard } from '../../ui/SequenceCard';
 import { SettingTile } from '../../ui/SettingTile';
-import { RAIL_BUTTON_SETTING, type RailButton, useOfferedRailButtons } from '../railButtons';
+import { type RailButton, useOfferedRailButtons, useRailButtonToggle } from '../railButtons';
 import { getCommandPaletteShortcutLabel } from '../../shortcuts/paletteShortcut';
 import { formatShortcut } from '../../shortcuts/shortcuts';
-import { useAccountSettings, useSetAccountSettings } from '../../matrix/hooks/useAccountSettings';
-import type { BooleanAccountSetting } from '../../preferences/accountSettings';
 import { SIDEBAR_SWITCH_SETTINGS } from '../../preferences/settingsRegistry';
 
 type AgentInterfaceSettingsProps = {
@@ -16,46 +13,21 @@ type AgentInterfaceSettingsProps = {
 
 type AccountSettingSwitchProps = {
   focusId: string;
-  setting: BooleanAccountSetting;
+  button: RailButton;
   title: string;
   description: string;
 };
 
-function AccountSettingSwitch({ focusId, setting, title, description }: AccountSettingSwitchProps) {
+function AccountSettingSwitch({ focusId, button, title, description }: AccountSettingSwitchProps) {
   const { t } = useTranslation();
-  const settings = useAccountSettings();
-  const setAccountSettings = useSetAccountSettings();
-  // setAccountData only resolves once the change echoes back over sync, so
-  // show the requested value immediately and hand back to the store when the
-  // write settles (echo arrived, or failed and the stored value still rules).
-  const [pending, setPending] = useState<boolean>();
-  // A failed write snaps the switch back to the stored value; explain why
-  // instead of failing silently.
-  const [saveFailed, setSaveFailed] = useState(false);
-  const requestGeneration = useRef(0);
-
-  const handleChange = (next: boolean) => {
-    requestGeneration.current += 1;
-    const generation = requestGeneration.current;
-    setPending(next);
-    setSaveFailed(false);
-    setAccountSettings({ [setting]: next })
-      .catch(() => {
-        if (requestGeneration.current === generation) setSaveFailed(true);
-      })
-      .finally(() => {
-        if (requestGeneration.current === generation) setPending(undefined);
-      });
-  };
+  const { checked, saveFailed, setChecked } = useRailButtonToggle(button);
 
   return (
     <SettingTile
       focusId={focusId}
       title={title}
       description={description}
-      after={
-        <Switch variant="Primary" value={pending ?? settings[setting]} onChange={handleChange} />
-      }
+      after={<Switch variant="Primary" value={checked} onChange={setChecked} />}
     >
       {saveFailed && (
         <Text size="T200" style={{ color: color.Critical.Main }}>
@@ -85,6 +57,11 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
       id: 'navigation',
       title: t('featureUi.settings.sidebar.navigation'),
       switches: [
+        [
+          'direct',
+          t('featureUi.settings.sidebar.direct'),
+          t('featureUi.settings.sidebar.directDescription'),
+        ],
         [
           'threads',
           t('featureUi.settings.sidebar.threads'),
@@ -159,7 +136,7 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
                 <AccountSettingSwitch
                   key={button}
                   focusId={SIDEBAR_SWITCH_SETTINGS[button]}
-                  setting={RAIL_BUTTON_SETTING[button]}
+                  button={button}
                   title={label}
                   description={description}
                 />

@@ -147,3 +147,20 @@ test('ctrl with the wheel zooms toward the cursor, which the hint tells of', asy
   await expect.poll(async () => (await spot())[1]).toBeCloseTo(0.75, 2);
   await expect(hint).toBeHidden();
 });
+
+test('desktop dark viewer modal has no glass rim and keeps its borders', async ({ page }) => {
+  await page.goto('/e2e/fixtures/image-viewer.html?theme=dark');
+  const dialog = page.getByRole('dialog', { name: 'Test image' });
+  await expect(dialog).toBeVisible();
+  expect(await dialog.evaluate((element) => getComputedStyle(element, '::before').content)).toBe(
+    'none'
+  );
+  await expect(dialog).toHaveCSS('backdrop-filter', 'none');
+  await expect(dialog).toHaveCSS('border-top-width', '1px');
+  await expect(dialog).toHaveCSS('border-top-style', 'solid');
+
+  const header = dialog.locator('header');
+  await expect(header).toHaveCSS('border-bottom-width', '1px');
+  await expect(header).toHaveCSS('border-bottom-style', 'solid');
+  await expect(header).not.toHaveAttribute('data-glass-flat');
+});

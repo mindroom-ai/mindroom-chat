@@ -35,6 +35,16 @@
     "uploadBoard": {
       "fileCount_other": "{{count}} 個のファイル"
     },
+    "uploadCardRenderer": {
+      "compressing": "圧縮中...",
+      "useOriginal": "元ファイルを使用",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "圧縮 (.zip)",
+      "zipFailedTooLarge": ".zip に圧縮してもサイズが大きすぎます。",
+      "zipFailedTooLargeWithMax": ".zip に圧縮してもサイズが大きすぎます（上限 {{maxSize}}）。",
+      "zipFailedNoSavings": ".zip に圧縮してもこのファイルは小さくなりませんでした。",
+      "zipFailedError": "このファイルを .zip に圧縮できませんでした。"
+    },
     "passwordInput": {
       "show": "パスワードを表示",
       "hide": "パスワードを隠す"
@@ -419,6 +429,8 @@
       "sidebar": {
         "title": "サイドバー",
         "navigation": "ナビゲーション",
+        "direct": "サイドバーにダイレクトメッセージを表示する",
+        "directDescription": "ダイレクトメッセージを専用のサイドバータブに表示します。非表示にした場合は、ホームまたはホームの ⋮ メニューから開けます。",
         "threads": "サイドバーにスレッドを表示する",
         "threadsDescription": "すべてのルームのスレッドを1つのリストで表示します。非表示にした場合は、ホームの ⋮ メニューから開けます。",
         "canvasesDescription": "エージェントが作成したインタラクティブパネルが1つ以上あると、そのボタンを表示します。非表示にした場合は、ホームの ⋮ メニューから開けます。",
@@ -515,7 +527,9 @@
         "midTurn": "割り込み, キュー, 待機, 自動, エージェント, 返信, 中断",
         "usage": "トークン, コスト, 料金, モデル, ツール呼び出し, サブエージェント, バックグラウンドジョブ",
         "plugins": "プラグイン, 拡張機能, アドオン, 連携",
-        "appUpdates": "アップデート, 更新, バージョン, アップグレード, 再起動"
+        "appUpdates": "アップデート, 更新, バージョン, アップグレード, 再起動",
+        "mediaCompression": "スクリーンショット, 画面録画, 画像, 動画, 圧縮, アップロードサイズ",
+        "autoZipLargeFiles": "zip, アーカイブ, 圧縮, json, csv, ログ, 大きなファイル, アップロードサイズ"
       },
       "errorReports": {
         "title": "エラーレポートを送信",
@@ -537,13 +551,30 @@
         "updateReady": "バージョン {{version}} をインストールする準備ができました。",
         "restartToUpdate": "再起動してアップデート",
         "updateInstallFailed": "アップデートをインストールするための再起動に失敗しました。もう一度試してください。"
+      },
+      "mediaCompression": {
+        "title": "メディア圧縮",
+        "description": "アップロード前に添付した写真、スクリーンショット、動画を圧縮します。どの添付ファイルでも元のファイルを使用できます。",
+        "off": "オフ",
+        "balanced": "バランス",
+        "small": "小"
+      },
+      "autoZipLargeFiles": {
+        "title": "大きなファイルを圧縮 (.zip)",
+        "description": "アップロード前に 1 MB を超える圧縮可能なファイルを自動で .zip に圧縮します。どの添付ファイルでも元のファイルを使用できます。"
       }
     },
     "createChat": {
       "failed": "チャットを開始できませんでした。もう一度試してください。"
     },
     "homeNav": {
-      "options": "ホームのオプション"
+      "options": "ホームのオプション",
+      "addRooms": "ルームを追加",
+      "directMessages": "ダイレクトメッセージ",
+      "newDirectMessage": "新しいダイレクトメッセージ",
+      "showAllDirectMessages": "すべて表示 ({{count}})",
+      "agents": "エージェント",
+      "agentActive": "エージェントが稼働中"
     },
     "directNav": {
       "options": "ダイレクトメッセージのオプション"
@@ -1070,6 +1101,13 @@
       "unavailable": {
         "description": "このデバイスでは Mac コンピューターアクセスを利用できません。"
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "自分",
+        "draft": "下書き",
+        "groupMemberCount_other": "{{count}} 人のメンバー"
+      }
     }
   },
   "mindroomUi": {
@@ -1339,6 +1377,43 @@
       "stopReply": {
         "label": "応答を停止",
         "stopping": "停止中…"
+      },
+      "runError": {
+        "cardLabel": "実行エラー",
+        "actions": {
+          "continue": "続行",
+          "retry": "再試行",
+          "compact": "要約して圧縮"
+        },
+        "chips": {
+          "streamStalled": "ストリーム停止",
+          "providerUnavailable": "利用不可",
+          "rateLimited": "レート制限",
+          "timeout": "タイムアウト",
+          "contextWindow": "コンテキスト上限",
+          "tokensPerMinute": "トークン上限",
+          "safeguardRefusal": "拒否",
+          "quotaExhausted": "クォータ上限",
+          "missingApiKey": "API キー未設定",
+          "authenticationFailed": "認証エラー",
+          "runtimeError": "エラー"
+        },
+        "technicalDetails": "技術詳細",
+        "details": {
+          "model": "モデル",
+          "provider": "プロバイダー",
+          "code": "コード",
+          "detail": "詳細",
+          "error": "エラー"
+        },
+        "receipt": {
+          "continue": "再開済み",
+          "retry": "再試行済み",
+          "compact": "圧縮済み"
+        },
+        "sendFailed": "メッセージを送信できませんでした。もう一度お試しください。",
+        "restartSeam": "サービス再起動 · コンテキスト保持",
+        "restartSeamRepeated": "サービス再起動（{{times}}×）· コンテキスト保持"
       }
     },
     "message-search": {
@@ -1475,7 +1550,9 @@
         "use": "{{tool}} を使う"
       },
       "jobTotal_other": "バックグラウンドジョブ {{count}} 件",
-      "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了"
+      "jobTotalFinished_other": "バックグラウンドジョブ {{count}} 件が完了",
+      "reviewApprovalFor": "承認を確認：{{tool}}",
+      "checkingApproval": "承認を確認中…"
     },
     "workflowRun": {
       "title": "ワークフロー",
@@ -1498,6 +1575,8 @@
       "stopping": "停止中…",
       "resume": "再開",
       "runAgain": "再実行",
+      "confirmRunAgain": "再実行を確定",
+      "cancel": "キャンセル",
       "starting": "開始中…",
       "failedCount_other": "{{count}} 件失敗",
       "question": {
@@ -1522,6 +1601,16 @@
         "waitingForUpdate": "次の更新を待っています…",
         "stale": "更新されていません。最終更新: {{time}}。",
         "log": "ログ",
+        "viewsLabel": "ワークフローの表示",
+        "flow": "フロー",
+        "steps": "ステップ",
+        "selectStep": "ステップを選択すると、出力・指標・リンクを確認できます。",
+        "noMessages": "ステップ間のメッセージはまだありません。",
+        "noLog": "ログ項目はまだありません。",
+        "omittedEdges_other": "{{count}} 件のメッセージ経路が省略されました。",
+        "omittedMessages_other": "{{count}} 件のメッセージが省略されました。",
+        "omittedLog_other": "{{count}} 件のログ項目が省略されました。",
+        "setupSteps_other": "{{count}} 件のセットアップステップ",
         "showMore": "さらに {{count}} 件表示",
         "omitted": {
           "queued_other": "他に待機中 {{count}} 件",
@@ -1554,8 +1643,18 @@
         "error": "エラー",
         "messages": "メッセージ",
         "messagesTo": "{{name}} へのメッセージ: {{count}}",
+        "messagesFrom": "{{name}} からのメッセージ: {{count}}",
+        "timeout": "タイムアウト",
+        "routeTo": "{{from}} から {{to}}: {{count}}",
+        "messageRoute": "{{from}} から {{to}}",
+        "script": "スクリプト",
+        "routeBetween": "{{from}} と {{to}}: {{count}}",
+        "duration": "所要時間",
+        "tokens": "トークン",
+        "cost": "コスト",
         "open": "開く",
         "detailsUnavailable": "再読み込み後は詳細を表示できません。",
+        "transcriptUnavailable": "再読み込み後は完全な記録を表示できません。",
         "stop": "エージェントを停止"
       }
     },
@@ -1696,7 +1795,60 @@
       "unattributed": "未分類",
       "allUsageAndLimits": "すべての使用量と上限 →",
       "noAccounts": "報告されたプロバイダーアカウントはまだありません。",
-      "noDailyData": "過去7日間の日別使用記録はありません。"
+      "noDailyData": "過去7日間の日別使用記録はありません。",
+      "kpiSpend7d": "7日間の推定費用",
+      "kpiTokens7d": "7日間のトークン",
+      "perDayAvg": "平均 ~{{value}}/日",
+      "peakAndAvg": "最大 {{day}} · {{tokens}} · ~{{avg}}/日",
+      "trendVsPrior3d": "直前の3日間比 {{delta}}",
+      "tokenMixTitle": "トークンとキャッシュの内訳（7日間）",
+      "savedViaCache": "キャッシュで約{{cost}}節約",
+      "cacheRead": "キャッシュ読込",
+      "cacheWrite": "キャッシュ書込",
+      "inputTokens": "入力",
+      "outputTokens": "出力",
+      "inputShort": "入力",
+      "outputShort": "出力",
+      "tokenMixAria": "キャッシュ読込 {{cacheRead}}、キャッシュ書込 {{cacheWrite}}、入力 {{input}}、出力 {{output}}",
+      "subscriptionQuotas": "サブスクリプション上限",
+      "paceLegend": "目盛 = 均等ペース目安",
+      "paceAhead": "+{{delta}}% 余裕あり",
+      "paceFastBurn": "-{{delta}}% 消費速め",
+      "paceOnPace": "適正ペース",
+      "dailySpendTitle": "日別の推定費用",
+      "dailyTokensTitle": "日別トークン数",
+      "dailySubtitleCost": "棒をタップして正確なトークン数と費用を表示",
+      "dailySubtitleTokens": "棒をタップして正確なトークン数を表示",
+      "chartMetricLabel": "グラフ指標",
+      "metricSpend": "費用 ($)",
+      "metricTokens": "トークン",
+      "hideDominant": "最大項目を隠す",
+      "resetFilter": "フィルター解除",
+      "hideDominantTooltip": "{{account}} を非表示にして他のアカウントを確認",
+      "resetFilterTooltip": "{{account}} を含むすべてのアカウントを表示",
+      "dailyBarCostAria": "{{day}}: {{cost}}、{{tokens}} トークン",
+      "vs7dAvg": "7日平均比 {{delta}}",
+      "tokensShortUnit": "{{tokens}} トークン",
+      "noDayActivity": "この日の利用記録はありません。",
+      "whereUsageGoes": "利用の内訳",
+      "whereUsageGoesSub": "行をタップしてトークン内訳と7日間の推移を表示",
+      "tabModels": "モデル",
+      "tabAgents": "エージェント",
+      "tabAccounts": "アカウント",
+      "shareOfSpend": "7日間費用の割合: {{share}}",
+      "shareOfTokens": "7日間トークンの割合: {{share}}",
+      "trend7d": "7日間の推移",
+      "runCount_other": "{{count}} 回実行",
+      "idleAccountsLabel_other": "未使用アカウント {{count}} 件（7日間で0トークン）",
+      "show": "表示",
+      "hide": "非表示",
+      "zeroTokens": "0 トークン"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "サイドバーに表示",
+        "sidebarSettings": "サイドバー設定…"
+      }
     }
   },
   "composer": {
@@ -1731,6 +1883,7 @@
     "newThreadWith": "{{name}} との新しいスレッド…",
     "dictation": {
       "label": "音声入力",
+      "temporarilyUnavailable": "音声入力を利用できません — 再接続中",
       "cancel": "音声入力をキャンセル",
       "pause": "音声入力を一時停止",
       "resume": "音声入力を再開",
@@ -1738,6 +1891,8 @@
       "finishAndSend": "完了して送信",
       "retry": "再試行",
       "retryAndSend": "再試行して送信",
+      "sendAsVoice": "音声として送信",
+      "attachAsVoice": "音声として添付",
       "insertPartial": "一部を挿入",
       "discard": "破棄",
       "dismissError": "音声入力エラーを閉じる",
@@ -1750,6 +1905,7 @@
       "noSpeech": "音声が検出されませんでした。",
       "noSpeechOffThread": "{{room}} で音声が検出されませんでした。",
       "sendFailedOffThread": "{{room}} の音声入力メッセージを完了できませんでした。開いて再試行してください。",
+      "sendFailedOffTarget": "{{room}} の音声入力メッセージを完了できませんでした。再試行するには {{room}} をもう一度選択してください。",
       "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
       "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",
@@ -1908,19 +2064,24 @@
     "openInOriginalThread": "元のスレッドで開く",
     "forkFromHere": "ここから分岐",
     "forkThread": "スレッドを分岐",
-    "forking": "{{title}} を分岐中",
-    "continueInNewThread": "新しいスレッドで続ける",
+    "forking": "下書き · 下からメッセージを送信してこの分岐を開始",
+    "continueInNewThread": "最初のメッセージを送信して分岐を作成…",
     "forkCount_other": "{{count}} 件の分岐",
     "forkedFromInRoom": "{{room}} の {{title}} から分岐",
     "forkedFromAnotherRoom": "別のルームから分岐",
-    "forkingIntoRoom": "{{title}} を {{room}} へ分岐中",
+    "forkingIntoRoom": "下書き · 下からメッセージを送信して {{room}} へ分岐",
     "forkToRoom": "別のルームへ分岐…",
     "forkToRoomTitle": "別のルームへ分岐",
     "forkToRoomSearchPlaceholder": "ルームを検索…",
     "forkToRoomEmpty": "一致するルームがありません",
     "forkToRoomAgentWarning": "このルームのエージェントは {{room}} に参加していないため、元のスレッドを参照できません",
     "forkingFromRoom": "{{room}} から分岐中",
-    "forkDraftAgentWarning": "ここのエージェントは {{room}} に参加していないため、元のスレッドを参照できません"
+    "forkDraftAgentWarning": "ここのエージェントは {{room}} に参加していないため、元のスレッドを参照できません",
+    "draftBadge": "下書き",
+    "forkingThread": "スレッドを分岐中",
+    "forkDraftHint": "まだ作成されていません。下からメッセージを送信してこの分岐スレッドを開始してください。",
+    "forkDraftHintInRoom": "まだ {{room}} には作成されていません。下からメッセージを送信してこのスレッドを作成してください。",
+    "continueInNewThreadInRoom": "最初のメッセージを送信して {{room}} に分岐を作成…"
   },
   "activity": {
     "title": "アクティビティ",

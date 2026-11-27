@@ -71,8 +71,8 @@ export const useRoomCacheHydrationController = ({
   setFocusItem: Dispatch<SetStateAction<RoomTimelineFocusItem | undefined>>;
   setRoomInitialCacheHydratedKey: Dispatch<SetStateAction<string | undefined>>;
   setTimeline: Dispatch<SetStateAction<Timeline>>;
-  threadId: string | undefined;
-  threadIdRef: MutableRefObject<string | undefined>;
+  threadId?: string;
+  threadIdRef?: MutableRefObject<string | undefined>;
 }): void => {
   useEffect(() => {
     if (threadId || eventId) return undefined;
@@ -85,7 +85,8 @@ export const useRoomCacheHydrationController = ({
         limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
       });
 
-      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef?.current)
+        return;
 
       const currentLinkedTimelines = getLinkedTimelines(getLiveTimeline(room));
       const loadedRoomEvents = getMainTimelineCacheEvents(room, currentLinkedTimelines);
@@ -104,7 +105,8 @@ export const useRoomCacheHydrationController = ({
         mapEvent: mapCachedEvent,
       });
 
-      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef?.current)
+        return;
 
       logTimelineDebug(roomDebugTraceId, 'room-cache-hydrate-page', {
         cachedCount: hydrationSnapshot.cachedPage.events.length,
@@ -155,7 +157,8 @@ export const useRoomCacheHydrationController = ({
           showThreadRepliesInRoom: false,
         });
       }
-      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef?.current)
+        return;
       if (getLiveTimeline(room) !== currentLinkedTimelines[currentLinkedTimelines.length - 1]) {
         return;
       }
@@ -199,7 +202,8 @@ export const useRoomCacheHydrationController = ({
         });
       }
 
-      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
+      if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef?.current)
+        return;
       setTimeline(buildInitialTimeline());
       // A jump made while the cache was read (Jump to Unread right after the room opened) owns the
       // position: it goes to its row again in the rebuilt rows. Otherwise the room still opens at
@@ -227,7 +231,7 @@ export const useRoomCacheHydrationController = ({
         });
       })
       .finally(() => {
-        if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
+        if (!cancelled && alive() && roomIdRef.current === room.roomId && !threadIdRef?.current) {
           setRoomInitialCacheHydratedKey(room.roomId);
         }
         // ISSUE-207 P4.3: the old preload-done bookkeeping (used to

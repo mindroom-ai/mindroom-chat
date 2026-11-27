@@ -125,6 +125,20 @@ export const setInteractivePhoneSlideClaimed = (claimed: boolean): void => {
 /** Whether an interactive swipe gesture is currently active. */
 export const isInteractiveSwipeActive = (): boolean => activeGesture !== null;
 
+/** Runs the highest-priority active start-edge back handler at or above `minPriority`. */
+export const runTopEdgeBackAction = (minPriority: number): boolean => {
+  let best: SwipeRegistration | undefined;
+  for (const entry of edgeEntries) {
+    if (entry.edge !== 'start' || entry.direction !== 'inward' || entry.priority < minPriority) {
+      continue;
+    }
+    if (!best || entry.priority > best.priority) best = entry;
+  }
+  if (!best) return false;
+  best.onCommitRef.current();
+  return true;
+};
+
 /** Whether a multi-touch touchstart event just aborted an active interactive swipe. */
 export const wasInteractiveSwipeAbortedEvent = (event: Event): boolean =>
   abortedTouchStartEvents.has(event);
@@ -159,6 +173,8 @@ export const resolveLogicalDirectionSign = (element?: Element | null): 1 | -1 =>
   }
   return 1;
 };
+
+export const SWIPE_SETTLE_EASING = 'cubic-bezier(0.2, 0, 0, 1)';
 
 export const isReducedMotion = (): boolean => {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -212,7 +228,7 @@ export const animateSwipeElements = async (
 
     const anim = element.animate(keyframes, {
       duration: durationMs,
-      easing: 'cubic-bezier(0.2, 0, 0, 1)',
+      easing: SWIPE_SETTLE_EASING,
       fill: 'forwards',
     });
     started.push({ anim, element, finalFrame });

@@ -54,6 +54,35 @@ describe('navigateToRoomThread', () => {
     });
   });
 
+  it('records returnToOrigin on the exit target and strips it from router navigate options', () => {
+    const navigateRoomThreadDirect = vi.fn();
+    navigateToRoomThread({
+      roomId: '!room:example.org',
+      threadId: '$thread',
+      opts: { returnToOrigin: true },
+      navigateRoomThreadDirect,
+      location: { pathname: '/!space:example.org/threads/', search: '', hash: '' },
+      getHistoryState: () => ({ key: 'thread-navigation-test-return-origin' }),
+      schedule: () => undefined,
+      isNativeIOSDevice: () => false,
+      replaceHistoryState: () => undefined,
+    });
+
+    const passedOpts = navigateRoomThreadDirect.mock.calls[0]?.[3] as Record<string, unknown>;
+    expect(passedOpts).not.toHaveProperty('returnToOrigin');
+    expect(passedOpts).toEqual({
+      state: {
+        [ROOM_THREAD_EXIT_TARGET_STATE_KEY]: {
+          exitPath: '/!space:example.org/threads/',
+          roomId: '!room:example.org',
+          threadId: '$thread',
+          useHistoryBack: true,
+          returnToOrigin: true,
+        },
+      },
+    });
+  });
+
   it('records the account that opened the thread in its exit target', () => {
     const navigateRoomThreadDirect = vi.fn();
     navigateToRoomThread({

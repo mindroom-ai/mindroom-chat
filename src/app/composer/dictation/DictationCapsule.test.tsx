@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
-import React from 'react';
+import React, { type ComponentProps } from 'react';
 import { createStore, Provider } from 'jotai';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ConversationViewContext, HOME_ASK_VIEW } from '../../navigation/conversationView';
+import { glassDenseOverBackdrop } from '../../ui/styles/Glass.css';
 import { liveCaptureCapsulesShownAtom } from '../capture/liveCapture';
 import * as voiceCss from '../voice/VoiceRecordingCapsule.css';
 import { DictationCapsule } from './DictationCapsule';
+import * as css from './DictationCapsule.css';
 import type { DictationSnapshot } from './dictationSession';
 
 vi.mock('react-i18next', () => ({
@@ -43,6 +45,7 @@ const baseSnapshot = (overrides: Partial<DictationSnapshot> = {}): DictationSnap
   failedSegments: 0,
   completedSegments: 0,
   hasPartialText: false,
+  hasVoiceAudio: false,
   previewText: '',
   capReached: false,
   interrupted: false,
@@ -349,5 +352,108 @@ describe('DictationCapsule', () => {
       false
     );
     expect(screen.getByRole('status').textContent).toBe('composer.dictation.statusRecovered');
+  });
+
+  it('renders Attach/Send as voice with VoiceMessageIcon, hides without audio, honors pending, and applies RecoveryButton to all actions', () => {
+    const h = handlers();
+    const onVoiceFallback = vi.fn();
+    let view: ReturnType<typeof render> | undefined;
+    const renderFailed = (
+      snapshotOverrides: Partial<DictationSnapshot> = {},
+      propOverrides: Partial<ComponentProps<typeof DictationCapsule>> = { onVoiceFallback }
+    ) => {
+      const el = (
+        <DictationCapsule
+          snapshot={baseSnapshot({
+            phase: 'failed',
+            failedSegments: 1,
+            hasVoiceAudio: true,
+            ...snapshotOverrides,
+          })}
+          {...h}
+          {...propOverrides}
+        />
+      );
+      if (view) view.rerender(el);
+      else view = render(el);
+    };
+
+    renderFailed({
+      completedSegments: 1,
+      hasPartialText: true,
+      errorMessage: 'Transcription unavailable',
+    });
+    const attachBtn = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'composer.dictation.attachAsVoice',
+    });
+    expect(attachBtn.disabled).toBe(false);
+    expect(attachBtn.querySelector('svg')).not.toBeNull();
+    expect(screen.queryByText('composer.dictation.sendAsVoice')).toBeNull();
+
+    // Every recovery action button shares RecoveryButton for pixel-aligned equal height.
+    const actionButtons = screen.getAllByRole<HTMLButtonElement>('button');
+    expect(actionButtons).toHaveLength(4);
+    for (const button of actionButtons) expect(button.className).toContain(css.RecoveryButton);
+
+    fireEvent.click(attachBtn);
+    expect(onVoiceFallback).toHaveBeenCalledTimes(1);
+
+    // voiceFallbackPending disables the button to prevent duplicate clicks.
+    renderFailed({ hasPartialText: true }, { onVoiceFallback, voiceFallbackPending: true });
+    const pendingBtn = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'composer.dictation.attachAsVoice',
+    });
+    expect(pendingBtn.disabled).toBe(true);
+    fireEvent.click(pendingBtn);
+    expect(onVoiceFallback).toHaveBeenCalledTimes(1);
+
+    // sending={true} switches label to Send as voice and still applies RecoveryButton.
+    renderFailed({ hasPartialText: false }, { sending: true, onVoiceFallback });
+    const sendBtn = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'composer.dictation.sendAsVoice',
+    });
+    expect(sendBtn.querySelector('svg')).not.toBeNull();
+    expect(sendBtn.className).toContain(css.RecoveryButton);
+    expect(screen.queryByText('composer.dictation.attachAsVoice')).toBeNull();
+    fireEvent.click(sendBtn);
+    expect(onVoiceFallback).toHaveBeenCalledTimes(2);
+
+    // Hidden when !hasVoiceAudio or when onVoiceFallback is omitted.
+    renderFailed({ hasVoiceAudio: false });
+    expect(screen.queryByText('composer.dictation.attachAsVoice')).toBeNull();
+    expect(screen.queryByText('composer.dictation.sendAsVoice')).toBeNull();
+
+    renderFailed({}, {});
+    expect(screen.queryByText('composer.dictation.attachAsVoice')).toBeNull();
+  });
+
+  it('renders StatusNote inside CapsuleStacked when subtleStatus is shown and omits it when absent', () => {
+    const h = handlers();
+    const expectStatusNoteInsideCapsule = (container: HTMLElement, expectedText: string) => {
+      const wrapper = container.firstElementChild;
+      expect(wrapper?.className).toBe(voiceCss.Container);
+      expect(wrapper?.children).toHaveLength(1);
+      const capsules = container.getElementsByClassName(voiceCss.CapsuleStacked);
+      expect(capsules).toHaveLength(1);
+      const capsule = capsules[0]!;
+      expect(capsule.classList.contains(glassDenseOverBackdrop)).toBe(true);
+      const statusNotes = container.getElementsByClassName(css.StatusNote);
+      expect(statusNotes).toHaveLength(1);
+      expect(statusNotes[0]?.textContent).toBe(expectedText);
+      expect(capsule.contains(statusNotes[0]!)).toBe(true);
+    };
+
+    const { container, rerender } = render(
+      <DictationCapsule snapshot={baseSnapshot({ phase: 'finishing' })} sending {...h} />
+    );
+    expectStatusNoteInsideCapsule(container, 'composer.dictation.statusSending');
+
+    rerender(
+      <DictationCapsule snapshot={baseSnapshot({ phase: 'paused', failedSegments: 1 })} {...h} />
+    );
+    expectStatusNoteInsideCapsule(container, 'composer.dictation.statusPendingRetry:1');
+
+    rerender(<DictationCapsule snapshot={baseSnapshot({ phase: 'recording' })} {...h} />);
+    expect(container.getElementsByClassName(css.StatusNote)).toHaveLength(0);
   });
 });

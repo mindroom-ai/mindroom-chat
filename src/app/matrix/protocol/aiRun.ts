@@ -34,6 +34,47 @@ type AiRunCost = {
   subagents_usd?: unknown;
 };
 
+type AiRunError = {
+  kind?: unknown;
+  title?: unknown;
+  summary?: unknown;
+  detail?: unknown;
+  code?: unknown;
+  status_code?: unknown;
+  provider?: unknown;
+  retryable?: unknown;
+  action?: unknown;
+  fallback?: unknown;
+};
+
+export type AiRunErrorAction = 'continue' | 'retry' | 'compact';
+
+export type AiRunErrorKind =
+  | 'stream_stalled'
+  | 'provider_unavailable'
+  | 'rate_limited'
+  | 'timeout'
+  | 'context_window'
+  | 'tokens_per_minute'
+  | 'safeguard_refusal'
+  | 'quota_exhausted'
+  | 'missing_api_key'
+  | 'authentication_failed'
+  | 'runtime_error';
+
+export type AiRunErrorInfo = {
+  kind: string;
+  title: string;
+  summary: string;
+  detail?: string;
+  code?: string;
+  statusCode?: number;
+  provider?: string;
+  retryable: boolean;
+  action?: AiRunErrorAction;
+  fallback?: string;
+};
+
 type AiRunMetadata = {
   version?: unknown;
   status?: unknown;
@@ -44,6 +85,7 @@ type AiRunMetadata = {
   context?: unknown;
   tools?: unknown;
   cost?: unknown;
+  error?: unknown;
 };
 
 export type AiRunInfo = {
@@ -75,6 +117,7 @@ export type AiRunInfo = {
    * subagents included, in USD at the same prices; not part of `costUsd`.
    */
   subagentsCostUsd?: number;
+  error?: AiRunErrorInfo;
 };
 
 /** The model a run used, as `io.mindroom.ai_run` and sub-agent frames send it. */
@@ -112,6 +155,56 @@ export const parseAiRunModel = (value: unknown): AiRunModelInfo | undefined => {
     modelProvider: asString(model.provider),
   };
   return Object.values(info).some((field) => field !== undefined) ? info : undefined;
+};
+
+const AI_RUN_ERROR_ACTIONS: ReadonlySet<string> = new Set<AiRunErrorAction>([
+  'continue',
+  'retry',
+  'compact',
+]);
+
+const asTrimmedString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const asPositiveInteger = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isInteger(value) && value > 0 ? value : undefined;
+
+const asAiRunErrorAction = (value: unknown): AiRunErrorAction | undefined =>
+  typeof value === 'string' && AI_RUN_ERROR_ACTIONS.has(value)
+    ? (value as AiRunErrorAction)
+    : undefined;
+
+/** Structured run failure payload inside io.mindroom.ai_run; ignores malformed shapes. */
+export const parseAiRunError = (value: unknown): AiRunErrorInfo | undefined => {
+  if (!isRecord(value)) return undefined;
+  const error = value as AiRunError;
+  const kind = asTrimmedString(error.kind);
+  const title = asTrimmedString(error.title);
+  const summary = asTrimmedString(error.summary);
+  if (!kind || !title || !summary) return undefined;
+
+  const detail = asTrimmedString(error.detail);
+  const code = asTrimmedString(error.code);
+  const statusCode = asPositiveInteger(error.status_code);
+  const provider = asTrimmedString(error.provider);
+  const action = asAiRunErrorAction(error.action);
+  const fallback = asTrimmedString(error.fallback);
+
+  return {
+    kind,
+    title,
+    summary,
+    ...(detail !== undefined ? { detail } : {}),
+    ...(code !== undefined ? { code } : {}),
+    ...(statusCode !== undefined ? { statusCode } : {}),
+    ...(provider !== undefined ? { provider } : {}),
+    retryable: typeof error.retryable === 'boolean' ? error.retryable : false,
+    ...(action !== undefined ? { action } : {}),
+    ...(fallback !== undefined ? { fallback } : {}),
+  };
 };
 
 const getAiRunMetadataFromCandidate = (
@@ -161,6 +254,7 @@ export const getAiRunInfo = (content: Record<string, unknown>): AiRunInfo | unde
     toolCount: asFiniteNumber(tools?.count),
     costUsd: asNonNegativeDecimal(cost?.usd),
     subagentsCostUsd: asNonNegativeDecimal(cost?.subagents_usd),
+    error: parseAiRunError(metadata.error),
   };
 
   const hasAnyInfo = Object.values(info).some((value) => value !== undefined);
@@ -235,6 +329,9 @@ export const TERMINAL_STREAM_STATUSES = new Set([
   'cancelled',
   'interrupted',
 ]);
+
+/** Run statuses of a reply that finished on its own; a failed or stopped one keeps its work open. */
+export const FINISHED_AI_RUN_STATUSES = new Set(['completed', 'cached']);
 
 /** The terminal stream statuses of a reply that finished on its own. */
 export const SUCCESSFUL_STREAM_STATUSES = new Set(['complete', 'completed', 'done']);
@@ -317,6 +414,17 @@ export const isAiRunStreaming = (content: Record<string, unknown>): boolean => {
   if (endsOrPausesStream(streamStatus)) return false;
   if (streamStatus) return ACTIVE_STREAM_STATUSES.has(streamStatus);
   return !!metadata;
+};
+
+/**
+ * Whether a reply finished its own run cleanly (completed or cached), without a conflicting
+ * non-successful stream status (e.g. a regenerated reply streaming over a prior completed answer).
+ */
+export const isFinishedAgentReply = (content: Record<string, unknown>): boolean => {
+  const status = getAiRunInfo(content)?.status?.toLowerCase();
+  if (!status || !FINISHED_AI_RUN_STATUSES.has(status)) return false;
+  const streamStatus = readStreamStatus(content);
+  return !streamStatus || SUCCESSFUL_STREAM_STATUSES.has(streamStatus);
 };
 
 export { AI_RUN_METADATA_KEY };

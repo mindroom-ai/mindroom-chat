@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 const fixtures: string[] = [];
 afterEach(() =>
@@ -26,15 +26,46 @@ const DESKTOP_ASSETS = [
   'latest-mac.yml',
 ];
 
+const LINUX_ASSETS = [
+  'MindRoom-Chat-x86_64.AppImage',
+  'MindRoom-Chat-amd64.deb',
+  'MindRoom-Chat-arm64.AppImage',
+  'MindRoom-Chat-arm64.deb',
+  'latest-linux.yml',
+  'latest-linux-arm64.yml',
+];
+
 const latestYml = (version: string, urlVersion = version) =>
   `version: ${version}\nfiles:\n  - url: https://github.com/mindroom-ai/mindroom-chat/releases/download/v${urlVersion}/MindRoom-Chat-arm64-mac.zip\n    sha512: aaa==\n    size: 10\n  - url: https://github.com/mindroom-ai/mindroom-chat/releases/download/v${urlVersion}/MindRoom-Chat-x64-mac.zip\n    sha512: bbb==\n    size: 12\npath: https://github.com/mindroom-ai/mindroom-chat/releases/download/v${urlVersion}/MindRoom-Chat-arm64-mac.zip\nsha512: aaa==\nreleaseDate: '2026-11-22T00:00:00.000Z'\n`;
 
+const linuxLatestYml = (
+  version: string,
+  arch: 'x64' | 'arm64',
+  urlVersion = version,
+  blockMapSize: string | number | null = arch === 'x64' ? 128 : 132
+) => {
+  const file = arch === 'x64' ? 'MindRoom-Chat-x86_64.AppImage' : 'MindRoom-Chat-arm64.AppImage';
+  const hash = arch === 'x64' ? 'xxx==' : 'yyy==';
+  const size = arch === 'x64' ? 20 : 22;
+  const url = `https://github.com/mindroom-ai/mindroom-chat/releases/download/v${urlVersion}/${file}`;
+  const blockMapLine = blockMapSize === null ? '' : `\n    blockMapSize: ${blockMapSize}`;
+  return `version: ${version}\nfiles:\n  - url: ${url}\n    sha512: ${hash}\n    size: ${size}${blockMapLine}\npath: ${url}\nsha512: ${hash}\nreleaseDate: '2026-11-25T00:00:00.000Z'\n`;
+};
+
+const manifestContent = (asset: string, version: string) => {
+  if (asset === 'latest-mac.yml') return latestYml(version);
+  if (asset === 'latest-linux.yml') return linuxLatestYml(version, 'x64');
+  if (asset === 'latest-linux-arm64.yml') return linuxLatestYml(version, 'arm64');
+  return 'bytes';
+};
+
 // A folder plays GitHub: github/<release>/<asset>. The real script runs against stubs of gh, curl
 // and sleep that read and write it, and log each call.
-const fixture = () => {
-  const feedTag = 'mac-feed';
-  const feedAsset = 'latest-mac.yml';
-  const root = mkdtempSync(join(tmpdir(), 'mindroom-mac-feed-test-'));
+const fixture = (mode: 'mac' | 'linux' = 'mac') => {
+  const feedTag = mode === 'linux' ? 'linux-feed' : 'mac-feed';
+  const feedAsset = mode === 'linux' ? 'latest-linux.yml' : 'latest-mac.yml';
+  const cliFlag = mode === 'linux' ? '--linux' : '--desktop';
+  const root = mkdtempSync(join(tmpdir(), `mindroom-${mode}-feed-test-`));
   fixtures.push(root);
   const github = join(root, 'github');
   mkdirSync(join(root, 'bin'), { recursive: true });
@@ -116,28 +147,52 @@ if (command === 'gh') {
     mkdirSync(join(github, tag));
     if (kind) writeFileSync(join(github, tag, '.flags'), kind);
     assets.forEach((asset) =>
-      writeFileSync(
-        join(github, tag, asset),
-        asset === 'latest-mac.yml' ? latestYml(tag.slice(1)) : 'bytes'
-      )
+      writeFileSync(join(github, tag, asset), manifestContent(asset, tag.slice(1)))
     );
   };
   return {
     release,
     asset: (rel: string, name: string) => join(github, rel, name),
-    ready: (tag: string) => release(tag, DESKTOP_ASSETS),
+    ready: (tag: string) => release(tag, mode === 'linux' ? LINUX_ASSETS : DESKTOP_ASSETS),
     live: (version?: string, extraAssets: string[] = []) => {
       mkdirSync(join(github, feedTag));
       writeFileSync(join(github, feedTag, '.flags'), 'prerelease');
-      if (version) writeFileSync(join(github, feedTag, feedAsset), latestYml(version));
+      if (version) {
+        if (mode === 'linux') {
+          writeFileSync(join(github, feedTag, 'latest-linux.yml'), linuxLatestYml(version, 'x64'));
+          writeFileSync(
+            join(github, feedTag, 'latest-linux-arm64.yml'),
+            linuxLatestYml(version, 'arm64')
+          );
+        } else {
+          writeFileSync(join(github, feedTag, feedAsset), latestYml(version));
+        }
+      }
       extraAssets.forEach((name) => writeFileSync(join(github, feedTag, name), 'marker'));
     },
-    feedNow: () => {
-      const file = join(github, feedTag, feedAsset);
+    liveLinux: (versions: { x64?: string; arm64?: string }, extraAssets: string[] = []) => {
+      mkdirSync(join(github, feedTag));
+      writeFileSync(join(github, feedTag, '.flags'), 'prerelease');
+      if (versions.x64) {
+        writeFileSync(
+          join(github, feedTag, 'latest-linux.yml'),
+          linuxLatestYml(versions.x64, 'x64')
+        );
+      }
+      if (versions.arm64) {
+        writeFileSync(
+          join(github, feedTag, 'latest-linux-arm64.yml'),
+          linuxLatestYml(versions.arm64, 'arm64')
+        );
+      }
+      extraAssets.forEach((name) => writeFileSync(join(github, feedTag, name), 'marker'));
+    },
+    feedNow: (name = feedAsset) => {
+      const file = join(github, feedTag, name);
       return existsSync(file) ? readFileSync(file, 'utf8') : undefined;
     },
     run: (tag: string, env: Record<string, string> = {}) => {
-      const scriptArgs = [join(root, 'scripts/macos-publish-appcast.sh'), '--desktop', tag];
+      const scriptArgs = [join(root, 'scripts/macos-publish-appcast.sh'), cliFlag, tag];
       const result = spawnSync('bash', scriptArgs, {
         cwd: root,
         env: {
@@ -161,6 +216,10 @@ if (command === 'gh') {
     uploads: (result: { commands: { command: string; args: string[] }[] }) =>
       result.commands.filter(({ command, args }) => command === 'gh' && args[1] === 'upload')
         .length,
+    uploadedAssets: (result: { commands: { command: string; args: string[] }[] }) =>
+      result.commands
+        .filter(({ command, args }) => command === 'gh' && args[1] === 'upload')
+        .map(({ args }) => args[3]?.split('/').pop()),
   };
 };
 
@@ -331,4 +390,129 @@ it('skips writing and reports published=false when PAUSED is on mac-feed', () =>
   expect(github.feedNow()).toBe(latestYml('2026.11.9'));
   expect(result.output).toBe('published=false');
   expect(result.stdout).toContain('PAUSED asset present');
+});
+
+describe('--linux mode (linux-feed)', () => {
+  it('creates linux-feed and publishes both latest-linux.yml and latest-linux-arm64.yml', () => {
+    const github = fixture('linux');
+    github.ready('v2026.11.10');
+    const result = github.run('v2026.11.10');
+    expect(result.status, result.stderr).toBe(0);
+    expect(github.uploadedAssets(result)).toEqual(['latest-linux.yml', 'latest-linux-arm64.yml']);
+    expect(github.feedNow('latest-linux.yml')).toBe(linuxLatestYml('2026.11.10', 'x64'));
+    expect(github.feedNow('latest-linux-arm64.yml')).toBe(linuxLatestYml('2026.11.10', 'arm64'));
+    expect(result.output).toBe('published=true');
+  });
+
+  it.each([
+    ['missing arm64 deb', LINUX_ASSETS.filter((a) => a !== 'MindRoom-Chat-arm64.deb')],
+    ['missing x86_64 AppImage', LINUX_ASSETS.filter((a) => a !== 'MindRoom-Chat-x86_64.AppImage')],
+    ['missing latest-linux-arm64.yml', LINUX_ASSETS.filter((a) => a !== 'latest-linux-arm64.yml')],
+  ])('skips without writing when %s', (_name, assets) => {
+    const github = fixture('linux');
+    github.live('2026.11.9');
+    github.release('v2026.11.10', assets);
+    const result = github.run('v2026.11.10');
+    expect(result.status, result.stderr).toBe(0);
+    expect(github.uploads(result)).toBe(0);
+    expect(github.feedNow('latest-linux.yml')).toBe(linuxLatestYml('2026.11.9', 'x64'));
+    expect(github.feedNow('latest-linux-arm64.yml')).toBe(linuxLatestYml('2026.11.9', 'arm64'));
+    expect(result.output).toBe('published=false');
+  });
+
+  it.each([
+    [
+      'latest-linux.yml wrong URL version',
+      (github: Github) =>
+        writeFileSync(
+          github.asset('v2026.11.10', 'latest-linux.yml'),
+          linuxLatestYml('2026.11.10', 'x64', '2026.11.9')
+        ),
+    ],
+    [
+      'latest-linux-arm64.yml pointing at x86_64 AppImage',
+      (github: Github) =>
+        writeFileSync(
+          github.asset('v2026.11.10', 'latest-linux-arm64.yml'),
+          linuxLatestYml('2026.11.10', 'x64')
+        ),
+    ],
+    [
+      'latest-linux.yml missing blockMapSize',
+      (github: Github) =>
+        writeFileSync(
+          github.asset('v2026.11.10', 'latest-linux.yml'),
+          linuxLatestYml('2026.11.10', 'x64', '2026.11.10', null)
+        ),
+    ],
+    [
+      'latest-linux-arm64.yml zero blockMapSize',
+      (github: Github) =>
+        writeFileSync(
+          github.asset('v2026.11.10', 'latest-linux-arm64.yml'),
+          linuxLatestYml('2026.11.10', 'arm64', '2026.11.10', 0)
+        ),
+    ],
+    [
+      'latest-linux.yml non-numeric blockMapSize',
+      (github: Github) =>
+        writeFileSync(
+          github.asset('v2026.11.10', 'latest-linux.yml'),
+          linuxLatestYml('2026.11.10', 'x64', '2026.11.10', 'abc')
+        ),
+    ],
+    [
+      'corrupt live latest-linux-arm64.yml',
+      (github: Github) =>
+        writeFileSync(github.asset('linux-feed', 'latest-linux-arm64.yml'), 'not yaml'),
+    ],
+  ])('fails closed with zero uploads on %s', (_name, spoil) => {
+    const github = fixture('linux');
+    github.live('2026.11.9');
+    github.ready('v2026.11.10');
+    spoil(github);
+    const result = github.run('v2026.11.10');
+    expect(result.status).toBe(1);
+    expect(result.stdout + result.stderr).toContain('::error::');
+    expect(github.uploads(result)).toBe(0);
+  });
+
+  it('skips writing when PAUSED is on linux-feed', () => {
+    const github = fixture('linux');
+    github.live('2026.11.9', ['PAUSED']);
+    github.ready('v2026.11.10');
+    const result = github.run('v2026.11.10');
+    expect(result.status, result.stderr).toBe(0);
+    expect(github.uploads(result)).toBe(0);
+    expect(result.output).toBe('published=false');
+    expect(result.stdout).toContain('PAUSED asset present');
+  });
+
+  it('does not downgrade linux-feed when an older tag runs', () => {
+    const github = fixture('linux');
+    github.live('2026.11.10');
+    github.ready('v2026.11.9');
+    const result = github.run('v2026.11.9');
+    expect(result.status, result.stderr).toBe(0);
+    expect(github.uploads(result)).toBe(0);
+    expect(github.feedNow('latest-linux.yml')).toBe(linuxLatestYml('2026.11.10', 'x64'));
+    expect(github.feedNow('latest-linux-arm64.yml')).toBe(linuxLatestYml('2026.11.10', 'arm64'));
+    expect(result.output).toBe('published=false');
+    expect(result.stdout).toContain('The feed stays at 2026.11.10.');
+  });
+
+  it.each([
+    ['latest-linux-arm64.yml is missing', { x64: '2026.11.10' }],
+    ['latest-linux-arm64.yml is still older', { x64: '2026.11.10', arm64: '2026.11.9' }],
+  ])('heals a partial publish on re-run when %s', (_name, liveVersions) => {
+    const github = fixture('linux');
+    github.liveLinux(liveVersions);
+    github.ready('v2026.11.10');
+    const result = github.run('v2026.11.10');
+    expect(result.status, result.stderr).toBe(0);
+    expect(github.uploadedAssets(result)).toEqual(['latest-linux-arm64.yml']);
+    expect(github.feedNow('latest-linux.yml')).toBe(linuxLatestYml('2026.11.10', 'x64'));
+    expect(github.feedNow('latest-linux-arm64.yml')).toBe(linuxLatestYml('2026.11.10', 'arm64'));
+    expect(result.output).toBe('published=true');
+  });
 });

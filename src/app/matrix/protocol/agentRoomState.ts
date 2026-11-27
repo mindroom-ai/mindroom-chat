@@ -33,16 +33,18 @@ const getRoomStateByKey = (
   stateKey: string
 ): MatrixEvent | undefined =>
   room.currentState
-    .getStateEvents(eventType)
+    ?.getStateEvents(eventType)
     .find((event) => event.getStateKey() === stateKey && !event.isRedacted?.());
 
 /**
- * Joined accounts vouched for by the room's trusted `io.mindroom.router` binding and its
- * `io.mindroom.accounts` roster (enables custom `matrix_username` agents without `mindroom_`).
+ * The room's trusted `io.mindroom.router` binding and its `io.mindroom.accounts` roster, or
+ * `undefined` when the room has no trusted router binding.
  */
-export const roomTrustedAgents = (room: Room): ReadonlySet<string> => {
+export const roomBoundRoster = (
+  room: Room
+): { boundUserId: string; roster: ReadonlySet<string> } | undefined => {
   const binding = getRoomStateByKey(room, MINDROOM_ROUTER_STATE_EVENT, '');
-  if (!binding) return EMPTY_SET;
+  if (!binding) return undefined;
   const powerLevelsEvent = getRoomStateByKey(room, StateEvent.RoomPowerLevels, '');
   const powerLevels = getPowersLevelFromMatrixEvent(powerLevelsEvent);
   const createEvent = getRoomStateByKey(room, StateEvent.RoomCreate, '');
@@ -53,14 +55,23 @@ export const roomTrustedAgents = (room: Room): ReadonlySet<string> => {
     creators,
     powerLevelsEvent?.getContent()
   );
-  if (!boundUserId) return EMPTY_SET;
+  if (!boundUserId) return undefined;
   const rosterEvent = getRoomStateByKey(room, MINDROOM_ACCOUNTS_STATE_EVENT, boundUserId);
-  const roster = boundRoomRoster(boundUserId, rosterEvent);
+  return { boundUserId, roster: boundRoomRoster(boundUserId, rosterEvent) };
+};
+
+/**
+ * Joined accounts vouched for by the room's trusted `io.mindroom.router` binding and its
+ * `io.mindroom.accounts` roster (enables custom `matrix_username` agents without `mindroom_`).
+ */
+export const roomTrustedAgents = (room: Room): ReadonlySet<string> => {
+  const bound = roomBoundRoster(room);
+  if (!bound) return EMPTY_SET;
   const joined = new Set<string>();
-  for (const id of roster) {
+  for (const id of bound.roster) {
     if (isMemberJoinedOrUnloaded(room, id)) joined.add(id);
   }
-  return trustedRoomAccountIds(boundUserId, roster, joined, EMPTY_SET);
+  return trustedRoomAccountIds(bound.boundUserId, bound.roster, joined, EMPTY_SET);
 };
 
 /** State event types whose changes can alter which custom-username accounts are trusted in a room. */

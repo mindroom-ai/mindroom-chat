@@ -17,6 +17,7 @@ export const Bar = style([
     minWidth: 0,
     borderRadius: config.radii.R400,
     color: color.SurfaceVariant.OnContainer,
+    pointerEvents: 'auto',
   },
 ]);
 export const BarTitle = style({ fontWeight: config.fontWeight.W600 });

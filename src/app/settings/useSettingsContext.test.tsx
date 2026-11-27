@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Capacitor } from '@capacitor/core';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,11 +7,9 @@ import type { SettingsContext } from '../preferences/settingsRegistry';
 import { useSettingsContext } from './useSettingsContext';
 
 const mocks = vi.hoisted(() => ({
-  isNativeIOS: vi.fn(() => false),
   getDebugModeEnabled: vi.fn(() => false),
 }));
 
-vi.mock('../native/nativeSso', () => ({ isNativeIOS: mocks.isNativeIOS }));
 vi.mock('../diagnostics/debugMode', () => ({ getDebugModeEnabled: mocks.getDebugModeEnabled }));
 vi.mock('../local-mindroom/useShowLocalMindroom', () => ({ useShowLocalMindroom: () => false }));
 vi.mock('../native/macApp', () => ({ useOffersMacApp: () => false }));
@@ -42,7 +41,8 @@ describe('useSettingsContext', () => {
   };
 
   beforeEach(() => {
-    mocks.isNativeIOS.mockReturnValue(false);
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(false);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('web');
     mocks.getDebugModeEnabled.mockReturnValue(false);
     Reflect.deleteProperty(window, 'mindroomDesktop');
   });
@@ -51,11 +51,13 @@ describe('useSettingsContext', () => {
     act(() => renderer?.unmount());
     renderer = undefined;
     Reflect.deleteProperty(window, 'mindroomDesktop');
+    vi.restoreAllMocks();
   });
 
-  it('enables diagnostics in the Electron desktop app while keeping nativeIOS false', () => {
+  it('enables diagnostics in the Electron desktop app while keeping capacitor and nativeIOS false', () => {
     expect(read()).toMatchObject({
       native: false,
+      capacitor: false,
       nativeIOS: false,
       diagnostics: false,
       nativeUpdate: false,
@@ -65,6 +67,7 @@ describe('useSettingsContext', () => {
     Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: {} });
     expect(read()).toMatchObject({
       native: true,
+      capacitor: false,
       nativeIOS: false,
       diagnostics: true,
       nativeUpdate: false,
@@ -75,13 +78,39 @@ describe('useSettingsContext', () => {
       configurable: true,
       value: { update: { status: vi.fn(), check: vi.fn(), install: vi.fn() } },
     });
-    expect(read()).toMatchObject({ native: true, nativeUpdate: true, desktopAccess: false });
+    expect(read()).toMatchObject({
+      native: true,
+      capacitor: false,
+      nativeUpdate: true,
+      desktopAccess: false,
+    });
     act(() => renderer?.unmount());
 
     Object.defineProperty(window, 'mindroomDesktop', {
       configurable: true,
       value: { desktopAccess: { status: vi.fn() } },
     });
-    expect(read()).toMatchObject({ native: true, desktopAccess: true });
+    expect(read()).toMatchObject({ native: true, capacitor: false, desktopAccess: true });
+  });
+
+  it('sets capacitor and diagnostics on native Android and iOS', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+
+    expect(read()).toMatchObject({
+      native: true,
+      capacitor: true,
+      nativeIOS: false,
+      diagnostics: true,
+    });
+    act(() => renderer?.unmount());
+
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('ios');
+    expect(read()).toMatchObject({
+      native: true,
+      capacitor: true,
+      nativeIOS: true,
+      diagnostics: true,
+    });
   });
 });

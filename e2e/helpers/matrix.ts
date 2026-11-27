@@ -20,7 +20,7 @@ type MatrixFetchOptions = RequestInit & {
 };
 
 type CreateRoomOptions = {
-  name: string;
+  name?: string;
   topic?: string;
   preset?: 'private_chat' | 'trusted_private_chat';
   invite?: string[];

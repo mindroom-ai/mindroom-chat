@@ -1,22 +1,39 @@
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue, type Atom } from 'jotai';
 import { Box, Chip, Icon, IconButton, IconSrc, Icons, Text, color } from 'folds';
 import type { MatrixError } from 'matrix-js-sdk';
-import { UploadCard, UploadCardCancel, UploadCardError, UploadCardProgress } from './UploadCard';
+import {
+  UploadCard,
+  UploadCardCancel,
+  UploadCardCompressionProgress,
+  UploadCardError,
+  UploadCardProgress,
+} from './UploadCard';
 import * as css from './UploadCard.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaConfig } from '../../matrix/hooks/useMediaConfig';
 import { useObjectURL } from '../../lib/hooks/useObjectURL';
 import {
+  isUploadItemReady,
   type TUploadItem,
   type TUploadMetadata,
   type Upload,
   UploadStatus,
   useBindUploadAtom,
+  type ZipFailureReason,
 } from '../../matrix/state/upload';
-import { getTooLargeError, MEDIA_UPLOAD_SIZE_KEY } from '../roomInputAttachmentAccess';
+import {
+  canZipUploadItem,
+  getTooLargeError,
+  MEDIA_UPLOAD_SIZE_KEY,
+} from '../roomInputAttachmentAccess';
 import { roomUploadAtomFamily } from '../roomInputDrafts';
-import { getMatrixUploadErrorMessage, toMatrixUploadError } from '../../matrix/matrix';
+import {
+  getMatrixUploadErrorMessage,
+  isTooLargeError,
+  toMatrixUploadError,
+} from '../../matrix/matrix';
 import { bytesToSize } from '../../lib/common';
 import { revealDirectionControls } from '../../ui/directional';
 
@@ -30,12 +47,32 @@ export const getFileTypeIcon = (mimeType: string): IconSrc => {
 
 const fileNameOf = (file: { name?: string }): string => file.name ?? '';
 
+const ZIP_FAILED_KEYS = {
+  'too-large': 'sharedUi.uploadCardRenderer.zipFailedTooLarge',
+  'no-savings': 'sharedUi.uploadCardRenderer.zipFailedNoSavings',
+  error: 'sharedUi.uploadCardRenderer.zipFailedError',
+} as const satisfies Record<ZipFailureReason, string>;
+
 export { getTooLargeError };
+
+function CompressingProgressLine({
+  progressAtom,
+  label,
+}: {
+  progressAtom: Atom<number>;
+  label: string;
+}) {
+  const progress = useAtomValue(progressAtom);
+  return <UploadCardCompressionProgress progress={progress} label={label} />;
+}
 
 type UploadStatusLineProps = {
   upload: Upload;
   blockedError?: MatrixError;
   maxUploadSize?: number;
+  zipFailedMessage?: string;
+  onCompressToZip?: () => void;
+  compressToZipLabel?: string;
   onRetry?: () => void;
   /** Text of the retry action. */
   retryLabel?: string;
@@ -46,9 +83,16 @@ export function UploadStatusLine({
   upload,
   blockedError,
   maxUploadSize,
+  zipFailedMessage,
+  onCompressToZip,
+  compressToZipLabel,
   onRetry,
   retryLabel,
 }: UploadStatusLineProps) {
+  if (zipFailedMessage) {
+    return <UploadCardError>{zipFailedMessage}</UploadCardError>;
+  }
+
   const error = blockedError ?? (upload.status === UploadStatus.Error ? upload.error : undefined);
 
   if (error) {
@@ -56,15 +100,32 @@ export function UploadStatusLine({
       fileSize: upload.file.size,
       maxUploadSize,
     });
+    const tooLarge = isTooLargeError(error);
     return (
       <Box alignItems="Center" gap="200" justifyContent="SpaceBetween">
         <UploadCardError>{message}</UploadCardError>
-        {!blockedError && onRetry && (
-          <Chip type="button" variant="Critical" radii="Pill" onClick={onRetry}>
+        {tooLarge && onCompressToZip ? (
+          <Chip
+            type="button"
+            variant="Secondary"
+            radii="Pill"
+            style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+            onClick={onCompressToZip}
+          >
             <Text as="span" size="B300">
-              {retryLabel}
+              {compressToZipLabel}
             </Text>
           </Chip>
+        ) : (
+          !blockedError &&
+          !tooLarge &&
+          onRetry && (
+            <Chip type="button" variant="Critical" radii="Pill" onClick={onRetry}>
+              <Text as="span" size="B300">
+                {retryLabel}
+              </Text>
+            </Chip>
+          )
         )}
       </Box>
     );
@@ -83,6 +144,12 @@ type UploadHandlers = {
   /** Stores new metadata (such as the spoiler flag) for the item. */
   setMetadata: (item: TUploadItem, metadata: TUploadMetadata) => void;
   onRemove: (file: TUploadItem['file']) => void;
+  /** Swaps a compressing or compressed attachment back to its original source file. */
+  onUseOriginal?: (item: TUploadItem) => void;
+  /** Losslessly compresses an oversized attachment into a `.zip` archive. */
+  onCompressToZip?: (item: TUploadItem) => void;
+  /** Whether per-item rewrite actions are allowed (false once enrolled in an active send). */
+  canUseOriginal?: boolean;
 };
 
 // With `isEncrypted`, a file that is not encrypted must never upload.
@@ -100,26 +167,49 @@ export const UploadCardRenderer = ({
   autoUpload = true,
   setMetadata,
   onRemove,
+  onUseOriginal,
+  onCompressToZip,
+  canUseOriginal = true,
 }: UploadCardRendererProps) => {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const maxUploadSize = useMediaConfig()[MEDIA_UPLOAD_SIZE_KEY];
-  const { file, originalFile, metadata, encInfo, prepError } = fileItem;
+  const { file, originalFile, metadata, encInfo, prepError, compression } = fileItem;
+  const isCompressing = compression?.status === 'compressing';
+  const isZipFailed = compression?.status === 'zipFailed';
+  const isReady = isUploadItemReady(fileItem);
+
+  const compressingError = useMemo(
+    () =>
+      isCompressing
+        ? toMatrixUploadError(new Error('The file is still compressing.'), 'create')
+        : undefined,
+    [isCompressing]
+  );
 
   // Encryption failed or never happened in an encrypted room: refuse to send plaintext.
   const unencryptedError = useMemo(
     () =>
-      isEncrypted && !encInfo
+      !isCompressing && !isZipFailed && isEncrypted && !encInfo
         ? toMatrixUploadError(new Error('The file was not encrypted.'), 'create')
         : undefined,
-    [isEncrypted, encInfo]
+    [isCompressing, isZipFailed, isEncrypted, encInfo]
   );
   const tooLargeError = useMemo(
-    () => getTooLargeError(file.size, maxUploadSize),
-    [file.size, maxUploadSize]
+    () => (isCompressing ? undefined : getTooLargeError(file.size, maxUploadSize)),
+    [isCompressing, file.size, maxUploadSize]
   );
 
-  const bindBlockError = prepError ?? unencryptedError ?? tooLargeError;
+  const zipFailedError = useMemo(
+    () =>
+      isZipFailed
+        ? toMatrixUploadError({ httpStatus: 413, message: 'File too large' }, 'upload')
+        : undefined,
+    [isZipFailed]
+  );
+
+  const bindBlockError =
+    compressingError ?? prepError ?? unencryptedError ?? tooLargeError ?? zipFailedError;
   const { upload, startUpload, cancelUpload } = useBindUploadAtom(
     client,
     roomUploadAtomFamily(file),
@@ -141,10 +231,12 @@ export const UploadCardRenderer = ({
   const blocked = blockUploadError ?? tooLargeError;
 
   useEffect(() => {
-    // A file that could not be prepared already carries its error and must never start.
-    if (!autoUpload || blockUploadError || upload.status !== UploadStatus.Idle) return;
+    // Compressing placeholders, failed zip attempts, and unpreparable files must never auto-upload.
+    if (!autoUpload || !isReady || blockUploadError || upload.status !== UploadStatus.Idle) {
+      return;
+    }
     void startUpload();
-  }, [autoUpload, blockUploadError, upload.status, startUpload]);
+  }, [autoUpload, isReady, blockUploadError, upload.status, startUpload]);
 
   const cancelAndRemove = () => {
     void cancelUpload();
@@ -160,6 +252,22 @@ export const UploadCardRenderer = ({
   const canBeSpoiler = mimeType.startsWith('image/') || mimeType.startsWith('video/');
   // Direction controls in the name show as code points; the upload keeps the name as it is.
   const name = revealDirectionControls(fileNameOf(originalFile) || fileNameOf(file));
+  const showUseOriginal =
+    onUseOriginal !== undefined &&
+    canUseOriginal &&
+    !prepError &&
+    ((compression?.status === 'compressing' && compression.useOriginal !== undefined) ||
+      (compression?.status === 'compressed' && compression.sourceFile !== undefined));
+  const canCompressToZip =
+    onCompressToZip !== undefined && canUseOriginal && canZipUploadItem(fileItem);
+  const zipFailedMessage =
+    !blockUploadError && compression?.status === 'zipFailed'
+      ? compression.reason === 'too-large' && maxUploadSize !== undefined && maxUploadSize > 0
+        ? t('sharedUi.uploadCardRenderer.zipFailedTooLargeWithMax', {
+            maxSize: bytesToSize(maxUploadSize),
+          })
+        : t(ZIP_FAILED_KEYS[compression.reason])
+      : undefined;
 
   return (
     <UploadCard
@@ -173,7 +281,7 @@ export const UploadCardRenderer = ({
       }
       after={
         <>
-          {upload.status === UploadStatus.Success && (
+          {!isCompressing && upload.status === UploadStatus.Success && (
             <Icon size="100" src={Icons.Check} style={{ color: color.Success.Main }} />
           )}
           {canBeSpoiler && (
@@ -198,21 +306,52 @@ export const UploadCardRenderer = ({
         </>
       }
       bottom={
-        <UploadStatusLine
-          upload={upload}
-          blockedError={blocked}
-          maxUploadSize={maxUploadSize}
-          onRetry={autoUpload ? () => void startUpload() : undefined}
-          retryLabel={t('sharedUi.uploadCardRenderer.retry')}
-        />
+        compression?.status === 'compressing' ? (
+          <CompressingProgressLine
+            progressAtom={compression.progressAtom}
+            label={t('sharedUi.uploadCardRenderer.compressing')}
+          />
+        ) : (
+          <UploadStatusLine
+            upload={upload}
+            blockedError={blocked}
+            maxUploadSize={maxUploadSize}
+            zipFailedMessage={zipFailedMessage}
+            onCompressToZip={canCompressToZip ? () => onCompressToZip(fileItem) : undefined}
+            compressToZipLabel={t('sharedUi.uploadCardRenderer.compressToZip')}
+            onRetry={autoUpload ? () => void startUpload() : undefined}
+            retryLabel={t('sharedUi.uploadCardRenderer.retry')}
+          />
+        )
       }
     >
       <Text size="H6" truncate title={name}>
         {name}
       </Text>
-      <Text size="T200" priority="300">
-        {bytesToSize(originalFile.size)}
-      </Text>
+      <Box alignItems="Center" gap="200" wrap="Wrap">
+        <Text size="T200" priority="300" style={{ whiteSpace: 'nowrap' }}>
+          {compression?.status === 'compressed'
+            ? t('sharedUi.uploadCardRenderer.compressedSize', {
+                originalSize: bytesToSize(compression.originalSize),
+                compressedSize: bytesToSize(originalFile.size),
+              })
+            : bytesToSize(originalFile.size)}
+        </Text>
+        {showUseOriginal && (
+          <Chip
+            type="button"
+            size="400"
+            variant="SurfaceVariant"
+            radii="Pill"
+            style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
+            onClick={() => onUseOriginal(fileItem)}
+          >
+            <Text as="span" size="T200">
+              {t('sharedUi.uploadCardRenderer.useOriginal')}
+            </Text>
+          </Chip>
+        )}
+      </Box>
     </UploadCard>
   );
 };

@@ -7,7 +7,7 @@ import { type ClientConfig, useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { tourAtom } from '../navigation/tourState';
 import { WelcomePage, greetingKey } from './WelcomePage';
-import { useHomeAgents, type HomeAgent } from './homeAgents';
+import { useHomeAgents, type HomeAgent } from '../sidebar/home/homeAgents';
 
 vi.mock('../config/useClientConfig', () => ({ useClientConfig: vi.fn() }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }));
@@ -17,7 +17,7 @@ vi.mock('../ui/page/Page', () => {
   const Frame = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   return { Page: Frame, PageHero: Frame, PageHeroSection: Frame };
 });
-vi.mock('./homeAgents', () => ({ useHomeAgents: vi.fn(() => []) }));
+vi.mock('../sidebar/home/homeAgents', () => ({ useHomeAgents: vi.fn(() => []) }));
 const dropRef = vi.hoisted(() => ({
   current: undefined as { current: HTMLElement | null } | undefined,
 }));

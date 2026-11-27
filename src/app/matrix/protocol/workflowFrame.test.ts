@@ -170,6 +170,106 @@ describe('workflowFrame', () => {
     expect(after1.log[19]).toBe('extra-20');
   });
 
+  it('parses messages, omitted.messages, node.preview, and defaults for older backends', () => {
+    const legacy = parseWorkflowFrame(firstFrame);
+    expect(legacy && 'snapshot' in legacy && legacy.snapshot.messages).toEqual([]);
+    expect(legacy && 'snapshot' in legacy && legacy.snapshot.omitted.messages).toBe(0);
+
+    const frame = parseWorkflowFrame({
+      ...firstFrame,
+      snapshot: {
+        ...firstFrame.snapshot,
+        nodes: [
+          {
+            ...firstFrame.snapshot!.nodes[0],
+            preview: 'Checked 12 files, 0 issues.',
+          },
+        ],
+        messages: [
+          { seq: -1, from: 'n1', from_name: 'a', to: 'n2', to_name: 'b', text: 'bad' },
+          {
+            seq: 1,
+            from: null,
+            from_name: 'script',
+            to: 'n2',
+            to_name: 'auditor',
+            text: 'Start audit',
+            sent_at: 1795389740,
+          },
+          {
+            seq: 2,
+            from: 'n2',
+            from_name: 'auditor',
+            to: 'n3',
+            to_name: 'reviewer',
+            text: 'Found 0 issues',
+            sent_at: 1e20,
+          },
+        ],
+        omitted: { ...firstFrame.snapshot!.omitted, messages: 7 },
+      },
+    });
+    expect(frame && 'snapshot' in frame && frame.snapshot.nodes[0]?.preview).toBe(
+      'Checked 12 files, 0 issues.'
+    );
+    expect(frame && 'snapshot' in frame && frame.snapshot.omitted.messages).toBe(7);
+    expect(frame && 'snapshot' in frame && frame.snapshot.messages).toEqual([
+      {
+        seq: 1,
+        from: null,
+        fromName: 'script',
+        to: 'n2',
+        toName: 'auditor',
+        text: 'Start audit',
+        sentAt: 1795389740,
+      },
+      {
+        seq: 2,
+        from: 'n2',
+        fromName: 'auditor',
+        to: 'n3',
+        toName: 'reviewer',
+        text: 'Found 0 issues',
+        sentAt: null,
+      },
+    ]);
+  });
+
+  it('merges messages_append deduplicating by seq and keeping the newest 50 messages', () => {
+    const seed = Array.from({ length: 49 }, (_, i) => ({
+      seq: i + 1,
+      from: 'n2',
+      from_name: 'a',
+      to: 'n3',
+      to_name: 'b',
+      text: `msg-${i + 1}`,
+      sent_at: 1795389740 + i,
+    }));
+    const snap = parseWorkflowFrame({
+      ...firstFrame,
+      snapshot: { ...firstFrame.snapshot, messages: seed },
+    });
+    const delta = parseWorkflowFrame({
+      ...secondFrame,
+      delta: {
+        messages_append: [
+          { seq: 49, from: 'n2', from_name: 'a', to: 'n3', to_name: 'b', text: 'msg-49-updated' },
+          { seq: 51, from: 'n2', from_name: 'a', to: 'n3', to_name: 'b', text: 'msg-51' },
+          { seq: 50, from: 'n2', from_name: 'a', to: 'n3', to_name: 'b', text: 'msg-50' },
+        ],
+      },
+    });
+    if (!snap || !('snapshot' in snap) || !delta || !('delta' in delta)) {
+      throw new Error('Expected frames to parse');
+    }
+    const merged = applyWorkflowRunDelta(snap.snapshot, delta.delta);
+    expect(merged.messages).toHaveLength(50);
+    expect(merged.messages[0]?.seq).toBe(2);
+    expect(merged.messages[47]).toMatchObject({ seq: 49, text: 'msg-49-updated' });
+    expect(merged.messages[48]?.seq).toBe(50);
+    expect(merged.messages[49]?.seq).toBe(51);
+  });
+
   it('identifies live workflow run statuses', () => {
     expect(isLiveWorkflowRunStatus('starting')).toBe(true);
     expect(isLiveWorkflowRunStatus('running')).toBe(true);

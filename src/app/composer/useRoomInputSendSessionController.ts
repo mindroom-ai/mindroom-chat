@@ -20,9 +20,9 @@ import {
 import { resolveCanonicalThreadRootId } from '../event-store/threads/threadRouteUtils';
 import { useInConversationView } from '../navigation/conversationView';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { TUploadItem, Upload } from '../matrix/state/upload';
+import { isUploadItemReady, TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { hasPasteMarkerInText, type RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
-import { TUploadContent } from '../matrix/matrix';
+import { isTooLargeError, TUploadContent } from '../matrix/matrix';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import {
   buildLongTextPreview,
@@ -54,6 +54,11 @@ import {
   threadForkDraftId,
 } from '../event-store/threads/threadFork';
 
+export const LIFECYCLE_COMPLETE_ACTIVE_SESSION_ERROR =
+  'Cannot start a lifecycle-complete send while another session is active.';
+export const LIFECYCLE_COMPLETE_UNFINISHED_ERROR =
+  'Lifecycle-complete send did not finish within the initiating call.';
+
 type SendSession = RoomInputSendSessionState & {
   room: Room;
   roomId: string;
@@ -70,7 +75,7 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
-  onUploadSent?: (file: TUploadContent) => void;
+  onUploadSent?: (file: TUploadContent, rootEventId?: string) => void;
   beforeSend?: StartRoomInputSendSessionOptions['beforeSend'];
   onLocalEchoCreated?: StartRoomInputSendSessionOptions['onLocalEchoCreated'];
   onTextConsumed?: () => void;
@@ -79,11 +84,11 @@ type SendSession = RoomInputSendSessionState & {
   /** The thread its root opened (Compact): the session parks for that thread's composer. */
   openedThreadId?: string;
   /**
-   * Whether it started in a conversation view's composer. A thread's view may take over a send the
-   * room's composer started, but only while mounted: as it goes, the send parks for the room's
-   * composer again, which holds its files' board.
+   * Parking key computed at send creation: a staged-draft key, or the originating composer's
+   * `voiceComposerKey` (so a thread view taking over a room composer's send parks it back for
+   * the room's composer when the view closes).
    */
-  originThreadView?: boolean;
+  originParkKey?: string;
 };
 
 type ComposerContext = Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
@@ -214,7 +219,7 @@ export type StartRoomInputSendSessionOptions = {
   composerFallback?: Descendant[];
   composerContext?: ComposerContext;
   composerAlreadyReset?: boolean;
-  onUploadSent?: (file: TUploadContent) => void;
+  onUploadSent?: (file: TUploadContent, rootEventId?: string) => void;
   /**
    * Asked for this send, with the room it goes to, just before its text message goes out, after
    * anything it waited for (its long-text upload): false sends nothing, and the text returns to
@@ -261,6 +266,8 @@ type UseRoomInputSendSessionControllerOptions = {
   /** A fork draft's composer (`RoomInput`): its sends start the fork. */
   forkFrom?: ThreadForkRef;
   takeRootModelDraft?: (room: Room) => ThreadModelContent | undefined;
+  /** Key for parking/adopting sends of a staged-draft composer apart from target rooms. */
+  stagedDraftKey?: string;
 };
 
 export const hasFailedPasteMarkerInText = (
@@ -428,6 +435,34 @@ const getSessionUploads = (session: SendSession): [Upload[], TUploadContent[]] =
   return [session.uploads ?? uploads, Array.from(activeFiles)];
 };
 
+const isReleasableTooLargeItem = (
+  item: TUploadItem | undefined,
+  upload: Upload | undefined
+): boolean =>
+  item !== undefined &&
+  item.metadata.mindroomPasteAttachment === undefined &&
+  upload?.status === UploadStatus.Error &&
+  isTooLargeError(upload.error);
+
+// Too-large (413 / M_TOO_LARGE) ordinary uploads cannot be retried as-is: release them from the
+// active send session while keeping them staged on the board so Compress (.zip) is available
+// immediately. Large paste attachments are not zip-eligible and keep their existing enrollment.
+const releaseTooLargeUploads = (session: SendSession): void => {
+  const { staged, enrolled, uploads } = session.composer.attachments.snapshot(session.roomId);
+  const itemsByFile = new Map([...enrolled, ...staged].map((item) => [item.file, item]));
+  const uploadMap = new Map((session.uploads ?? uploads).map((upload) => [upload.file, upload]));
+  const droppedFiles = session.orderedFiles.filter(
+    (file) =>
+      !session.sentFiles.has(file) &&
+      isReleasableTooLargeItem(itemsByFile.get(file), uploadMap.get(file))
+  );
+  if (droppedFiles.length === 0) return;
+  const dropped = new Set(droppedFiles);
+  session.orderedFiles = session.orderedFiles.filter((file) => !dropped.has(file));
+  droppedFiles.forEach((file) => session.failedFiles.delete(file));
+  session.composer.attachments.clearEnrollment(droppedFiles);
+};
+
 const isSessionStalled = (session: SendSession) =>
   isRoomInputSendSessionStalled(session, ...getSessionUploads(session));
 
@@ -472,6 +507,7 @@ export const useRoomInputSendSessionController = ({
   onRoomMessageSent,
   forkFrom,
   takeRootModelDraft,
+  stagedDraftKey,
 }: UseRoomInputSendSessionControllerOptions): {
   hasActiveSendSession: () => boolean;
   /** A send this composer took over from one that unmounted is still going out. */
@@ -493,7 +529,8 @@ export const useRoomInputSendSessionController = ({
     () => (forkFrom ? { ref: forkFrom } : undefined),
     [forkFrom]
   );
-  const composerKey = voiceComposerKey({ roomId, threadId: composerThreadId, threadView });
+  const composerKey =
+    stagedDraftKey ?? voiceComposerKey({ roomId, threadId: composerThreadId, threadView });
   const composerKeyRef = useLatestRef(composerKey);
   const composerContextRef = useRef({ roomId, threadId: composerThreadId });
   composerContextRef.current = { roomId, threadId: composerThreadId };
@@ -670,7 +707,7 @@ export const useRoomInputSendSessionController = ({
             ? relation.event_id
             : response.event_id;
       }
-      session.onUploadSent?.(file);
+      session.onUploadSent?.(file, session.rootEventId);
       clearReplyDraftForSession(session);
       // The composer that took the send over meanwhile holds the file now.
       session.composer.attachments.remove(session.roomId, [file]);
@@ -703,6 +740,7 @@ export const useRoomInputSendSessionController = ({
       try {
         while (sendSlot.session) {
           const session = sendSlot.session;
+          if (!session.failFast) releaseTooLargeUploads(session);
 
           const step = resolveRoomInputSendStep(session, ...getSessionUploads(session));
 
@@ -761,12 +799,7 @@ export const useRoomInputSendSessionController = ({
     (target: SendSlot, notifyAlways: boolean) => {
       target.unpark?.();
       const { session: held } = target;
-      let key = held
-        ? voiceComposerKey({
-            ...held.composerContext,
-            threadView: held.originThreadView ?? threadView,
-          })
-        : composerKeyRef.current;
+      let key = held?.originParkKey ?? composerKeyRef.current;
       // A send whose root opened its thread goes on with a view of that thread that is there
       // (one that mounts as this composer goes has listed itself already); else with the room's.
       const threadKey =
@@ -792,7 +825,7 @@ export const useRoomInputSendSessionController = ({
         parkListenersOf(mx).forEach((listener) => listener());
       }
     },
-    [composerKeyRef, mx, store, threadView]
+    [composerKeyRef, mx, store]
   );
 
   const startSendSession = useCallback(
@@ -855,12 +888,16 @@ export const useRoomInputSendSessionController = ({
         activeSlot = createSendSlot();
         activeSlot.repark = () => parkSlot(activeSlot, true);
       }
+      const restoreResetFallback = () => {
+        if (!composerAlreadyReset || !composerFallback) return;
+        restoreText(targetComposerContext, composerFallback);
+        onTextConsumed?.();
+      };
       const existingSession = activeSlot.session;
       if (existingSession) {
         if (completeWithinCall) {
-          throw new Error(
-            'Cannot start a lifecycle-complete send while another session is active.'
-          );
+          restoreResetFallback();
+          throw new Error(LIFECYCLE_COMPLETE_ACTIVE_SESSION_ERROR);
         }
         if (hasRoomInputSendFailures(existingSession) && !composerAlreadyReset) {
           // Send again: the attachments whose send failed go out again; text being sent stays
@@ -879,10 +916,7 @@ export const useRoomInputSendSessionController = ({
           return;
         }
         if (hasFailedPasteMarkerInText(textContent, attachments.snapshot(context?.roomId).staged)) {
-          if (composerAlreadyReset && composerFallback) {
-            restoreText(targetComposerContext, composerFallback);
-            onTextConsumed?.();
-          }
+          restoreResetFallback();
           return;
         }
         // The composer takes the message now, as it does any message; the reply draft the earlier
@@ -957,26 +991,35 @@ export const useRoomInputSendSessionController = ({
         return;
       }
 
-      const { staged, enrolled } = attachments.snapshot(context?.roomId);
+      const { staged, enrolled, uploads } = attachments.snapshot(context?.roomId);
+      const uploadByFile = new Map(
+        (batch?.uploads ?? uploads).map((upload) => [upload.file, upload])
+      );
       // A file goes with one send at a time: one another send or background handoff holds stays
       // with that one.
       const heldFiles = new Set([
         ...[...busySlotsOf(mx)].flatMap((busy) => busy.session?.orderedFiles ?? []),
         ...(batch ? [] : enrolled.map((item) => item.file)),
       ]);
-      const sendItems = (batch?.fileItems ?? staged).filter(
-        (fileItem) => !fileItem.prepError && !heldFiles.has(fileItem.file)
+      const candidateItems = (batch?.fileItems ?? staged).filter(
+        (fileItem) => isUploadItemReady(fileItem) && !heldFiles.has(fileItem.file)
       );
+      const isDroppedTooLarge = (fileItem: TUploadItem) =>
+        !completeWithinCall && isReleasableTooLargeItem(fileItem, uploadByFile.get(fileItem.file));
+      const droppedTooLargeFiles = batch
+        ? candidateItems.filter(isDroppedTooLarge).map((item) => item.file)
+        : [];
+      if (droppedTooLargeFiles.length > 0) {
+        attachments.clearEnrollment(droppedTooLargeFiles);
+      }
+      const sendItems = candidateItems.filter((fileItem) => !isDroppedTooLarge(fileItem));
       const sendFiles = sendItems.map((item) => item.file);
       if (sendFiles.length === 0 && !textContent) {
         onTextConsumed?.();
         return;
       }
       if (hasFailedPasteMarkerInText(textContent, staged)) {
-        if (composerAlreadyReset && composerFallback) {
-          restoreText(targetComposerContext, composerFallback);
-          onTextConsumed?.();
-        }
+        restoreResetFallback();
         return;
       }
       attachments.enroll(sendItems);
@@ -1006,7 +1049,8 @@ export const useRoomInputSendSessionController = ({
         onTextConsumed,
         composer,
       });
-      session.originThreadView = threadView;
+      session.originParkKey =
+        stagedDraftKey ?? voiceComposerKey({ ...targetComposerContext, threadView });
       activeSlot.session = session;
       busySlotsOf(mx).add(activeSlot);
       // The session wakes on its own uploads, with or without its composer.
@@ -1045,7 +1089,7 @@ export const useRoomInputSendSessionController = ({
       }
       if (completeWithinCall && activeSlot.session) {
         clearSendSession(activeSlot);
-        throw new Error('Lifecycle-complete send did not finish within the initiating call.');
+        throw new Error(LIFECYCLE_COMPLETE_UNFINISHED_ERROR);
       }
     },
     [
@@ -1054,6 +1098,7 @@ export const useRoomInputSendSessionController = ({
       threadId,
       composerThreadId,
       forkStart,
+      stagedDraftKey,
       takeRootModelDraft,
       replyDraft,
       threadingEnabled,

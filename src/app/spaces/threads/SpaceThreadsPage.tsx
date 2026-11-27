@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
 import {
   addTagFilter,
@@ -25,9 +25,14 @@ import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSpace } from '../../matrix/hooks/useSpace';
 import { getRoomThreadMode } from '../../matrix/protocol/roomThreadMode';
+import { createSessionId } from '../../matrix/session/sessions';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
+import {
+  clearActivePhoneSwipeContext,
+  setActivePhoneSwipeContext,
+} from '../../navigation/phonePageSlide';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { settingsAtom } from '../../preferences/settings';
 import { useSetting } from '../../preferences/useSetting';
@@ -43,6 +48,7 @@ import { ThreadPeopleFilter } from '../../threads/overview/ThreadPeopleFilter';
 import { useThreadSortFreezeController } from '../../threads/overview/threadSortFreezeController';
 import { useSnoozeNow } from '../../threads/tags/useSnoozeNow';
 import { Page } from '../../ui/page/Page';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { SpaceRoomFilter } from './SpaceRoomFilter';
 import { SpaceThreadComposer } from './SpaceThreadComposer';
 import { SpaceThreadsHeader } from './SpaceThreadsHeader';
@@ -63,16 +69,28 @@ import { useSpaceThreadsRooms } from './useSpaceThreadsRooms';
 import * as css from './SpaceThreads.css';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
-const EMPTY_ROOMS: readonly Room[] = [];
 const EMPTY_PINNED_KEYS: readonly string[] = [];
+const spaceThreadsScrollMemories = new WeakMap<MatrixClient, ScrollAnchorMemory>();
+const getSpaceThreadsScrollMemory = (mx: MatrixClient): ScrollAnchorMemory => {
+  let memory = spaceThreadsScrollMemories.get(mx);
+  if (!memory) spaceThreadsScrollMemories.set(mx, (memory = new Map()));
+  return memory;
+};
 
 function SpaceThreadsPageContent({ space }: { space: Room }) {
   const mx = useMatrixClient();
   const myUserId = mx.getSafeUserId();
+  const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), myUserId), [mx, myUserId]);
   const ignoredUsers = useIgnoredUsers();
   const ignoredUsersSet = useMemo(() => new Set(ignoredUsers), [ignoredUsers]);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const pageRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const context = { sessionId, roomId: space.roomId, isSpaceThreads: true };
+    setActivePhoneSwipeContext(context);
+    return () => clearActivePhoneSwipeContext(context);
+  }, [sessionId, space.roomId]);
 
   const {
     spaceRooms,
@@ -104,9 +122,9 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     useMemo(() => getCompactRoomSectionsAtom(myUserId), [myUserId])
   );
   const sectionsEnabled = hasMindroomAgents && compactSections.on;
-  const pinnedByRoom = usePinnedEventIdsByRoom(sectionsEnabled ? spaceRooms : EMPTY_ROOMS);
+  const pinnedByRoom = usePinnedEventIdsByRoom(spaceRooms);
   const pinnedKeys = useMemo(() => {
-    if (pinnedByRoom.size === 0) return EMPTY_PINNED_KEYS;
+    if (!sectionsEnabled || pinnedByRoom.size === 0) return EMPTY_PINNED_KEYS;
     const keys: string[] = [];
     pinnedByRoom.forEach((ids, roomId) => {
       for (let i = ids.length - 1; i >= 0; i -= 1) {
@@ -114,7 +132,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       }
     });
     return keys;
-  }, [pinnedByRoom]);
+  }, [pinnedByRoom, sectionsEnabled]);
   const [quietClock, setQuietClock] = useState(() => ({
     enabled: sectionsEnabled,
     now: Date.now(),
@@ -279,6 +297,11 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       }),
     [orderedRoomIds, updateFilter]
   );
+  const handleOpenThread = useCallback(
+    (roomId: string, threadRootId: string) =>
+      navigateRoomThread(roomId, threadRootId, undefined, { returnToOrigin: true }),
+    [navigateRoomThread]
+  );
   const handleThreadCreated = useCallback(
     (roomId: string, eventId: string) => {
       if (getRoomThreadMode(mx.getRoom(roomId)) === 'room') {
@@ -286,7 +309,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
         else navigateRoom(roomId);
         return;
       }
-      navigateRoomThread(roomId, eventId);
+      navigateRoomThread(roomId, eventId, undefined, { returnToOrigin: true });
     },
     [mx, navigateRoom, navigateRoomThread]
   );
@@ -420,16 +443,21 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           singleBucketTab={singleBucketTab}
           onToggleSectionFold={(id) => updateCompactSections({ type: 'TOGGLE_FOLD', id })}
           roomsById={roomsById}
+          pinnedByRoom={pinnedByRoom}
           showRoomBadge={activeRoomIds.length > 1}
           snoozeNow={snoozeNow}
           metaVersion={metaVersion}
           showLoading={showLoading}
           emptyKey={emptyKey}
-          onOpenThread={navigateRoomThread}
+          scrollMemory={getSpaceThreadsScrollMemory(mx)}
+          scrollMemoryKey={space.roomId}
+          indexPending={!isSettled}
+          onOpenThread={handleOpenThread}
         />
 
         {spaceRooms.length > 0 && (
           <SpaceThreadComposer
+            spaceId={space.roomId}
             rooms={rooms}
             roomsById={roomsById}
             activeRoomIds={activeRoomIds}

@@ -25,7 +25,6 @@ import {
   createDictationRateBudget,
   isRecordCoveredByRefinement,
   recordDictationUpload,
-  releaseGroupWavs,
   sealRefinementGroup,
   selectNextUpload,
   stitchRefinedSegments,
@@ -36,6 +35,11 @@ import {
   type SessionRecordSummary,
 } from './dictationRefinement';
 import { DictationSegmenter, type DictationSegment } from './dictationSegmenter';
+import {
+  buildDictationVoiceAudio,
+  hasUsableDictationWav,
+  type DictationVoiceAudio,
+} from './dictationVoiceAudio';
 import { loadSileroVad, type SileroVadInstance } from './sileroVad';
 import { buildTrailingPrompt } from './stitchTranscript';
 
@@ -47,6 +51,7 @@ export type {
 export {
   hydrateDictationRecords,
   serializeDictationMeta,
+  type DictationVoiceAudio,
   type RecoveredDictationRecord,
   type RecoveredDictationState,
   type SerializableDictationState,
@@ -71,6 +76,7 @@ export type DictationSnapshot = {
   failedSegments: number;
   completedSegments: number;
   hasPartialText: boolean;
+  hasVoiceAudio: boolean;
   previewText: string;
   capReached: boolean;
   interrupted: boolean;
@@ -122,6 +128,8 @@ export type DictationSession = {
   finish: () => Promise<DictationFinishResult>;
   retryFailed: () => Promise<DictationFinishResult>;
   takePartialText: () => DictationPartialTextResult;
+  buildVoiceAudio: () => Promise<DictationVoiceAudio | undefined>;
+  completeVoiceFallback: () => { journalId?: string };
   park: () => void;
   reset: () => void;
   discard: () => Promise<void>;
@@ -152,6 +160,7 @@ const idleSnapshot = (hasClient: boolean, errorMessage?: string): DictationSnaps
   waveform: [],
   sampleCount: 0,
   ...EMPTY_STATS,
+  hasVoiceAudio: false,
   capReached: false,
   interrupted: false,
   recovered: false,
@@ -236,10 +245,13 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   let queuePromise: Promise<void> | undefined;
   let deferQueuePumpDepth = 0;
 
+  const hasVoiceAudio = (): boolean => records.some((record) => hasUsableDictationWav(record.wav));
+
   let snapshot: DictationSnapshot = recovered
     ? {
         ...idleSnapshot(Boolean(activeClient)),
         ...segmentStats,
+        hasVoiceAudio: hasVoiceAudio(),
         phase: 'paused',
         elapsedMs: accumulatedMs,
         capReached: recovered.capReached,
@@ -288,7 +300,13 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   }));
 
   const publish = (patch: Partial<DictationSnapshot> = {}) => {
-    snapshot = { ...snapshot, ...segmentStats, hasClient: Boolean(activeClient), ...patch };
+    snapshot = {
+      ...snapshot,
+      ...segmentStats,
+      hasVoiceAudio: hasVoiceAudio(),
+      hasClient: Boolean(activeClient),
+      ...patch,
+    };
     emit();
   };
 
@@ -399,9 +417,9 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     return !isStale(activeGen);
   };
 
-  const sealOpenGroup = (prunedOut?: number[]): boolean => {
+  const sealOpenGroup = (): boolean => {
     const last = groups[groups.length - 1];
-    return last ? sealRefinementGroup(last, records, prunedOut) : false;
+    return last ? sealRefinementGroup(last, records) : false;
   };
 
   const uploadOne = async (record: SegmentRecord, index: number, activeGen: number) => {
@@ -431,10 +449,8 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
         record.error = undefined;
         record.retryable = false;
         record.status = 'completed';
-        const group = groups.find((item) => index >= item.startIndex && index <= item.endIndex);
-        const pruned = group ? releaseGroupWavs(group, records) : [];
         publishRecords();
-        void checkpointer.checkpointState(pruned);
+        void checkpointer.checkpointState();
         return;
       } catch (error) {
         if (isStale(activeGen)) return;
@@ -471,15 +487,13 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       group.uploadingEndIndex = undefined;
       group.mergedWav = undefined;
       group.mergedSeconds = undefined;
-      let pruned: number[] = [];
       if (group.state === 'open') {
         group.liveFailedEndIndex = targetEnd;
       } else {
         group.state = 'fallback';
-        pruned = releaseGroupWavs(group, records);
       }
       publishRecords();
-      void checkpointer.checkpointState(pruned);
+      void checkpointer.checkpointState();
     };
     const merged =
       group.mergedWav && group.mergedSeconds !== undefined
@@ -529,13 +543,12 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       group.uploadingEndIndex = undefined;
       group.refinedText = cleaned;
       group.refinedEndIndex = targetEnd;
-      const pruned: number[] = [];
       if (group.state === 'uploading') {
         group.state = 'open';
-        sealRefinementGroup(group, records, pruned);
+        sealRefinementGroup(group, records);
       }
       publishRecords();
-      void checkpointer.checkpointState(pruned);
+      void checkpointer.checkpointState();
     } catch (error) {
       if (isStale(activeGen)) return;
       applyRetryAfter(error);
@@ -578,10 +591,9 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       ...meta
     } = segment;
     records.push({ segment: meta, wav, status: 'queued', retryable: true, autoRetried: false });
-    const pruned: number[] = [];
-    appendSegmentToGroups(groups, records, pruned);
+    appendSegmentToGroups(groups, records);
     publishRecords();
-    checkpointer.commitSegment(segment, pruned);
+    checkpointer.commitSegment(segment);
     if (deferQueuePumpDepth === 0) void pumpQueue(activeGen);
   };
 
@@ -617,10 +629,9 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       deferQueuePumpDepth = Math.max(0, deferQueuePumpDepth - 1);
     }
     checkpointer.clearTailState();
-    const pruned: number[] = [];
-    sealOpenGroup(pruned);
+    sealOpenGroup();
     publishRecords();
-    await checkpointer.checkpointState(pruned, true);
+    await checkpointer.checkpointState(true);
     return !isStale(activeGen);
   };
 
@@ -652,10 +663,9 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       onSegment: (segment) => enqueueSegment(segment, activeGen),
       onLongSilence: () => {
         if (isStale(activeGen)) return;
-        const pruned: number[] = [];
-        if (!sealOpenGroup(pruned)) return;
+        if (!sealOpenGroup()) return;
         publishRecords();
-        void checkpointer.checkpointState(pruned);
+        void checkpointer.checkpointState();
         if (deferQueuePumpDepth === 0) void pumpQueue(activeGen);
       },
       onCapReached: () => {
@@ -791,6 +801,12 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     });
   }
 
+  const takeJournalAndReset = (): { journalId?: string } => {
+    const journalId = checkpointer.takeJournal()?.id;
+    releaseAll();
+    return journalId ? { journalId } : {};
+  };
+
   return {
     getSnapshot: () => snapshot,
     subscribe: (listener) => {
@@ -869,12 +885,12 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       requeueFailedSegments(false, { phase: 'finishing', errorMessage: undefined });
       return settleFinishOrRetry(generation);
     },
-    takePartialText: () => {
-      const text = stitchCompleted();
-      const journalId = checkpointer.takeJournal()?.id;
-      releaseAll();
-      return { text, ...(journalId ? { journalId } : {}) };
+    takePartialText: () => ({ text: stitchCompleted(), ...takeJournalAndReset() }),
+    buildVoiceAudio: () => {
+      if (snapshot.phase === 'idle') return Promise.resolve(undefined);
+      return buildDictationVoiceAudio(records, groups, now());
     },
+    completeVoiceFallback: takeJournalAndReset,
     park: () => {
       if (snapshot.phase === 'requesting') {
         if (requestMode === 'start') {

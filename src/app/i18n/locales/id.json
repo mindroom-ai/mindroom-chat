@@ -2713,7 +2713,7 @@
         "configuredModel": "Model yang dikonfigurasi",
         "runId": "ID proses",
         "sessionId": "ID sesi",
-        "newInput": "Input baru",
+        "newInput": "Input tidak di-cache",
         "replyCount_one": "{{count}} balasan",
         "replyCount_other": "{{count}} balasan",
         "loadedReplyCount_one": "{{count}} balasan dimuat",

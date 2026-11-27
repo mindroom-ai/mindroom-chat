@@ -311,7 +311,8 @@ describe('RoomTimeline', () => {
             await flushAsyncWork(1);
           });
 
-          expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(1, {
+          // Virtual item 0 is the room intro, so visible event index 1 sits at virtual index 2.
+          expect(roomTimelineVirtualizerState.scrollToIndexMock).toHaveBeenCalledWith(2, {
             align: 'start',
             behavior: 'auto',
           });

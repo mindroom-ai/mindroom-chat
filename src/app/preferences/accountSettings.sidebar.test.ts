@@ -24,6 +24,14 @@ describe('sidebar button switches in io.mindroom.settings', () => {
     expect(sanitizeAccountSettings({ [key]: 'on' })[key]).toBe(false);
   });
 
+  it('shows showDirectInSidebar by default and keeps a stored boolean', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showDirectInSidebar).toBe(true);
+    expect(sanitizeAccountSettings({}).showDirectInSidebar).toBe(true);
+    expect(sanitizeAccountSettings({ showDirectInSidebar: false }).showDirectInSidebar).toBe(false);
+    expect(sanitizeAccountSettings({ showDirectInSidebar: true }).showDirectInSidebar).toBe(true);
+    expect(sanitizeAccountSettings({ showDirectInSidebar: 'off' }).showDirectInSidebar).toBe(true);
+  });
+
   it('shows showHelpInSidebar by default and keeps a stored boolean', () => {
     expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showHelpInSidebar).toBe(true);
     expect(sanitizeAccountSettings({}).showHelpInSidebar).toBe(true);

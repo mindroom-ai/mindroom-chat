@@ -22,8 +22,10 @@ export const SETTING_SCOPE_LABEL_KEYS = {
 
 /** What decides whether a page or setting is offered right now. */
 export type SettingsContext = {
-  /** Inside the iOS or Android app. */
+  /** Inside a bundled app shell (Capacitor iOS/Android or Electron desktop). */
   native: boolean;
+  /** Inside a Capacitor native shell (iOS or Android, not Electron desktop). */
+  capacitor: boolean;
   nativeIOS: boolean;
   /** The diagnostics record: always in the iOS app, elsewhere with debug mode on. */
   diagnostics: boolean;
@@ -180,6 +182,7 @@ const DEV = 'featureUi.settings.developerTools';
 
 /** The setting of each sidebar button's switch. */
 export const SIDEBAR_SWITCH_SETTINGS = {
+  direct: 'sidebarDirect',
   threads: 'sidebarThreads',
   canvases: 'sidebarCanvases',
   usage: 'sidebarUsage',
@@ -250,6 +253,7 @@ export const SETTINGS = [
     descriptionKey: `${NOTIFY}.systemNotification.showDesktopNotificationsWhenMessageArrive`,
     keywordsKey: `${KEYWORDS}.alerts`,
     scope: 'device',
+    hidden: (context) => context.capacitor,
   },
   {
     id: 'notificationSound',
@@ -544,6 +548,24 @@ export const SETTINGS = [
     scope: 'account',
   },
   {
+    id: 'mediaCompression',
+    page: 'chats',
+    group: 'settings.general.editor.sectionTitle',
+    labelKey: 'featureUi.settings.mediaCompression.title',
+    descriptionKey: 'featureUi.settings.mediaCompression.description',
+    keywordsKey: `${KEYWORDS}.mediaCompression`,
+    scope: 'account',
+  },
+  {
+    id: 'autoZipLargeFiles',
+    page: 'chats',
+    group: 'settings.general.editor.sectionTitle',
+    labelKey: 'featureUi.settings.autoZipLargeFiles.title',
+    descriptionKey: 'featureUi.settings.autoZipLargeFiles.description',
+    keywordsKey: `${KEYWORDS}.autoZipLargeFiles`,
+    scope: 'account',
+  },
+  {
     id: 'hideMembershipEvents',
     page: 'chats',
     group: 'settings.general.messages.sectionTitle',
@@ -609,6 +631,12 @@ export const SETTINGS = [
     scope: 'room-personal',
   },
   // App: Sidebar
+  sidebarSwitch(
+    'direct',
+    `${SIDEBAR}.navigation`,
+    `${SIDEBAR}.direct`,
+    `${SIDEBAR}.directDescription`
+  ),
   sidebarSwitch(
     'threads',
     `${SIDEBAR}.navigation`,

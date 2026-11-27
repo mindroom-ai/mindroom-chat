@@ -11,7 +11,7 @@ const SCROLLING_OVERFLOW = new Set(['auto', 'scroll', 'overlay']);
 
 /**
  * Cancelable event dispatched on the scroll target just before a status-bar tap jumps to the top.
- * Listeners that need to reconcile scroll state (such as clearing an active offset ledger before
+ * Listeners that need to reconcile scroll state (such as clearing a held virtualizer offset before
  * jumping to `0`) call `preventDefault()` and perform the scroll-to-top themselves.
  */
 export const STATUS_BAR_SCROLL_TOP_EVENT = 'mindroom:status-bar-scroll-top';
@@ -75,7 +75,7 @@ const runStatusBarTapScroll = (doc: Document, hooks: StatusBarTapHooks = {}): vo
  * Scrolls the area under the middle of the screen to its top. A wheel turn up as far as the area
  * goes comes first so timelines take the move as the reader's own scroll (releasing opening/latest
  * pins and loading older rows at the top), followed by an iOS flick-stop to cancel active momentum
- * and a cancelable `STATUS_BAR_SCROLL_TOP_EVENT` so timelines with an offset ledger can reconcile
+ * and a cancelable `STATUS_BAR_SCROLL_TOP_EVENT` so virtualized timelines can clear any held offset
  * and jump to 0 atomically before the fallback `scrollTo({ top: 0 })`.
  */
 export const scrollToTopOnStatusBarTap = (doc: Document): void => {

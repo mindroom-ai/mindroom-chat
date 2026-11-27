@@ -38,6 +38,16 @@
       "fileCount_one": "{{count}} dosya",
       "fileCount_other": "{{count}} dosya"
     },
+    "uploadCardRenderer": {
+      "compressing": "Sıkıştırılıyor...",
+      "useOriginal": "Orijinali kullan",
+      "compressedSize": "{{originalSize}} → {{compressedSize}}",
+      "compressToZip": "Sıkıştır (.zip)",
+      "zipFailedTooLarge": ".zip olarak sıkıştırıldıktan sonra hâlâ çok büyük.",
+      "zipFailedTooLargeWithMax": ".zip olarak sıkıştırıldıktan sonra hâlâ çok büyük (en fazla {{maxSize}}).",
+      "zipFailedNoSavings": ".zip olarak sıkıştırmak bu dosyayı küçültmedi.",
+      "zipFailedError": "Bu dosya .zip olarak sıkıştırılamadı."
+    },
     "passwordInput": {
       "show": "Parolayı göster",
       "hide": "Parolayı gizle"
@@ -432,6 +442,8 @@
       "sidebar": {
         "title": "Kenar çubuğu",
         "navigation": "Gezinme",
+        "direct": "Doğrudan mesajları kenar çubuğunda göster",
+        "directDescription": "Doğrudan mesajlar kendi kenar çubuğu sekmesinde. Gizlendiğinde, Ana sayfadan veya Ana sayfadaki ⋮ menüsünden açın.",
         "threads": "Konuları kenar çubuğunda göster",
         "threadsDescription": "Tüm odalardaki konular tek listede. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "canvasesDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
@@ -528,7 +540,9 @@
         "midTurn": "yönlendir, sıra, otomatik, ajan, yanıt, kes",
         "usage": "token, maliyet, fiyat, model, araç çağrıları, alt ajanlar, arka plan işleri",
         "plugins": "eklentiler, plugin, uzantılar, entegrasyonlar",
-        "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat"
+        "appUpdates": "güncelleme, güncellemeler, sürüm, yükseltme, yeniden başlat",
+        "mediaCompression": "ekran görüntüleri, ekran kayıtları, görseller, videolar, sıkıştırma, yükleme boyutu",
+        "autoZipLargeFiles": "zip, arşiv, sıkıştır, json, csv, günlük, log, büyük dosyalar, yükleme boyutu"
       },
       "errorReports": {
         "title": "Hata raporları gönder",
@@ -550,13 +564,30 @@
         "updateReady": "{{version}} sürümü yüklenmeye hazır.",
         "restartToUpdate": "Güncellemek için yeniden başlat",
         "updateInstallFailed": "Güncellemeyi yüklemek için yeniden başlatılamadı. Tekrar deneyin."
+      },
+      "mediaCompression": {
+        "title": "Medya sıkıştırma",
+        "description": "Yüklemeden önce ekli fotoğrafları, ekran görüntülerini ve videoları sıkıştırın. Herhangi bir ek için yine de orijinal dosyayı kullanabilirsiniz.",
+        "off": "Kapalı",
+        "balanced": "Dengeli",
+        "small": "Küçük"
+      },
+      "autoZipLargeFiles": {
+        "title": "Büyük dosyaları sıkıştır (.zip)",
+        "description": "Yüklemeden önce 1 MB üzerindeki sıkıştırılabilir dosyaları otomatik olarak .zip ile sıkıştırın. Herhangi bir ek için yine de orijinal dosyayı kullanabilirsiniz."
       }
     },
     "createChat": {
       "failed": "Sohbet başlatılamadı. Tekrar deneyin."
     },
     "homeNav": {
-      "options": "Ana sayfa seçenekleri"
+      "options": "Ana sayfa seçenekleri",
+      "addRooms": "Oda ekle",
+      "directMessages": "Doğrudan mesajlar",
+      "newDirectMessage": "Yeni doğrudan mesaj",
+      "showAllDirectMessages": "Tümünü göster ({{count}})",
+      "agents": "Ajanlar",
+      "agentActive": "Ajan etkin"
     },
     "directNav": {
       "options": "Doğrudan mesaj seçenekleri"
@@ -1087,6 +1118,14 @@
       "unavailable": {
         "description": "Mac Bilgisayar Erişimi bu cihazda kullanılamıyor."
       }
+    },
+    "roomNav": {
+      "roomNavItem": {
+        "selfTag": "sen",
+        "draft": "Taslak",
+        "groupMemberCount_one": "{{count}} üye",
+        "groupMemberCount_other": "{{count}} üye"
+      }
     }
   },
   "mindroomUi": {
@@ -1374,6 +1413,43 @@
       "stopReply": {
         "label": "Yanıtı durdur",
         "stopping": "Durduruluyor…"
+      },
+      "runError": {
+        "cardLabel": "Çalıştırma hatası",
+        "actions": {
+          "continue": "Devam et",
+          "retry": "Tekrar dene",
+          "compact": "Sıkıştır"
+        },
+        "chips": {
+          "streamStalled": "Akış durdu",
+          "providerUnavailable": "Kullanılamıyor",
+          "rateLimited": "Hız sınırı",
+          "timeout": "Zaman aşımı",
+          "contextWindow": "Bağlam sınırı",
+          "tokensPerMinute": "Token sınırı",
+          "safeguardRefusal": "Reddedildi",
+          "quotaExhausted": "Kota doldu",
+          "missingApiKey": "API anahtarı",
+          "authenticationFailed": "Kimlik doğrulama",
+          "runtimeError": "Hata"
+        },
+        "technicalDetails": "Teknik ayrıntılar",
+        "details": {
+          "model": "Model",
+          "provider": "Sağlayıcı",
+          "code": "Kod",
+          "detail": "Ayrıntı",
+          "error": "Hata"
+        },
+        "receipt": {
+          "continue": "Devam edildi",
+          "retry": "Tekrar denendi",
+          "compact": "Sıkıştırıldı"
+        },
+        "sendFailed": "Mesaj gönderilemedi. Tekrar deneyin.",
+        "restartSeam": "Hizmet yeniden başlatıldı · bağlam korundu",
+        "restartSeamRepeated": "Hizmet yeniden başlatıldı ({{times}}×) · bağlam korundu"
       }
     },
     "message-search": {
@@ -1521,7 +1597,9 @@
       "jobTotal_one": "{{count}} arka plan işi",
       "jobTotal_other": "{{count}} arka plan işi",
       "jobTotalFinished_one": "{{count}} arka plan işi tamamlandı",
-      "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı"
+      "jobTotalFinished_other": "{{count}} arka plan işi tamamlandı",
+      "reviewApprovalFor": "Onayı incele: {{tool}}",
+      "checkingApproval": "Onay denetleniyor…"
     },
     "workflowRun": {
       "title": "İş akışı",
@@ -1544,6 +1622,8 @@
       "stopping": "Durduruluyor…",
       "resume": "Devam et",
       "runAgain": "Tekrar çalıştır",
+      "confirmRunAgain": "Tekrar çalıştırmayı onayla",
+      "cancel": "İptal et",
       "starting": "Başlatılıyor…",
       "failedCount_one": "{{count}} başarısız",
       "failedCount_other": "{{count}} başarısız",
@@ -1569,6 +1649,20 @@
         "waitingForUpdate": "Çalıştırmanın sonraki güncellemesi bekleniyor…",
         "stale": "Güncellenmiyor. Son güncelleme {{time}}.",
         "log": "Günlük",
+        "viewsLabel": "İş akışı görünümleri",
+        "flow": "Akış",
+        "steps": "Adımlar",
+        "selectStep": "Çıktı, ölçüm ve bağlantıları incelemek için bir adım seçin.",
+        "noMessages": "Adımlar arasında henüz mesaj yok.",
+        "noLog": "Henüz günlük kaydı yok.",
+        "omittedEdges_one": "{{count}} mesaj yolu atlandı.",
+        "omittedEdges_other": "{{count}} mesaj yolu atlandı.",
+        "omittedMessages_one": "{{count}} mesaj atlandı.",
+        "omittedMessages_other": "{{count}} mesaj atlandı.",
+        "omittedLog_one": "{{count}} günlük kaydı atlandı.",
+        "omittedLog_other": "{{count}} günlük kaydı atlandı.",
+        "setupSteps_one": "{{count}} hazırlık adımı",
+        "setupSteps_other": "{{count}} hazırlık adımı",
         "showMore": "{{count}} tane daha göster",
         "omitted": {
           "queued_one": "ve sırada {{count}} tane daha",
@@ -1607,8 +1701,18 @@
         "error": "Hata",
         "messages": "Mesajlar",
         "messagesTo": "{{name}} için mesajlar: {{count}}",
+        "messagesFrom": "{{name}} kaynaklı mesajlar: {{count}}",
+        "timeout": "Zaman aşımı",
+        "routeTo": "{{from}} kaynağından {{to}} hedefine: {{count}}",
+        "messageRoute": "{{from}} kaynağından {{to}} hedefine",
+        "script": "betik",
+        "routeBetween": "{{from}} ve {{to}}: {{count}}",
+        "duration": "Süre",
+        "tokens": "Token",
+        "cost": "Maliyet",
         "open": "Aç",
         "detailsUnavailable": "Yeniden yüklemeden sonra ayrıntılar artık kullanılamıyor.",
+        "transcriptUnavailable": "Yeniden yüklemeden sonra tam kayıt artık kullanılamıyor.",
         "stop": "Ajanı durdur"
       }
     },
@@ -1754,7 +1858,62 @@
       "unattributed": "Atanmamış",
       "allUsageAndLimits": "Tüm kullanım ve sınırlar →",
       "noAccounts": "Henüz bildirilen sağlayıcı hesabı yok.",
-      "noDailyData": "Son 7 günde kaydedilen günlük kullanım yok."
+      "noDailyData": "Son 7 günde kaydedilen günlük kullanım yok.",
+      "kpiSpend7d": "7 günlük tahm. harcama",
+      "kpiTokens7d": "7 günlük belirteç",
+      "perDayAvg": "günde ~{{value}} ort.",
+      "peakAndAvg": "Zirve {{day}} · {{tokens}} · ~{{avg}}/g",
+      "trendVsPrior3d": "Önceki 3 güne göre {{delta}}",
+      "tokenMixTitle": "Belirteç ve önbellek dağılımı (7g)",
+      "savedViaCache": "Önbellekle ~{{cost}} tasarruf",
+      "cacheRead": "Önbellek okuma",
+      "cacheWrite": "Önbellek yazma",
+      "inputTokens": "Girdi",
+      "outputTokens": "Çıktı",
+      "inputShort": "Gir.",
+      "outputShort": "Çık.",
+      "tokenMixAria": "Önbellek okuma {{cacheRead}}, önbellek yazma {{cacheWrite}}, girdi {{input}}, çıktı {{output}}",
+      "subscriptionQuotas": "Abonelik kotaları",
+      "paceLegend": "Çizgi = dengeli hız hedefi",
+      "paceAhead": "+%{{delta}} önde",
+      "paceFastBurn": "-%{{delta}} hızlı tüketim",
+      "paceOnPace": "Dengeli hızda",
+      "dailySpendTitle": "Günlük tahmini harcama",
+      "dailyTokensTitle": "Günlük belirteçler",
+      "dailySubtitleCost": "Tam belirteç ve tutar için bir çubuğa dokunun",
+      "dailySubtitleTokens": "Tam belirteç sayısı için bir çubuğa dokunun",
+      "chartMetricLabel": "Grafik ölçütü",
+      "metricSpend": "Harcama ($)",
+      "metricTokens": "Belirteç",
+      "hideDominant": "Baskını gizle",
+      "resetFilter": "Filtreyi sıfırla",
+      "hideDominantTooltip": "Daha küçük hesapları görmek için {{account}} hesabını gizle",
+      "resetFilterTooltip": "{{account}} dahil tüm hesapları göster",
+      "dailyBarCostAria": "{{day}}: {{cost}}, {{tokens}} belirteç",
+      "vs7dAvg": "7g ort. göre {{delta}}",
+      "tokensShortUnit": "{{tokens}} bel.",
+      "noDayActivity": "Bu gün için kaydedilmiş kullanım yok.",
+      "whereUsageGoes": "Kullanım nereye gidiyor",
+      "whereUsageGoesSub": "Belirteç dağılımı ve 7g eğilimi için satıra dokunun",
+      "tabModels": "Modeller",
+      "tabAgents": "Ajanlar",
+      "tabAccounts": "Hesaplar",
+      "shareOfSpend": "7g harcama payı: {{share}}",
+      "shareOfTokens": "7g belirteç payı: {{share}}",
+      "trend7d": "7g eğilim",
+      "runCount_one": "{{count}} çalıştırma",
+      "runCount_other": "{{count}} çalıştırma",
+      "idleAccountsLabel_one": "{{count}} etkin olmayan hesap (7g’de 0 belirteç)",
+      "idleAccountsLabel_other": "{{count}} etkin olmayan hesap (7g’de 0 belirteç)",
+      "show": "Göster",
+      "hide": "Gizle",
+      "zeroTokens": "0 belirteç"
+    },
+    "sidebar": {
+      "visibilityMenu": {
+        "showInSidebar": "Kenar çubuğunda göster",
+        "sidebarSettings": "Kenar çubuğu ayarları…"
+      }
     }
   },
   "composer": {
@@ -1789,6 +1948,7 @@
     "newThreadWith": "{{name}} ile yeni konu…",
     "dictation": {
       "label": "Dikte et",
+      "temporarilyUnavailable": "Dikte kullanılamıyor — yeniden bağlanıyor",
       "cancel": "Dikteyi iptal et",
       "pause": "Dikteyi duraklat",
       "resume": "Dikteyi sürdür",
@@ -1796,6 +1956,8 @@
       "finishAndSend": "Bitir ve gönder",
       "retry": "Yeniden dene",
       "retryAndSend": "Yeniden dene ve gönder",
+      "sendAsVoice": "Ses olarak gönder",
+      "attachAsVoice": "Ses olarak ekle",
       "insertPartial": "Kısmi metni ekle",
       "discard": "Sil",
       "dismissError": "Dikte hatasını kapat",
@@ -1808,6 +1970,7 @@
       "noSpeech": "Konuşma algılanmadı.",
       "noSpeechOffThread": "{{room}} içinde konuşma algılanmadı.",
       "sendFailedOffThread": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için açın.",
+      "sendFailedOffTarget": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için {{room}} odasını tekrar seçin.",
       "statusPendingRetry_one": "{{count}} bölüm yeniden deneme bekliyor",
       "statusPendingRetry_other": "{{count}} bölüm yeniden deneme bekliyor",
       "capReached": "5:00 sınırına ulaşıldı",
@@ -1968,20 +2131,25 @@
     "openInOriginalThread": "Asıl konuda aç",
     "forkFromHere": "Buradan ayır",
     "forkThread": "Konuyu ayır",
-    "forking": "{{title}} konusundan ayrılıyor",
-    "continueInNewThread": "Yeni bir konuda devam et",
+    "forking": "Taslak · bu ayrılmış konuyu başlatmak için aşağıya bir mesaj gönderin",
+    "continueInNewThread": "Ayrılmış konuyu oluşturmak için ilk mesajı gönderin…",
     "forkCount_one": "{{count}} ayrım",
     "forkCount_other": "{{count}} ayrım",
     "forkedFromInRoom": "{{room}} odasındaki {{title}} konusundan ayrıldı",
     "forkedFromAnotherRoom": "Başka bir odadan ayrıldı",
-    "forkingIntoRoom": "{{title}} konusu {{room}} odasına ayrılıyor",
+    "forkingIntoRoom": "Taslak · {{room}} odasına ayırmak için aşağıya bir mesaj gönderin",
     "forkToRoom": "Odaya ayır…",
     "forkToRoomTitle": "Odaya ayır",
     "forkToRoomSearchPlaceholder": "Odaları ara…",
     "forkToRoomEmpty": "Eşleşen oda yok",
     "forkToRoomAgentWarning": "Bu odadaki ajanlar {{room}} odasında değil ve asıl konuyu göremez",
     "forkingFromRoom": "{{room}} odasından ayrılıyor",
-    "forkDraftAgentWarning": "Buradaki ajanlar {{room}} odasında değil ve asıl konuyu göremez"
+    "forkDraftAgentWarning": "Buradaki ajanlar {{room}} odasında değil ve asıl konuyu göremez",
+    "draftBadge": "Taslak",
+    "forkingThread": "Konu ayrılıyor",
+    "forkDraftHint": "Henüz oluşturulmadı. Bu ayrılmış konuyu başlatmak için aşağıya bir mesaj gönderin.",
+    "forkDraftHintInRoom": "Henüz {{room}} odasında değil. Bu konuyu oluşturmak için aşağıya bir mesaj gönderin.",
+    "continueInNewThreadInRoom": "{{room}} odasında ayrılmış konu oluşturmak için ilk mesajı gönderin…"
   },
   "activity": {
     "title": "Etkinlik",

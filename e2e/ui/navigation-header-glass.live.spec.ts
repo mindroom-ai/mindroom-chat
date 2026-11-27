@@ -35,6 +35,26 @@ for (const [themeId, width] of [
       readAccountData('m.direct'),
     ]);
     const rooms: string[] = [];
+    let savedArchivedByRoom: Array<[string, Record<string, unknown>]> = [];
+    const roomArchivedPath = (roomId: string) =>
+      '/user/' +
+      encodeURIComponent(session.userId) +
+      '/rooms/' +
+      encodeURIComponent(roomId) +
+      '/account_data/io.mindroom.archived';
+    const readRoomArchived = (roomId: string) =>
+      matrixFetch<Record<string, unknown>>(homeserver, roomArchivedPath(roomId), {
+        accessToken: session.accessToken,
+      }).catch((error: Error) => {
+        if (error.message.startsWith('Matrix API 404')) return { archived: false };
+        throw error;
+      });
+    const setRoomArchivedContent = (roomId: string, content: Record<string, unknown>) =>
+      matrixFetch(homeserver, roomArchivedPath(roomId), {
+        method: 'PUT',
+        accessToken: session.accessToken,
+        body: JSON.stringify(content),
+      });
     try {
       await setAccountData(
         homeserver,
@@ -180,9 +200,16 @@ for (const [themeId, width] of [
       const joined = await matrixFetch<{ joined_rooms: string[] }>(homeserver, '/joined_rooms', {
         accessToken: session.accessToken,
       });
-      await setAccountData(homeserver, session.accessToken, session.userId, 'm.direct', {
-        '@avery:example.org': joined.joined_rooms,
-      });
+      const priorArchived = await Promise.all(
+        joined.joined_rooms.map(
+          async (roomId) =>
+            [roomId, await readRoomArchived(roomId)] as [string, Record<string, unknown>]
+        )
+      );
+      savedArchivedByRoom = priorArchived.filter(([, content]) => !content.archived);
+      await Promise.all(
+        savedArchivedByRoom.map(([roomId]) => setRoomArchivedContent(roomId, { archived: true }))
+      );
       await navigate('/home/');
       await expect(panel.getByText('No Rooms', { exact: true })).toBeVisible();
       const emptyHome = await expectFloatingNavHeader(
@@ -194,6 +221,10 @@ for (const [themeId, width] of [
       await expect(
         panel.getByRole('button', { name: 'Create Room', exact: true })
       ).toBeInViewport();
+      await Promise.all(
+        savedArchivedByRoom.map(([roomId, content]) => setRoomArchivedContent(roomId, content))
+      );
+      savedArchivedByRoom = [];
       await setAccountData(homeserver, session.accessToken, session.userId, 'm.direct', {
         ...savedDirects,
         '@avery:example.org': rooms.slice(16),
@@ -255,6 +286,7 @@ for (const [themeId, width] of [
           savedSettings
         ),
         setAccountData(homeserver, session.accessToken, session.userId, 'm.direct', savedDirects),
+        ...savedArchivedByRoom.map(([roomId, content]) => setRoomArchivedContent(roomId, content)),
         ...rooms.map(async (roomId) => {
           await matrixFetch(homeserver, '/rooms/' + encodeURIComponent(roomId) + '/leave', {
             method: 'POST',

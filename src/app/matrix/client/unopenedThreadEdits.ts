@@ -9,6 +9,7 @@ import {
 } from 'matrix-js-sdk';
 import { getLatestEdit } from '../room';
 import { isKnownRedactedEventId, stripRedactedRelationsFromRawEvent } from '../eventRevision';
+import { isFoldedSecretRequestEvent } from '../protocol/secretRequestPreview';
 import { isThreadSummaryEvent } from '../protocol/threadSummary';
 import { watchRoomThreads } from '../watchRoomThreads';
 
@@ -40,11 +41,37 @@ type SummarizedThread = {
 const isKnownRedactedEdit = (room: Room | undefined, editId: string | undefined): boolean =>
   !!room && !!editId && isKnownRedactedEventId(room, editId);
 
-/** A reply the thread's summary may name: not its root, nor its title notice. */
-const isSummarizedReply = (
+/** Any reply of a thread: not its root, nor its title notice. */
+const isThreadReply = (
   thread: SummarizedThread,
   event: MatrixEvent | null | undefined
 ): event is MatrixEvent => !!event && event.getId() !== thread.id && !isThreadSummaryEvent(event);
+
+/** A reply the thread's summary may name: not its root, title notice, or a folded secret request. */
+const isSummarizedReply = (
+  thread: SummarizedThread,
+  event: MatrixEvent | null | undefined
+): event is MatrixEvent =>
+  isThreadReply(thread, event) &&
+  !isFoldedSecretRequestEvent(event, thread.room?.myUserId || undefined);
+
+/** The reply retained by the unopened-thread watcher, even if it has since folded. */
+export const getRetainedThreadSummaryReply = (
+  thread: SummarizedThread | null | undefined
+): MatrixEvent | undefined => {
+  const retained = thread ? summarizedReplies.get(thread) : undefined;
+  if (!retained || !thread) return undefined;
+  // The SDK takes a redacted bundled edit off the copies it holds, from their bundle too; it does
+  // not hold this one. The app hides an edit it cannot decrypt yet from replacingEvent(), not
+  // from replacingEventId().
+  const editId = retained.replacingEventId();
+  if (editId && isKnownRedactedEdit(thread.room, editId)) {
+    const { unsigned } = stripRedactedRelationsFromRawEvent(retained.event, new Set([editId]));
+    retained.setUnsigned(unsigned ?? {});
+    showNewestEdit(thread, retained);
+  }
+  return retained;
+};
 
 /**
  * The thread's newest reply outside its timeline: the reply its summary names, or, in an unopened
@@ -56,18 +83,8 @@ export const getThreadSummaryReply = (
   if (!thread) return undefined;
   const summarized = thread.replyToEvent ?? undefined;
   if (isSummarizedReply(thread, summarized)) return summarized;
-  const retained = summarizedReplies.get(thread);
-  if (!retained) return summarized;
-  // The SDK takes a redacted bundled edit off the copies it holds, from their bundle too; it does
-  // not hold this one. The app hides an edit it cannot decrypt yet from replacingEvent(), not
-  // from replacingEventId().
-  const editId = retained.replacingEventId();
-  if (editId && isKnownRedactedEdit(thread.room, editId)) {
-    const { unsigned } = stripRedactedRelationsFromRawEvent(retained.event, new Set([editId]));
-    retained.setUnsigned(unsigned ?? {});
-    showNewestEdit(thread, retained);
-  }
-  return retained;
+  const retained = getRetainedThreadSummaryReply(thread);
+  return isSummarizedReply(thread, retained) ? retained : summarized;
 };
 
 const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
@@ -86,10 +103,11 @@ const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
  * of the root's summary, which is in no timeline.
  */
 export const findReply = (thread: Thread, eventId: string): MatrixEvent | undefined => {
-  const summarized = getThreadSummaryReply(thread);
-  return (
-    thread.findEventById(eventId) ?? (summarized?.getId() === eventId ? summarized : undefined)
-  );
+  const fromTimeline = thread.findEventById(eventId);
+  if (fromTimeline) return fromTimeline;
+  if (thread.replyToEvent?.getId() === eventId) return thread.replyToEvent;
+  const retained = summarizedReplies.get(thread);
+  return retained?.getId() === eventId ? retained : undefined;
 };
 
 /** The edits waiting in an unopened thread for the given reply. */
@@ -186,7 +204,7 @@ const createEditWatcher = (): EditWatcher => {
       summarizedReplies.delete(thread);
       return false;
     }
-    if (isSummarizedReply(thread, thread.replyToEvent))
+    if (isThreadReply(thread, thread.replyToEvent))
       summarizedReplies.set(thread, thread.replyToEvent);
     let changed = false;
     const targets = new Set<MatrixEvent>();

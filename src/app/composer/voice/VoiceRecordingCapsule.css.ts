@@ -1,6 +1,11 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import { glassFloating, glassOutline, glassSurface } from '../../ui/styles/Glass.css';
+import {
+  glassDenseOverBackdrop,
+  glassFloating,
+  glassOutline,
+  glassSurface,
+} from '../../ui/styles/Glass.css';
 
 // The bar floats above the composer, as tall as the composer's single text line.
 const CAPSULE_MIN_HEIGHT = toRem(40);
@@ -17,6 +22,7 @@ export const Container = style({
 export const Capsule = style([
   glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   glassFloating,
+  glassDenseOverBackdrop,
   glassOutline,
   {
     display: 'flex',

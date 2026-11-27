@@ -214,8 +214,10 @@ export function useHomeRoomSections(selectedRoomId: string | undefined) {
   return {
     allVisibleHomeRooms,
     unspaced: unspacedByName,
+    closedCategories,
     roomsCategoryId,
     roomsClosed,
+    unspacedShownRoomIds: unspacedList.shownRoomIds,
     tree: unspacedList.tree,
     listedRoomIds: unspacedList.listedRoomIds,
     roomOrder,

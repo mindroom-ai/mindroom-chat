@@ -25,7 +25,7 @@ export const useRoomTimelineResetRelink = ({
   scrollToBottomRef,
 }: {
   room: Room;
-  threadId: string | undefined;
+  threadId?: string;
   eventId: string | undefined;
   timeline: Timeline;
   rebuildTimeline: () => Timeline;

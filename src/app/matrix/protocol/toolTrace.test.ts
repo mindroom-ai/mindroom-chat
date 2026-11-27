@@ -3,6 +3,8 @@ import {
   getContentToolTraceEvents,
   isToolTraceV2,
   runningToolCalls,
+  toolEndedAt,
+  toolStartedAt,
   toolTraceCallId,
 } from './toolTrace';
 
@@ -75,5 +77,26 @@ describe('toolTraceCallId', () => {
     expect(toolTraceCallId({ tool_name: 'shell', tool_call_id: '' })).toBeUndefined();
     expect(toolTraceCallId({ tool_name: 'shell', tool_call_id: 3 })).toBeUndefined();
     expect(toolTraceCallId(undefined)).toBeUndefined();
+  });
+});
+
+describe('toolStartedAt / toolEndedAt', () => {
+  it('reads finite numeric Unix-second timestamps and ignores malformed values', () => {
+    const event = {
+      type: 'tool_call_completed',
+      tool_name: 'bash',
+      started_at: 1000.25,
+      ended_at: 1002.75,
+    };
+    expect(toolStartedAt(event)).toBe(1000.25);
+    expect(toolEndedAt(event)).toBe(1002.75);
+    expect(toolStartedAt({ started_at: 0 })).toBe(0);
+    expect(toolEndedAt({ ended_at: 0 })).toBe(0);
+    expect(toolStartedAt(undefined)).toBeUndefined();
+    expect(toolEndedAt(undefined)).toBeUndefined();
+    for (const bad of ['1762790002', null, Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(toolStartedAt({ started_at: bad })).toBeUndefined();
+      expect(toolEndedAt({ ended_at: bad })).toBeUndefined();
+    }
   });
 });
