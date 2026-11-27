@@ -222,7 +222,7 @@ const signIn = async (browser: Browser, seeded: Seed) => {
 
 const drawer = (page: Page) => page.locator('#phone-nav-drawer');
 const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
-const roomList = (page: Page) => drawer(page).getByRole('navigation', { name: 'Rooms' });
+const roomList = (page: Page) => page.getByTestId('resizable-page-nav');
 const membersSheet = (page: Page) => page.getByTestId('phone-members-sheet');
 const threadColumn = (page: Page) => page.getByTestId('thread-column');
 
