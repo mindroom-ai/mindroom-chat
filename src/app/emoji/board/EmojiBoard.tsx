@@ -4,6 +4,7 @@ import {
   ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -332,6 +333,16 @@ export function EmojiBoard(props: EmojiBoardProps) {
     overscan: 2,
   });
 
+  // Defer sidebar jumps until the full group list and scroll container are committed so
+  // TanStack Virtual does not clamp the index against the single search-results group.
+  const pendingScrollIndexRef = useRef<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    const index = pendingScrollIndexRef.current;
+    if (index === undefined || visibleGroups !== groups || addFile !== undefined) return;
+    pendingScrollIndexRef.current = undefined;
+    virtualizer.scrollToIndex(index, { align: 'start' });
+  }, [visibleGroups, groups, addFile, virtualizer]);
+
   const handlePick = useCallback(
     (item: BoardItem, keepOpen: boolean) => {
       if (item.type === EmojiType.Emoji) {
@@ -557,7 +568,11 @@ export function EmojiBoard(props: EmojiBoardProps) {
                     onClick={() => {
                       setQuery('');
                       setAddFile(undefined);
-                      virtualizer.scrollToIndex(index, { align: 'start' });
+                      if (visibleGroups !== groups || addFile !== undefined) {
+                        pendingScrollIndexRef.current = index;
+                      } else {
+                        virtualizer.scrollToIndex(index, { align: 'start' });
+                      }
                     }}
                   >
                     {group.avatarMxc ? (

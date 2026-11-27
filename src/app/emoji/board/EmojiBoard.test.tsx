@@ -8,11 +8,13 @@ import { ImagePack } from '../custom/ImagePack';
 const recentEmoji = vi.hoisted(() => ({ addRecentEmoji: vi.fn() }));
 const addForm = vi.hoisted(() => ({
   onAdd: undefined as ((mxc: string, sc: string) => void) | undefined,
+  open: false,
 }));
 const mx = vi.hoisted(() => ({ getRoom: vi.fn() }));
 // Stable like the real hooks' results, which the board memoizes on.
 const none = vi.hoisted(() => []);
 const boardPacks = vi.hoisted(() => ({ value: [] as unknown[] }));
+const virtualizerSpy = vi.hoisted(() => ({ scrollToIndex: vi.fn() }));
 
 vi.mock('focus-trap-react', () => ({
   FocusTrap: ({ children }: { children: React.ReactNode }) => children,
@@ -30,6 +32,12 @@ vi.mock('../../ui/VirtualTile.css', () => ({ VirtualTile: 'VirtualTile' }));
 vi.mock('./components/AddCustomEmoji', () => ({
   AddCustomEmoji: ({ onAdd }: { onAdd: (mxc: string, shortcode: string) => void }) => {
     addForm.onAdd = onAdd;
+    React.useLayoutEffect(() => {
+      addForm.open = true;
+      return () => {
+        addForm.open = false;
+      };
+    }, []);
     return null;
   },
 }));
@@ -53,7 +61,12 @@ vi.mock('@tanstack/react-virtual', () => ({
         lane: 0,
       })),
     measureElement: () => undefined,
-    scrollToIndex: () => undefined,
+    scrollToIndex: (index: number, options?: unknown) => {
+      // Mirror TanStack Virtual: ignore calls while the list is unmounted behind AddCustomEmoji,
+      // and clamp the target index against the currently committed item count.
+      if (addForm.open) return;
+      virtualizerSpy.scrollToIndex(Math.min(index, Math.max(0, count - 1)), options, count);
+    },
   }),
 }));
 vi.mock('../../matrix/matrix', () => ({
@@ -78,6 +91,7 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   boardPacks.value = none;
+  addForm.open = false;
   vi.clearAllMocks();
 });
 
@@ -227,4 +241,54 @@ it('lists custom emoji before Unicode ones in search results', () => {
     .map((node) => node.props['data-emoji-shortcode'] as string);
   expect(results[0]).toBe('smile-frog');
   expect(results.length).toBeGreaterThan(1);
+});
+
+it('scrolls to the chosen custom pack on one sidebar click while searching', () => {
+  boardPacks.value = [
+    roomPack('!emoji:example.org', '', 'Frogs', ['frog-1']),
+    roomPack('!emoji:example.org', '2', 'Frogs', ['frog-2']),
+    roomPack('!emoji:example.org', 'parrots', 'Parrots', ['parrot-1']),
+  ];
+  renderBoard();
+
+  const search = renderer!.root.find(
+    (node) => node.type === 'input' && typeof node.props.onChange === 'function'
+  );
+  act(() => {
+    search.props.onChange({
+      target: { value: 'no-such-emoji' },
+      currentTarget: { value: 'no-such-emoji' },
+    });
+  });
+
+  const parrotsButton = renderer!.root.find(
+    (node) => node.type === 'button' && node.props.title === 'Parrots'
+  );
+  act(() => {
+    parrotsButton.props.onClick();
+  });
+
+  // 8 Unicode groups + 2 Frogs chunks = index 10 for Parrots, out of 11 total groups.
+  expect(virtualizerSpy.scrollToIndex).toHaveBeenCalledTimes(1);
+  expect(virtualizerSpy.scrollToIndex).toHaveBeenCalledWith(10, { align: 'start' }, 11);
+});
+
+it('scrolls to the chosen pack after closing the add-custom-emoji view from the sidebar', async () => {
+  boardPacks.value = [roomPack('!emoji:example.org', '', 'Frogs', ['frog-1'])];
+  renderBoard();
+
+  const addButton = renderer!.root.find(
+    (node) => node.type === 'button' && node.props['aria-label'] === 'Add custom emoji'
+  );
+  await act(() => addButton.props.onClick());
+
+  const frogsButton = renderer!.root.find(
+    (node) => node.type === 'button' && node.props.title === 'Frogs'
+  );
+  act(() => {
+    frogsButton.props.onClick();
+  });
+
+  expect(virtualizerSpy.scrollToIndex).toHaveBeenCalledTimes(1);
+  expect(virtualizerSpy.scrollToIndex).toHaveBeenCalledWith(8, { align: 'start' }, 9);
 });
