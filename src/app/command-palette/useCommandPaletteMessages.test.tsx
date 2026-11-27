@@ -19,6 +19,7 @@ import {
 } from '../threads/cross-room/crossRoomThreadIndex';
 import {
   clearThreadSummarySharedState,
+  forgetRedactedThreadSummaries,
   getThreadSummaryStateSnapshot,
   storeThreadSummaryInState,
 } from '../event-store/threads/threadSummaryState';
@@ -150,8 +151,11 @@ const summaryMatrixEvent = (eventId: string, summary: string, ts = 1_700_000_001
 
 const store = createStore();
 
-const renderMessages = (text: string, enabled = true) => {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const renderMessages = (
+  text: string,
+  enabled = true,
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) => {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -956,6 +960,143 @@ describe('useCommandPaletteMessages', () => {
         },
       ])
     );
+    expect(client.relations).toHaveBeenCalledTimes(2);
+  });
+
+  it('prefers a newer bundled root title over an older cached summary in threadSummaryState', async () => {
+    const roomId = '!ops:example.org';
+    const sessionId = 'session-chrono-1';
+    activeSession.current = { sessionId };
+    storeThreadSummaryInState(sessionId, roomId, '$chronoRoot', {
+      summaryText: 'Older cached title',
+      eventId: '$oldSum',
+      eventTs: 1_700_000_001_000,
+    });
+
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const response = responseWith('$chronoRoot', 'Walrus chronology root');
+    const [hit] = response.search_categories.room_events.results ?? [];
+    if (!hit) throw new Error('no hit');
+    hit.result.unsigned = {
+      'm.relations': {
+        'm.thread': {
+          count: 4,
+          'io.mindroom.title': {
+            event_id: '$newSum',
+            sender: '@mindroom_helper:example.org',
+            type: 'm.room.message',
+            origin_server_ts: 1_700_000_009_000,
+            content: {
+              msgtype: 'm.notice',
+              body: 'Newer bundled title',
+              'io.mindroom.thread_summary': { version: 1, summary: 'Newer bundled title' },
+              'm.relates_to': { rel_type: 'm.thread', event_id: '$chronoRoot' },
+            },
+          },
+        },
+      },
+    };
+    await act(async () => pending[0]?.resolve(response));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items[0]?.threadName).toBe('Newer bundled title');
+    expect(client.relations).not.toHaveBeenCalled();
+  });
+
+  it('does not resurrect a redacted server-fetched title when sessionId is active', async () => {
+    const roomId = '!ops:example.org';
+    const sessionId = 'session-redacted-1';
+    activeSession.current = { sessionId };
+    client.relations.mockResolvedValue({
+      events: [summaryMatrixEvent('$redactedSum', 'Title later redacted', 1_700_000_005_000)],
+      originalEvent: { getContent: () => ({ msgtype: 'm.text', body: 'Plain root fallback' }) },
+    });
+
+    const { result, rerender } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const makeHit = (eventId: string, body: string) => {
+      const r = responseWith(eventId, body);
+      const hit = r.search_categories.room_events.results?.[0];
+      if (!hit) throw new Error('no hit');
+      hit.result.content = {
+        msgtype: 'm.text',
+        body,
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$redactedRoot' },
+      };
+      return r;
+    };
+    await act(async () => pending[0]?.resolve(makeHit('$r1', 'walrus update')));
+    await waitFor(() => expect(result.current.items[0]?.threadName).toBe('Title later redacted'));
+
+    act(() => {
+      forgetRedactedThreadSummaries(sessionId, roomId, new Set(['$redactedSum']));
+    });
+    await waitFor(() => expect(result.current.items[0]?.threadName).toBe('Plain root fallback'));
+
+    // Subsequent search in the same session still never resurrects the redacted title or refetches.
+    rerender({ text: 'walrus again', enabled: true });
+    await waitFor(() => expect(pending).toHaveLength(2));
+    await act(async () => pending[1]?.resolve(makeHit('$r2', 'walrus again')));
+    await waitFor(() => expect(result.current.items[0]?.id).toBe('message:!ops:example.org:$r2'));
+    expect(result.current.items[0]?.threadName).toBe('Plain root fallback');
+    expect(client.relations).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not permanently cache transient fetchRoomEvent or relations errors', async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.fetchRoomEvent.mockRejectedValueOnce(new Error('503 Service Unavailable'));
+    client.relations.mockRejectedValueOnce(new Error('503 Service Unavailable'));
+
+    const buildResponse = () => {
+      const editRes = replaceHitResponse('$transientEdit', '$transientOrig', 'walrus edited');
+      const replyRes = responseWith('$transientReply', 'walrus reply');
+      const replyHit = replyRes.search_categories.room_events.results?.[0];
+      if (!replyHit) throw new Error('no hit');
+      replyHit.result.content = {
+        msgtype: 'm.text',
+        body: 'walrus reply',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$transientRoot' },
+      };
+      editRes.search_categories.room_events.results?.push(replyHit);
+      return editRes;
+    };
+
+    const first = renderMessages('walrus', true, queryClient);
+    await waitFor(() => expect(pending).toHaveLength(1));
+    await act(async () => pending[0]?.resolve(buildResponse()));
+    await waitFor(() => {
+      expect(client.fetchRoomEvent).toHaveBeenCalledTimes(1);
+      expect(client.relations).toHaveBeenCalledTimes(1);
+    });
+    expect(first.result.current.items).toMatchObject([
+      { id: 'message:!ops:example.org:$transientEdit', threadName: undefined },
+      { id: 'message:!ops:example.org:$transientReply', threadName: '' },
+    ]);
+    first.unmount();
+
+    // Server recovers on palette reopen (same QueryClient): errored queries retry and resolve.
+    client.fetchRoomEvent.mockResolvedValue({
+      event_id: '$transientOrig',
+      content: {
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$transientRoot' },
+      },
+    });
+    client.relations.mockResolvedValue({
+      events: [summaryMatrixEvent('$recoveredSum', 'Recovered after 503')],
+      originalEvent: { getContent: () => ({ msgtype: 'm.text', body: 'Root' }) },
+    });
+
+    const second = renderMessages('walrus', true, queryClient);
+    await waitFor(() =>
+      expect(second.result.current.items).toMatchObject([
+        { id: 'message:!ops:example.org:$transientEdit', threadName: 'Recovered after 503' },
+        { id: 'message:!ops:example.org:$transientReply', threadName: 'Recovered after 503' },
+      ])
+    );
+    expect(client.fetchRoomEvent).toHaveBeenCalledTimes(2);
     expect(client.relations).toHaveBeenCalledTimes(2);
   });
 

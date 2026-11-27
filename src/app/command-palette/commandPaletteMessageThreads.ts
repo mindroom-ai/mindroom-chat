@@ -12,6 +12,7 @@ import {
   getLatestThreadSummaryInfoFromEventSources,
   getThreadSummaryEventInfo,
   isThreadSummaryContent,
+  pickLatestThreadSummaryInfo,
   type ThreadSummaryInfo,
 } from '../matrix/protocol/threadSummary';
 import { getBundledThreadPreviews } from '../event-store/threads/threadBundledPreviews';
@@ -28,7 +29,11 @@ import type { SearchResultOpenTarget } from '../search/searchResultOpenTarget';
 
 const LEGACY_THREAD_REL = 'org.matrix.msc3440.thread';
 
-export type ResolvedEdit = { threadRootId: string; threadTitle?: true; summaryText?: string };
+export type ResolvedEdit = {
+  threadRootId: string;
+  threadTitle?: true;
+  summaryInfo?: ThreadSummaryInfo;
+};
 export type ResolvedThread = { summaryText?: string; rootPreviewText?: string };
 
 const hasBundledThread = (unsigned: unknown): boolean => {
@@ -47,11 +52,17 @@ const getBundledTitleEvent = (
     : undefined;
 
 // crossRoomThreadIndex entry.summaryText falls back to root preview for untitled threads;
-// read the real title from threadRecord.presentation.summaryText when present.
-const getEntrySummaryText = (entry: CrossRoomThreadIndexEntry | undefined): string | undefined =>
-  entry?.threadRecord
-    ? entry.threadRecord.presentation.summaryText || undefined
-    : entry?.summaryText || undefined;
+// read the real title from threadRecord.presentation when present.
+const getEntrySummaryInfo = (
+  entry: CrossRoomThreadIndexEntry | undefined
+): ThreadSummaryInfo | undefined => {
+  if (!entry) return undefined;
+  if (entry.threadRecord) {
+    const { summaryInfo, summaryText } = entry.threadRecord.presentation;
+    return summaryInfo ?? (summaryText ? { summaryText } : undefined);
+  }
+  return entry.summaryText ? { summaryText: entry.summaryText } : undefined;
+};
 
 const inspectEventThread = (
   content: unknown,
@@ -131,7 +142,7 @@ export const resolveLocalThreadSummary = (
   threadRootId: string,
   entry: CrossRoomThreadIndexEntry | undefined,
   summaries: ReadonlyMap<string, ThreadSummaryInfo>,
-  fetchedSummary?: string
+  fetchedSummary?: ThreadSummaryInfo
 ): string | undefined => {
   const localRoot =
     room?.getThread?.(threadRootId)?.rootEvent ?? room?.findEventById?.(threadRootId);
@@ -140,15 +151,13 @@ export const resolveLocalThreadSummary = (
     (threadRootId === event.event_id && hasBundledThread(event.unsigned)
       ? getBundledTitleEvent(room, new MatrixEvent(event))
       : undefined);
-  return (
-    getEntrySummaryText(entry) ||
-    summaries.get(threadRootId)?.summaryText ||
-    resolveThreadSummaryInfo({
-      preferredSummaryInfo: bundled ? getThreadSummaryEventInfo(bundled) : undefined,
-      thread: room?.getThread?.(threadRootId),
-    })?.summaryText ||
+  return pickLatestThreadSummaryInfo(
+    getEntrySummaryInfo(entry),
+    summaries.get(threadRootId),
+    resolveThreadSummaryInfo({ thread: room?.getThread?.(threadRootId) }),
+    bundled ? getThreadSummaryEventInfo(bundled) : undefined,
     fetchedSummary
-  );
+  )?.summaryText;
 };
 
 export const resolveThreadRootPreview = (
@@ -170,25 +179,21 @@ export const fetchEditThread = async (
   roomId: string,
   eventId: string
 ): Promise<ResolvedEdit | null> => {
-  try {
-    const fetched = await client.fetchRoomEvent(roomId, eventId);
-    const resolved = inspectEventThread(fetched?.content, fetched?.unsigned, eventId);
-    if (!resolved) return null;
-    if (resolved.threadRootId === eventId && fetched && hasBundledThread(fetched.unsigned)) {
-      const bundled = getBundledTitleEvent(
-        client.getRoom(roomId),
-        new MatrixEvent({ ...fetched, event_id: fetched.event_id ?? eventId, room_id: roomId })
-      );
-      const info = bundled ? getThreadSummaryEventInfo(bundled) : undefined;
-      if (info) {
-        if (sessionId) storeThreadSummaryInState(sessionId, roomId, eventId, info);
-        return { ...resolved, summaryText: info.summaryText };
-      }
+  const fetched = await client.fetchRoomEvent(roomId, eventId);
+  const resolved = inspectEventThread(fetched?.content, fetched?.unsigned, eventId);
+  if (!resolved) return null;
+  if (resolved.threadRootId === eventId && fetched && hasBundledThread(fetched.unsigned)) {
+    const bundled = getBundledTitleEvent(
+      client.getRoom(roomId),
+      new MatrixEvent({ ...fetched, event_id: fetched.event_id ?? eventId, room_id: roomId })
+    );
+    const info = bundled ? getThreadSummaryEventInfo(bundled) : undefined;
+    if (info) {
+      if (sessionId) storeThreadSummaryInState(sessionId, roomId, eventId, info);
+      else return { ...resolved, summaryInfo: info };
     }
-    return resolved;
-  } catch {
-    return null;
   }
+  return resolved;
 };
 
 export const fetchThreadSummary = async (
@@ -197,25 +202,21 @@ export const fetchThreadSummary = async (
   roomId: string,
   threadRootId: string
 ): Promise<ResolvedThread> => {
-  try {
-    const result = await client.relations(
-      roomId,
-      threadRootId,
-      RelationType.Thread,
-      EventType.RoomMessage,
-      { dir: Direction.Backward, limit: 50 }
-    );
-    const bundled = getBundledTitleEvent(client.getRoom(roomId), result?.originalEvent);
-    const info = getLatestThreadSummaryInfoFromEventSources(
-      bundled ? [bundled] : undefined,
-      result?.events
-    );
-    if (info && sessionId) storeThreadSummaryInState(sessionId, roomId, threadRootId, info);
-    return {
-      summaryText: info?.summaryText,
-      rootPreviewText: getVisibleThreadEventBodyPreviewText(result?.originalEvent ?? undefined),
-    };
-  } catch {
-    return {};
-  }
+  const result = await client.relations(
+    roomId,
+    threadRootId,
+    RelationType.Thread,
+    EventType.RoomMessage,
+    { dir: Direction.Backward, limit: 50 }
+  );
+  const bundled = getBundledTitleEvent(client.getRoom(roomId), result?.originalEvent);
+  const info = getLatestThreadSummaryInfoFromEventSources(
+    bundled ? [bundled] : undefined,
+    result?.events
+  );
+  if (info && sessionId) storeThreadSummaryInState(sessionId, roomId, threadRootId, info);
+  return {
+    ...(sessionId ? {} : { summaryText: info?.summaryText }),
+    rootPreviewText: getVisibleThreadEventBodyPreviewText(result?.originalEvent ?? undefined),
+  };
 };

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -54,10 +54,16 @@ const PLAIN_TEXT_TYPES: readonly unknown[] = [MsgType.Text, MsgType.Notice, MsgT
 // A phone's row shows about 40 characters of a snippet before its ellipsis.
 const MATCH_LEAD_CHARS = 20;
 
-const collectQueryMap = <T>(keys: readonly string[], results: readonly { data?: T }[]) =>
+const collectQueryData = <T>(results: UseQueryResult<T>[]): Array<T | undefined> =>
+  results.map((result) => result.data);
+
+const indexQueryData = <T>(
+  entries: readonly (readonly [string, unknown])[],
+  data: readonly (T | undefined)[]
+): Map<string, T> =>
   new Map(
-    keys.flatMap((key, i) =>
-      results[i]?.data !== undefined ? [[key, results[i].data] as const] : []
+    entries.flatMap(([key], index) =>
+      data[index] !== undefined ? [[key, data[index]] as const] : []
     )
   );
 
@@ -209,13 +215,13 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
           const sync = resolveSyncHitThread(roomId, event, target, room, threadIndex, summaries);
           const editKey = `${roomId}\u0000${target.mainEventId}`;
           if (sync.needsEditFetch) seen.set(editKey, [roomId, target.mainEventId]);
-          return { roomId, room, summaries, event, target, sync, editKey };
+          return { roomId, room, event, target, sync, editKey };
         });
       }) ?? [];
     return { syncHits: hits, editFetches: [...seen] };
   }, [client, page, sessionId, summaryVersion, threadIndex]);
 
-  const resolvedEdits = useQueries({
+  const editData = useQueries({
     queries: editFetches.map(([, [roomId, eventId]]) => ({
       queryKey: ['command-palette-edit-thread', userId, roomId, eventId] as const,
       enabled:
@@ -225,31 +231,33 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
       retry: false,
       queryFn: () => fetchEditThread(client, sessionId, roomId, eventId),
     })),
-    combine: (results) =>
-      collectQueryMap(
-        editFetches.map(([key]) => key),
-        results
-      ),
+    combine: collectQueryData,
   });
+  const resolvedEdits = useMemo(
+    () => indexQueryData(editFetches, editData),
+    [editData, editFetches]
+  );
 
   const threadFetches = useMemo(() => {
+    void summaryVersion;
     const seen = new Map<string, [roomId: string, threadRootId: string]>();
-    syncHits.forEach(({ roomId, room, summaries, event, sync, editKey }) => {
+    syncHits.forEach(({ roomId, room, event, sync, editKey }) => {
       const edit = sync.needsEditFetch ? resolvedEdits.get(editKey) : undefined;
       const threadRootId = sync.threadRootId ?? edit?.threadRootId;
       if (!threadRootId || sync.isThreadTitle || edit?.threadTitle) return;
       const key = getCrossRoomThreadIndexKey(roomId, threadRootId);
       const entry = threadIndex.entries.get(key);
+      const summaries = getThreadSummaryStateSnapshot(sessionId, roomId);
       if (
-        !resolveLocalThreadSummary(room, event, threadRootId, entry, summaries, edit?.summaryText)
+        !resolveLocalThreadSummary(room, event, threadRootId, entry, summaries, edit?.summaryInfo)
       ) {
         seen.set(key, [roomId, threadRootId]);
       }
     });
     return [...seen];
-  }, [resolvedEdits, syncHits, threadIndex.entries]);
+  }, [resolvedEdits, sessionId, summaryVersion, syncHits, threadIndex.entries]);
 
-  const resolvedThreads = useQueries({
+  const threadData = useQueries({
     queries: threadFetches.map(([, [roomId, threadRootId]]) => ({
       queryKey: ['command-palette-thread-summary', userId, roomId, threadRootId] as const,
       enabled:
@@ -259,23 +267,25 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
       retry: false,
       queryFn: () => fetchThreadSummary(client, sessionId, roomId, threadRootId),
     })),
-    combine: (results) =>
-      collectQueryMap(
-        threadFetches.map(([key]) => key),
-        results
-      ),
+    combine: collectQueryData,
   });
+  const resolvedThreads = useMemo(
+    () => indexQueryData(threadFetches, threadData),
+    [threadData, threadFetches]
+  );
 
   const items = useMemo<CommandPaletteMessages['items']>(() => {
     void membersLoaded;
+    void summaryVersion;
     if (!page) return [];
     const { highlights } = page;
-    return syncHits.map(({ roomId, room, summaries, event, target, sync, editKey }) => {
+    return syncHits.map(({ roomId, room, event, target, sync, editKey }) => {
       const edit = sync.needsEditFetch ? resolvedEdits.get(editKey) : undefined;
       const threadRootId = sync.threadRootId ?? edit?.threadRootId;
       const isThreadTitle = Boolean(sync.isThreadTitle || edit?.threadTitle);
       const threadKey = threadRootId ? getCrossRoomThreadIndexKey(roomId, threadRootId) : undefined;
       const entry = threadKey ? threadIndex.entries.get(threadKey) : undefined;
+      const summaries = getThreadSummaryStateSnapshot(sessionId, roomId);
       const fetchedThread = threadKey ? resolvedThreads.get(threadKey) : undefined;
       const summaryText = threadRootId
         ? resolveLocalThreadSummary(
@@ -284,7 +294,7 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
             threadRootId,
             entry,
             summaries,
-            edit?.summaryText
+            edit?.summaryInfo
           ) || fetchedThread?.summaryText
         : undefined;
       const isRootHit = threadRootId === target.mainEventId;
@@ -325,7 +335,18 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
         },
       };
     });
-  }, [membersLoaded, open, page, resolvedEdits, resolvedThreads, syncHits, t, threadIndex.entries]);
+  }, [
+    membersLoaded,
+    open,
+    page,
+    resolvedEdits,
+    resolvedThreads,
+    sessionId,
+    summaryVersion,
+    syncHits,
+    t,
+    threadIndex.entries,
+  ]);
 
   const encryptedRooms = useMemo(
     () => hasEncryptedRooms(roomIds.map((roomId) => client.getRoom(roomId))),
