@@ -12,9 +12,10 @@ import {
 } from '../../matrix/protocol/untrustedContent';
 import { getReleasableEdits } from '../../matrix/room';
 import { removeSessionAndReload, removeStoredSession } from './sessionLifecycle';
-import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
+import { SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
 import { restoreCachedReplies } from '../../event-store/sdk/restoreCachedReplies';
 import { dropSettledScheduledTasks } from '../../matrix/client/savedSyncScheduledTasks';
+import { trimSavedSyncTimelines } from '../../matrix/client/savedSyncTimeline';
 import {
   type ClientBootstrapSession,
   IDENTITY_CHECK_TIMEOUT_MS,
@@ -141,6 +142,8 @@ type SyncArchiveStore = IndexedDBStore & {
     syncAccumulator?: {
       opts?: { maxTimelineEntries?: number };
       joinRooms?: Record<string, object>;
+      getNextBatchToken?: () => string | null;
+      nextBatch?: string | null;
     };
   };
 };
@@ -152,13 +155,10 @@ const onCompletion = <T>(work: Promise<T>, note: (value: T) => void): Promise<T>
 };
 
 // The local IndexedDB backend trims each room's saved timeline to its accumulator's limit.
-const raiseSyncArchiveTimelineLimit = (store: SyncArchiveStore): void => {
+const setSyncArchiveTimelineLimit = (store: SyncArchiveStore): void => {
   const opts = store.backend?.syncAccumulator?.opts;
   if (!opts) return;
-  opts.maxTimelineEntries = Math.max(
-    opts.maxTimelineEntries ?? 0,
-    LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT
-  );
+  opts.maxTimelineEntries = SYNC_ARCHIVE_TIMELINE_LIMIT;
 };
 
 /**
@@ -378,17 +378,20 @@ export const initClient = async (
     throw new MissingCryptoStoreError(session.userId);
   }
 
-  raiseSyncArchiveTimelineLimit(store);
+  setSyncArchiveTimelineLimit(store);
 
   // Both open IndexedDB databases; run them together, and on failure wait for the other to
   // settle before tearing the half-started runtime down. Streaming replies the saved sync holds
   // are read from the event cache meanwhile, so the rooms first show their newest saved text.
-  // Finished scheduled tasks a store saved before they were left out go before the replay.
+  // Finished scheduled tasks and oversized legacy timelines go before cached-reply lookup and replay.
   markStartup?.('client.init.parallel.start');
   const storeStartup = store.startup().then(() => {
     markStartup?.('store.startup.done');
     const sync = store.backend?.syncAccumulator;
-    if (sync) dropSettledScheduledTasks(sync);
+    if (sync) {
+      dropSettledScheduledTasks(sync);
+      trimSavedSyncTimelines(sync);
+    }
     return restoreCachedReplies(mx);
   });
   const cryptoInit = mx.initRustCrypto({

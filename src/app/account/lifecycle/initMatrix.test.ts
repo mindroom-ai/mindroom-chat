@@ -19,10 +19,11 @@ import {
   MissingCryptoStoreError,
 } from '../../matrix/client/cryptoStoreContinuity';
 import {
-  LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   STARTUP_SYNC_TIMELINE_LIMIT,
+  SYNC_ARCHIVE_TIMELINE_LIMIT,
   startClient,
 } from '../../matrix/client/clientSyncPolicy';
+import { restoreCachedReplies } from '../../event-store/sdk/restoreCachedReplies';
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
 import { TOKEN_REFRESH_TIMEOUT_MS } from '../../matrix/client/sessionTokenRefresh';
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';
@@ -59,6 +60,11 @@ import { readCachedSpecVersions, writeCachedSpecVersions } from '../../matrix/ca
 vi.mock('../../diagnostics/deepTrace', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../diagnostics/deepTrace')>()),
   recordSyncStoreFailure: vi.fn(),
+}));
+
+vi.mock('../../event-store/sdk/restoreCachedReplies', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../event-store/sdk/restoreCachedReplies')>()),
+  restoreCachedReplies: vi.fn(),
 }));
 
 vi.mock('matrix-js-sdk/lib/store/indexeddb', () => ({
@@ -238,7 +244,7 @@ describe('initClient', () => {
     vi.unstubAllGlobals();
   });
 
-  it('raises the archive limit and reports the saved sync replay workload without replacing the SDK result', async () => {
+  it('sets the archive limit and reports the saved sync replay workload without replacing the SDK result', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
     const markStartup = vi.fn();
     const syncAccumulator = {
@@ -352,8 +358,9 @@ describe('initClient', () => {
         threadSupport: true,
       })
     );
-    expect(LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT).toBe(500);
-    expect(syncAccumulator.opts.maxTimelineEntries).toBe(LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT);
+    expect(SYNC_ARCHIVE_TIMELINE_LIMIT).toBe(STARTUP_SYNC_TIMELINE_LIMIT * 2);
+    expect(SYNC_ARCHIVE_TIMELINE_LIMIT).toBe(40);
+    expect(syncAccumulator.opts.maxTimelineEntries).toBe(SYNC_ARCHIVE_TIMELINE_LIMIT);
     expect(startup).toHaveBeenCalledTimes(1);
     expect(initRustCrypto).toHaveBeenCalledWith({
       cryptoDatabasePrefix: getSessionRustCryptoStorePrefix({
@@ -840,19 +847,67 @@ describe('initClient', () => {
     );
   });
 
-  it('does not lower a larger existing sync archive limit', async () => {
+  it.each([50, 9000])(
+    'caps an existing sync archive limit (%i) down to SYNC_ARCHIVE_TIMELINE_LIMIT',
+    async (initialLimit) => {
+      const sessionId = createSessionId('https://example.com', '@user:example.com');
+      const startup = vi.fn().mockResolvedValue(undefined);
+      const syncAccumulator = {
+        opts: {
+          maxTimelineEntries: initialLimit,
+        },
+      };
+      vi.mocked(IndexedDBStore).mockImplementation(function () {
+        return {
+          backend: {
+            syncAccumulator,
+          },
+          startup,
+          on: vi.fn(),
+        } as unknown as IndexedDBStore;
+      });
+      vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
+        return {} as unknown as IndexedDBCryptoStore;
+      });
+      vi.mocked(createMatrixClient).mockReturnValue({
+        getCrypto: ownCrypto,
+        initRustCrypto: vi.fn().mockResolvedValue(undefined),
+        http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
+        setMaxListeners: vi.fn(),
+      } as never);
+
+      await initClient({
+        sessionId,
+        baseUrl: 'https://example.com',
+        accessToken: 'token',
+        userId: '@user:example.com',
+        deviceId: 'DEVICE',
+      });
+
+      expect(syncAccumulator.opts.maxTimelineEntries).toBe(SYNC_ARCHIVE_TIMELINE_LIMIT);
+    }
+  );
+
+  it('trims oversized saved-sync timelines during store.startup() before restoreCachedReplies', async () => {
     const sessionId = createSessionId('https://example.com', '@user:example.com');
-    const startup = vi.fn().mockResolvedValue(undefined);
-    const syncAccumulator = {
-      opts: {
-        maxTimelineEntries: 9000,
-      },
+    const room: { _timeline: { event: { event_id: string }; token: string | null }[] } = {
+      _timeline: [],
     };
+    const syncAccumulator = {
+      opts: { maxTimelineEntries: 50 },
+      joinRooms: {} as Record<string, typeof room>,
+      getNextBatchToken: () => 'S_50',
+    };
+    const startup = vi.fn().mockImplementation(async () => {
+      room._timeline = Array.from({ length: 50 }, (_, index) => ({
+        event: { event_id: `$ev-${index}` },
+        token: index === 0 ? 'T0' : null,
+      }));
+      syncAccumulator.joinRooms['!legacy:example.com'] = room;
+    });
     vi.mocked(IndexedDBStore).mockImplementation(function () {
       return {
-        backend: {
-          syncAccumulator,
-        },
+        backend: { syncAccumulator },
         startup,
         on: vi.fn(),
       } as unknown as IndexedDBStore;
@@ -860,12 +915,22 @@ describe('initClient', () => {
     vi.mocked(IndexedDBCryptoStore).mockImplementation(function () {
       return {} as unknown as IndexedDBCryptoStore;
     });
-    vi.mocked(createMatrixClient).mockReturnValue({
+    const mx = {
       getCrypto: ownCrypto,
       initRustCrypto: vi.fn().mockResolvedValue(undefined),
       http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners: vi.fn(),
-    } as never);
+    };
+    vi.mocked(createMatrixClient).mockReturnValue(mx as never);
+
+    let snapshot: { length: number; firstToken: string | null; firstEventId?: string } | undefined;
+    vi.mocked(restoreCachedReplies).mockImplementation(async () => {
+      snapshot = {
+        length: room._timeline.length,
+        firstToken: room._timeline[0]?.token ?? null,
+        firstEventId: room._timeline[0]?.event.event_id,
+      };
+    });
 
     await initClient({
       sessionId,
@@ -875,7 +940,13 @@ describe('initClient', () => {
       deviceId: 'DEVICE',
     });
 
-    expect(syncAccumulator.opts.maxTimelineEntries).toBe(9000);
+    expect(vi.mocked(restoreCachedReplies)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(restoreCachedReplies)).toHaveBeenCalledWith(mx);
+    expect(snapshot).toEqual({
+      length: STARTUP_SYNC_TIMELINE_LIMIT,
+      firstToken: 'S_50',
+      firstEventId: '$ev-30',
+    });
   });
 
   it('refreshes and persists rotated access credentials', async () => {

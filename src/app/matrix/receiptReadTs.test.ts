@@ -10,7 +10,14 @@ import {
   type Thread,
 } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { receiptEventsVersion, receiptReadTs } from './receiptReadTs';
+import { SAVED_RECEIPT_EVENT_TS_KEY } from './client/savedSyncReceipts';
+import {
+  contextReceiptReadTs,
+  keepUnthreadedReceiptEvents,
+  receiptEventsVersion,
+  receiptReadTs,
+  unthreadedReceiptReadTs,
+} from './receiptReadTs';
 
 // A receipt reads up to the event it names, or to when the server took it while the room does not
 // hold that event. `receiptEventsVersion` counts what may move that, for the thread records kept
@@ -255,5 +262,61 @@ describe('receiptEventsVersion', () => {
 
     expect(receiptReadTs(standIn, standIn, '$named', 5000)).toBe(1000);
     expect(receiptEventsVersion(standIn)).toBe(0);
+  });
+
+  it('resolves saved receipt event timestamps, prefers held events, and preserves them across unstamped repeats', async () => {
+    mx.reEmitter.reEmit(room, [RoomEvent.Receipt]);
+    const stop = keepUnthreadedReceiptEvents(mx);
+    try {
+      room.addReceipt(
+        new MatrixEvent({
+          type: 'm.receipt',
+          room_id: room.roomId,
+          content: {
+            '$trimmed-main': {
+              'm.read': {
+                '@me:server': { ts: 5000, thread_id: 'main', [SAVED_RECEIPT_EVENT_TS_KEY]: 1300 },
+              },
+            },
+            '$trimmed-unthreaded': {
+              'm.read': {
+                '@me:server': { ts: 4900, [SAVED_RECEIPT_EVENT_TS_KEY]: 1200 },
+              },
+            },
+          },
+        })
+      );
+
+      expect(receiptReadTs(room, room, '$trimmed-main', 5000)).toBe(1300);
+      expect(contextReceiptReadTs(room, '@me:server', room)).toBe(1300);
+      expect(unthreadedReceiptReadTs(room, '@me:server', room)).toBe(1200);
+
+      // A server repeat omits the local saved key; the preserved event timestamp stays intact.
+      room.addReceipt(
+        new MatrixEvent({
+          type: 'm.receipt',
+          room_id: room.roomId,
+          content: {
+            '$trimmed-main': {
+              'm.read': { '@me:server': { ts: 5100, thread_id: 'main' } },
+            },
+            '$trimmed-unthreaded': {
+              'm.read': { '@me:server': { ts: 5050 } },
+            },
+          },
+        })
+      );
+
+      expect(receiptReadTs(room, room, '$trimmed-main', 5100)).toBe(1300);
+      expect(contextReceiptReadTs(room, '@me:server', room)).toBe(1300);
+      expect(unthreadedReceiptReadTs(room, '@me:server', room)).toBe(1200);
+
+      // Once the named event is held in the room, its live timestamp takes precedence.
+      await room.addLiveEvents([message('$trimmed-main', 1350)], { addToState: false });
+      expect(receiptReadTs(room, room, '$trimmed-main', 5100)).toBe(1350);
+      expect(contextReceiptReadTs(room, '@me:server', room)).toBe(1350);
+    } finally {
+      stop();
+    }
   });
 });

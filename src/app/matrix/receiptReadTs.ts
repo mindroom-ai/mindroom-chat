@@ -9,6 +9,7 @@ import {
 import { MAIN_ROOM_TIMELINE, ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isRecord } from '../lib/isRecord';
+import { readSavedReceiptEventTs } from './client/savedSyncReceipts';
 
 // How far a receipt reads, by the server's rule since mindroom-tuwunel #140 (v1.9.4-mindroom.31):
 // up to the event it names, so an older receipt leaves the events after its event unread. Before,
@@ -25,6 +26,8 @@ const unthreadedReceiptEvents = new WeakMap<object, string>();
 // either type, the newest taken: a stale device's older receipt, taken later, replaced a newer one.
 type SeenReceipt = { eventId: string; ts: number };
 const seenReceipts = new WeakMap<Room, Map<string, SeenReceipt>>();
+// Saved target-event timestamps (`origin_server_ts`) preserved across timeline trimming/pruning.
+const savedReceiptEventTs = new WeakMap<Room, Map<string, number>>();
 const seenReceiptKey = (userId: string, type: string, threadId: string) =>
   `${userId}\n${type}\n${threadId}`;
 
@@ -36,6 +39,12 @@ const rememberReceipts = (receiptEvent: MatrixEvent, room: Room, userId: string 
       const receipt = isRecord(byUser) ? byUser[userId] : undefined;
       if (!isRecord(receipt)) return;
       if (receipt.thread_id === undefined) unthreadedReceiptEvents.set(receipt, eventId);
+      const savedEventTs = readSavedReceiptEventTs(receipt);
+      if (savedEventTs !== undefined) {
+        const known = savedReceiptEventTs.get(room) ?? new Map<string, number>();
+        savedReceiptEventTs.set(room, known);
+        known.set(eventId, savedEventTs);
+      }
       const threadId = typeof receipt.thread_id === 'string' ? receipt.thread_id : '';
       const ts = typeof receipt.ts === 'number' ? receipt.ts : 0;
       let seen = seenReceipts.get(room);
@@ -120,7 +129,8 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
 /**
  * How far a receipt in `context` (the room's main timeline, or a thread) reads: up to the event it
  * names. A receipt on an event the client does not hold (often a reply's terminal edit, which no
- * timeline keeps) reads up to when the server took it, `takenTs`.
+ * timeline keeps) reads up to its preserved `origin_server_ts` if saved, or when the server took
+ * it, `takenTs`.
  */
 export const receiptReadTs = (
   room: Room,
@@ -137,7 +147,7 @@ export const receiptReadTs = (
   const named = context.findEventById?.(eventId) ?? room.findEventById?.(eventId);
   if (named) kept?.held.add(eventId);
   else kept?.held.delete(eventId);
-  return named?.getTs() ?? takenTs;
+  return named?.getTs() ?? savedReceiptEventTs.get(room)?.get(eventId) ?? takenTs;
 };
 
 const maxOf = (...values: Array<number | undefined>): number | undefined => {
