@@ -64,7 +64,8 @@ const stepStatusLabelKey = (state: StepState, waitingStatus: ToolCallWaitingStat
   }
 };
 
-export const isShellTool = (name: string): boolean => name === 'run_shell_command' || name === 'bash';
+export const isShellTool = (name: string): boolean =>
+  name === 'run_shell_command' || name === 'bash';
 
 const isShellArgKey = (key: string): boolean => {
   const lower = key.toLowerCase();
@@ -99,6 +100,16 @@ export const extractPrimaryArg = (argsPreview: string | undefined): string | und
   return revealDirectionControls(trimmed.replace(/\s+/g, ' ')) || undefined;
 };
 
+const isJsonContainer = (text: string): boolean => {
+  if (!text.startsWith('[') && !text.startsWith('{')) return false;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return Array.isArray(parsed) || isRecord(parsed);
+  } catch {
+    return false;
+  }
+};
+
 /** Returns lossless drawer/clipboard detail text for a live step without guessing or chopping. */
 export const extractStepDetail = (
   toolName: string,
@@ -124,11 +135,8 @@ export const extractStepDetail = (
     const matches = [...trimmed.matchAll(SHELL_ARG_KEY)];
     const only = matches.length === 1 ? matches[0] : undefined;
     if (only?.index === 0 && only[1] !== undefined && isShellArgKey(only[1])) {
-      const rest = trimmed.slice(only[0].length);
-      const lead = rest.trimStart();
-      if (lead && !lead.startsWith('[') && !lead.startsWith('{')) {
-        return revealDirectionControls(rest);
-      }
+      const value = trimmed.slice(only[0].length).trimStart();
+      if (value && !isJsonContainer(value)) return revealDirectionControls(value);
     }
   }
   return revealDirectionControls(trimmed);
@@ -223,7 +231,7 @@ function StepCopyButton({ text }: { text: string }) {
       ? t('messageCodeBlock.copied')
       : copyState === 'failed'
         ? t('featureUi.desktopAccess.browser.copyFailed')
-        : t('messageCodeBlock.copy');
+        : t('featureUi.quickCapture.peek.copy');
 
   return (
     <button type="button" className={css.CopyButton} data-live-step-copy="" onClick={handleCopy}>

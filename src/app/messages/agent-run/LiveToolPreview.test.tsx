@@ -293,13 +293,12 @@ describe('LiveToolPreview', () => {
       { type: 'tool_call_completed', tool_name: 'read_file', args_preview: 'path=src/index.ts' },
     ]);
 
-    render([
-      subagentItem('call_bare'),
-      toolItem({ index: 2, toolName: 'bash', command: 'bash' }),
-    ]);
+    render([subagentItem('call_bare'), toolItem({ index: 2, toolName: 'bash', command: 'bash' })]);
 
     const subSteps = [
-      ...container.querySelectorAll<HTMLElement>('[data-live-subagent="del-bare"] [data-live-step]'),
+      ...container.querySelectorAll<HTMLElement>(
+        '[data-live-subagent="del-bare"] [data-live-step]'
+      ),
     ];
     expect(subSteps).toHaveLength(4);
     for (const bare of subSteps.slice(0, 3)) {
@@ -368,7 +367,7 @@ describe('LiveToolPreview', () => {
     const doneCopy = doneDrawer?.querySelector<HTMLButtonElement>('[data-live-step-copy]');
     expect(doneCopy).not.toBeNull();
     expect(doneToggle?.contains(doneCopy!)).toBe(false);
-    expect(doneCopy?.textContent).toBe('Copy code');
+    expect(doneCopy?.textContent).toBe('Copy');
     await act(async () => {
       doneCopy?.click();
       await Promise.resolve();
@@ -385,7 +384,7 @@ describe('LiveToolPreview', () => {
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(doneCopy?.textContent).toBe('Copy code');
+    expect(doneCopy?.textContent).toBe('Copy');
 
     // Failed shell step shows Command header, multiline command, warning-tinted result, and Copy failed + cleanup on unmount.
     const failedToggle = failedStep?.querySelector<HTMLButtonElement>('button[aria-expanded]');
@@ -434,6 +433,24 @@ describe('LiveToolPreview', () => {
       'bash',
       '{"command": "echo \'a=1, b=2\'"}',
       "echo 'a=1, b=2'",
+    ],
+    [
+      'POSIX bracket test shell command',
+      'bash',
+      'command=[ -f package.json ] && npm test',
+      '[ -f package.json ] && npm test',
+    ],
+    [
+      'POSIX brace-group shell command',
+      'run_shell_command',
+      'command={ echo ok; }',
+      '{ echo ok; }',
+    ],
+    [
+      'single structured JSON array shell args',
+      'bash',
+      'args=["git", "status"]',
+      'args=["git", "status"]',
     ],
     [
       'non-shell multiline arg with indentation',
@@ -537,7 +554,7 @@ describe('LiveToolPreview', () => {
     }
   });
 
-    it('preserves expanded state across live frame updates and completion into result_preview', () => {
+  it('preserves expanded state across live frame updates and completion into result_preview', () => {
     const startedEvent: ToolTraceEvent = {
       type: 'tool_call_started',
       tool_call_id: 'call_live_1',
@@ -962,13 +979,13 @@ describe('LiveToolPreview', () => {
     const nextSteps = [
       ...container.querySelectorAll<HTMLElement>('[data-live-subagent="del-cap"] [data-live-step]'),
     ];
-    expect(nextSteps[2]?.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded')).toBe(
-      'true'
-    );
+    expect(
+      nextSteps[2]?.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded')
+    ).toBe('true');
     expect(nextSteps[2]?.querySelector('[data-live-step-result]')?.textContent).toBe('cmd-20 ok');
-    expect(nextSteps[3]?.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded')).toBe(
-      'false'
-    );
+    expect(
+      nextSteps[3]?.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded')
+    ).toBe('false');
     expect(nextSteps[3]?.querySelector('[data-live-output]')?.textContent).toBe(
       'output from cmd-21'
     );

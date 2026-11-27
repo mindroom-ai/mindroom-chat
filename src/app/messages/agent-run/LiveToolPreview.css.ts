@@ -295,7 +295,13 @@ export const DrawerDivider = style({
 
 export const DrawerOutput = style([
   terminalOutputBase,
-  { display: 'block', maxHeight: '16em', overflowX: 'hidden', overflowY: 'auto', userSelect: 'text' },
+  {
+    display: 'block',
+    maxHeight: '16em',
+    overflowX: 'hidden',
+    overflowY: 'auto',
+    userSelect: 'text',
+  },
 ]);
 
 // Warning.OnContainer on an 8% Warning.Main tint keeps >= 5.08:1 contrast across all 23 palettes.
