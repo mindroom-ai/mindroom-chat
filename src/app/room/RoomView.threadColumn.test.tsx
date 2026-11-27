@@ -74,6 +74,8 @@ const state = vi.hoisted(() => ({
   enterLiveRoomPeek: undefined as
     ((peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null) | undefined,
   enterLiveForwardPeek: undefined as ((threadId: string) => LiveThreadBackUnder | null) | undefined,
+  onTimelineUnmount: undefined as (() => void) | undefined,
+  onThreadViewUnmount: undefined as (() => void) | undefined,
   timelineMounts: 0,
   headerProps: [] as Array<{ passive?: boolean; openThreadId?: string; threadId?: string }>,
 }));
@@ -192,6 +194,7 @@ vi.mock('../timeline/RoomTimeline', async () => {
       state.main = props;
       useLayoutEffect(() => {
         state.timelineMounts += 1;
+        return () => state.onTimelineUnmount?.();
       }, []);
       return (
         <div data-testid="messages">
@@ -251,6 +254,7 @@ vi.mock('./ThreadView', async () => {
       header,
       autoFocus,
       hidden,
+      passive,
       onThreadLoadError,
       onUnmount,
       focusRef,
@@ -279,7 +283,10 @@ vi.mock('./ThreadView', async () => {
       }, [threadId]);
       useEffect(() => {
         state.viewMounts += 1;
-        return () => last.current.onUnmount?.(last.current.threadId);
+        return () => {
+          state.onThreadViewUnmount?.();
+          last.current.onUnmount?.(last.current.threadId);
+        };
       }, []);
       state.columnLoadError = onThreadLoadError;
       return (
@@ -291,6 +298,7 @@ vi.mock('./ThreadView', async () => {
           data-fork-at={forkAt}
           data-autofocus={autoFocus}
           data-hidden={hidden}
+          data-passive={passive ? 'true' : 'false'}
         >
           {roomHeader && (
             <div ref={headerRef} data-glass-flat="true">
@@ -352,6 +360,8 @@ beforeEach(() => {
   state.cards = undefined;
   state.enterLiveRoomPeek = undefined;
   state.enterLiveForwardPeek = undefined;
+  state.onTimelineUnmount = undefined;
+  state.onThreadViewUnmount = undefined;
   state.timelineMounts = 0;
   state.headerProps = [];
   localStorage.clear();
@@ -1364,14 +1374,22 @@ it('mounts ThreadColumn passively during end-edge forward peek, cleans up on can
   const peekingView = screen.getByTestId('thread-view');
   expect(peekingView.dataset.thread).toBe('$last');
   expect(peekingView.dataset.hidden).toBe('true');
+  expect(peekingView.dataset.passive).toBe('true');
   expect(peekingView.dataset.autofocus).toBe('false');
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
   expect(state.focused).not.toContain('$last');
 
-  // Cancel unmounts ThreadColumn cleanly without opening or focusing.
+  // Cancel unmounts ThreadColumn synchronously WHILE stage/under markers are still present.
+  let markersPresentOnThreadUnmount = false;
+  state.onThreadViewUnmount = () => {
+    markersPresentOnThreadUnmount =
+      live!.stage.hasAttribute(SWIPE_THREAD_STAGE) && live!.under.hasAttribute(SWIPE_UNDER_THREAD);
+  };
   act(() => {
     live!.exit(false);
   });
+  expect(markersPresentOnThreadUnmount).toBe(true);
+  state.onThreadViewUnmount = undefined;
   expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
   expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
   expect(screen.queryByTestId('thread-view')).toBeNull();
@@ -1392,6 +1410,58 @@ it('mounts ThreadColumn passively during end-edge forward peek, cleans up on can
   // Still mount #2 (zero remount/flicker!), now active (hidden=false) and room collapsed behind it.
   expect(state.viewMounts).toBe(2);
   expect(screen.getByTestId('thread-view').dataset.hidden).toBe('false');
+  expect(screen.getByTestId('thread-view').dataset.passive).toBe('false');
   expect(screen.queryByTestId('messages')).toBeNull();
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
+});
+
+it('cancelling a live room back-peek flushes preview unmount BEFORE restoring scroll refs and removing layer markers', () => {
+  state.thread = undefined;
+  const { rerender } = render(tree({}, ScreenSize.Mobile));
+  const savedCompactScroll = { scrollTop: 310, anchors: [{ key: '$orig', offset: 8 }] };
+  const savedReturnPlace = { roomId: room.roomId, eventId: '$orig', offset: 8 };
+  state.main!.compactRoomScrollStateRef!.current.set(room.roomId, savedCompactScroll);
+  state.main!.threadReturnPlaceRef!.current = savedReturnPlace;
+
+  state.thread = '$thread';
+  rerender(tree({}, ScreenSize.Mobile));
+
+  let live: LiveThreadBackUnder | null = null;
+  act(() => {
+    live = state.enterLiveRoomPeek?.({ eventId: '$thread' }) ?? null;
+  });
+  expect(live).not.toBeNull();
+
+  // Real unmount cleanup of the preview timeline writes corrupted preview scroll state during flushSync.
+  const events: string[] = [];
+  state.onTimelineUnmount = () => {
+    events.push(
+      live!.stage.hasAttribute(SWIPE_THREAD_STAGE) && live!.under.hasAttribute(SWIPE_UNDER_THREAD)
+        ? 'unmount-with-markers'
+        : 'unmount-without-markers'
+    );
+    state.main!.compactRoomScrollStateRef!.current.set(room.roomId, {
+      scrollTop: 0,
+      anchors: [{ key: '$thread', offset: 0 }],
+    });
+    state.main!.threadReturnPlaceRef!.current = {
+      roomId: room.roomId,
+      eventId: '$thread',
+      offset: 0,
+    };
+  };
+
+  act(() => {
+    live!.exit(false);
+  });
+
+  // Unmount ran synchronously inside exit(false) while markers were still on the DOM, and
+  // scroll rollback ran AFTER unmount cleanup so saved positions survived intact.
+  expect(events).toEqual(['unmount-with-markers']);
+  expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+  expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
+  expect(state.main!.compactRoomScrollStateRef!.current.get(room.roomId)).toEqual(
+    savedCompactScroll
+  );
+  expect(state.main!.threadReturnPlaceRef!.current).toEqual(savedReturnPlace);
 });

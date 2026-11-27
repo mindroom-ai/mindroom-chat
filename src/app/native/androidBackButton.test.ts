@@ -667,4 +667,22 @@ describe('androidBackButton', () => {
       rectsSpy.mockRestore();
     }
   });
+
+  it('invokes slideHistoryBack before bare window.history.back() when canGoBack is true and falls through when unclaimed', () => {
+    const store = createStore();
+    const slideHistoryBack = vi.fn(() => true);
+    const delegates = {
+      ...createAndroidBackButtonDelegates(store),
+      slideHistoryBack,
+    };
+
+    handleAndroidBackButton({ canGoBack: true }, delegates);
+    expect(slideHistoryBack).toHaveBeenCalledOnce();
+    expect(historyBackSpy).not.toHaveBeenCalled();
+
+    slideHistoryBack.mockReturnValueOnce(false);
+    handleAndroidBackButton({ canGoBack: true }, delegates);
+    expect(slideHistoryBack).toHaveBeenCalledTimes(2);
+    expect(historyBackSpy).toHaveBeenCalledOnce();
+  });
 });

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { ReactNode } from 'react';
+import { Activity, type ReactNode } from 'react';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { createStore, Provider } from 'jotai';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
@@ -1457,5 +1457,71 @@ describe('SpaceThreadsPage', () => {
         .querySelector<HTMLButtonElement>('[data-compact-thread-pin]')
         ?.getAttribute('aria-label')
     ).toBe('Unpin thread');
+  });
+
+  it('refreshes room names renamed while SpaceThreadsPage was hidden in Activity immediately on reveal', () => {
+    const eng = makeRoom(ROOM_ENG, 'Engineering');
+    const entries = [
+      makeEntry(ROOM_ENG, 'Engineering', '$t-rename', 'Rename thread', NOW - 10_000),
+    ];
+    const store = createStore();
+    const space = makeRoom(SPACE_ID, 'Product', { isSpace: true });
+    const roomMap = new Map<string, FakeRoom>([
+      [SPACE_ID, space],
+      [ROOM_ENG, eng],
+    ]);
+    const client = {
+      getSafeUserId: () => ME,
+      getUserId: () => ME,
+      getHomeserverUrl: () => 'https://example.org',
+      getUser: () => null,
+      getRoom: (id: string) => roomMap.get(id) ?? null,
+      getRooms: () => [...roomMap.values()],
+      getSyncState: () => SyncState.Syncing,
+      getAccountData: () => undefined,
+      isRoomEncrypted: () => false,
+      mxcUrlToHttp: () => null,
+      on: vi.fn(),
+      off: vi.fn(),
+      removeListener: vi.fn(),
+    } as unknown as MatrixClient;
+    store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: [SPACE_ID, ROOM_ENG] });
+    store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
+    store.set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([[ROOM_ENG, new Set([SPACE_ID])] as const]),
+    });
+    store.set(crossRoomThreadIndexAtom, {
+      entries: new Map(entries.map((entry) => [entry.key, entry] as const)),
+      eventIdToThreadRoots: new Map(),
+      version: 1,
+      bootstrapped: true,
+    });
+    const renderTree = (mode: 'visible' | 'hidden') => (
+      <Provider store={store}>
+        <MatrixClientProvider value={client}>
+          <ScreenSizeProvider value={ScreenSize.Mobile}>
+            <MemoryRouter initialEntries={[`/${encodeURIComponent(SPACE_ID)}/threads`]}>
+              <SpaceProvider value={space}>
+                <Activity mode={mode}>
+                  <SpaceThreadsPage />
+                </Activity>
+              </SpaceProvider>
+            </MemoryRouter>
+          </ScreenSizeProvider>
+        </MatrixClientProvider>
+      </Provider>
+    );
+
+    const { rerender, container } = render(renderTree('visible'));
+    expect(container.textContent).toContain('Engineering');
+
+    // Hide inside Activity (detaching RoomEvent.Name listeners), then mutate room name while hidden.
+    rerender(renderTree('hidden'));
+    eng.setName('Platform Core');
+
+    // Reveal: metadata refreshes immediately without waiting for another RoomEvent.Name emission.
+    rerender(renderTree('visible'));
+    expect(container.textContent).toContain('Platform Core');
   });
 });

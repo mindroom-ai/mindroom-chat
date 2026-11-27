@@ -19,12 +19,13 @@ import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   canPlayLiveSlide,
   completeLiveSlideHandoff,
+  isLiveSlideSyncExit,
   playLiveSlide,
   SWIPE_THREAD_STAGE,
   SWIPE_UNDER_THREAD,
   type LiveThreadBackUnder,
 } from '../navigation/phonePageSlide';
-import { historyPageOf, isSpaceThreadsPage, previousHistoryOrigin } from '../routes/historyStack';
+import { historyPageOf, isSpaceThreadsPage } from '../routes/historyStack';
 import { SPACE_ROOM_PATH, SPACE_THREADS_PATH } from '../routes/paths';
 import { decodeRouteParam } from '../routes/pathUtils';
 import { getRoomThreadExitTargetFromHistoryState } from '../routes/roomNavigateState';
@@ -68,25 +69,27 @@ const isThreadReturningToSpaceThreads = (
   ];
   const browserHistoryState: unknown =
     typeof window !== 'undefined' ? (window as Partial<Window>).history?.state : undefined;
+  const matchingBrowserState =
+    browserHistoryState &&
+    typeof browserHistoryState === 'object' &&
+    (browserHistoryState as { key?: unknown }).key === location.key
+      ? browserHistoryState
+      : undefined;
   const exitTarget =
     getRoomThreadExitTargetFromHistoryState({ key: location.key, usr: location.state }) ??
-    getRoomThreadExitTargetFromHistoryState(browserHistoryState);
-  if (exitTarget) {
-    return (
-      exitTarget.returnToOrigin === true &&
-      isThisSpaceThreadsPath(exitTarget.exitPath, spaceAddresses)
-    );
-  }
-  const origin = previousHistoryOrigin(
-    (page) => page.pathname !== location.pathname || page.search !== location.search
+    getRoomThreadExitTargetFromHistoryState(matchingBrowserState);
+  return (
+    exitTarget?.returnToOrigin === true &&
+    isThisSpaceThreadsPath(exitTarget.exitPath, spaceAddresses)
   );
-  return origin?.returnToOrigin === true && isThisSpaceThreadsPath(origin.path, spaceAddresses);
 };
 
 /**
  * A space with its navigation; it remembers the page open in that space.
  * On phones, parks `<SpaceThreadsPage />` in Layer 0 (`<Activity>`) only while viewing a thread
  * returning to this Space (`returnsToSpaceThreads`) to drive live 2-layer slides and edge swipes.
+ * Keeps a single stable `<Outlet />` tree across phone/desktop rotation so staged thread drafts
+ * are never unmounted on orientation change.
  */
 export function SpaceSectionPage() {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
@@ -158,6 +161,7 @@ export function SpaceSectionPage() {
 
   const mountThreads = phone && mountedSpaceId === space.roomId;
   const threadsVisible = isOnSpaceThreads || slidingForward || peekingThreads;
+  const hideOutlet = phone && isOnSpaceThreads;
   useInert(underRef, mountThreads && !isOnSpaceThreads);
 
   useLayoutEffect(() => {
@@ -179,12 +183,16 @@ export function SpaceSectionPage() {
       over,
       under,
       exit() {
+        if (mountedRef.current) {
+          const clear = () => setSlidingForward(false);
+          if (isLiveSlideSyncExit()) flushSync(clear);
+          else clear();
+        }
         stage.removeAttribute(SWIPE_THREAD_STAGE);
         under.removeAttribute(SWIPE_UNDER_THREAD);
-        if (mountedRef.current) setSlidingForward(false);
       },
     });
-    return () => slide.skip();
+    return () => slide.skip(false);
   }, [phone, slidingForward]);
 
   const enterLiveSpaceThreadsPeek = useCallback((): LiveThreadBackUnder | null => {
@@ -212,9 +220,13 @@ export function SpaceSectionPage() {
       over,
       under,
       exit() {
+        if (mountedRef.current) {
+          const clear = () => setPeekingThreads(false);
+          if (isLiveSlideSyncExit()) flushSync(clear);
+          else clear();
+        }
         stage.removeAttribute(SWIPE_THREAD_STAGE);
         under.removeAttribute(SWIPE_UNDER_THREAD);
-        if (mountedRef.current) setPeekingThreads(false);
       },
     };
   }, [latestRef]);
@@ -237,33 +249,37 @@ export function SpaceSectionPage() {
         </CollapsiblePageNav>
       }
     >
-      {phone ? (
-        <SpaceUnderLayerContext.Provider value={contextValue}>
-          <div ref={stageRef} className={css.Stage} data-space-section-stage={space.roomId}>
-            {mountThreads && (
-              <div
-                ref={underRef}
-                className={isOnSpaceThreads ? css.ActiveLayer : css.ParkedUnderLayer}
-                aria-hidden={!isOnSpaceThreads || undefined}
-                data-space-threads-layer=""
-              >
-                <SpaceThreadsPassiveContext.Provider value={peekingThreads && !isOnSpaceThreads}>
-                  <Activity mode={threadsVisible ? 'visible' : 'hidden'}>
-                    <SpaceThreadsPage />
-                  </Activity>
-                </SpaceThreadsPassiveContext.Provider>
-              </div>
-            )}
-            {!isOnSpaceThreads && (
-              <div ref={overRef} className={css.ActiveLayer} data-space-outlet-layer="">
-                <Outlet />
-              </div>
-            )}
-          </div>
-        </SpaceUnderLayerContext.Provider>
-      ) : (
-        <Outlet />
-      )}
+      <SpaceUnderLayerContext.Provider value={phone ? contextValue : null}>
+        <div
+          ref={stageRef}
+          className={phone ? css.Stage : css.PassThrough}
+          data-space-section-stage={phone ? space.roomId : undefined}
+        >
+          {mountThreads && (
+            <div
+              ref={underRef}
+              className={isOnSpaceThreads ? css.ActiveLayer : css.ParkedUnderLayer}
+              aria-hidden={!isOnSpaceThreads || undefined}
+              data-space-threads-layer=""
+            >
+              <SpaceThreadsPassiveContext.Provider value={peekingThreads && !isOnSpaceThreads}>
+                <Activity mode={threadsVisible ? 'visible' : 'hidden'}>
+                  <SpaceThreadsPage />
+                </Activity>
+              </SpaceThreadsPassiveContext.Provider>
+            </div>
+          )}
+          {!hideOutlet && (
+            <div
+              ref={overRef}
+              className={phone ? css.ActiveLayer : css.PassThrough}
+              data-space-outlet-layer={phone ? '' : undefined}
+            >
+              <Outlet />
+            </div>
+          )}
+        </div>
+      </SpaceUnderLayerContext.Provider>
     </SpacePageRoot>
   );
 }

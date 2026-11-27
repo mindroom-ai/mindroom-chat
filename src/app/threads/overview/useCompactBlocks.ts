@@ -57,8 +57,13 @@ export function useCompactBlocks(options: Options) {
       gesture: undefined as { id: string; pointer?: number } | undefined,
     };
   }, [memory, roomId]);
+  if (!state.placed) {
+    const latestSaved = memory.get(roomId);
+    if (latestSaved) state.saved = latestSaved;
+  }
   const { geometry, saved } = state;
   const savedScrollTopRef = useRef<{ roomId: string; scrollTop: number } | undefined>(undefined);
+  const restoredScrollTopRef = useRef<number | undefined>(undefined);
   const { heights, fresh, gap } = geometry;
   const [, render] = useReducer((revision: number) => revision + 1, 0);
   const blocks: string[][] = [];
@@ -199,7 +204,14 @@ export function useCompactBlocks(options: Options) {
     };
     const scroll = () => {
       clearResizeTimer();
-      const takeover = !state.placed && !!state.saved?.scrollTop && view.scrollTop !== 0;
+      const isRestoredScroll =
+        restoredScrollTopRef.current !== undefined &&
+        view.scrollTop === restoredScrollTopRef.current;
+      if (isRestoredScroll) {
+        restoredScrollTopRef.current = undefined;
+      }
+      const takeover =
+        !isRestoredScroll && !state.placed && !!state.saved?.scrollTop && view.scrollTop !== 0;
       if (takeover) state.placed = state.left = true;
       const wake = takeover || state.end;
       state.end = false;
@@ -271,7 +283,10 @@ export function useCompactBlocks(options: Options) {
     const view = scrollRef.current;
     const pending = savedScrollTopRef.current;
     if (view && pending?.roomId === roomId && view.clientHeight > 0) {
-      if (view.scrollTop !== pending.scrollTop) view.scrollTop = pending.scrollTop;
+      if (view.scrollTop !== pending.scrollTop) {
+        view.scrollTop = pending.scrollTop;
+        restoredScrollTopRef.current = view.scrollTop;
+      }
       savedScrollTopRef.current = undefined;
     }
     return () => {
@@ -280,8 +295,12 @@ export function useCompactBlocks(options: Options) {
       if (view && view.clientHeight > 0) {
         savedScrollTopRef.current = { roomId, scrollTop: view.scrollTop };
       }
+      restoredScrollTopRef.current = undefined;
+      state.placed = false;
+      state.left = false;
+      state.reachable = undefined;
     };
-  }, [roomId, scrollRef]);
+  }, [roomId, scrollRef, state]);
   useLayoutEffect(() => {
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return;

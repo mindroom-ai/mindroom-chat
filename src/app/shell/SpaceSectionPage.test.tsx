@@ -48,6 +48,8 @@ const probe = vi.hoisted(() => ({
   passiveDuringReveal: [] as boolean[],
   scrollTopRestoredOnReveal: [] as number[],
   underLayer: null as SpaceUnderLayerContextValue | null,
+  outletMounts: 0,
+  stageHadMarkerOnHide: [] as boolean[],
 }));
 
 const makeSpace = (roomId: string): Room =>
@@ -97,6 +99,13 @@ vi.mock('../spaces/threads/SpaceThreadsPage', () => ({
       return () => {
         probe.threadsLayoutHides += 1;
         if (el) savedScrollRef.current = el.scrollTop;
+        const stage = document.querySelector('[data-space-section-stage]');
+        const under = document.querySelector('[data-space-threads-layer]');
+        probe.stageHadMarkerOnHide.push(
+          Boolean(
+            stage?.hasAttribute(SWIPE_THREAD_STAGE) && under?.hasAttribute(SWIPE_UNDER_THREAD)
+          )
+        );
       };
     }, [passive]);
 
@@ -115,6 +124,9 @@ vi.mock('../spaces/threads/SpaceThreadsPage', () => ({
 
 function ThreadOutletProbe() {
   probe.underLayer = useSpaceUnderLayer();
+  useEffect(() => {
+    probe.outletMounts += 1;
+  }, []);
   return <div data-testid="room-thread-page">Thread view</div>;
 }
 
@@ -163,6 +175,8 @@ beforeEach(() => {
   probe.passiveDuringReveal = [];
   probe.scrollTopRestoredOnReveal = [];
   probe.underLayer = null;
+  probe.outletMounts = 0;
+  probe.stageHadMarkerOnHide = [];
 });
 
 afterEach(() => {
@@ -249,11 +263,14 @@ describe('SpaceSectionPage live 2-layer stack', () => {
       });
       expect(finishers.length).toBeGreaterThan(0);
 
+      probe.stageHadMarkerOnHide = [];
       await act(async () => {
         finishers.splice(0).forEach((finish) => finish());
         await Promise.resolve();
         await Promise.resolve();
       });
+      // Activity hid synchronously inside exit() WHILE slide markers were still present.
+      expect(probe.stageHadMarkerOnHide).toEqual([true]);
       expect(isLiveSlideActive()).toBe(false);
       expect(probe.underLayer?.isSpaceSlideOwningThread()).toBe(false);
       // Activity flipped to hidden (React sets display: none !important on child).
@@ -400,6 +417,96 @@ describe('SpaceSectionPage live 2-layer stack', () => {
       expect(document.querySelector('[data-space-threads-layer]')).toBeNull();
       expect(probe.underLayer?.hasWarmSpaceThreads()).toBe(false);
       expect(probe.underLayer?.enterLiveSpaceThreadsPeek()).toBeNull();
+    } finally {
+      router.dispose();
+    }
+  });
+
+  it('keeps the same Outlet instance mounted across phone <-> desktop rotation without losing thread state', () => {
+    const threadsUrl = spacePath(SPACE_A, 'threads/');
+    const threadEntry = {
+      pathname: `${spacePath(SPACE_A, encodeURIComponent(ROOM_1))}/`,
+      search: '?threadId=%24t1',
+      state: withRoomThreadExitTargetState(undefined, {
+        exitPath: threadsUrl,
+        roomId: ROOM_1,
+        threadId: '$t1',
+        useHistoryBack: true,
+        returnToOrigin: true,
+      }),
+    };
+    const { router, rendered } = mountSpaceRouter(threadEntry, ScreenSize.Mobile);
+    try {
+      expect(probe.outletMounts).toBe(1);
+      expect(screen.getByTestId('room-thread-page')).toBeTruthy();
+
+      rendered.rerender(
+        <MatrixClientProvider value={mx}>
+          <ScreenSizeProvider value={ScreenSize.Desktop}>
+            <div>
+              <RouterProvider router={router} />
+            </div>
+          </ScreenSizeProvider>
+        </MatrixClientProvider>
+      );
+      expect(probe.outletMounts).toBe(1);
+      expect(screen.getByTestId('room-thread-page')).toBeTruthy();
+
+      rendered.rerender(
+        <MatrixClientProvider value={mx}>
+          <ScreenSizeProvider value={ScreenSize.Mobile}>
+            <div {...{ [PHONE_STAGE]: '' }}>
+              <RouterProvider router={router} />
+            </div>
+          </ScreenSizeProvider>
+        </MatrixClientProvider>
+      );
+      expect(probe.outletMounts).toBe(1);
+    } finally {
+      router.dispose();
+    }
+  });
+
+  it('unmounts parked SpaceThreadsPage when navigating directly from Thread A to Thread B without returnToOrigin and hides Activity before clearing cancel markers', async () => {
+    const threadsUrl = spacePath(SPACE_A, 'threads/');
+    const threadAUrl = `${spacePath(SPACE_A, encodeURIComponent(ROOM_1))}/?threadId=%24t1`;
+    const threadBUrl = `${spacePath(SPACE_A, encodeURIComponent(ROOM_1))}/?threadId=%24t2`;
+    const returnState = withRoomThreadExitTargetState(undefined, {
+      exitPath: threadsUrl,
+      roomId: ROOM_1,
+      threadId: '$t1',
+      useHistoryBack: true,
+      returnToOrigin: true,
+    });
+
+    const { router } = mountSpaceRouter(threadsUrl, ScreenSize.Mobile);
+    try {
+      await act(async () => {
+        await router.navigate(threadAUrl, { state: returnState });
+      });
+      expect(document.querySelector('[data-space-threads-layer]')).not.toBeNull();
+
+      // Cancelled back-peek hides Activity synchronously WHILE stage/under markers are still set.
+      let peek: LiveThreadBackUnder | null = null;
+      act(() => {
+        peek = probe.underLayer?.enterLiveSpaceThreadsPeek() ?? null;
+      });
+      expect(peek).not.toBeNull();
+      probe.stageHadMarkerOnHide = [];
+      act(() => {
+        peek!.exit(false);
+      });
+      expect(probe.stageHadMarkerOnHide).toEqual([true]);
+      expect(peek!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+      expect(peek!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
+
+      // Direct navigation from Thread A -> Thread B without returnToOrigin (e.g. Universal Link)
+      // unmounts SpaceThreadsPage instead of retaining Thread A's parked list.
+      await act(async () => {
+        await router.navigate(threadBUrl);
+      });
+      expect(document.querySelector('[data-space-threads-layer]')).toBeNull();
+      expect(probe.underLayer?.hasWarmSpaceThreads()).toBe(false);
     } finally {
       router.dispose();
     }

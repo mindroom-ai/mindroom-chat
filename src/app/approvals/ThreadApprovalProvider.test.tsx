@@ -1063,4 +1063,34 @@ describe('thread approval provider rescans', () => {
     act(() => renderer.update(<Both view={false} />));
     expect(mocks.abort.mock.calls).toEqual([[room.roomId, '$thread', 'thread-approvals']]);
   });
+
+  it('defers approval history backfill while passive and starts it on activation without remounting children', async () => {
+    let childMounts = 0;
+    function Child() {
+      React.useEffect(() => {
+        childMounts += 1;
+      }, []);
+      return null;
+    }
+
+    await act(async () => {
+      renderer = create(
+        <ThreadApprovalProvider room={room} threadId="$thread" passive>
+          <Child />
+        </ThreadApprovalProvider>
+      );
+    });
+    expect(childMounts).toBe(1);
+    expect(mocks.backfill).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.update(
+        <ThreadApprovalProvider room={room} threadId="$thread" passive={false}>
+          <Child />
+        </ThreadApprovalProvider>
+      );
+    });
+    expect(childMounts).toBe(1);
+    expect(mocks.backfill).toHaveBeenCalledTimes(1);
+  });
 });

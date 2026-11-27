@@ -20,6 +20,7 @@ export type AndroidBackButtonDelegates = {
   isPhoneNavDrawerOpen: () => boolean;
   closePhoneNavDrawer: () => void;
   closeSidePanel: () => boolean;
+  slideHistoryBack?: () => boolean;
   exitRootPage: () => boolean;
 };
 
@@ -221,6 +222,9 @@ export const handleAndroidBackButton = (
   }
 
   if (canNavigateBack(canGoBack)) {
+    if (delegates.slideHistoryBack?.()) {
+      return;
+    }
     window.history.back();
     return;
   }

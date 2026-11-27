@@ -677,13 +677,18 @@ describe('SpaceThreadsList', () => {
     const entryKeys = entries.map((e) => e.key);
     const entryByKey = new Map(entries.map((e) => [e.key, e]));
 
-    const viewOf = (mode: 'visible' | 'hidden', passive: boolean) => (
+    const viewOf = (
+      mode: 'visible' | 'hidden',
+      passive: boolean,
+      keys = entryKeys,
+      byKey = entryByKey
+    ) => (
       <MatrixClientProvider value={mx}>
         <SpaceThreadsPassiveContext.Provider value={passive}>
           <Activity mode={mode}>
             <SpaceThreadsList
-              entryKeys={entryKeys}
-              entryByKey={entryByKey}
+              entryKeys={keys}
+              entryByKey={byKey}
               foldedSections={[]}
               onToggleSectionFold={() => undefined}
               roomsById={roomsById}
@@ -728,5 +733,23 @@ describe('SpaceThreadsList', () => {
     rendered.rerender(viewOf('visible', false));
     expect(list.scrollTop).toBe(6000);
     expect(badgeMocks.renders).toBeGreaterThan(rendersBeforePeek);
+
+    // 2nd hide -> insert a new thread at the top while hidden -> reveal tracks anchored card
+    // instead of keeping stale raw pixel scrollTop=6000.
+    const anchorTopBefore2ndHide = rendered.container
+      .querySelector<HTMLElement>('[data-scroll-anchor="$act-60"]')!
+      .getBoundingClientRect().top;
+    rendered.rerender(viewOf('hidden', false));
+    list.scrollTop = 0;
+    const inserted = entry(ROOM_A, '$act-new-top', 'Inserted while hidden');
+    const nextKeys = [inserted.key, ...entryKeys];
+    const nextByKey = new Map([[inserted.key, inserted], ...entryByKey]);
+    rendered.rerender(viewOf('visible', false, nextKeys, nextByKey));
+    tickFrames(4);
+    expect(list.scrollTop).toBe(6100);
+    const anchorTopAfter2ndReveal = rendered.container
+      .querySelector<HTMLElement>('[data-scroll-anchor="$act-60"]')!
+      .getBoundingClientRect().top;
+    expect(Math.abs(anchorTopAfter2ndReveal - anchorTopBefore2ndHide)).toBeLessThanOrEqual(2);
   }, 30_000);
 });

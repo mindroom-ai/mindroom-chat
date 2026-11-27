@@ -24,6 +24,8 @@ import {
   type LiveThreadBackUnder,
   PHONE_PAGE,
   PHONE_STAGE,
+  playLiveSlide,
+  runLiveHistoryBackSlide,
   skipActiveLiveSlide,
 } from '../navigation/phonePageSlide';
 import {
@@ -884,6 +886,112 @@ describe('useRoomViewThreadState interactive swipe & live slide wiring', () => {
       completeLiveSlideHandoff();
       expect(exit).toHaveBeenCalledWith(true);
     } finally {
+      Object.defineProperty(HTMLElement.prototype, 'animate', {
+        configurable: true,
+        value: originalAnimate,
+      });
+    }
+  });
+
+  it('slides out a filling phone thread on Android hardware Back while preserving exact window.history.back(), and does not drop Back during a forward slide', async () => {
+    const stage = document.createElement('div');
+    stage.setAttribute(PHONE_STAGE, '');
+    const liveStage = document.createElement('div');
+    const under = document.createElement('div');
+    const over = document.createElement('div');
+    liveStage.append(under, over);
+    stage.append(liveStage);
+    document.body.append(stage);
+    vi.spyOn(liveStage, 'getBoundingClientRect').mockReturnValue({
+      width: 390,
+      height: 800,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    const finishers: Array<() => void> = [];
+    const originalAnimate = HTMLElement.prototype.animate;
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value() {
+        let finish: () => void = () => undefined;
+        const finished = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        finishers.push(finish);
+        return { finished, cancel: vi.fn() } as unknown as Animation;
+      },
+    });
+    const historyBackSpy = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const exit = vi.fn();
+    const enterLiveRoomPeek = vi.fn((): LiveThreadBackUnder => ({
+      stage: liveStage,
+      over,
+      under,
+      exit,
+    }));
+
+    try {
+      // 1. Thread opened from the room: Android Back slides and calls window.history.back().
+      window.history.replaceState(
+        {
+          usr: withRoomThreadExitTargetState(undefined, {
+            exitPath: `/home/${encodeURIComponent(ROOM_ID)}/`,
+            roomId: ROOM_ID,
+            threadId: '$thread',
+            useHistoryBack: true,
+          }),
+        },
+        ''
+      );
+      const { current } = mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
+
+      let claimed = false;
+      act(() => {
+        claimed = runLiveHistoryBackSlide();
+      });
+      expect(claimed).toBe(true);
+      expect(isLiveSlideActive()).toBe(true);
+      expect(historyBackSpy).not.toHaveBeenCalled();
+
+      await act(async () => {
+        finishers.splice(0).forEach((finish) => finish());
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(historyBackSpy).toHaveBeenCalledTimes(1);
+      expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
+      completeLiveSlideHandoff();
+
+      // 2. When history back does not exit directly to Room/SpaceThreads (e.g. direct link), returns false.
+      window.history.replaceState(null, '');
+      expect(runLiveHistoryBackSlide()).toBe(false);
+
+      // 3. Pressing Back while a forward push slide is mid-flight skips the forward slide and proceeds!
+      const forwardExit = vi.fn();
+      act(() => {
+        playLiveSlide({
+          direction: 'forward',
+          stage: liveStage,
+          over,
+          under,
+          exit: forwardExit,
+        });
+      });
+      expect(isLiveSlideActive()).toBe(true);
+
+      enterLiveRoomPeek.mockClear();
+      act(() => current().handleExitThread());
+      expect(forwardExit).toHaveBeenCalledWith(false);
+      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
+      expect(isLiveSlideActive()).toBe(true);
+    } finally {
+      historyBackSpy.mockRestore();
       Object.defineProperty(HTMLElement.prototype, 'animate', {
         configurable: true,
         value: originalAnimate,

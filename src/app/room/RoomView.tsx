@@ -52,6 +52,7 @@ import { isEventId } from '../lib/matrixIds';
 import {
   canPlayLiveSlide,
   completeLiveSlideHandoff,
+  isLiveSlideSyncExit,
   playLiveSlide,
   SWIPE_THREAD_STAGE,
   SWIPE_UNDER_THREAD,
@@ -186,9 +187,12 @@ export function RoomView({
 
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const spaceUnderLayer = useSpaceUnderLayer();
-  const [peekingRoom, setPeekingRoom] = useState<{ focusEventId?: string } | null>(null);
-  const [peekingForwardThreadId, setPeekingForwardThreadId] = useState<string | null>(null);
-  const [slidingForward, setSlidingForward] = useState(false);
+  type LiveLayerState =
+    | null
+    | { kind: 'back-peek'; focusEventId?: string }
+    | { kind: 'forward-push' }
+    | { kind: 'forward-peek'; threadId: string };
+  const [liveLayer, setLiveLayer] = useState<LiveLayerState>(null);
   const phoneRef = useRef(phone);
   phoneRef.current = phone;
   const columnOpenRef = useRef(false);
@@ -222,7 +226,7 @@ export function RoomView({
       stage.setAttribute(SWIPE_THREAD_STAGE, '');
       under.setAttribute(SWIPE_UNDER_THREAD, '');
       try {
-        flushSync(() => setPeekingRoom({ focusEventId }));
+        flushSync(() => setLiveLayer({ kind: 'back-peek', focusEventId }));
       } catch (error) {
         stage.removeAttribute(SWIPE_THREAD_STAGE);
         under.removeAttribute(SWIPE_UNDER_THREAD);
@@ -234,20 +238,24 @@ export function RoomView({
         over,
         under,
         exit(committed) {
+          if (mountedRef.current && pageRef.current) {
+            const restore = !committed || columnFillsRef.current;
+            const clear = () => setLiveLayer((prev) => (prev?.kind === 'back-peek' ? null : prev));
+            // Commit collapse synchronously before removing layer markers and before restoring
+            // scroll refs so unmounting preview cleanups cannot clobber the saved room position.
+            if (isLiveSlideSyncExit()) flushSync(clear);
+            else clear();
+            if (restore) {
+              threadReturnPlaceRef.current = savedReturnPlace;
+              if (savedCompactScroll) {
+                compactRoomScrollStateRef.current.set(roomId, savedCompactScroll);
+              } else {
+                compactRoomScrollStateRef.current.delete(roomId);
+              }
+            }
+          }
           stage.removeAttribute(SWIPE_THREAD_STAGE);
           under.removeAttribute(SWIPE_UNDER_THREAD);
-          if (!mountedRef.current || !pageRef.current) return;
-          if (!committed || columnFillsRef.current) {
-            setPeekingRoom(null);
-            threadReturnPlaceRef.current = savedReturnPlace;
-            if (savedCompactScroll) {
-              compactRoomScrollStateRef.current.set(roomId, savedCompactScroll);
-            } else {
-              compactRoomScrollStateRef.current.delete(roomId);
-            }
-            return;
-          }
-          setPeekingRoom(null);
         },
       };
     },
@@ -270,7 +278,7 @@ export function RoomView({
     stage.setAttribute(SWIPE_THREAD_STAGE, '');
     under.setAttribute(SWIPE_UNDER_THREAD, '');
     try {
-      flushSync(() => setPeekingForwardThreadId(targetThreadId));
+      flushSync(() => setLiveLayer({ kind: 'forward-peek', threadId: targetThreadId }));
     } catch (error) {
       stage.removeAttribute(SWIPE_THREAD_STAGE);
       under.removeAttribute(SWIPE_UNDER_THREAD);
@@ -279,9 +287,11 @@ export function RoomView({
 
     const over = stage.querySelector<HTMLElement>(':scope > [data-testid="thread-column"]');
     if (!over) {
+      if (mountedRef.current) {
+        flushSync(() => setLiveLayer((prev) => (prev?.kind === 'forward-peek' ? null : prev)));
+      }
       stage.removeAttribute(SWIPE_THREAD_STAGE);
       under.removeAttribute(SWIPE_UNDER_THREAD);
-      if (mountedRef.current) setPeekingForwardThreadId(null);
       return null;
     }
 
@@ -290,9 +300,13 @@ export function RoomView({
       over,
       under,
       exit() {
+        if (mountedRef.current) {
+          const clear = () => setLiveLayer((prev) => (prev?.kind === 'forward-peek' ? null : prev));
+          if (isLiveSlideSyncExit()) flushSync(clear);
+          else clear();
+        }
         stage.removeAttribute(SWIPE_THREAD_STAGE);
         under.removeAttribute(SWIPE_UNDER_THREAD);
-        if (mountedRef.current) setPeekingForwardThreadId(null);
       },
     };
   }, []);
@@ -338,37 +352,39 @@ export function RoomView({
       entering &&
       phone &&
       !crossRoomFork &&
-      peekingForwardThreadId === null &&
+      liveLayer?.kind !== 'forward-peek' &&
       !spaceUnderLayer?.isSpaceSlideOwningThread() &&
       canPlayLiveSlide()
     ) {
-      setSlidingForward(true);
-    } else if (!columnFills && slidingForward) {
-      setSlidingForward(false);
+      setLiveLayer({ kind: 'forward-push' });
+    } else if (!sameRoom && liveLayer !== null) {
+      setLiveLayer(null);
+    } else if (!columnFills && liveLayer?.kind === 'forward-push') {
+      setLiveLayer(null);
     }
-  } else if (!phone && slidingForward) {
-    setSlidingForward(false);
+  } else if (!phone && liveLayer?.kind === 'forward-push') {
+    setLiveLayer(null);
   }
 
+  const peekingBack = liveLayer?.kind === 'back-peek';
+  const slidingForward = liveLayer?.kind === 'forward-push';
+  const peekingForwardThreadId = liveLayer?.kind === 'forward-peek' ? liveLayer.threadId : null;
   const peekingForwardOnly = peekingForwardThreadId !== null && !columnOpen;
   const renderedThreadId = openThreadId ?? peekingForwardThreadId ?? undefined;
   const renderColumn = columnOpen || peekingForwardThreadId !== null;
   const columnFillsOrPeeks = columnFills || peekingForwardOnly;
-  const peekingOnly = columnFills && (peekingRoom !== null || slidingForward);
-  const peekFocusEventId =
-    columnFills && peekingRoom !== null ? peekingRoom.focusEventId : undefined;
+  const peekingOnly = columnFills && (peekingBack || slidingForward);
+  const peekFocusEventId = columnFills && peekingBack ? liveLayer.focusEventId : undefined;
 
   useLayoutEffect(() => {
-    if (!columnFills && peekingRoom !== null) {
-      completeLiveSlideHandoff();
-    } else if (columnFills && peekingForwardThreadId !== null) {
+    if ((!columnFills && peekingBack) || (columnFills && peekingForwardThreadId !== null)) {
       completeLiveSlideHandoff();
     }
-  }, [columnFills, peekingForwardThreadId, peekingRoom]);
+  }, [columnFills, peekingBack, peekingForwardThreadId]);
 
   useEffect(() => {
-    if (!columnFills) setPeekingRoom(null);
-  }, [columnFills]);
+    if (!columnFills && peekingBack) setLiveLayer(null);
+  }, [columnFills, peekingBack]);
 
   useLayoutEffect(() => {
     if (!phone || !slidingForward) return undefined;
@@ -376,7 +392,7 @@ export function RoomView({
     const under = areaRef.current;
     const over = stage?.querySelector<HTMLElement>(':scope > [data-testid="thread-column"]');
     if (!stage || !under || !over) {
-      setSlidingForward(false);
+      setLiveLayer((prev) => (prev?.kind === 'forward-push' ? null : prev));
       return undefined;
     }
 
@@ -388,13 +404,17 @@ export function RoomView({
       over,
       under,
       exit() {
+        if (mountedRef.current) {
+          const clear = () => setLiveLayer((prev) => (prev?.kind === 'forward-push' ? null : prev));
+          if (isLiveSlideSyncExit()) flushSync(clear);
+          else clear();
+        }
         stage.removeAttribute(SWIPE_THREAD_STAGE);
         under.removeAttribute(SWIPE_UNDER_THREAD);
-        if (mountedRef.current) setSlidingForward(false);
       },
     });
     return () => {
-      slide.skip();
+      slide.skip(false);
     };
   }, [phone, slidingForward]);
   // The unsent root deleted while its thread showed (onColumnGone).
@@ -624,9 +644,7 @@ export function RoomView({
             />
           )
         }
-        collapsed={
-          columnFills && peekingRoom === null && !slidingForward && peekingForwardThreadId === null
-        }
+        collapsed={columnFills && liveLayer === null}
         conversationRef={conversationRef}
       >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />
@@ -731,6 +749,7 @@ export function RoomView({
                 // thread opens, in the effects of the commit that opens it, before this view's reset.
                 autoFocus={(!columnFills || focusOpenedThread.current) && !peekingForwardOnly}
                 hidden={behindPanel || peekingForwardOnly}
+                passive={peekingForwardOnly}
                 onThreadLoadError={
                   crossRoomFork || peekingForwardOnly ? undefined : threadLoadFailed
                 }

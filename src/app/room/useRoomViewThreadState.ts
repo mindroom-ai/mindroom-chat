@@ -27,8 +27,11 @@ import {
   canPlayLiveSlide,
   createLiveBackSwipeScene,
   createLiveForwardSwipeScene,
-  isLiveSlideActive,
+  getActiveLiveSlideDirection,
+  isLiveHandoffActive,
   playLiveSlide,
+  registerLiveHistoryBackSlide,
+  skipActiveLiveSlide,
   type LiveSlideHandle,
   type LiveThreadBackUnder,
 } from '../navigation/phonePageSlide';
@@ -313,7 +316,7 @@ export const useRoomViewThreadState = ({
       const pending = activeBackSlideRef.current;
       if (!pending) return;
       activeBackSlideRef.current = null;
-      pending.skip();
+      pending.skip(false);
     },
     [effectiveThreadId, locationKey, roomId]
   );
@@ -332,29 +335,38 @@ export const useRoomViewThreadState = ({
     return enterLiveRoomPeekRef.current?.(peekFocus) ?? null;
   }, [effectiveThreadId, enterLiveRoomPeekRef, resolveThreadExit, spaceUnderLayerRef]);
 
+  const startAnimatedBack = useCallback(
+    (onCommit: () => void): boolean => {
+      if (!effectiveThreadId) return false;
+      // Ignore duplicate Back taps while a Back slide or commit handoff is already in progress.
+      if (getActiveLiveSlideDirection() === 'back' || isLiveHandoffActive()) return true;
+      // Do not silently drop Back when a forward push slide is mid-flight: finish it and proceed.
+      if (getActiveLiveSlideDirection() === 'forward') skipActiveLiveSlide();
+      if (!canPlayLiveSlide()) return false;
+      const live = resolveBackUnder();
+      if (!live) return false;
+      const handle = playLiveSlide({
+        direction: 'back',
+        ...live,
+        onCommit: () => {
+          activeBackSlideRef.current = null;
+          onCommit();
+        },
+      });
+      activeBackSlideRef.current = handle;
+      void handle.finished.finally(() => {
+        if (activeBackSlideRef.current === handle) activeBackSlideRef.current = null;
+      });
+      return true;
+    },
+    [effectiveThreadId, resolveBackUnder]
+  );
+
   const handleExitThread = useCallback(() => {
     if (!effectiveThreadId) return;
-    if (isLiveSlideActive()) return;
-    if (canPlayLiveSlide()) {
-      const live = resolveBackUnder();
-      if (live) {
-        const handle = playLiveSlide({
-          direction: 'back',
-          ...live,
-          onCommit: () => {
-            activeBackSlideRef.current = null;
-            commitExitThread();
-          },
-        });
-        activeBackSlideRef.current = handle;
-        void handle.finished.finally(() => {
-          if (activeBackSlideRef.current === handle) activeBackSlideRef.current = null;
-        });
-        return;
-      }
-    }
+    if (startAnimatedBack(commitExitThread)) return;
     commitExitThread();
-  }, [commitExitThread, effectiveThreadId, resolveBackUnder]);
+  }, [commitExitThread, effectiveThreadId, startAnimatedBack]);
 
   // A deleted unsent root no longer exists, so swipe-forward must not reopen it and the
   // room must not try to focus it.
@@ -450,6 +462,20 @@ export const useRoomViewThreadState = ({
       begin: beginThreadForwardSwipe,
     }
   );
+
+  // Android hardware Back: when a single `window.history.back()` exits this filling phone thread
+  // to its live Room or Space All threads under-layer, slide out first and preserve exact
+  // `window.history.back()` (never substituting `leaveThread()`).
+  useEffect(() => {
+    if (!swipes || !effectiveThreadId) return undefined;
+    return registerLiveHistoryBackSlide(() => {
+      const { origin, returnsToRoom, returnsToSpaceThreads } = resolveThreadExit();
+      if ((!returnsToRoom && !returnsToSpaceThreads) || (origin && origin.steps !== 1)) {
+        return false;
+      }
+      return startAnimatedBack(() => window.history.back());
+    });
+  }, [effectiveThreadId, resolveThreadExit, startAnimatedBack, swipes]);
 
   // Typed queries apply on a pause, not per keystroke: structured tokens
   // (tag:/is:) parsed mid-word would otherwise refilter the overview with

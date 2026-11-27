@@ -1,5 +1,7 @@
 import { style } from '@vanilla-extract/css';
 
+export const PassThrough = style({ display: 'contents' });
+
 export const Stage = style({
   position: 'relative',
   display: 'flex',

@@ -63,3 +63,10 @@ globalStyle('[data-swipe-over-thread]', {
   zIndex: 2,
   backgroundColor: color.Surface.Container,
 });
+
+// Cold-reload fallback lifts inline clipping on [data-phone-page] while sliding so its 16 px
+// leading-edge ::before shadow renders cleanly inside the clipped [data-phone-stage].
+globalStyle('[data-phone-stage][data-swipe-stage] > [data-phone-page][data-swipe-over-thread]', {
+  overflowInline: 'visible',
+  overflowBlock: 'clip',
+});

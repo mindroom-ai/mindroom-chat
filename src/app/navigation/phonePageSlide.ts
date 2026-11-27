@@ -2,18 +2,18 @@ import { isDeepTraceRecording, recordDeepTraceEvent } from '../diagnostics/deepT
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import {
   animateSwipeElements,
+  type InteractiveSwipeScene,
   isReducedMotion,
   resolveLogicalDirectionSign,
   setInteractivePhoneSlideClaimed,
-  type InteractiveSwipeScene,
 } from './interactiveSwipe';
 import './phonePageSlide.css';
 
-/** Marks the phone layout (shell/ClientLayout.tsx): the top bar and the page below it. */
+/** Marks the phone layout container (`ClientLayout`). */
 export const PHONE_STAGE = 'data-phone-stage';
-/** Marks the page below the top bar on phones (shell/ClientLayout.tsx). */
+/** Marks the active phone page container below `PhoneTopBar`. */
 export const PHONE_PAGE = 'data-phone-page';
-/** Marks a live 2-layer navigation stage (RoomView or SpaceSectionPage). */
+/** Marks a clipped live 2-layer navigation stage (`RoomView` or `SpaceSectionPage`). */
 export const SWIPE_THREAD_STAGE = 'data-swipe-thread-stage';
 /** Marks the live inert under-layer revealed behind a sliding upper surface. */
 export const SWIPE_UNDER_THREAD = 'data-swipe-under-thread';
@@ -24,10 +24,10 @@ const SWIPE_STAGE = 'data-swipe-stage';
 const SWIPE_BACKDROP = 'data-swipe-backdrop';
 const SWIPE_DIM = 'data-swipe-dim';
 const SWIPE_HOLD_SHIELD = 'data-swipe-hold-shield';
-const LIVE_SLIDE_DURATION_MS = 280; // motion.duration.Slower
+const LIVE_SLIDE_DURATION_MS = 280;
+const DIM_MAX_OPACITY = 0.12;
 const FRAME_WAIT_MS = 100;
 const HANDOFF_TIMEOUT_MS = 1000;
-const DIM_MAX_OPACITY = 0.12;
 const UA_TRANSITION_TTL_MS = 50;
 
 /** Handle to two live DOM layers sharing a clipped stage during a phone slide or swipe. */
@@ -43,10 +43,22 @@ export type LiveSlideOptions = LiveThreadBackUnder & {
   onCommit?: () => void;
 };
 
-export type LiveSlideHandle = { finished: Promise<void>; skip: () => void };
+export type LiveSlideHandle = { finished: Promise<void>; skip: (sync?: boolean) => void };
 
-let activeSlide: { skip: () => void } | undefined;
-let activeHandoff: { complete: (committed: boolean) => void } | undefined;
+let activeSlide: { direction: 'forward' | 'back'; skip: (sync?: boolean) => void } | undefined;
+let activeHandoff: { complete: (committed: boolean, sync?: boolean) => void } | undefined;
+let activeHistoryBackSlide: (() => boolean) | undefined;
+let liveSlideSyncExit = true;
+
+const invokeExit = (exit: (committed: boolean) => void, committed: boolean, sync: boolean) => {
+  const prev = liveSlideSyncExit;
+  liveSlideSyncExit = sync;
+  try {
+    exit(committed);
+  } finally {
+    liveSlideSyncExit = prev;
+  }
+};
 let uaVisualTransition = false;
 let uaTransitionTimer: number | undefined;
 let popstateInstalled = false;
@@ -78,6 +90,11 @@ const ensurePopstateListener = () => {
   );
 };
 ensurePopstateListener();
+
+const hasPhoneStage = (): boolean =>
+  typeof document !== 'undefined' &&
+  typeof window !== 'undefined' &&
+  document.querySelector(`[${PHONE_STAGE}]`) !== null;
 
 const resolveWidth = (stage: HTMLElement) =>
   stage.getBoundingClientRect().width || (typeof window !== 'undefined' ? window.innerWidth : 0);
@@ -147,7 +164,7 @@ const handoffCommit = (
   shield: HTMLElement,
   watchDisconnect: boolean,
   onCommit: () => void,
-  onRelease: (committed: boolean) => void
+  onRelease: (committed: boolean, sync: boolean) => void
 ) => {
   over.removeAttribute('data-swiping');
   over.removeAttribute('data-swipe-shadow');
@@ -160,24 +177,27 @@ const handoffCommit = (
     over.style.visibility = 'hidden';
   }
 
-  activeHandoff?.complete(false);
+  activeHandoff?.complete(false, true);
   let released = false;
   let observer: MutationObserver | undefined;
   const onHide = () => {
-    if (document.visibilityState === 'hidden') complete(false);
+    if (document.visibilityState === 'hidden') complete(false, true);
   };
-  const complete = (committed: boolean) => {
+  const complete = (committed: boolean, sync = true) => {
     if (released) return;
     released = true;
     window.clearTimeout(timer);
     observer?.disconnect();
     document.removeEventListener('visibilitychange', onHide);
-    shield.remove();
     if (activeHandoff === handoff) {
       activeHandoff = undefined;
       setInteractivePhoneSlideClaimed(false);
     }
-    onRelease(committed);
+    try {
+      onRelease(committed, sync);
+    } finally {
+      shield.remove();
+    }
   };
   const handoff = { complete };
   activeHandoff = handoff;
@@ -185,50 +205,62 @@ const handoffCommit = (
   document.addEventListener('visibilitychange', onHide);
   if (watchDisconnect && typeof MutationObserver !== 'undefined') {
     observer = new MutationObserver(() => {
-      if (!over.isConnected) complete(true);
+      if (!over.isConnected) complete(true, true);
     });
     observer.observe(document, { childList: true, subtree: true });
   }
-  const timer = window.setTimeout(() => complete(false), HANDOFF_TIMEOUT_MS);
+  const timer = window.setTimeout(() => complete(false, true), HANDOFF_TIMEOUT_MS);
   try {
     onCommit();
   } catch (error) {
-    complete(false);
+    complete(false, true);
     throw error;
   }
-  if (watchDisconnect && !over.isConnected) complete(true);
+  if (watchDisconnect && !over.isConnected) complete(true, true);
 };
 
-/** Whether the active phone viewport is eligible to play a live 2-layer slide right now. */
-export const canPlayLiveSlide = (): boolean => {
-  ensurePopstateListener();
-  if (uaVisualTransition) {
-    queueMicrotask(clearUATransition);
-    return false;
-  }
-  return (
-    typeof document !== 'undefined' &&
-    typeof window !== 'undefined' &&
-    document.querySelector(`[${PHONE_STAGE}]`) !== null &&
-    document.visibilityState !== 'hidden' &&
-    !isReducedMotion() &&
-    !hasBlockingPortalOverlay()
-  );
-};
+/** Pure check of whether the active phone viewport is eligible to play a live 2-layer slide. */
+export const canPlayLiveSlide = (): boolean =>
+  hasPhoneStage() &&
+  !uaVisualTransition &&
+  document.visibilityState !== 'hidden' &&
+  !isReducedMotion() &&
+  !hasBlockingPortalOverlay();
+
+/** Direction of the currently playing live slide, if any. */
+export const getActiveLiveSlideDirection = (): 'forward' | 'back' | undefined =>
+  activeSlide?.direction;
+
+/** Whether a post-commit live slide/swipe handoff is awaiting route commit. */
+export const isLiveHandoffActive = (): boolean => Boolean(activeHandoff);
+
+/** Whether the current `exit` callback is running outside a React commit and may `flushSync`. */
+export const isLiveSlideSyncExit = (): boolean => liveSlideSyncExit;
 
 /** Whether a live slide animation or its post-commit handoff is currently active. */
 export const isLiveSlideActive = (): boolean => Boolean(activeSlide || activeHandoff);
 
 /** Immediately cancels any active live slide (including deferred `onCommit`) or commit handoff. */
-export const skipActiveLiveSlide = (): void => {
-  activeSlide?.skip();
-  activeHandoff?.complete(false);
+export const skipActiveLiveSlide = (sync = true): void => {
+  activeSlide?.skip(sync);
+  activeHandoff?.complete(false, sync);
 };
 
 /** Notifies the active post-commit handoff that the destination route has committed to the DOM. */
 export const completeLiveSlideHandoff = (): void => {
-  activeHandoff?.complete(true);
+  activeHandoff?.complete(true, false);
 };
+
+/** Registers the active filling phone thread's animated handler for native history-back. */
+export const registerLiveHistoryBackSlide = (handler: () => boolean): (() => void) => {
+  activeHistoryBackSlide = handler;
+  return () => {
+    if (activeHistoryBackSlide === handler) activeHistoryBackSlide = undefined;
+  };
+};
+
+/** Runs the registered live slide before `window.history.back()`; returns whether it claimed Back. */
+export const runLiveHistoryBackSlide = (): boolean => activeHistoryBackSlide?.() ?? false;
 
 /** Plays a 280 ms iMessage-style slide across two live DOM layers inside `stage`. */
 export const playLiveSlide = ({
@@ -240,7 +272,7 @@ export const playLiveSlide = ({
   onCommit,
 }: LiveSlideOptions): LiveSlideHandle => {
   ensurePopstateListener();
-  skipActiveLiveSlide();
+  skipActiveLiveSlide(direction !== 'forward');
 
   const skipNow =
     typeof document === 'undefined' ||
@@ -253,7 +285,7 @@ export const playLiveSlide = ({
   if (skipNow) {
     if (uaVisualTransition) queueMicrotask(clearUATransition);
     onCommit?.();
-    exit(true);
+    invokeExit(exit, true, direction !== 'forward');
     return { finished: Promise.resolve(), skip: () => undefined };
   }
 
@@ -296,9 +328,9 @@ export const playLiveSlide = ({
   }
 
   const onHide = () => {
-    if (document.visibilityState === 'hidden') finish(false);
+    if (document.visibilityState === 'hidden') finish(false, true);
   };
-  const onPopstate = () => finish(false);
+  const onPopstate = () => finish(false, true);
   const detach = () => {
     window.cancelAnimationFrame(frameId);
     window.clearTimeout(frameTimer);
@@ -306,14 +338,11 @@ export const playLiveSlide = ({
     document.removeEventListener('visibilitychange', onHide);
     window.removeEventListener('popstate', onPopstate, true);
   };
-  const finish = (committed: boolean) => {
+  const finish = (committed: boolean, sync = true) => {
     if (ended) return;
     ended = true;
     detach();
     abortController.abort();
-    dim.remove();
-    shield.remove();
-    clearLayers(over, under);
     if (activeSlide === record) {
       activeSlide = undefined;
       setInteractivePhoneSlideClaimed(false);
@@ -322,22 +351,25 @@ export const playLiveSlide = ({
       if (committed) onCommit?.();
     } finally {
       try {
-        exit(committed);
+        invokeExit(exit, committed, sync);
       } finally {
+        dim.remove();
+        shield.remove();
+        clearLayers(over, under);
         endTrace();
         resolveFinished();
       }
     }
   };
 
-  const record = { skip: () => finish(false) };
+  const record = { direction, skip: (sync = true) => finish(false, sync) };
   activeSlide = record;
   setInteractivePhoneSlideClaimed(true);
   document.addEventListener('visibilitychange', onHide);
   window.addEventListener('popstate', onPopstate, true);
   if (typeof MutationObserver !== 'undefined') {
     observer = new MutationObserver(() => {
-      if (!stage.isConnected || !over.isConnected || !under.isConnected) finish(false);
+      if (!stage.isConnected || !over.isConnected || !under.isConnected) finish(false, true);
     });
     observer.observe(document, { childList: true, subtree: true });
   }
@@ -361,18 +393,27 @@ export const playLiveSlide = ({
         detach();
         dim.remove();
         if (activeSlide === record) activeSlide = undefined;
-        handoffCommit(false, over, under, overAt(width), shield, true, onCommit, (committed) => {
-          clearLayers(over, under);
-          try {
-            exit(committed);
-          } finally {
-            endTrace();
-            resolveFinished();
+        handoffCommit(
+          false,
+          over,
+          under,
+          overAt(width),
+          shield,
+          true,
+          onCommit,
+          (committed, sync) => {
+            try {
+              invokeExit(exit, committed, sync);
+            } finally {
+              clearLayers(over, under);
+              endTrace();
+              resolveFinished();
+            }
           }
-        });
+        );
         return;
       }
-      finish(true);
+      finish(true, true);
     });
   };
 
@@ -400,7 +441,7 @@ const createLiveSwipeScene = (opts: {
 }): InteractiveSwipeScene | null => {
   const { direction, stage, over, under, top = 0, watchDisconnect, exit, onCommit } = opts;
   if (resolveWidth(stage) <= 0) {
-    exit(false);
+    invokeExit(exit, false, true);
     return null;
   }
   const { width, isForward, overAt, underAt, dimAt, dim } = prepareLayers(
@@ -415,11 +456,14 @@ const createLiveSwipeScene = (opts: {
   let cleaned = false;
   let exited = false;
   let shield: HTMLElement | undefined;
-  const finish = (committed: boolean) => {
+  const finish = (committed: boolean, sync = true) => {
     if (exited) return;
     exited = true;
-    clearLayers(over, under);
-    exit(committed);
+    try {
+      invokeExit(exit, committed, sync);
+    } finally {
+      clearLayers(over, under);
+    }
   };
 
   return {
@@ -469,10 +513,15 @@ const createLiveSwipeScene = (opts: {
     cleanup() {
       if (cleaned) return;
       cleaned = true;
-      dim.remove();
       if (!handedOff) {
-        shield?.remove();
-        finish(false);
+        try {
+          finish(false, true);
+        } finally {
+          dim.remove();
+          shield?.remove();
+        }
+      } else {
+        dim.remove();
       }
     },
   };
@@ -488,7 +537,7 @@ export const createLiveBackSwipeScene = ({
   onCommit: () => void;
   dirSign?: 1 | -1;
 }): InteractiveSwipeScene | null => {
-  if (typeof document === 'undefined' || typeof window === 'undefined' || isLiveSlideActive()) {
+  if (!hasPhoneStage() || isLiveSlideActive()) {
     return null;
   }
   const live = enterLiveUnder();
@@ -534,7 +583,7 @@ export const createLiveForwardSwipeScene = ({
   onCommit: () => void;
   dirSign?: 1 | -1;
 }): InteractiveSwipeScene | null => {
-  if (typeof document === 'undefined' || typeof window === 'undefined' || isLiveSlideActive()) {
+  if (!hasPhoneStage() || isLiveSlideActive()) {
     return null;
   }
   const live = enterLiveOver();

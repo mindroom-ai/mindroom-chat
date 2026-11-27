@@ -519,7 +519,31 @@ for (const engine of ENGINES) {
           thread: gardenRoot,
         });
 
+        // Count over-layer WAAPI animation starts to prove commit settles in 1 animation (no double-slide).
+        const installOverAnimationCounter = () =>
+          page.evaluate(() => {
+            const win = window as unknown as {
+              __overAnimCount?: number;
+              __origAnimate?: typeof Element.prototype.animate;
+            };
+            win.__overAnimCount = 0;
+            if (!win.__origAnimate) {
+              win.__origAnimate = Element.prototype.animate;
+              Element.prototype.animate = function countedAnimate(keyframes, options) {
+                if (this.hasAttribute('data-swipe-over-thread')) {
+                  win.__overAnimCount = (win.__overAnimCount ?? 0) + 1;
+                }
+                return win.__origAnimate!.call(this, keyframes, options);
+              };
+            }
+          });
+        const readOverAnimationCount = () =>
+          page.evaluate(
+            () => (window as unknown as { __overAnimCount?: number }).__overAnimCount ?? 0
+          );
+
         // 2. Back swipe commit: drag past 35% of viewport width and release.
+        await installOverAnimationCounter();
         const commitDrag = await startTouchDrag(page, engine, 6, 420);
         try {
           await commitDrag.moveTo(240, { steps: 12, stepMs: 16 });
@@ -530,45 +554,77 @@ for (const engine of ENGINES) {
         await expectAt(page, inRoom(garden), 'committed back swipe returns to Garden Club');
         await expectLiveSwipeSettled(page);
 
-        // No double-slide: stays in Garden Club with the drawer closed.
+        // No double-slide: exactly 1 settle animation on over-layer, stays in Garden Club with drawer closed.
         await page.waitForTimeout(400);
+        expect(
+          await readOverAnimationCount(),
+          'back swipe commit triggers only its single settle animation (no double-slide)'
+        ).toBe(1);
         expect(place(page), 'stays in Garden Club without double-sliding').toMatchObject(
           inRoom(garden)
         );
         await expectDrawer(page, false, 'drawer remains closed after exiting thread');
 
-        // 3. End-edge forward swipe cancel into `lastExitedThread`.
-        const forwardCancel = await startTouchDrag(page, engine, 384, 420);
+        // 3. End-edge forward swipe cancel into `lastExitedThread`: no focus steal and no read receipt.
+        const receiptRequests: string[] = [];
+        const onRequest = (req: { url: () => string; method: () => string }) => {
+          if (req.method() === 'POST' && /\/(receipt|read_markers)\b/.test(req.url())) {
+            receiptRequests.push(req.url());
+          }
+        };
+        page.on('request', onRequest);
         try {
-          await forwardCancel.moveTo(200, { steps: 10, stepMs: 16 });
-          await waitAnimationFrames(page, 2);
+          const forwardCancel = await startTouchDrag(page, engine, 384, 420);
+          try {
+            await forwardCancel.moveTo(200, { steps: 10, stepMs: 16 });
+            await waitAnimationFrames(page, 2);
 
-          await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(1);
-          const over = page.locator('[data-swipe-over-thread]');
-          await expect(over, 'passively mounted thread tracks right-edge drag').toBeVisible();
-          await expect(over).toHaveAttribute('data-swipe-shadow');
-          const overX = await over.evaluate((element) => element.getBoundingClientRect().x);
-          expect(overX, 'thread column slides in from right edge').toBeGreaterThan(100);
-          expect(overX, 'thread column moved inward past 280px').toBeLessThan(280);
-          await expect(page.locator('[data-swipe-under-thread]')).toBeVisible();
-          await expect(page.locator('[data-swipe-dim]')).toBeVisible();
-          expect(place(page), 'URL stays on room mid-forward-drag').toMatchObject(inRoom(garden));
+            await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(1);
+            const over = page.locator('[data-swipe-over-thread]');
+            await expect(over, 'passively mounted thread tracks right-edge drag').toBeVisible();
+            await expect(over).toHaveAttribute('data-swipe-shadow');
+            const overX = await over.evaluate((element) => element.getBoundingClientRect().x);
+            expect(overX, 'thread column slides in from right edge').toBeGreaterThan(100);
+            expect(overX, 'thread column moved inward past 280px').toBeLessThan(280);
+            await expect(page.locator('[data-swipe-under-thread]')).toBeVisible();
+            await expect(page.locator('[data-swipe-dim]')).toBeVisible();
+            expect(place(page), 'URL stays on room mid-forward-drag').toMatchObject(inRoom(garden));
+            expect(
+              await page.evaluate(() =>
+                Boolean(document.activeElement?.closest('[data-testid="thread-column"]'))
+              ),
+              'passive forward peek does not steal focus into the thread column'
+            ).toBe(false);
 
-          await saveShot(page, testInfo, engine, 'thread-forward-mid-drag');
+            await saveShot(page, testInfo, engine, 'thread-forward-mid-drag');
 
-          await forwardCancel.moveTo(340, { steps: 8, stepMs: 16 });
-          await forwardCancel.hold(150);
+            await forwardCancel.moveTo(340, { steps: 8, stepMs: 16 });
+            await forwardCancel.hold(150);
+          } finally {
+            await forwardCancel.release();
+          }
+
+          await expectLiveSwipeSettled(page);
+          await expect(threadColumn(page)).toHaveCount(0);
+          expect(place(page), 'URL remains on room after cancelled forward swipe').toMatchObject(
+            inRoom(garden)
+          );
+          expect(
+            await page.evaluate(() =>
+              Boolean(document.activeElement?.closest('[data-testid="thread-column"]'))
+            ),
+            'focus remains outside thread column after cancelled forward swipe'
+          ).toBe(false);
+          expect(
+            receiptRequests,
+            'cancelled forward swipe sends no read receipts or read markers'
+          ).toEqual([]);
         } finally {
-          await forwardCancel.release();
+          page.off('request', onRequest);
         }
 
-        await expectLiveSwipeSettled(page);
-        await expect(threadColumn(page)).toHaveCount(0);
-        expect(place(page), 'URL remains on room after cancelled forward swipe').toMatchObject(
-          inRoom(garden)
-        );
-
-        // 4. End-edge forward swipe commit back into `lastExitedThread`.
+        // 4. End-edge forward swipe commit back into `lastExitedThread` with no double-slide.
+        await installOverAnimationCounter();
         const forwardCommit = await startTouchDrag(page, engine, 384, 420);
         try {
           await forwardCommit.moveTo(120, { steps: 12, stepMs: 16 });
@@ -586,6 +642,11 @@ for (const engine of ENGINES) {
           timeout: 20_000,
         });
         await expectLiveSwipeSettled(page);
+        await page.waitForTimeout(400);
+        expect(
+          await readOverAnimationCount(),
+          'forward swipe commit triggers only its single settle animation (no double-slide)'
+        ).toBe(1);
       } finally {
         await context.close();
       }

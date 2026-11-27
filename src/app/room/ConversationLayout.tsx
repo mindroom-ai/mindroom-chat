@@ -148,6 +148,8 @@ export type ConversationLayoutProps = {
   canCancelJobs: boolean;
   /** A fork draft: the thread's approvals and jobs show without acting on the thread. */
   readOnly?: boolean;
+  /** True while mounted passively during an uncommitted swipe preview. */
+  passive?: boolean;
   notice?: ReactNode;
   composer?: ReactNode;
   /** Takes no room in its row and shows only `children` (the room under a filling thread). */
@@ -174,6 +176,7 @@ export function ConversationLayout({
   focusConversation,
   canCancelJobs,
   readOnly = false,
+  passive = false,
   notice,
   composer,
   collapsed = false,
@@ -219,6 +222,7 @@ export function ConversationLayout({
               // A message not yet on the server has no approvals, and no relations to ask for.
               threadId={!readOnly && isConfirmedMatrixEventId(threadId) ? threadId : undefined}
               focusConversation={focusConversation}
+              passive={passive}
             >
               <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
                 {timeline}

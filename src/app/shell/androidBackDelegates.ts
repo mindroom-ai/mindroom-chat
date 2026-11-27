@@ -7,6 +7,7 @@ import {
 import { imageViewerOpenAtom } from '../navigation/imageViewerState';
 import { runTopEdgeBackAction, SWIPE_PRIORITY } from '../navigation/interactiveSwipe';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { runLiveHistoryBackSlide } from '../navigation/phonePageSlide';
 import { settingsModalAtom, stepBackSettings } from '../navigation/settingsModal';
 
 type JotaiStore = ReturnType<typeof createStore>;
@@ -26,6 +27,7 @@ export const createAndroidBackButtonDelegates = (
     store.set(phoneNavDrawerOpenAtom, false);
   },
   closeSidePanel: () => runTopEdgeBackAction(SWIPE_PRIORITY.PANEL),
+  slideHistoryBack: runLiveHistoryBackSlide,
   exitRootPage: () => runTopEdgeBackAction(SWIPE_PRIORITY.PAGE),
 });
 

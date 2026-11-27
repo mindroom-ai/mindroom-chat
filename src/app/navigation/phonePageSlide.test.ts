@@ -407,9 +407,26 @@ describe('playLiveSlide', () => {
 });
 
 describe('createLiveBackSwipeScene & createLiveForwardSwipeScene', () => {
+  it('does not call enterLiveUnder or enterLiveOver on non-phone / tablet viewports without PHONE_STAGE', () => {
+    const enterLiveUnder = vi.fn();
+    const enterLiveOver = vi.fn();
+    expect(createLiveBackSwipeScene({ enterLiveUnder, onCommit: vi.fn() })).toBeNull();
+    expect(createLiveForwardSwipeScene({ enterLiveOver, onCommit: vi.fn() })).toBeNull();
+    expect(enterLiveUnder).not.toHaveBeenCalled();
+    expect(enterLiveOver).not.toHaveBeenCalled();
+  });
+
   it('tracks live 2-layer back swipe 1:1 with zero clones, handles cancel and commit handoff', async () => {
     const { stage, under, over } = createLiveStage(390);
-    const exit = vi.fn();
+    stage.setAttribute(PHONE_STAGE, '');
+    const markersDuringExit: Array<{ overAttr: boolean; translate: string; hasDim: boolean }> = [];
+    const exit = vi.fn(() => {
+      markersDuringExit.push({
+        overAttr: over.hasAttribute(SWIPE_OVER_THREAD),
+        translate: over.style.translate,
+        hasDim: stage.querySelector('[data-swipe-dim]') !== null,
+      });
+    });
     const onCommit = vi.fn();
 
     const cancelScene = createLiveBackSwipeScene({
@@ -429,6 +446,8 @@ describe('createLiveBackSwipeScene & createLiveForwardSwipeScene', () => {
     await cancelScene.settle(false, 0, 195);
     cancelScene.cleanup(false);
     expect(exit).toHaveBeenCalledWith(false);
+    // Markers and dim remain active during exit so synchronous flushSync teardown never flashes.
+    expect(markersDuringExit[0]).toEqual({ overAttr: true, translate: '0px', hasDim: true });
     expect(onCommit).not.toHaveBeenCalled();
     expect(over.style.translate).toBe('');
     expect(under.style.translate).toBe('');
@@ -489,7 +508,11 @@ describe('createLiveBackSwipeScene & createLiveForwardSwipeScene', () => {
 
   it('tracks live end-edge forward swipe 1:1 from +100% over under-layer, supporting cancel and flicker-free commit', async () => {
     const { stage, under, over } = createLiveStage(400);
-    const exit = vi.fn();
+    stage.setAttribute(PHONE_STAGE, '');
+    const overTranslateDuringCancelExit: string[] = [];
+    const exit = vi.fn((committed: boolean) => {
+      if (!committed) overTranslateDuringCancelExit.push(over.style.translate);
+    });
     const onCommit = vi.fn();
 
     // Cancel path.
@@ -509,6 +532,8 @@ describe('createLiveBackSwipeScene & createLiveForwardSwipeScene', () => {
     await cancelScene.settle(false, 0, 200);
     cancelScene.cleanup(false);
     expect(exit).toHaveBeenCalledWith(false);
+    // Forward-peek over stays offscreen (+400px) during cancel exit until React unmounts it.
+    expect(overTranslateDuringCancelExit).toEqual(['400px']);
     expect(onCommit).not.toHaveBeenCalled();
 
     // Commit path keeps over visible at 0 without hiding until completeLiveSlideHandoff().

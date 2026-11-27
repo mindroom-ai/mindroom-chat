@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'jotai';
 import {
   MatrixEventEvent,
@@ -76,10 +76,20 @@ export const useSpaceThreadsRooms = (spaceId: string, passive = false) => {
 
   const [roomMetaVersion, setRoomMetaVersion] = useState(0);
   const [timelineTick, setTimelineTick] = useState(0);
+  const metaSuspendedRef = useRef(false);
 
   useEffect(() => {
-    if (passive || spaceRooms.length === 0) return undefined;
+    if (passive || spaceRooms.length === 0) {
+      metaSuspendedRef.current = true;
+      return undefined;
+    }
     const bumpMeta = () => setRoomMetaVersion((tick) => tick + 1);
+    // Refresh room metadata on `<Activity>` reveal or passive→active transition so rooms renamed
+    // while listeners were detached update immediately.
+    if (metaSuspendedRef.current) {
+      metaSuspendedRef.current = false;
+      bumpMeta();
+    }
     const handleState = (event: MatrixEvent) => {
       const type = event.getType();
       if (
@@ -97,6 +107,7 @@ export const useSpaceThreadsRooms = (spaceId: string, passive = false) => {
       room.on?.(RoomEvent.CurrentStateUpdated, bumpMeta);
     });
     return () => {
+      metaSuspendedRef.current = true;
       spaceRooms.forEach((room) => {
         room.removeListener?.(RoomEvent.Name, bumpMeta);
         room.removeListener?.(RoomStateEvent.Members, bumpMeta);

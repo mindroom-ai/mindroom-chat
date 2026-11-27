@@ -115,7 +115,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   useDrawerFollowsNavigation(setOpenNow);
   useInert(panelRef, !open);
   useLayoutEffect(() => {
-    if (open) skipActiveLiveSlide();
+    if (open) skipActiveLiveSlide(false);
   }, [open]);
   // Gone with the phone layout (a phone turned sideways), the drawer is away: nothing else would
   // put it away, and edge swipes rest while it is out.

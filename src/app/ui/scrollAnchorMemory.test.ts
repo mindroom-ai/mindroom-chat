@@ -429,4 +429,68 @@ describe('useScrollAnchorMemory', () => {
     });
     expect(layout.offsetOf('row-10')).toBe(beforeHide);
   });
+
+  it('resets progress.placed across repeated Activity hide/reveal cycles so a 2nd reveal tracks rows inserted while hidden', () => {
+    const memory: ScrollAnchorMemory = new Map();
+    const keys = rowKeys(20);
+    const layout = createLayout(keys);
+    const progress = { placed: false, left: false };
+
+    function ActivityList({ mode }: { mode: 'visible' | 'hidden' }) {
+      const scrollRef = useRef<HTMLElement>(layout.view);
+      const contentRef = useRef<HTMLElement>(layout.content);
+      useScrollAnchorMemory({
+        memory,
+        memoryKey: 'activity-progress-list',
+        scrollRef,
+        contentRef,
+        ready: true,
+        progress,
+      });
+      return React.createElement('div', { 'data-mode': mode });
+    }
+
+    const ActivityBoundary = Activity as React.ComponentType<{
+      mode: 'visible' | 'hidden';
+      children?: React.ReactNode;
+    }>;
+    const renderActivity = (mode: 'visible' | 'hidden') =>
+      React.createElement(ActivityBoundary, { mode }, React.createElement(ActivityList, { mode }));
+
+    // Initial visible mount + scroll to 320px (row-8 sits at top offset 0).
+    act(() => {
+      renderer = create(renderActivity('visible'));
+    });
+    layout.view.scrollTop = 320;
+    const anchorOffset1 = layout.offsetOf('row-8');
+
+    // 1st hide -> reveal cycle: restores 320px and marks progress.placed = true.
+    act(() => {
+      renderer?.update(renderActivity('hidden'));
+    });
+    expect(progress.placed).toBe(false);
+    layout.view.scrollTop = 0;
+    act(() => {
+      renderer?.update(renderActivity('visible'));
+    });
+    expect(progress.placed).toBe(true);
+    expect(layout.view.scrollTop).toBe(320);
+    expect(layout.offsetOf('row-8')).toBe(anchorOffset1);
+
+    // 2nd hide -> insert a 40px row above while hidden -> reveal must track anchored row (+40px = 360px).
+    act(() => {
+      renderer?.update(renderActivity('hidden'));
+    });
+    expect(progress.placed).toBe(false);
+    expect(progress.left).toBe(false);
+    layout.setRows(['row-inserted', ...keys]);
+    // Simulate useCompactBlocks synchronously restoring raw pixel scrollTop=320 before anchor memory runs.
+    layout.view.scrollTop = 320;
+
+    act(() => {
+      renderer?.update(renderActivity('visible'));
+    });
+    expect(layout.view.scrollTop).toBe(360);
+    expect(layout.offsetOf('row-8')).toBe(anchorOffset1);
+  });
 });
