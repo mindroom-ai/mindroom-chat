@@ -26,6 +26,7 @@ export { CompactCardSwipeStrip, type CompactCardSwipeStripProps } from './Compac
 // Longer `settleMs` than the settle transition (`transitionend` never comes if a re-sort cancels it).
 const SWIPE = {
   lock: 10,
+  verticalAbort: 30,
   settleMs: 500,
   parkThreshold: 60,
   parkWidth: 156,
@@ -374,9 +375,9 @@ export function CompactCardSwipe(props: CompactCardSwipeProps) {
     onPointerMove: (e) => {
       const active = activeRef.current;
       if (active?.kind !== 'touch' || e.pointerId !== active.pointerId) return;
+      const dx = e.clientX - active.startX;
+      const dy = e.clientY - active.startY;
       if (!active.swipe) {
-        const dx = e.clientX - active.startX;
-        const dy = e.clientY - active.startY;
         if (Math.abs(dx) < SWIPE.lock && Math.abs(dy) < SWIPE.lock) return;
         const track = trackRef.current;
         if (
@@ -395,6 +396,10 @@ export function CompactCardSwipe(props: CompactCardSwipeProps) {
         active.swipe = swipe;
         // Capture on the always-mounted track so hiding/unmounting the tray never drops capture.
         track.setPointerCapture?.(e.pointerId);
+      } else if (Math.abs(dy) >= SWIPE.verticalAbort && Math.abs(dy) > Math.abs(dx) * 1.5) {
+        if (trackRef.current?.hasPointerCapture?.(e.pointerId))
+          trackRef.current.releasePointerCapture(e.pointerId);
+        return endSwipe(false);
       }
       const { swipe } = active;
       updateSwipe(swipe, swipe.startOffset + (swipe.originX - e.clientX) * swipe.towardStart);

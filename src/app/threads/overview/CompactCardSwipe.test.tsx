@@ -34,6 +34,8 @@ type FakeTrack = {
   style: { transform: string };
   getBoundingClientRect: () => { width: number };
   setPointerCapture: ReturnType<typeof vi.fn>;
+  hasPointerCapture?: (id: number) => boolean;
+  releasePointerCapture?: ReturnType<typeof vi.fn>;
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: () => void;
   contains: (node: unknown) => boolean;
@@ -1306,5 +1308,31 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
     realTrack.appendChild(cardBg);
     outer.appendChild(realTrack);
     expect(isCardActionTarget(cardBg, realTrack)).toBe(false);
+  });
+
+  it('aborts a parked touch swipe that drifts mostly vertically, while allowing horizontal drags with minor wobble', () => {
+    const { onSwipe, swipe, pointer } = renderSplit();
+    const releasePointerCapture = vi.fn();
+    track.hasPointerCapture = () => true;
+    track.releasePointerCapture = releasePointerCapture;
+
+    // Park open at 156px (deepThreshold = 168px), lock with a tiny diagonal, then drift mostly vertically.
+    swipe(300, 190);
+    expect(track.style.transform).toBe('translateX(-156px)');
+    pointer('onPointerDown', 200, 200);
+    pointer('onPointerMove', 188, 192);
+    pointer('onPointerMove', 175, 120);
+    pointer('onPointerUp', 175, 120);
+    expect(releasePointerCapture).toHaveBeenCalledWith(1);
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(track.style.transform).toBe('');
+
+    // Normal horizontal drag with minor vertical wobble (dx = -120, dy = -40) still commits.
+    swipe(300, 190);
+    pointer('onPointerDown', 300, 200);
+    pointer('onPointerMove', 288, 196);
+    pointer('onPointerMove', 180, 160);
+    pointer('onPointerUp', 180, 160);
+    expect(onSwipe).toHaveBeenCalledWith(false);
   });
 });
