@@ -6,11 +6,47 @@ import { isQuickCapturePath } from '../routes/pathUtils';
 import { documentIsRightToLeft } from '../ui/directional';
 import { SwipeChevron, SwipeIndicator } from './desktopHistorySwipe.css';
 
+export type TrackpadSwipeClaim = {
+  move: (deltaX: number, deltaY: number) => void;
+  end: () => void;
+  cancel: () => void;
+  /** When true, `scroll-gesture: end` commits immediately without waiting 1 animation frame. */
+  isReadyToCommit?: () => boolean;
+};
+
+export type TrackpadSwipeCandidate = {
+  path: readonly Element[];
+  deltaX: number;
+  deltaY: number;
+  rtl: boolean;
+  blockedByDom: boolean;
+};
+
+export type TrackpadSwipeClaimer = {
+  /** Called when a horizontal trackpad gesture locks; return a claim to own the gesture. */
+  claim: (candidate: TrackpadSwipeCandidate) => TrackpadSwipeClaim | undefined;
+  /** Called when a trackpad gesture locks vertically over `path`. */
+  onVerticalScroll?: (path: readonly Element[]) => void;
+  /** Called when the desktop window hides. */
+  onWindowHidden?: () => void;
+};
+
+const claimers = new Set<TrackpadSwipeClaimer>();
+
+/** Registers a macOS Electron trackpad swipe claimer (arbitrated before Back/Forward history). */
+export const registerTrackpadSwipeClaimer = (claimer: TrackpadSwipeClaimer): (() => void) => {
+  claimers.add(claimer);
+  return () => {
+    claimers.delete(claimer);
+  };
+};
+
 type Dir = 'back' | 'forward';
 type NavWindow = Window & { navigation?: { canGoBack?: boolean; canGoForward?: boolean } };
 type SwipeGesture =
   | { kind: 'pending'; path: Element[]; x: number; y: number; n: number }
   | { kind: 'track'; dir: Dir; rtl: boolean; dist: number; x: number; y: number; n: number }
+  | { kind: 'claimed'; claim: TrackpadSwipeClaim }
   | { kind: 'ignored' };
 
 const CFG = { lock: 12, ratio: 1.5, diag: 30, commit: 80, min: 3, dedup: 250 };
@@ -77,7 +113,7 @@ const createIndicator = (doc: Document) => {
   };
 };
 
-/** Enables macOS trackpad back/forward history swipe in the Electron main window. */
+/** Enables macOS trackpad swipe arbitration and back/forward history swipe in Electron. */
 export const installDesktopHistorySwipe = (
   target: Window,
   options: { isMac?: () => boolean; allowUntrusted?: boolean; now?: () => number } = {}
@@ -101,8 +137,10 @@ export const installDesktopHistorySwipe = (
     }
   };
   const reset = (next: SwipeGesture | null = null): void => {
+    const g = gesture;
     gesture = next;
     indicator.hide();
+    if (g?.kind === 'claimed') g.claim.cancel();
   };
   const abortTouch = (): void => {
     clearPendingEnd();
@@ -111,8 +149,17 @@ export const installDesktopHistorySwipe = (
   };
   const finish = (next: SwipeGesture | null): void => {
     const g = gesture;
-    reset(next);
-    if (g?.kind === 'track' && g.n >= CFG.min && g.dist >= CFG.commit && canGo(target, g.dir)) {
+    gesture = next;
+    indicator.hide();
+    if (g?.kind === 'claimed') {
+      g.claim.end();
+    } else if (
+      g?.kind === 'track' &&
+      enabled &&
+      g.n >= CFG.min &&
+      g.dist >= CFG.commit &&
+      canGo(target, g.dir)
+    ) {
       lastCommitAt = now();
       history[g.dir]();
     }
@@ -120,9 +167,15 @@ export const installDesktopHistorySwipe = (
   const onShellEvent = (e: DesktopShellEvent): void => {
     if (e.type === 'swipe-tracking') {
       enabled = e.enabled;
-      if (!enabled) abortTouch();
-    } else if (e.type === 'window-hidden') abortTouch();
-    else if (e.type === 'swipe') {
+      if (!enabled) {
+        if (claimers.size === 0) abortTouch();
+        else if (gesture?.kind === 'track') reset(null);
+      }
+    } else if (e.type === 'window-hidden') {
+      abortTouch();
+      claimers.forEach((c) => c.onWindowHidden?.());
+    } else if (e.type === 'swipe') {
+      if (gesture?.kind === 'claimed') return;
       const dir: Dir = (e.direction === 'left') !== documentIsRightToLeft() ? 'back' : 'forward';
       if (now() - lastCommitAt > CFG.dedup && canGo(target, dir)) {
         abortTouch();
@@ -139,11 +192,14 @@ export const installDesktopHistorySwipe = (
         inTouchGesture = true;
       } else if (e.phase === 'cancel') {
         abortTouch();
-      } else if (gesture?.kind === 'track' && gesture.n >= CFG.min && gesture.dist >= CFG.commit) {
+      } else if (
+        (gesture?.kind === 'track' && gesture.n >= CFG.min && gesture.dist >= CFG.commit) ||
+        (gesture?.kind === 'claimed' && gesture.claim.isReadyToCommit?.())
+      ) {
         clearPendingEnd();
         inTouchGesture = false;
         finish(null);
-      } else if (gesture?.kind === 'ignored') {
+      } else if (gesture?.kind === 'ignored' || (!enabled && claimers.size === 0)) {
         abortTouch();
       } else if (inTouchGesture && pendingEndRaf === null) {
         pendingEndRaf = target.requestAnimationFrame(() => {
@@ -157,7 +213,7 @@ export const installDesktopHistorySwipe = (
   const onWheel = (e: WheelEvent): void => {
     if (
       (!allowUntrusted && !e.isTrusted) ||
-      !enabled ||
+      (!enabled && claimers.size === 0) ||
       !inTouchGesture ||
       e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL
     )
@@ -169,17 +225,41 @@ export const installDesktopHistorySwipe = (
     const path = pathOf(e);
     if (path.some((el) => el.hasAttribute('data-titlebar-drag'))) return reset(IGNORED);
     if (e.deltaX === 0 && e.deltaY === 0) return;
+    if (gesture?.kind === 'claimed') {
+      gesture.claim.move(e.deltaX, e.deltaY);
+      return;
+    }
     const g = gesture ?? (gesture = { kind: 'pending', path, x: 0, y: 0, n: 0 });
     if (g.kind === 'pending') {
       g.x += e.deltaX;
       g.y += e.deltaY;
       g.n += 1;
       if (Math.hypot(g.x, g.y) < CFG.lock) return;
+      const combinedPath = [...new Set([...g.path, ...path])];
+      if (Math.abs(g.y) >= Math.abs(g.x)) {
+        claimers.forEach((c) => c.onVerticalScroll?.(combinedPath));
+        return reset(IGNORED);
+      }
       const rtl = documentIsRightToLeft();
+      const blockedByDom = isBlockedByDom(target, combinedPath);
+      for (const claimer of claimers) {
+        const claim = claimer.claim({
+          path: combinedPath,
+          deltaX: g.x,
+          deltaY: g.y,
+          rtl,
+          blockedByDom,
+        });
+        if (claim) {
+          gesture = { kind: 'claimed', claim };
+          return;
+        }
+      }
       const dir: Dir = g.x < 0 !== rtl ? 'back' : 'forward';
       if (
+        !enabled ||
         Math.abs(g.x) < Math.abs(g.y) * CFG.ratio ||
-        isBlockedByDom(target, new Set([...g.path, ...path])) ||
+        blockedByDom ||
         !canGo(target, dir)
       )
         return reset(IGNORED);
@@ -206,8 +286,7 @@ export const installDesktopHistorySwipe = (
     opts
   );
   return () => {
-    clearPendingEnd();
-    inTouchGesture = false;
+    abortTouch();
     stopShell();
     ac.abort();
     indicator.destroy();

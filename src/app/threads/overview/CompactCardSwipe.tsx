@@ -9,14 +9,15 @@ import React, {
   useState,
 } from 'react';
 import { Icon, Icons, Text } from 'folds';
-import type { DesktopShellEvent } from '../../lib/desktopBridge';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
-import { desktopBridge, isDesktopApp } from '../../lib/nativeShell';
-import { isMacOS } from '../../lib/user-agent';
+import {
+  registerTrackpadSwipeClaimer,
+  type TrackpadSwipeClaim,
+} from '../../navigation/desktopHistorySwipe';
 import { EDGE_START_MAX_X } from '../../navigation/useEdgeSwipe';
 import * as css from './CompactCardSwipe.css';
 
-// How far a touch or trackpad gesture moves before it counts as a swipe or a scroll.
+// How far a touch moves before it counts as a swipe or a scroll.
 const AXIS_LOCK_DISTANCE = 10;
 // Longer than the settle transition (`transitionend` never comes if a re-sort cancels it).
 const SETTLE_FALLBACK_MS = 500;
@@ -25,7 +26,6 @@ const PARK_WIDTH = 156;
 const MIN_VISIBLE_CARD = 40;
 const CLOSE_THRESHOLD = 24;
 const PARK_DEEP_GAP = 12;
-const DOM_DELTA_PIXEL = 0;
 
 export const getSwipeThreshold = (cardWidth: number): number =>
   Math.min(160, Math.max(72, cardWidth * 0.35));
@@ -71,20 +71,9 @@ type Strip = {
 };
 type CardHandle = {
   isTouchSwiping: () => boolean;
-  isEnabled: () => boolean;
-  getOffset: () => number;
-  getTowardStart: () => 1 | -1;
-  startTrackpad: (deltaTowardStart: number) => boolean;
-  moveTrackpad: (deltaX: number) => boolean;
-  endTrackpad: (commit: boolean) => void;
-  isTrackpadArmed: () => boolean;
+  claimTrackpad: (deltaX: number, blockedByDom: boolean) => TrackpadSwipeClaim | undefined;
 };
-type TrackpadGesture =
-  | { kind: 'pending'; handle?: CardHandle; x: number; y: number }
-  | { kind: 'track'; handle: CardHandle }
-  | { kind: 'ignored' };
 
-const IGNORED: TrackpadGesture = { kind: 'ignored' };
 // Maps each card's track (and revealed tray while mounted) to its swipe handle.
 const handleByNode = new WeakMap<EventTarget, CardHandle>();
 let activeParked: { track: EventTarget; close: () => void } | undefined;
@@ -106,19 +95,6 @@ const isNodeInside = (el: HTMLElement | null, target: EventTarget | null): boole
         el.contains(target as Node)))
   );
 
-const findCardHandle = (event: Event): CardHandle | undefined => {
-  const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
-  for (const node of path) {
-    const handle = handleByNode.get(node);
-    if (handle) return handle;
-  }
-  for (let node = event.target as Node | null; node; node = node.parentNode ?? null) {
-    const handle = handleByNode.get(node);
-    if (handle) return handle;
-  }
-  return undefined;
-};
-
 const shouldPark = (swipe: Swipe): boolean =>
   swipe.parkWidth > 0 &&
   swipe.offset >= swipe.parkThreshold &&
@@ -126,9 +102,8 @@ const shouldPark = (swipe: Swipe): boolean =>
 
 /**
  * For the element holding swipeable cards (`SwipeList` in CompactCardSwipe.css.ts).
- * Uses one `touchmove` listener for all cards (keeping iOS WebKit to one touch region), and on
- * macOS Electron runs one shared trackpad wheel coordinator that leaves inline-end swipes on
- * closed cards untouched so `desktopHistorySwipe` navigates Back.
+ * Uses one `touchmove` listener for all cards (keeping iOS WebKit to one touch region) and
+ * registers a lightweight macOS trackpad swipe claimer with `desktopHistorySwipe`.
  */
 export const useCompactCardSwipeList = (listRef: RefObject<HTMLElement | null>): void => {
   useEffect(() => {
@@ -143,126 +118,22 @@ export const useCompactCardSwipeList = (listRef: RefObject<HTMLElement | null>):
       }
     };
     list.addEventListener('touchmove', handleTouchMove, { passive: false });
-
-    const bridge = desktopBridge();
-    if (!isDesktopApp() || !bridge || !isMacOS()) {
-      return () => list.removeEventListener('touchmove', handleTouchMove);
-    }
-
-    const doc = list.ownerDocument;
-    const win = doc?.defaultView ?? (typeof window === 'undefined' ? undefined : window);
-    const raf = win?.requestAnimationFrame?.bind(win);
-    const caf = win?.cancelAnimationFrame?.bind(win);
-    let inGesture = false;
-    let gesture: TrackpadGesture | null = null;
-    let pendingEndRaf: number | null = null;
-
-    const clearPendingEnd = () => {
-      if (pendingEndRaf !== null) {
-        caf?.(pendingEndRaf);
-        pendingEndRaf = null;
-      }
-    };
-    const finishGesture = (commit: boolean) => {
-      const current = gesture;
-      gesture = null;
-      if (current?.kind === 'track') current.handle.endTrackpad(commit);
-    };
-    const abortGesture = () => {
-      clearPendingEnd();
-      inGesture = false;
-      finishGesture(false);
-    };
-    const onShellEvent = (event: DesktopShellEvent) => {
-      if (event.type === 'window-hidden') {
-        abortGesture();
-        closeActiveParked();
-      } else if (event.type === 'swipe-tracking' && !event.enabled) {
-        abortGesture();
-      } else if (event.type === 'scroll-gesture') {
-        if (event.phase === 'begin') {
-          const hadPending = pendingEndRaf !== null;
-          clearPendingEnd();
-          finishGesture(hadPending);
-          inGesture = true;
-        } else if (event.phase === 'cancel' || !gesture || gesture.kind === 'ignored') {
-          abortGesture();
-        } else if (gesture.kind === 'track' && gesture.handle.isTrackpadArmed()) {
-          clearPendingEnd();
-          inGesture = false;
-          finishGesture(true);
-        } else if (inGesture && pendingEndRaf === null) {
-          const settleEnd = () => {
-            pendingEndRaf = null;
-            inGesture = false;
-            finishGesture(true);
-          };
-          pendingEndRaf = raf ? raf(settleEnd) : (settleEnd(), null);
-        }
-      }
-    };
-    const onWheel = (event: WheelEvent) => {
-      if (!inGesture || event.deltaMode !== DOM_DELTA_PIXEL) return;
-      if (
-        event.defaultPrevented ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.altKey ||
-        event.shiftKey
-      ) {
-        finishGesture(false);
-        gesture = IGNORED;
-        return;
-      }
-      if ((event as WheelEvent & { momentum?: boolean }).momentum) {
-        finishGesture(true);
-        gesture = IGNORED;
-        return;
-      }
-      if (gesture?.kind === 'ignored' || (event.deltaX === 0 && event.deltaY === 0)) return;
-      if (gesture?.kind === 'track') {
-        event.preventDefault();
-        if (!gesture.handle.moveTrackpad(event.deltaX)) gesture = IGNORED;
-        return;
-      }
-      const pending =
-        gesture ?? (gesture = { kind: 'pending', handle: findCardHandle(event), x: 0, y: 0 });
-      pending.x += event.deltaX;
-      pending.y += event.deltaY;
-      if (Math.hypot(pending.x, pending.y) < AXIS_LOCK_DISTANCE) return;
-      if (Math.abs(pending.y) >= Math.abs(pending.x)) {
-        gesture = IGNORED;
-        closeActiveParked();
-        return;
-      }
-      const { handle } = pending;
-      const deltaTowardStart = handle ? pending.x * handle.getTowardStart() : 0;
-      // Closed card swiped toward inline-end (Back): leave untouched for desktopHistorySwipe.
-      if (
-        !handle?.isEnabled() ||
-        (handle.getOffset() === 0 && deltaTowardStart < 0) ||
-        !handle.startTrackpad(deltaTowardStart)
-      ) {
-        gesture = IGNORED;
-        return;
-      }
-      event.preventDefault();
-      gesture = { kind: 'track', handle };
-    };
-    const onVisibilityChange = () => {
-      if (doc?.visibilityState === 'hidden') abortGesture();
-    };
-    const stopShell = bridge.onShellEvent(onShellEvent);
-    list.addEventListener('wheel', onWheel, { passive: false });
-    win?.addEventListener?.('blur', abortGesture);
-    doc?.addEventListener?.('visibilitychange', onVisibilityChange);
+    const stopTrackpad = registerTrackpadSwipeClaimer({
+      claim: ({ path, deltaX, blockedByDom }) =>
+        path.includes(list)
+          ? path
+              .map((node) => handleByNode.get(node))
+              .find(Boolean)
+              ?.claimTrackpad(deltaX, blockedByDom)
+          : undefined,
+      onVerticalScroll: (path) => {
+        if (path.includes(list)) closeActiveParked();
+      },
+      onWindowHidden: () => closeActiveParked(),
+    });
     return () => {
-      abortGesture();
-      stopShell();
+      stopTrackpad();
       list.removeEventListener('touchmove', handleTouchMove);
-      list.removeEventListener('wheel', onWheel);
-      win?.removeEventListener?.('blur', abortGesture);
-      doc?.removeEventListener?.('visibilitychange', onVisibilityChange);
     };
   }, [listRef]);
 };
@@ -297,6 +168,22 @@ export function CompactCardSwipeStrip({
 }: CompactCardSwipeStripProps) {
   if (snoozeLabel !== undefined) {
     const tabIndex = parked ? 0 : -1;
+    const buttons = [
+      {
+        action: 'snooze',
+        className: css.SnoozeButton,
+        icon: Icons.Clock,
+        text: snoozeLabel,
+        onClick: onSnoozeClick,
+      },
+      {
+        action: 'resolve',
+        className: css.ResolveButton,
+        icon: Icons.Check,
+        text: label,
+        onClick: onResolveClick,
+      },
+    ] as const;
     return (
       <div
         ref={stripRef}
@@ -313,30 +200,21 @@ export function CompactCardSwipeStrip({
         aria-hidden={parked ? undefined : true}
         {...props}
       >
-        <button
-          type="button"
-          className={`${css.TrayButton} ${css.SnoozeButton}`}
-          data-compact-card-swipe-action="snooze"
-          tabIndex={tabIndex}
-          onClick={onSnoozeClick}
-        >
-          <Icon size="200" src={Icons.Clock} />
-          <Text size="T200" className={css.TrayLabel}>
-            {snoozeLabel}
-          </Text>
-        </button>
-        <button
-          type="button"
-          className={`${css.TrayButton} ${css.ResolveButton}`}
-          data-compact-card-swipe-action="resolve"
-          tabIndex={tabIndex}
-          onClick={onResolveClick}
-        >
-          <Icon size="200" src={Icons.Check} />
-          <Text size="T200" className={css.TrayLabel}>
-            {label}
-          </Text>
-        </button>
+        {buttons.map((btn) => (
+          <button
+            key={btn.action}
+            type="button"
+            className={`${css.TrayButton} ${btn.className}`}
+            data-compact-card-swipe-action={btn.action}
+            tabIndex={tabIndex}
+            onClick={btn.onClick}
+          >
+            <Icon size="200" src={btn.icon} />
+            <Text size="T200" className={css.TrayLabel}>
+              {btn.text}
+            </Text>
+          </button>
+        ))}
       </div>
     );
   }
@@ -517,6 +395,7 @@ export function CompactCardSwipe({
     if (swipe.offset === 0) finishTransition();
     else startSettleTimer();
   };
+
   const endSwipe = (source: 'touch' | 'trackpad', commit: boolean) => {
     const swipe = source === 'touch' ? gestureRef.current?.swipe : trackpadSwipeRef.current;
     if (source === 'touch') gestureRef.current = undefined;
@@ -532,30 +411,39 @@ export function CompactCardSwipe({
 
   const actionsRef = useLatestRef({ startSwipe, updateSwipe, endSwipe, closeParked, abortAll });
 
-  // Register track with the list's shared touchmove & macOS Electron trackpad coordinator.
+  // Register track with the list's touchmove handler and macOS trackpad claimer.
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return undefined;
     const handle: CardHandle = {
       isTouchSwiping: () => !!gestureRef.current?.swipe,
-      isEnabled: () => propsRef.current.enabled,
-      getOffset: () => parkedRef.current?.offset ?? trackpadSwipeRef.current?.offset ?? 0,
-      getTowardStart: () =>
-        parkedRef.current?.towardStart ?? (getComputedStyle(track).direction === 'rtl' ? -1 : 1),
-      startTrackpad: (deltaTowardStart) => {
-        if (gestureRef.current?.swipe) return false;
+      claimTrackpad: (deltaX, blockedByDom) => {
+        if (!propsRef.current.enabled || gestureRef.current?.swipe) return undefined;
+        const isParked = Boolean(parkedRef.current);
+        if (!isParked && blockedByDom) return undefined;
+        const towardStart =
+          parkedRef.current?.towardStart ?? (getComputedStyle(track).direction === 'rtl' ? -1 : 1);
+        const deltaTowardStart = deltaX * towardStart;
+        // Closed cards yield to inline-end (Back) swipes.
+        if (!isParked && deltaTowardStart < 0) return undefined;
         const swipe = actionsRef.current.startSwipe(0, deltaTowardStart);
+        if (!swipe) return undefined;
         trackpadSwipeRef.current = swipe;
-        return Boolean(swipe);
+        return {
+          move: (dx) => {
+            if (trackpadSwipeRef.current === swipe) {
+              actionsRef.current.updateSwipe(swipe, swipe.offset + dx * swipe.towardStart);
+            }
+          },
+          end: () => {
+            if (trackpadSwipeRef.current === swipe) actionsRef.current.endSwipe('trackpad', true);
+          },
+          cancel: () => {
+            if (trackpadSwipeRef.current === swipe) actionsRef.current.endSwipe('trackpad', false);
+          },
+          isReadyToCommit: () => trackpadSwipeRef.current === swipe && swipe.armed,
+        };
       },
-      moveTrackpad: (deltaX) => {
-        const swipe = trackpadSwipeRef.current;
-        if (!swipe) return false;
-        actionsRef.current.updateSwipe(swipe, swipe.offset + deltaX * swipe.towardStart);
-        return true;
-      },
-      endTrackpad: (commit) => actionsRef.current.endSwipe('trackpad', commit),
-      isTrackpadArmed: () => Boolean(trackpadSwipeRef.current?.armed),
     };
     handleRef.current = handle;
     handleByNode.set(track, handle);
@@ -596,15 +484,17 @@ export function CompactCardSwipe({
     if (!doc) return undefined;
     const handleTouchStart = (event: TouchEvent) => {
       const gesture = gestureRef.current;
-      if (gesture && (event.touches.length > 1 || gesture.swipe))
+      if (gesture && (event.touches.length > 1 || gesture.swipe)) {
         actionsRef.current.endSwipe('touch', false);
+      }
     };
     const handleTouchEnd = (event: TouchEvent) => {
       const gesture = gestureRef.current;
       if (!gesture?.swipe || event.touches.length > 0) return;
       setTimeout(() => {
-        if (gestureRef.current === gesture)
+        if (gestureRef.current === gesture) {
           actionsRef.current.endSwipe('touch', event.type === 'touchend');
+        }
       }, 0);
     };
     const handleVisibilityChange = () => {
@@ -635,14 +525,22 @@ export function CompactCardSwipe({
         path.includes(stripRef.current!) ||
         isNodeInside(trackRef.current, event.target) ||
         isNodeInside(stripRef.current, event.target)
-      )
+      ) {
         return;
+      }
       actionsRef.current.closeParked();
     };
     const onKeyDown = (event: Event) => {
       const { key, shiftKey } = event as KeyboardEvent;
       if (key === 'Escape') {
+        const restoreFocus = isNodeInside(stripRef.current, doc.activeElement);
         actionsRef.current.closeParked();
+        if (restoreFocus) {
+          const cardButton =
+            trackRef.current?.querySelector?.<HTMLElement>('[data-thread-root-id]') ??
+            trackRef.current?.querySelector?.<HTMLElement>('button');
+          cardButton?.focus({ preventScroll: true });
+        }
         event.preventDefault();
         event.stopPropagation();
       } else if (key === 'ContextMenu' || (shiftKey && key === 'F10')) {
@@ -747,7 +645,10 @@ export function CompactCardSwipe({
           if (event.target === event.currentTarget) handlePointerEnd(event, false);
         }}
         onClickCapture={(event) => {
-          if (event.detail === 0) return;
+          if (event.detail === 0) {
+            if (parkedRef.current) closeParked();
+            return;
+          }
           if (swipedRef.current) {
             swipedRef.current = false;
             event.preventDefault();

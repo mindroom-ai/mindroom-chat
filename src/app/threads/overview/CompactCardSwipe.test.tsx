@@ -1,7 +1,6 @@
 import React, { type ReactNode, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DesktopShellEvent } from '../../lib/desktopBridge';
 import {
   CompactCardSwipe,
   getDeepThreshold,
@@ -35,9 +34,10 @@ type FakeTrack = {
   setPointerCapture: ReturnType<typeof vi.fn>;
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: () => void;
+  querySelector?: (selector: string) => { focus: ReturnType<typeof vi.fn> } | null;
   ownerDocument: {
     visibilityState: 'visible' | 'hidden';
-    defaultView?: unknown;
+    activeElement?: unknown;
     addEventListener: (type: string, listener: (event: unknown) => void) => void;
     removeEventListener: (type: string, listener: (event: unknown) => void) => void;
   };
@@ -48,13 +48,10 @@ type FakeStrip = { style: { display: string } };
 
 /** The element that holds the cards. */
 type FakeList = {
-  addEventListener: (type: string, listener: (event: unknown) => void, options: unknown) => void;
+  addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: ReturnType<typeof vi.fn>;
-  ownerDocument?: FakeTrack['ownerDocument'];
   touchMoveListener?: (event: unknown) => void;
   touchMoveOptions?: unknown;
-  wheelListener?: (event: unknown) => void;
-  wheelOptions?: unknown;
 };
 
 let track: FakeTrack;
@@ -91,16 +88,13 @@ beforeEach(() => {
   };
   strip = { style: { display: '' } };
   list = {
-    ownerDocument: track.ownerDocument,
-    addEventListener: (type, listener, options) => {
-      if (type === 'touchmove') {
+    addEventListener: vi.fn(
+      (type: string, listener: (event: unknown) => void, options: unknown) => {
+        if (type !== 'touchmove') return;
         list.touchMoveListener = listener;
         list.touchMoveOptions = options;
-      } else if (type === 'wheel') {
-        list.wheelListener = listener;
-        list.wheelOptions = options;
       }
-    },
+    ),
     removeEventListener: vi.fn(),
   };
   documentTouchStarts = [];
@@ -933,223 +927,46 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
     swipe(300, 160);
     expect(onSwipe).toHaveBeenCalledWith(true);
   });
-});
+  it('restores focus to the card button on Escape when focus was inside the parked tray', () => {
+    const cardFocus = vi.fn();
+    track.querySelector = (selector) =>
+      selector === '[data-thread-root-id]' ? { focus: cardFocus } : null;
+    const { swipe } = renderSplit();
 
-describe('CompactCardSwipe macOS Electron trackpad', () => {
-  let emitShell: (event: DesktopShellEvent) => void;
-  let unsubscribeShell: ReturnType<typeof vi.fn<() => void>>;
-  let windowListeners: Record<string, Array<() => void>>;
-  let rafQueue: Array<() => void>;
+    // Focus inside the parked tray -> Escape closes tray and restores focus with preventScroll.
+    swipe(300, 190);
+    track.ownerDocument.activeElement = strip;
+    tellDocument('keydown', { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() });
+    expect(track.style.transform).toBe('');
+    expect(cardFocus).toHaveBeenCalledWith({ preventScroll: true });
 
-  const setupMacElectron = () => {
-    const shellListeners = new Set<(event: DesktopShellEvent) => void>();
-    unsubscribeShell = vi.fn<() => void>();
-    emitShell = (event) => {
-      act(() => {
-        shellListeners.forEach((listener) => listener(event));
-      });
-    };
-    windowListeners = {};
-    rafQueue = [];
-    vi.stubGlobal('navigator', {
-      platform: 'MacIntel',
-      userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
-      maxTouchPoints: 0,
+    // Focus outside the tray -> Escape closes tray without stealing focus.
+    cardFocus.mockClear();
+    swipe(300, 190);
+    track.ownerDocument.activeElement = {};
+    tellDocument('keydown', { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() });
+    expect(track.style.transform).toBe('');
+    expect(cardFocus).not.toHaveBeenCalled();
+  });
+
+  it('closes a parked tray on keyboard activation (detail 0) without swallowing the click', async () => {
+    const { swipe, trackElement } = renderSplit();
+
+    swipe(300, 190);
+    expect(track.style.transform).toBe('translateX(-156px)');
+    const event = { detail: 0, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    await act(() => {
+      trackElement().props.onClickCapture(event);
     });
-    const fakeWindow = {
-      innerWidth: VIEWPORT_WIDTH,
-      mindroomDesktop: {
-        onShellEvent: (listener: (event: DesktopShellEvent) => void) => {
-          shellListeners.add(listener);
-          return () => {
-            shellListeners.delete(listener);
-            unsubscribeShell();
-          };
-        },
-      },
-      addEventListener: (type: string, listener: () => void) => {
-        (windowListeners[type] ??= []).push(listener);
-      },
-      removeEventListener: vi.fn(),
-      requestAnimationFrame: (cb: () => void) => {
-        rafQueue.push(cb);
-        return rafQueue.length;
-      },
-      cancelAnimationFrame: (id: number) => {
-        rafQueue[id - 1] = () => undefined;
-      },
-    };
-    track.ownerDocument.defaultView = fakeWindow;
-    vi.stubGlobal('window', fakeWindow);
-  };
+    expect(track.style.transform).toBe('');
+    expect(event.preventDefault).not.toHaveBeenCalled();
+    expect(event.stopPropagation).not.toHaveBeenCalled();
+  });
 
-  const flushRaf = () =>
-    act(() => {
-      const pending = rafQueue.splice(0);
-      pending.forEach((cb) => cb());
-    });
-
-  const dispatchWheel = (
-    overrides: Partial<{
-      deltaX: number;
-      deltaY: number;
-      deltaMode: number;
-      ctrlKey: boolean;
-      metaKey: boolean;
-      altKey: boolean;
-      shiftKey: boolean;
-      momentum: boolean;
-      defaultPrevented: boolean;
-      path: unknown[];
-    }> = {}
-  ) => {
-    const preventDefault = vi.fn();
-    const event = {
-      deltaX: 0,
-      deltaY: 0,
-      deltaMode: 0,
-      ctrlKey: false,
-      metaKey: false,
-      altKey: false,
-      shiftKey: false,
-      defaultPrevented: false,
-      preventDefault,
-      target: track,
-      composedPath: () => overrides.path ?? [track, list],
-      ...overrides,
-    };
-    act(() => list.wheelListener?.(event));
-    return preventDefault;
-  };
-
-  it('attaches one shared wheel listener on the list (never on card tracks) and cleans up', () => {
-    setupMacElectron();
-    const { renderer } = render({ snoozeLabel: 'Snooze', onSnooze: vi.fn() });
-
+  it('attaches no wheel listener on the list or track (trackpad arbitration lives in desktopHistorySwipe)', () => {
+    renderSplit();
     expect(track.addEventListener).not.toHaveBeenCalled();
-    expect(list.wheelListener).toBeDefined();
-    expect(list.wheelOptions).toEqual({ passive: false });
-
-    const wheelListener = list.wheelListener;
-    act(() => renderer.unmount());
-    expect(list.removeEventListener).toHaveBeenCalledWith('wheel', wheelListener);
-    expect(unsubscribeShell).toHaveBeenCalledOnce();
-  });
-
-  it('parks on short left trackpad swipe and deep-commits on deep left trackpad swipe', () => {
-    setupMacElectron();
-    const { onSwipe, actionStrip } = render({ snoozeLabel: 'Snooze', onSnooze: vi.fn() });
-
-    // Short left swipe (deltaX > 0 in LTR) -> preventDefault + parks open on end.
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    expect(dispatchWheel({ deltaX: 50 })).toHaveBeenCalled();
-    expect(dispatchWheel({ deltaX: 40 })).toHaveBeenCalled();
-    expect(track.style.transform).toBe('translateX(-90px)');
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    flushRaf();
-    expect(track.style.transform).toBe('translateX(-156px)');
-    expect(actionStrip()[0]!.props['data-parked']).toBe('true');
-    expect(onSwipe).not.toHaveBeenCalled();
-
-    // Deep swipe from parked past deepThreshold commits Resolve immediately on end.
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    expect(dispatchWheel({ deltaX: 40 })).toHaveBeenCalled();
-    expect(actionStrip()[0]!.props['data-armed']).toBe('true');
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    expect(onSwipe).toHaveBeenCalledWith(false);
-    expect(track.style.transform).toBe('');
-  });
-
-  it('leaves right swipe on a closed card untouched (no preventDefault) for Back navigation', () => {
-    setupMacElectron();
-    const { onSwipe } = render({ snoozeLabel: 'Snooze', onSnooze: vi.fn() });
-
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    expect(dispatchWheel({ deltaX: -5 })).not.toHaveBeenCalled();
-    expect(dispatchWheel({ deltaX: -20 })).not.toHaveBeenCalled();
-    expect(dispatchWheel({ deltaX: -40 })).not.toHaveBeenCalled();
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-
-    expect(onSwipe).not.toHaveBeenCalled();
-    expect(track.style.transform).toBe('');
-  });
-
-  it('prevents default and closes a parked card when swiped right over track or tray', () => {
-    setupMacElectron();
-    render({ snoozeLabel: 'Snooze', onSnooze: vi.fn() });
-
-    // Park open first.
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    dispatchWheel({ deltaX: 90 });
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    flushRaf();
-    expect(track.style.transform).toBe('translateX(-156px)');
-
-    // Swipe right over the revealed tray -> calls preventDefault() and closes card cleanly.
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    expect(dispatchWheel({ deltaX: -40, path: [strip, list] })).toHaveBeenCalled();
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    flushRaf();
-    expect(track.style.transform).toBe('');
-  });
-
-  it('closes a parked card on vertical scroll without calling preventDefault', () => {
-    setupMacElectron();
-    render({ snoozeLabel: 'Snooze', onSnooze: vi.fn() });
-
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    dispatchWheel({ deltaX: 90 });
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    flushRaf();
-    expect(track.style.transform).toBe('translateX(-156px)');
-
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    expect(dispatchWheel({ deltaX: 2, deltaY: 25 })).not.toHaveBeenCalled();
-    expect(dispatchWheel({ deltaX: 0, deltaY: 40 })).not.toHaveBeenCalled();
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-    expect(track.style.transform).toBe('');
-  });
-
-  it('ignores wheel events outside scroll-gesture, momentum events, modifiers, and non-pixel deltas', () => {
-    setupMacElectron();
-    const { onSwipe } = render({ snoozeLabel: 'Snooze', onSnooze: vi.fn() });
-
-    // Outside scroll-gesture (e.g. mouse wheel)
-    expect(dispatchWheel({ deltaX: 120 })).not.toHaveBeenCalled();
-    expect(track.style.transform).toBe('');
-
-    // Momentum / modifier / non-pixel inside scroll-gesture
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    expect(dispatchWheel({ deltaX: 120, momentum: true })).not.toHaveBeenCalled();
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    expect(dispatchWheel({ deltaX: 120, ctrlKey: true })).not.toHaveBeenCalled();
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-
-    emitShell({ type: 'scroll-gesture', phase: 'begin' });
-    expect(dispatchWheel({ deltaX: 120, deltaMode: 1 })).not.toHaveBeenCalled();
-    emitShell({ type: 'scroll-gesture', phase: 'end' });
-
-    expect(onSwipe).not.toHaveBeenCalled();
-    expect(track.style.transform).toBe('');
-  });
-
-  it('cancels an active trackpad swipe without committing on cancel, window-hidden, or blur', () => {
-    setupMacElectron();
-    const { onSwipe } = render({ snoozeLabel: 'Snooze', onSnooze: vi.fn() });
-
-    for (const abort of [
-      () => emitShell({ type: 'scroll-gesture', phase: 'cancel' }),
-      () => emitShell({ type: 'window-hidden' }),
-      () => act(() => (windowListeners.blur ?? []).forEach((fn) => fn())),
-    ]) {
-      emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      dispatchWheel({ deltaX: 200 });
-      expect(track.style.transform).toBe('translateX(-200px)');
-      abort();
-      expect(track.style.transform).toBe('');
-    }
-    expect(onSwipe).not.toHaveBeenCalled();
+    const types = list.addEventListener.mock.calls.map(([type]) => type);
+    expect(types).toEqual(['touchmove']);
   });
 });

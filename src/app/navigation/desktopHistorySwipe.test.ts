@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DesktopBridge, DesktopShellEvent } from '../lib/desktopBridge';
-import { installDesktopHistorySwipe } from './desktopHistorySwipe';
+import { installDesktopHistorySwipe, registerTrackpadSwipeClaimer } from './desktopHistorySwipe';
 
 type WheelOpts = WheelEventInit & { momentum?: boolean; defaultPrevented?: boolean };
 type SwipeOpts = Parameters<typeof installDesktopHistorySwipe>[1];
@@ -380,5 +380,73 @@ describe('installDesktopHistorySwipe', () => {
     expect(rafQueue.size).toBe(0);
     flushRaf();
     expect(counts()).toEqual([2, 0]);
+  });
+  it('arbitrates registered trackpad claimers cleanly with non-cancelable follow-ups and swipe-tracking=false', () => {
+    install({}, false); // swipe-tracking disabled ("Swipe between pages" off)
+    const move = vi.fn();
+    const end = vi.fn();
+    const cancel = vi.fn();
+    const onVerticalScroll = vi.fn();
+    const onWindowHidden = vi.fn();
+    let readyToCommit = false;
+    const claimFn = vi.fn(() => ({
+      move,
+      end,
+      cancel,
+      isReadyToCommit: () => readyToCommit,
+    }));
+    const stopClaimer = registerTrackpadSwipeClaimer({
+      claim: claimFn,
+      onVerticalScroll,
+      onWindowHidden,
+    });
+    cleanups.push(stopClaimer);
+
+    // Works with swipe-tracking=false and cancelable=false follow-up wheels; suppresses AppKit swipe while claimed.
+    phase('begin');
+    wheel({ deltaX: 4, cancelable: true });
+    wheel({ deltaX: 50, cancelable: false });
+    wheel({ deltaX: 60, cancelable: false });
+    emit({ type: 'swipe', direction: 'left' });
+    expect(counts()).toEqual([0, 0]);
+    expect(claimFn).toHaveBeenCalledWith(
+      expect.objectContaining({ deltaX: 54, deltaY: 0, blockedByDom: false })
+    );
+    expect(move).toHaveBeenCalledWith(60, 0);
+    readyToCommit = true;
+    phase('end');
+    expect(end).toHaveBeenCalledTimes(1);
+    expect(cancel).not.toHaveBeenCalled();
+
+    // Vertical scroll notifies claimers without claiming; window-hidden cancels active claim & notifies.
+    phase('begin');
+    wheel({ deltaX: 1, deltaY: 20 });
+    phase('end');
+    expect(onVerticalScroll).toHaveBeenCalledTimes(1);
+
+    readyToCommit = false;
+    phase('begin');
+    wheel({ deltaX: 40 });
+    emit({ type: 'window-hidden' });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(onWindowHidden).toHaveBeenCalledTimes(1);
+
+    // Momentum ends a claimed gesture cleanly without cancelling.
+    phase('begin');
+    wheel({ deltaX: 40 });
+    wheel({ deltaX: 10, momentum: true });
+    expect(end).toHaveBeenCalledTimes(2);
+
+    // Passing blockedByDom=true on a horizontal scroller.
+    const scroller = addEl('div');
+    def(scroller, 'scrollWidth', 800);
+    def(scroller, 'clientWidth', 300);
+    mockStyles([[scroller, { overflowX: 'auto' }]]);
+    claimFn.mockClear();
+    phase('begin');
+    wheel({ deltaX: 30 }, scroller);
+    phase('cancel');
+    expect(claimFn).toHaveBeenCalledWith(expect.objectContaining({ blockedByDom: true }));
+    expect(counts()).toEqual([0, 0]);
   });
 });

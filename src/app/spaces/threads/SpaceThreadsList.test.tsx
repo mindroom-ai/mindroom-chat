@@ -706,7 +706,7 @@ describe('SpaceThreadsList', () => {
       48
     );
   }, 30_000);
-  it('arbitrates macOS Electron trackpad swipes with desktopHistorySwipe without blocking Back navigation', () => {
+  it('arbitrates macOS Electron trackpad swipes with desktopHistorySwipe across non-cancelable wheels, horizontal scrollers, and swipe-tracking=false', async () => {
     const shellListeners = new Set<(event: DesktopShellEvent) => void>();
     const emitShell = (event: DesktopShellEvent) =>
       act(() => shellListeners.forEach((listener) => listener(event)));
@@ -738,53 +738,131 @@ describe('SpaceThreadsList', () => {
     emitShell({ type: 'swipe-tracking', enabled: true });
 
     try {
+      const sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$ok' });
       const { shellOf } = renderScenario({
         rooms: [makeRoom(ROOM_A, 'Engineering', { knownRootIds: ['$a1'] })],
         entries: [entry(ROOM_A, '$a1', 'Alpha')],
+        sendStateEvent,
       });
       const shell = shellOf(ROOM_A, '$a1');
       const track = shell.querySelector<HTMLElement>('[data-compact-card-swipe="track"]')!;
       vi.spyOn(track, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 100));
 
-      const wheel = (deltaX: number, target: HTMLElement = track) => {
+      const wheel = (
+        deltaX: number,
+        opts: { deltaY?: number; cancelable?: boolean; target?: HTMLElement } = {}
+      ) => {
         const event = new WheelEvent('wheel', {
           bubbles: true,
-          cancelable: true,
+          cancelable: opts.cancelable ?? true,
           deltaMode: 0,
           deltaX,
-          deltaY: 0,
+          deltaY: opts.deltaY ?? 0,
         });
         act(() => {
-          target.dispatchEvent(event);
+          (opts.target ?? track).dispatchEvent(event);
         });
-        return event.defaultPrevented;
       };
 
-      // 1. Swiping RIGHT on a closed card does NOT preventDefault and triggers Back navigation.
+      // 1. Small initial wheel + cancelable:false follow-ups swiping LEFT on a closed card
+      //    parks open and NEVER navigates Forward.
       emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      expect(wheel(-30)).toBe(false);
-      expect(wheel(-30)).toBe(false);
-      expect(wheel(-30)).toBe(false);
-      emitShell({ type: 'scroll-gesture', phase: 'end' });
-      expect(backSpy).toHaveBeenCalledTimes(1);
-      expect(track.style.transform).toBe('');
-
-      // 2. Swiping LEFT on a closed card prevents default, parks open, and does NOT navigate Forward.
-      emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      expect(wheel(40)).toBe(true);
-      expect(wheel(50)).toBe(true);
+      wheel(4, { cancelable: true });
+      wheel(50, { cancelable: false });
+      wheel(60, { cancelable: false });
       emitShell({ type: 'scroll-gesture', phase: 'end' });
       expect(forwardSpy).not.toHaveBeenCalled();
       expect(track.style.transform).toBe('translateX(-156px)');
 
-      // 3. Swiping RIGHT on the parked card prevents default, closes the card, and does NOT go Back.
+      // 2. Pressing Escape while focus is on the parked Snooze button closes the tray AND
+      //    restores focus to the card button with preventScroll:true.
+      const snoozeBtn = shell.querySelector<HTMLButtonElement>(
+        '[data-compact-card-swipe-action="snooze"]'
+      )!;
+      const cardBtn = shell.querySelector<HTMLButtonElement>('[data-thread-root-id="$a1"]')!;
+      const focusSpy = vi.spyOn(cardBtn, 'focus');
+      snoozeBtn.focus();
+      expect(document.activeElement).toBe(snoozeBtn);
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(track.style.transform).toBe('');
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+      expect(document.activeElement).toBe(cardBtn);
+
+      // 3. Re-park, then swipe RIGHT with cancelable:false follow-ups -> closes card and NEVER navigates Back.
       emitShell({ type: 'scroll-gesture', phase: 'begin' });
-      expect(wheel(-30)).toBe(true);
-      expect(wheel(-30)).toBe(true);
-      expect(wheel(-30)).toBe(true);
+      wheel(4, { cancelable: true });
+      wheel(90, { cancelable: false });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(-4, { cancelable: true });
+      wheel(-40, { cancelable: false });
+      wheel(-40, { cancelable: false });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).not.toHaveBeenCalled();
+      expect(track.style.transform).toBe('');
+
+      // 4. Swiping RIGHT on a closed card STILL triggers Back navigation.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(-30);
+      wheel(-30);
+      wheel(-30);
       emitShell({ type: 'scroll-gesture', phase: 'end' });
       expect(backSpy).toHaveBeenCalledTimes(1);
       expect(track.style.transform).toBe('');
+
+      // 5. Horizontally scrollable ancestor (e.g. narrow board): closed card yields to horizontal scroll.
+      const listEl = shell.parentElement!;
+      Object.defineProperty(listEl, 'scrollWidth', { configurable: true, value: 800 });
+      Object.defineProperty(listEl, 'clientWidth', { configurable: true, value: 300 });
+      const origOverflowX = listEl.style.overflowX;
+      listEl.style.overflowX = 'auto';
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(80);
+      wheel(120);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('');
+      expect(sendStateEvent).not.toHaveBeenCalled();
+      listEl.style.overflowX = origOverflowX;
+      Object.defineProperty(listEl, 'scrollWidth', { configurable: true, value: 300 });
+
+      // 6. With macOS "Swipe between pages" off (swipe-tracking=false), card swipe STILL parks
+      //    and deep-resolves, while Back/Forward stays disabled.
+      emitShell({ type: 'swipe-tracking', enabled: false });
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(-30);
+      wheel(-30);
+      wheel(-30);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).toHaveBeenCalledTimes(1); // still 1 (Back disabled)
+
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(90);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+
+      // Vertical scroll closes the parked card cleanly.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(0, { deltaY: 30 });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('');
+
+      // Deep left swipe commits Resolve even with swipe-tracking=false.
+      await act(async () => {
+        emitShell({ type: 'scroll-gesture', phase: 'begin' });
+        wheel(100);
+        wheel(100);
+        emitShell({ type: 'scroll-gesture', phase: 'end' });
+        await Promise.resolve();
+      });
+      expect(sendStateEvent).toHaveBeenCalledWith(
+        ROOM_A,
+        MINDROOM_THREAD_TAGS_EVENT,
+        expect.objectContaining({ set_by: ME }),
+        buildPerTagStateKey('$a1', 'resolved')
+      );
+      expect(forwardSpy).not.toHaveBeenCalled();
     } finally {
       stopHistory();
       Reflect.deleteProperty(window, 'mindroomDesktop');
