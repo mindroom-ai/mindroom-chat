@@ -27,6 +27,7 @@ import { findFirstHighlight } from '../search/highlightRegex';
 import {
   fetchSearchHitThread,
   getSearchResultOpenTarget,
+  hasBundledThread,
   resolveSearchThreadTitle,
   resolveSyncSearchHitThread,
   type SearchResultOpenTarget,
@@ -219,6 +220,12 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
   const items = useMemo<CommandPaletteMessages['items']>(() => {
     void membersLoaded;
     const highlights = page?.highlights ?? [];
+    const rootHits = new Map<string, IEventWithRoomId>();
+    syncHits.forEach(({ roomId, event }) => {
+      if (hasBundledThread(event.unsigned)) {
+        rootHits.set(getCrossRoomThreadIndexKey(roomId, event.event_id), event);
+      }
+    });
     return syncHits.map(({ roomId, room, summaries, event, target, sync, fetchIdx }) => {
       const edit = fetchIdx !== undefined ? editData[fetchIdx] : undefined;
       const rootId = sync.threadRootId ?? edit?.threadRootId;
@@ -226,7 +233,10 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
       const key = rootId && getCrossRoomThreadIndexKey(roomId, rootId);
       const entry = key ? threadIndex.entries.get(key) : undefined;
       const info = entry?.threadRecord.presentation.summaryInfo;
-      const title = rootId ? resolveSearchThreadTitle(room, event, rootId, summaries, info) : '';
+      const title =
+        rootId && key
+          ? resolveSearchThreadTitle(room, rootHits.get(key), rootId, summaries, info)
+          : '';
       const { mainEventId: id } = target;
       const openTarget: SearchResultOpenTarget = rootId
         ? { mainEventId: id, threadRootId: rootId, ...(isTitle ? { threadTitle: true } : {}) }

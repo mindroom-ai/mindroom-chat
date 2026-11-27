@@ -39,7 +39,7 @@ export const getSearchResultOpenTarget = (
   };
 };
 
-const hasBundledThread = (unsigned: unknown): boolean => {
+export const hasBundledThread = (unsigned: unknown): boolean => {
   const rels = isRecord(unsigned) ? unsigned['m.relations'] : undefined;
   return isRecord(rels) && Boolean(rels[RelationType.Thread] ?? rels[LEGACY_THREAD_REL]);
 };
@@ -114,19 +114,22 @@ export const fetchSearchHitThread = async (
 
 export const resolveSearchThreadTitle = (
   room: MaybeRoom,
-  event: IEventWithRoomId,
+  rootHitEvent: IEventWithRoomId | undefined,
   rootId: string,
   summaries: ReadonlyMap<string, ThreadSummaryInfo>,
   extraSummaryInfo?: ThreadSummaryInfo
 ): string | undefined => {
   const thread = room?.getThread?.(rootId);
   const localRoot = thread?.rootEvent ?? room?.findEventById?.(rootId);
-  const hasHit = rootId === event.event_id && hasBundledThread(event.unsigned);
+  const hitRoot =
+    rootHitEvent?.event_id === rootId && hasBundledThread(rootHitEvent.unsigned)
+      ? new MatrixEvent(rootHitEvent)
+      : undefined;
   return pickLatestThreadSummaryInfo(
     extraSummaryInfo,
     summaries.get(rootId),
     resolveThreadSummaryInfo({ thread }),
     getBundledTitle(room, localRoot),
-    getBundledTitle(room, hasHit ? new MatrixEvent(event) : undefined)
+    getBundledTitle(room, hitRoot)
   )?.summaryText;
 };

@@ -76,7 +76,12 @@ vi.mock('../search/useOpenSearchResult', () => ({ useOpenSearchResult: () => ope
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
 
 const ROOM = '!ops:example.org';
-const hitOf = (eventId: string, body: string, extra?: Record<string, unknown>) => ({
+const hitOf = (
+  eventId: string,
+  body: string,
+  extra?: Record<string, unknown>,
+  unsigned?: Record<string, unknown>
+) => ({
   rank: 1,
   context: {},
   result: {
@@ -86,6 +91,7 @@ const hitOf = (eventId: string, body: string, extra?: Record<string, unknown>) =
     origin_server_ts: 1_700_000_000_000,
     type: 'm.room.message',
     content: { msgtype: 'm.text', body, ...extra },
+    ...(unsigned ? { unsigned } : {}),
   },
 });
 const responseOf = (...results: ReturnType<typeof hitOf>[]) =>
@@ -368,6 +374,42 @@ describe('useCommandPaletteMessages', () => {
     await waitFor(() => expect(result.current.items[0]?.threadName).toBe('Live title'));
     act(() => forgetRedactedThreadSummaries('test-session', ROOM, new Set(['$sum1'])));
     await waitFor(() => expect(result.current.items[0]?.threadName).toBe('Plain root fallback'));
+  });
+
+  it('shares a newer bundled root title with replies listed before the root on the same page', async () => {
+    storeThreadSummaryInState('test-session', ROOM, '$rB', {
+      summaryText: 'Stale cached title',
+      eventId: '$oldSum',
+      eventTs: 1000,
+    });
+    const reply = hitOf('$repB', 'walrus reply', {
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$rB' },
+    });
+    const root = hitOf('$rB', 'walrus root', undefined, {
+      'm.relations': {
+        'm.thread': {
+          'io.mindroom.title': {
+            event_id: '$newSum',
+            sender: '@mindroom_helper:example.org',
+            type: 'm.room.message',
+            origin_server_ts: 5000,
+            content: {
+              msgtype: 'm.notice',
+              body: 'Fresh bundled title',
+              'io.mindroom.thread_summary': { version: 1, summary: 'Fresh bundled title' },
+              'm.relates_to': { rel_type: 'm.thread', event_id: '$rB' },
+            },
+          },
+        },
+      },
+    });
+    const { result } = await searchHits(responseOf(reply, root));
+    await waitFor(() =>
+      expect(result.current.items.map((i) => i.threadName)).toEqual([
+        'Fresh bundled title',
+        'Fresh bundled title',
+      ])
+    );
   });
 
   it('reports a failed search as an error', async () => {
