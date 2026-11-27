@@ -21,6 +21,8 @@ const domMocks = vi.hoisted(() => ({
 }));
 const longTextMocks = vi.hoisted(() => ({
   getMindroomLongTextSource: vi.fn<typeof getLongTextSource>(() => undefined),
+  getCachedLongTextContent: vi.fn<() => Record<string, unknown> | undefined>(() => undefined),
+  hydrateCachedLongText: vi.fn<() => Promise<Record<string, unknown>>>(),
   useMindroomLongTextResolvedContent: vi.fn<typeof useLongTextResolvedContent>(() => undefined),
 }));
 const settingsMocks = vi.hoisted(() => ({
@@ -40,15 +42,22 @@ const recentEmojiMocks = vi.hoisted(() => ({
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('../styles.css', () => ({
+  CollapsedTime: 'CollapsedTime',
   MessageAvatarWithModel: 'MessageAvatarWithModel',
   MessageBase: 'MessageBase',
   MessageMenuRows: 'MessageMenuRows',
   MessageQuickReaction: 'MessageQuickReaction',
   MessageOptionsBar: 'MessageOptionsBar',
   MessageOptionsBase: 'MessageOptionsBase',
+  MessageOptionsBaseAbove: 'MessageOptionsBaseAbove',
+  MessageOptionsBaseCollapsed: 'MessageOptionsBaseCollapsed',
   MessageOptionsButton: 'MessageOptionsButton',
   MessageOptionsReplyIcon: 'MessageOptionsReplyIcon',
   MessageOptionsRow: 'MessageOptionsRow',
+  MessageToolbarButton: 'MessageToolbarButton',
+  MessageToolbarCopiedIcon: 'MessageToolbarCopiedIcon',
+  MessageToolbarRunStatsButton: 'MessageToolbarRunStatsButton',
+  MessageToolbarSeparator: 'MessageToolbarSeparator',
   SenderLine: 'SenderLine',
 }));
 
@@ -65,7 +74,6 @@ vi.mock('../MessageCopyActions.css', () => ({
 
 vi.mock('../MessageControls.css', () => ({
   AiRunDetailsTarget: 'AiRunDetailsTarget',
-  AiRunInfoButton: 'AiRunInfoButton',
   ReplyDetailsScroll: 'ReplyDetailsScroll',
 }));
 
@@ -113,7 +121,8 @@ vi.mock('folds', async () => {
     Button: div('button'),
     Dialog: div(),
     Header: div(),
-    Icon: ({ src }: { src?: string }) => createElement('span', null, src ?? 'icon'),
+    Icon: ({ src }: { src?: string | (() => unknown) }) =>
+      createElement('span', null, typeof src === 'function' ? src.name : (src ?? 'icon')),
     IconButton: ({
       children,
       onClick,
@@ -125,6 +134,7 @@ vi.mock('folds', async () => {
     }) => createElement('button', { ...props, onClick, type: 'button' }, children),
     Icons: {
       BlockCode: 'BlockCode',
+      Check: 'Check',
       CheckTwice: 'CheckTwice',
       Cross: 'Cross',
       Delete: 'Delete',
@@ -384,6 +394,11 @@ vi.mock('../../bug-reports/MessageBugReportItem', async () => {
 
 vi.mock('../../matrix/protocol/longText', () => ({
   getLongTextSource: longTextMocks.getMindroomLongTextSource,
+  getCachedLongTextContent: longTextMocks.getCachedLongTextContent,
+}));
+
+vi.mock('../../event-store/cache/attachmentRepository', () => ({
+  hydrateCachedLongText: longTextMocks.hydrateCachedLongText,
 }));
 
 vi.mock('../content/LongTextText', () => ({
@@ -415,7 +430,10 @@ beforeEach(() => {
   bugReportMocks.canReport = true;
   recentEmojiMocks.recent = [];
   vi.clearAllMocks();
+  domMocks.copyToClipboard.mockResolvedValue(true);
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
+  longTextMocks.getCachedLongTextContent.mockReturnValue(undefined);
+  longTextMocks.hydrateCachedLongText.mockReset();
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
 });
 
@@ -655,7 +673,8 @@ describe('Message local-echo actions', () => {
     expect(getButtonByIcon(renderer, 'ReplyArrow')).toBeDefined();
     expect(getButtonByIcon(renderer, 'ThreadPlus')).toBeDefined();
     expect(getButtonByIcon(renderer, 'SmilePlus')).toBeDefined();
-    // The hover toolbar's icons name themselves, as the menu items do.
+    // The hover toolbar's icons name themselves, as the menu items do, with Copy Text first.
+    expect(getButtonByIcon(renderer, 'CopyIconSrc')!.props['aria-label']).toBe('Copy Text');
     expect(getButtonByIcon(renderer, 'SmilePlus')!.props['aria-label']).toBe('Add Reaction');
     expect(getButtonByIcon(renderer, 'ReplyArrow')!.props['aria-label']).toBe('Reply');
     expect(getButtonByIcon(renderer, 'ThreadPlus')!.props['aria-label']).toBe('Reply in Thread');
@@ -833,16 +852,20 @@ describe('Message reply details menu item', () => {
     expect(setReturnFocus).toBeTypeOf('function');
   });
 
-  it('keeps the header info button path opening the same reply details', async () => {
+  it('opens reply details from the hover toolbar RunStatsIcon button with dialog ARIA attributes', async () => {
     const { renderer } = await renderMessage(aiRunContent, { collapse: false });
 
-    const infoButton = getButtonByAriaLabel(renderer, 'Reply details');
+    const statsButton = getButtonByAriaLabel(renderer, 'Reply details');
 
-    expect(infoButton).toBeDefined();
+    expect(statsButton).toBeDefined();
+    expect(statsButton?.props['aria-haspopup']).toBe('dialog');
+    expect(statsButton?.props['aria-expanded']).toBe(false);
+    expect(getButtonByIcon(renderer, 'RunStatsIcon')).toBe(statsButton);
 
     await act(async () => {
-      infoButton?.props.onClick();
+      statsButton?.props.onClick();
     });
+    expect(getButtonByAriaLabel(renderer, 'Reply details')?.props['aria-expanded']).toBe(true);
 
     expect(hasSpanText(renderer, 'Reply details')).toBe(true);
     expect(hasSpanText(renderer, 'openai · gpt-5-mini')).toBe(true);
@@ -1436,5 +1459,291 @@ describe('Grouped message menu & Reply in Thread gating', () => {
     expect(getButtonByIcon(shown, 'ThreadPlus')).toBeDefined();
     await openContextMenu(shown);
     expect(getButtonByText(shown, 'Reply in Thread')).toBeDefined();
+  });
+});
+
+describe('Message hover toolbar copy and RunStatsIcon order', () => {
+  it('places RunStatsIcon (with separator) then Copy Text before reaction/reply/more actions', async () => {
+    const { renderer } = await renderMessage(aiRunContent, {
+      collapse: false,
+      serverActions: true,
+    });
+
+    const toolbarRow = renderer.root.findByProps({ className: 'MessageOptionsRow' });
+    const toolbarLabels = toolbarRow
+      .findAllByType('button')
+      .map((node) => node.props['aria-label'])
+      .filter((label): label is string => typeof label === 'string');
+
+    expect(toolbarLabels).toEqual([
+      'Reply details',
+      'Copy Text',
+      'Add Reaction',
+      'Reply',
+      'Reply in Thread',
+      'More Options',
+    ]);
+    expect(
+      renderer.root.findAll(
+        (node) => node.type === 'span' && node.props.className === 'MessageToolbarSeparator'
+      )
+    ).toHaveLength(1);
+  });
+
+  it('copies text synchronously from the hover toolbar and flashes Check feedback', async () => {
+    vi.useFakeTimers();
+    try {
+      const { renderer } = await renderMessage({ msgtype: 'm.text', body: 'Quick copy me' });
+      const copyButton = getButtonByAriaLabel(renderer, 'Copy Text');
+      expect(copyButton).toBeDefined();
+
+      await act(async () => {
+        copyButton?.props.onClick();
+        await Promise.resolve();
+      });
+
+      expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Quick copy me');
+      expect(getButtonByAriaLabel(renderer, 'Copied')).toBeDefined();
+      expect(getButtonByIcon(renderer, 'Check')).toBeDefined();
+
+      act(() => {
+        vi.advanceTimersByTime(1200);
+      });
+      expect(getButtonByAriaLabel(renderer, 'Copy Text')).toBeDefined();
+      expect(getButtonByIcon(renderer, 'CopyIconSrc')).toBeDefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never fetches uncached long-text sidecars on hover, and hydrates on click to copy full text', async () => {
+    const longTextSource = {
+      previewContent: {
+        msgtype: 'm.file',
+        body: 'Truncated preview…',
+        url: 'mxc://mindroom/overflow',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      },
+      mxcUri: 'mxc://mindroom/overflow',
+      isV2ContentJson: true,
+    };
+    longTextMocks.getMindroomLongTextSource.mockReturnValue(longTextSource);
+    longTextMocks.hydrateCachedLongText.mockResolvedValue({
+      msgtype: 'm.text',
+      body: 'Full hydrated body from sidecar',
+    });
+
+    const { renderer } = await renderMessage(longTextSource.previewContent);
+
+    // Mere hover renders the Copy Text button without fetching the sidecar.
+    expect(getButtonByAriaLabel(renderer, 'Copy Text')).toBeDefined();
+    expect(longTextMocks.hydrateCachedLongText).not.toHaveBeenCalled();
+    expect(longTextMocks.useMindroomLongTextResolvedContent).toHaveBeenCalledWith(
+      longTextSource,
+      false
+    );
+
+    await act(async () => {
+      getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(longTextMocks.hydrateCachedLongText).toHaveBeenCalledTimes(1);
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Full hydrated body from sidecar');
+  });
+
+  it('copies cached long-text synchronously from the hover toolbar without re-fetching', async () => {
+    const longTextSource = {
+      previewContent: {
+        msgtype: 'm.file',
+        body: 'Truncated preview…',
+        url: 'mxc://mindroom/overflow-cached',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      },
+      mxcUri: 'mxc://mindroom/overflow-cached',
+      isV2ContentJson: true,
+    };
+    longTextMocks.getMindroomLongTextSource.mockReturnValue(longTextSource);
+    longTextMocks.getCachedLongTextContent.mockReturnValue({
+      msgtype: 'm.text',
+      body: 'Already cached long text',
+    });
+
+    const { renderer } = await renderMessage(longTextSource.previewContent);
+
+    await act(async () => {
+      getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(longTextMocks.hydrateCachedLongText).not.toHaveBeenCalled();
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Already cached long text');
+  });
+
+  it('applies layout-specific resting toolbar anchor classes and Modern collapsed hover timestamp', async () => {
+    const Message = await getMessageComponent();
+    const renderLayout = async (messageLayout: MessageLayout, collapse: boolean) => {
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(
+          React.createElement(
+            Message,
+            {
+              room: createRoom(),
+              mEvent: createMessageEvent({ msgtype: 'm.text', body: 'layout check' }),
+              collapse,
+              highlight: false,
+              messageLayout,
+              messageSpacing: '400',
+              onReplyClick: vi.fn(),
+            },
+            React.createElement('div', null, 'body')
+          )
+        );
+      });
+      const toolbarBase = renderer.root.find(
+        (node) =>
+          node.type === 'div' &&
+          typeof node.props.className === 'string' &&
+          node.props.className.split(' ').includes('MessageOptionsBase')
+      );
+      const collapsedTimes = renderer.root.findAll(
+        (node) => node.type === 'div' && node.props.className === 'CollapsedTime'
+      );
+      return { className: toolbarBase.props.className as string, collapsedTimes };
+    };
+
+    const modernHeadered = await renderLayout(MessageLayout.Modern, false);
+    expect(modernHeadered.className).toBe('MessageOptionsBase');
+    expect(modernHeadered.collapsedTimes).toHaveLength(0);
+
+    const modernCollapsed = await renderLayout(MessageLayout.Modern, true);
+    expect(modernCollapsed.className).toBe('MessageOptionsBase MessageOptionsBaseCollapsed');
+    expect(modernCollapsed.collapsedTimes).toHaveLength(1);
+
+    const bubbleHeadered = await renderLayout(MessageLayout.Bubble, false);
+    expect(bubbleHeadered.className).toBe('MessageOptionsBase MessageOptionsBaseAbove');
+    expect(bubbleHeadered.collapsedTimes).toHaveLength(0);
+
+    const bubbleCollapsed = await renderLayout(MessageLayout.Bubble, true);
+    expect(bubbleCollapsed.className).toBe('MessageOptionsBase MessageOptionsBaseAbove');
+    expect(bubbleCollapsed.collapsedTimes).toHaveLength(0);
+
+    const compactRow = await renderLayout(MessageLayout.Compact, false);
+    expect(compactRow.className).toBe('MessageOptionsBase MessageOptionsBaseAbove');
+    expect(compactRow.collapsedTimes).toHaveLength(0);
+  });
+
+  it('starts a promise-backed ClipboardItem write synchronously on click for uncached long text', async () => {
+    const longTextSource = {
+      previewContent: {
+        msgtype: 'm.file',
+        body: 'Truncated preview…',
+        url: 'mxc://mindroom/overflow-webkit',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      },
+      mxcUri: 'mxc://mindroom/overflow-webkit',
+      isV2ContentJson: true,
+    };
+    let resolveHydration!: (value: Record<string, unknown>) => void;
+    longTextMocks.getMindroomLongTextSource.mockReturnValue(longTextSource);
+    longTextMocks.hydrateCachedLongText.mockReturnValue(
+      new Promise<Record<string, unknown>>((resolve) => {
+        resolveHydration = resolve;
+      })
+    );
+
+    const writtenItems: Array<{ items: Record<string, Blob | Promise<Blob>> }> = [];
+    class MockClipboardItem {
+      items: Record<string, Blob | Promise<Blob>>;
+      constructor(items: Record<string, Blob | Promise<Blob>>) {
+        this.items = items;
+      }
+    }
+    const write = vi.fn(async (items: MockClipboardItem[]) => {
+      writtenItems.push(...items);
+      const blob = await items[0]!.items['text/plain'];
+      expect(await blob.text()).toBe('Hydrated WebKit full body');
+    });
+    vi.stubGlobal('ClipboardItem', MockClipboardItem);
+    vi.stubGlobal('navigator', { clipboard: { write } });
+
+    try {
+      const { renderer } = await renderMessage(longTextSource.previewContent);
+
+      act(() => {
+        getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
+      });
+
+      // Clipboard write starts synchronously inside the click gesture before hydration settles.
+      expect(write).toHaveBeenCalledTimes(1);
+      expect(writtenItems).toHaveLength(1);
+      expect(getButtonByAriaLabel(renderer, 'Copied')).toBeUndefined();
+
+      await act(async () => {
+        resolveHydration({ msgtype: 'm.text', body: 'Hydrated WebKit full body' });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(getButtonByAriaLabel(renderer, 'Copied')).toBeDefined();
+      expect(getButtonByIcon(renderer, 'Check')).toBeDefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not flash Copied or copy truncated preview when long-text hydration falls back on error', async () => {
+    const longTextSource = {
+      previewContent: {
+        msgtype: 'm.file',
+        body: 'Truncated preview…',
+        url: 'mxc://mindroom/overflow-fail',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      },
+      mxcUri: 'mxc://mindroom/overflow-fail',
+      isV2ContentJson: true,
+    };
+    longTextMocks.getMindroomLongTextSource.mockReturnValue(longTextSource);
+    // Matches hydrateLongTextSource returning source.previewContent on download/parse errors.
+    longTextMocks.hydrateCachedLongText.mockResolvedValue(longTextSource.previewContent);
+
+    const { renderer } = await renderMessage(longTextSource.previewContent);
+
+    await act(async () => {
+      getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(domMocks.copyToClipboard).not.toHaveBeenCalled();
+    expect(getButtonByAriaLabel(renderer, 'Copied')).toBeUndefined();
+    expect(getButtonByIcon(renderer, 'Check')).toBeUndefined();
+    expect(getButtonByAriaLabel(renderer, 'Copy Text')).toBeDefined();
+
+    // Same guarantee under WebKit's ClipboardItem path: blob rejects and Check never flashes.
+    let capturedBlobPromise: Promise<Blob> | undefined;
+    class MockClipboardItem {
+      constructor(items: Record<string, Blob | Promise<Blob>>) {
+        capturedBlobPromise = items['text/plain'] as Promise<Blob>;
+      }
+    }
+    const write = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('ClipboardItem', MockClipboardItem);
+    vi.stubGlobal('navigator', { clipboard: { write } });
+    try {
+      await act(async () => {
+        getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      await expect(capturedBlobPromise).rejects.toThrow();
+      expect(getButtonByAriaLabel(renderer, 'Copied')).toBeUndefined();
+      expect(getButtonByIcon(renderer, 'Check')).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

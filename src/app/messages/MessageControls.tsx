@@ -16,6 +16,7 @@ import { useLongTextResolvedContent } from './content/LongTextText';
 import { hasRenderableAiRunDetails } from './agent-run/aiRunDisplay';
 import { ReplyDetails } from './reply/ReplyDetails';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
+import { RunStatsIcon } from './RunStatsIcon';
 import * as css from './MessageControls.css';
 
 /** What a message hands to its header and menu so both open the same reply details. */
@@ -151,29 +152,11 @@ export function AiRunControls({ info, eventId, forwardedRef, children }: AiRunCo
   );
 }
 
-/** The small "i" beside the sender name of an agent reply. */
-export function AiRunInfoButton(props: { open: boolean; onOpen: () => void }) {
-  const label = useReplyDetailsLabel();
-  const info = <Icon size="50" src={Icons.Info} />;
-  return (
-    <button
-      aria-label={label}
-      aria-expanded={props.open}
-      aria-haspopup="dialog"
-      className={css.AiRunInfoButton}
-      onClick={props.onOpen}
-      type="button"
-    >
-      {info}
-    </button>
-  );
-}
-
 /** "Reply details" in the message menu of an agent reply. */
 export function AiRunMenuItem(props: { onOpen: () => void }) {
   const label = useReplyDetailsLabel();
   return (
-    <MenuEntry label={label} icon={Icons.Info} aria-haspopup="dialog" onSelect={props.onOpen} />
+    <MenuEntry label={label} icon={RunStatsIcon} aria-haspopup="dialog" onSelect={props.onOpen} />
   );
 }
 

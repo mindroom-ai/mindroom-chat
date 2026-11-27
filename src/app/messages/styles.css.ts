@@ -1,5 +1,5 @@
 import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
-import { DefaultReset, config, toRem } from 'folds';
+import { DefaultReset, color, config, toRem } from 'folds';
 import { ScrollableMenuRows } from '../ui/ScrollableMenu.css';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import { touchTarget } from '../ui/styles/touchTarget';
@@ -11,10 +11,14 @@ export const MessageBase = style({
 });
 
 /**
- * The sender and reply-details buttons reserve their touch area in the row. An invisible layer
- * outside this line would cover links in the first body line or the following activity button.
+ * Tight wrapper around the sender name and timestamp at the start of the header row so hover
+ * toolbar placement measures only the occupied header width. The sender button reserves its touch
+ * area in the row so no invisible layer covers links in the first body line.
  */
-export const SenderLine = style({});
+export const SenderLine = style({
+  width: 'fit-content',
+  maxWidth: '100%',
+});
 globalStyle(`${SenderLine} button`, {
   '@media': {
     '(pointer: coarse)': {
@@ -23,6 +27,22 @@ globalStyle(`${SenderLine} button`, {
       alignItems: 'center',
     },
   },
+});
+
+/** Subtle compact timestamp in the empty avatar column of a hovered follow-up row. */
+export const CollapsedTime = style({
+  display: 'flex',
+  justifyContent: 'center',
+  alignItems: 'center',
+  minBlockSize: config.lineHeight.T400,
+  userSelect: 'none',
+});
+globalStyle(`${CollapsedTime} time`, {
+  fontSize: toRem(10),
+  lineHeight: 1,
+  whiteSpace: 'nowrap',
+  fontVariantNumeric: 'tabular-nums',
+  letterSpacing: '-0.02em',
 });
 
 /**
@@ -74,43 +94,126 @@ export const StopStatus = style({
 /** Long reactor lists wrap inside the chip's tooltip instead of stretching it. */
 export const ReactionsTooltipText = style({ maxWidth: toRem(240), wordBreak: 'break-word' });
 
-// The hover toolbar's buttons are one square size inside an even 4 px of padding, 2 px apart.
+// Banner action buttons (ThreadBannerChrome, ThreadContextBanner, CrossRoomForkDraftBanner) keep
+// their 32 px square geometry via MessageOptionsButton below.
 const toolbarButtonSize = toRem(32);
 const toolbarButtonRadius = config.radii.R400;
-const toolbarPadding = config.space.S100;
+
+// The message hover toolbar's compact buttons are 26 px square inside 2 px of padding, 2 px apart.
+const compactToolbarButtonSize = toRem(26);
+const compactToolbarButtonRadius = config.radii.R300;
+const compactToolbarPadding = toRem(2);
 
 /**
- * Hover options float over the top edge of the row, at the end side. The pill is 42 px tall
- * (a 32 px button, 4 px of padding and a 1 px rim on each side), so it covers the top 6 px of the
- * row and sits 36 px above it.
+ * Hover options dock inside the top-end corner of a headered row (32 px tall: a 26 px button,
+ * 2 px of padding and a 1 px rim on each side), aligned with the message content's inline-end edge.
  */
 export const MessageOptionsBase = style([
   DefaultReset,
   {
     zIndex: 1,
     position: 'absolute',
-    insetBlockStart: toRem(-36),
-    insetInlineEnd: 0,
+    insetBlockStart: toRem(2),
+    insetInlineEnd: config.space.S400,
   },
 ]);
 
+/** Modern follow-up rows have no header row, so the pill straddles the top edge. */
+export const MessageOptionsBaseCollapsed = style({
+  insetBlockStart: toRem(-14),
+  '@media': {
+    '(pointer: coarse)': {
+      insetBlockStart: toRem(-17),
+    },
+  },
+});
+
 /**
- * The glass pill around the buttons. Its corners are concentric with theirs: the pill's radius is
- * the button's plus the padding and the rim between their edges. It sits on the row's own text
- * (the time, the line above), and with no tile behind each icon that text would show through the
- * usual glass, so the pill takes the nearly opaque tint and keeps its rim and blur.
+ * Bubble and Compact rows keep the pill floating cleanly above the row (6 px into the top padding,
+ * matching main's -36 px for the old 42 px pill) so own bubbles, own avatars, and narrow Compact
+ * sender timestamps stay unobstructed.
+ */
+export const MessageOptionsBaseAbove = style({
+  insetBlockStart: toRem(-26),
+  '@media': {
+    '(pointer: coarse)': {
+      insetBlockStart: toRem(-32),
+    },
+  },
+});
+
+/**
+ * The compact bordered glass pill around the hover toolbar's buttons. Its corners are concentric
+ * with theirs: the pill's radius is the button's plus the padding and the rim between their edges.
+ * It takes the nearly opaque tint and keeps its rim and blur so icons stay legible over text/code.
  */
 export const MessageOptionsBar = style([
   DefaultReset,
   glassDenseOverBackdrop,
   {
-    padding: toolbarPadding,
-    borderRadius: `calc(${toolbarButtonRadius} + ${toolbarPadding} + ${config.borderWidth.B300})`,
+    padding: compactToolbarPadding,
+    borderRadius: `calc(${compactToolbarButtonRadius} + ${compactToolbarPadding} + ${config.borderWidth.B300})`,
   },
 ]);
 
-/** The row of buttons inside the pill. */
-export const MessageOptionsRow = style({ gap: toRem(2) });
+/** The row of buttons and optional separator inside the pill. */
+export const MessageOptionsRow = style({ gap: toRem(2), alignItems: 'center' });
+
+/**
+ * A compact 26 px square button inside the message hover toolbar: transparent at rest so the pill
+ * is the only surface, taking the quiet hover tint on hovering pointers and keyboard focus.
+ */
+export const MessageToolbarButton = style({
+  selectors: {
+    '&&': {
+      inlineSize: compactToolbarButtonSize,
+      blockSize: compactToolbarButtonSize,
+      padding: 0,
+      flexShrink: 0,
+      borderRadius: compactToolbarButtonRadius,
+    },
+  },
+  '@media': {
+    '(pointer: coarse)': {
+      selectors: {
+        '&&': {
+          inlineSize: toolbarButtonSize,
+          blockSize: toolbarButtonSize,
+        },
+      },
+    },
+    '(hover: none)': {
+      selectors: {
+        '&&:hover:not(:focus-visible):not(:active):not([aria-pressed="true"])': {
+          backgroundColor: 'transparent',
+        },
+      },
+    },
+  },
+});
+
+/** Primary accent for the agent run stats button in the message hover toolbar. */
+export const MessageToolbarRunStatsButton = style({
+  selectors: {
+    '&&': {
+      color: color.Primary.Main,
+    },
+  },
+});
+
+/** Success tint for the copied check icon in the message hover toolbar. */
+export const MessageToolbarCopiedIcon = style({
+  color: color.Success.Main,
+});
+
+/** Hairline vertical divider separating the agent run stats button from message actions. */
+export const MessageToolbarSeparator = style({
+  inlineSize: config.borderWidth.B300,
+  blockSize: toRem(14),
+  marginInline: toRem(1),
+  backgroundColor: color.SurfaceVariant.ContainerLine,
+  flexShrink: 0,
+});
 
 /** The fill of a toolbar button at rest, for a button that has one (the resolved check). */
 export const toolbarButtonRestFill = createVar();

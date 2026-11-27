@@ -286,7 +286,11 @@ const expectNoCrash = async (page: Page) => {
 const expectAgentAffordances = async (target: Locator, present: boolean) => {
   const count = present ? 1 : 0;
   await expect(target.getByLabel(/^Model: /)).toHaveCount(count);
+  // Reply details lives in the hover/focus toolbar, never in the resting header.
+  await expect(target.getByRole('button', { name: 'Reply details' })).toHaveCount(0);
+  await target.focus();
   await expect(target.getByRole('button', { name: 'Reply details' })).toHaveCount(count);
+  await target.evaluate((element) => (element as HTMLElement).blur());
 };
 
 const checkRoomView = async (page: Page, world: World, label: string) => {

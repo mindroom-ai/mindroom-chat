@@ -152,11 +152,9 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(page.getByText(/^\$\d/)).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('desktop-light.png') });
 
+  const rowOf = (body: string) => page.locator('[data-message-id]').filter({ hasText: body });
   const detailsOf = (body: string) =>
-    page
-      .locator('[data-message-id]')
-      .filter({ hasText: body })
-      .getByRole('button', { name: 'Reply details', exact: true });
+    rowOf(body).getByRole('button', { name: 'Reply details', exact: true });
   const dialog = page.getByRole('dialog', { name: 'Reply details' });
   const costCard = dialog.getByRole('region', { name: 'Cost', exact: true });
   const section = (heading: string) =>
@@ -164,6 +162,7 @@ test('reply details show what a reply and the conversation so far cost', async (
       .locator('section')
       .filter({ has: page.getByRole('heading', { name: heading, exact: true }) });
 
+  await rowOf('Then tag it.').hover();
   await detailsOf('Then tag it.').click();
   await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   await expect(costCard).toContainText('This reply$0.0051');
@@ -221,6 +220,7 @@ test('reply details show what a reply and the conversation so far cost', async (
   await page.keyboard.press('Escape');
   // The switch shows the conversation's tokens through the last reply, from the keyboard too,
   // each reply's input in the parts its usage splits it into.
+  await rowOf('Done, v2.4 is tagged.').hover();
   await detailsOf('Done, v2.4 is tagged.').click();
   const conversation = tokens.getByRole('button', { name: 'Conversation', exact: true });
   await conversation.focus();
@@ -249,6 +249,7 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(ownRow.getByRole('button', { name: /^Model: / })).toHaveCount(0);
   await expect(detailsOf('Sounds good')).toHaveCount(0);
   await ownRow.hover();
+  await expect(detailsOf('Sounds good')).toHaveCount(0);
   await ownRow.getByRole('button', { name: 'More Options', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Copy Link', exact: true })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Reply details', exact: true })).toHaveCount(0);
@@ -256,7 +257,8 @@ test('reply details show what a reply and the conversation so far cost', async (
   await expect(page.getByRole('menuitem', { name: 'Copy Link', exact: true })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
-  // A phone has no hover, so the details open from the keyboard here.
+  // A phone has no hover, so focusing the row reveals the toolbar and opens details from keyboard.
+  await rowOf('Cut the branch first.').focus();
   await detailsOf('Cut the branch first.').focus();
   await page.keyboard.press('Enter');
   await expect(costCard).toContainText('Conversation so far$0.0034');
@@ -279,11 +281,9 @@ test('reply details show what a reply and the conversation so far cost', async (
   await page.evaluate(() => localStorage.setItem('i18nextLng', 'es'));
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('lang', 'es');
-  await page
-    .locator('[data-message-id]')
-    .filter({ hasText: 'Then tag it.' })
-    .getByRole('button', { name: esReplyDetails, exact: true })
-    .focus();
+  const esRow = page.locator('[data-message-id]').filter({ hasText: 'Then tag it.' });
+  await esRow.focus();
+  await esRow.getByRole('button', { name: esReplyDetails, exact: true }).focus();
   await page.keyboard.press('Enter');
   const esCostCard = page
     .getByRole('dialog', { name: esReplyDetails })

@@ -1,50 +1,17 @@
 import { globalStyle, style } from '@vanilla-extract/css';
-import { DefaultReset, color, toRem } from 'folds';
+import { color } from 'folds';
 
 /**
- * The info button and the time beside it. With a hovering pointer the time also opens the reply
- * details, so it gets the pointer cursor and hovering either lights up the button.
+ * The timestamp wrapper of an agent reply. With a hovering pointer, clicking the time opens the
+ * reply details, so it gets the pointer cursor and highlights in the primary colour on hover.
  */
 export const AiRunDetailsTarget = style({});
 globalStyle(`${AiRunDetailsTarget} time`, {
   '@media': { '(hover: hover)': { cursor: 'pointer' } },
 });
-
-export const AiRunInfoButton = style([
-  DefaultReset,
-  {
-    display: 'inline-flex',
-    alignItems: 'center',
-    inlineSize: toRem(18),
-    blockSize: toRem(18),
-    justifyContent: 'center',
-    border: 0,
-    borderRadius: toRem(999),
-    padding: 0,
-    backgroundColor: 'transparent',
-    // The text colour at the time's muted strength, so the icon reads as part of the time.
-    color: 'inherit',
-    opacity: 0.75,
-    cursor: 'pointer',
-    selectors: {
-      '&[aria-expanded="true"]': {
-        opacity: 1,
-      },
-      '&:focus-visible': {
-        opacity: 1,
-        outline: `${toRem(2)} solid currentColor`,
-        outlineOffset: toRem(1),
-      },
-    },
-    '@media': {
-      '(hover: hover)': {
-        selectors: {
-          [`${AiRunDetailsTarget}:hover &`]: { opacity: 1, color: color.Primary.Main },
-        },
-      },
-    },
-  },
-]);
+globalStyle(`${AiRunDetailsTarget} time:hover`, {
+  '@media': { '(hover: hover)': { color: color.Primary.Main, opacity: 1 } },
+});
 
 // The header stays inside the scroll viewport, as in the approval review.
 export const ReplyDetailsScroll = style({

@@ -8,10 +8,11 @@ import {
 import { activeAccountButton } from '../helpers/auth';
 import { createPrivateRoom, joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 
-// The hover toolbar of a message is a glass pill of quiet icon buttons: every button 32 px
-// square and transparent until hovered, 2 px apart, inside an even 4 px of padding and the
-// pill's 1 px rim, with corners concentric to the buttons'. Under a thread's banner it keeps
-// below the banner and the first row's sender line, 8 px clear of it. Set
+// The hover toolbar of a message is a compact bordered glass pill of quiet icon buttons: every
+// button 26 px square and transparent until hovered, 2 px apart, inside an even 2 px of padding
+// and the pill's 1 px rim, with corners concentric to the buttons'. On headered rows it docks in
+// the empty end half of the header row (2 px from the top, 16 px from the end); on collapsed
+// follow-ups it straddles the top edge (-14 px from the top, 16 px from the end). Set
 // MESSAGE_TOOLBAR_SHOTS=<directory> to also save close crops at rest and with a button hovered,
 // in dark and light themes.
 const SHOTS = process.env.MESSAGE_TOOLBAR_SHOTS;
@@ -20,11 +21,11 @@ const ROOT = 'Which of these should we ship first?';
 const FIRST_REPLY = 'The reply icon sits where the arrow points.';
 const SECOND_REPLY = 'Hover me to see the toolbar.';
 
-const BUTTON = 32;
-const PADDING = 4;
+const BUTTON = 26;
+const PADDING = 2;
 const RIM = 1;
 const GAP = 2;
-const TOGGLE_GAP = 8;
+const ROW_INSET_END = 16;
 const TRANSPARENT = 'rgba(0, 0, 0, 0)';
 
 /** The opacity of a computed colour such as `color(srgb 0.2 0.2 0.2 / 0.9)`. */
@@ -206,14 +207,16 @@ test.describe('message hover toolbar', () => {
     await expect(plainRow).toBeVisible({ timeout: 60_000 });
     const tooltip = page.getByRole('tooltip');
 
-    // A row with room above it: the pill covers the top 6 px of the row, at its end.
+    // A collapsed follow-up row with room above it: the pill straddles the top edge (-14 px),
+    // aligned to the row's content inline-end edge (16 px inset).
     await plainRow.hover();
     const reaction = plainRow.getByRole('button', { name: 'Add Reaction', exact: true });
     await expect(reaction).toBeVisible();
     const plain = await toolbarGeometry(plainRow);
     expectBalanced(plain);
-    expect(plain.pill.right).toBeCloseTo(plain.row.right, 1);
-    expect(plain.row.top - plain.pill.top).toBeCloseTo(36, 1);
+    expect(plain.buttons[0]?.label).toBe('Copy Text');
+    expect(plain.pill.right).toBeCloseTo(plain.row.right - ROW_INSET_END, 1);
+    expect(plain.row.top - plain.pill.top).toBeCloseTo(14, 1);
     // The buttons have no tile of their own while the pointer rests on the message.
     expect(plain.buttons.map((b) => b.background)).toEqual(plain.buttons.map(() => TRANSPARENT));
     // Every glyph's centre is within 0.75 px of its button's; the reply arrow sits on it.
@@ -228,18 +231,18 @@ test.describe('message hover toolbar', () => {
     await pointAt(page, reaction);
     await expect(tooltip).toHaveText('Add Reaction');
     const hovered = await toolbarGeometry(plainRow);
-    const hoverTint = hovered.buttons[0]!.background;
+    const hoverTint = hovered.buttons.find((b) => b.label === 'Add Reaction')!.background;
     expect(hoverTint).not.toBe(TRANSPARENT);
-    expect(hovered.buttons.slice(1).map((b) => b.background)).toEqual(
-      hovered.buttons.slice(1).map(() => TRANSPARENT)
-    );
+    expect(
+      hovered.buttons.filter((b) => b.label !== 'Add Reaction').map((b) => b.background)
+    ).toEqual(hovered.buttons.filter((b) => b.label !== 'Add Reaction').map(() => TRANSPARENT));
 
     // Keyboard focus shows the ring and the same tint.
     await reaction.focus();
     await page.keyboard.press('Tab');
     const reply = plainRow.getByRole('button', { name: 'Reply', exact: true });
     await expect(reply).toBeFocused();
-    const focused = (await toolbarGeometry(plainRow)).buttons[1]!;
+    const focused = (await toolbarGeometry(plainRow)).buttons.find((b) => b.label === 'Reply')!;
     expect(focused.outline).not.toBe('none');
     expect(focused.background).toBe(hoverTint);
 
@@ -259,25 +262,28 @@ test.describe('message hover toolbar', () => {
     await expect(copyLink).toHaveCount(0);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 
-    // The first row under the banner (a thread has no `[+all]` line) moves its toolbar into the
-    // row, below the row's sender line, 8 px clear of it, so the name and the time stay in reach
-    // and the pointer never leaves the row on its way to the toolbar.
+    // The first row under the banner is a headered row: its compact pill docks in the empty
+    // end half of the header row (2 px from the top, 16 px from the end), clear of the tight
+    // sender line on the start side and clear of body line 1.
     await firstRow.hover();
     await expect(firstRow.getByRole('button', { name: 'Reply', exact: true })).toBeVisible();
     const underBanner = await toolbarGeometry(firstRow);
     expectBalanced(underBanner);
     expect(underBanner.toggle).toBeUndefined();
     expect(underBanner.sender).toBeDefined();
-    expect(underBanner.pill.top - underBanner.sender!.bottom).toBeCloseTo(TOGGLE_GAP, 0);
+    expect(underBanner.pill.top - underBanner.row.top).toBeCloseTo(2, 1);
+    expect(underBanner.pill.right).toBeCloseTo(underBanner.row.right - ROW_INSET_END, 1);
+    expect(underBanner.pill.left).toBeGreaterThan(underBanner.sender!.right);
     await page.mouse.move(0, 0);
 
-    // Right to left: the pill sits at the row's start, the reply arrow mirrors and stays centred.
+    // Right to left: the pill sits inset from the row's left (inline-end), the reply arrow mirrors
+    // and stays centred.
     await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
     await plainRow.hover();
     await expect(reaction).toBeVisible();
     const rtl = await toolbarGeometry(plainRow);
     expectBalanced(rtl);
-    expect(rtl.pill.left).toBeCloseTo(rtl.row.left, 1);
+    expect(rtl.pill.left).toBeCloseTo(rtl.row.left + ROW_INSET_END, 1);
     const rtlReply = rtl.buttons.find((b) => b.label === 'Reply')!.inkOffset;
     expect(rtlReply.x).toBeCloseTo(-replyInk.x, 1);
     expect(Math.abs(rtlReply.y)).toBeLessThan(0.1);
@@ -376,7 +382,16 @@ test.describe('message hover toolbar', () => {
     await send(
       agentRoomId,
       'A short answer in the thread.',
-      agent ? { ...thread, 'io.mindroom.ai_run': { version: 1, status: 'completed' } } : thread,
+      agent
+        ? {
+            ...thread,
+            'io.mindroom.ai_run': {
+              version: 1,
+              status: 'completed',
+              model: { display_name: 'Helper' },
+            },
+          }
+        : thread,
       agent?.accessToken
     );
     await send(roomId, longBody('The room plan'));
@@ -465,11 +480,11 @@ test.describe('message hover toolbar', () => {
         if (agentReply) {
           // eslint-disable-next-line no-await-in-loop
           const sender = (await next.locator('[data-message-sender-line]').boundingBox())!;
-          expect(
-            below.pill.y - (sender.y + sender.height),
-            `${where}: the toolbar keeps below the sender line`
-          ).toBeGreaterThanOrEqual(7.5);
-          // The Reply details button there takes the click, with the toolbar still showing.
+          const clearsSender =
+            below.pill.x >= sender.x + sender.width ||
+            below.pill.y - (sender.y + sender.height) >= 7.5;
+          expect(clearsSender, `${where}: the toolbar keeps clear of the sender line`).toBe(true);
+          // The Reply details button in the hover toolbar takes the click cleanly.
           const details = page.getByRole('dialog', { name: 'Reply details' });
           // eslint-disable-next-line no-await-in-loop
           await next.getByRole('button', { name: 'Reply details' }).click({ timeout: 10_000 });

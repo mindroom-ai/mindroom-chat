@@ -5,9 +5,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AiRunInfo } from '../matrix/protocol/aiRun';
 import {
   AiRunControls,
+  AiRunMenuItem,
   useMessageControls,
   type AiRunControlsRenderProps,
 } from './MessageControls';
+import { RunStatsIcon } from './RunStatsIcon';
 
 vi.mock('../ui/ModalLayer', () => ({
   ModalLayer: ({ open, children }: { open: boolean; children?: React.ReactNode }) =>
@@ -16,6 +18,12 @@ vi.mock('../ui/ModalLayer', () => ({
 vi.mock('./reply/ReplyDetails', () => ({ ReplyDetails: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@viewer:example.org' }),
+}));
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key: string) => key }),
+}));
+vi.mock('../ui/MenuEntry', () => ({
+  MenuEntry: (props: Record<string, unknown>) => <div data-menu-entry="" {...props} />,
 }));
 
 /** A row with state of its own, as an open tool-call list is. */
@@ -156,5 +164,18 @@ describe('useMessageControls', () => {
       'io.mindroom.ai_run': { version: 1, status: 'completed', cost: { subagents_usd: '0.375' } },
     };
     expect(infoFrom('@someone:example.org', subagentsOnly)?.subagentsCostUsd).toBeUndefined();
+  });
+});
+
+describe('AiRunMenuItem', () => {
+  it('uses RunStatsIcon in the message menu', () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(<AiRunMenuItem onOpen={vi.fn()} />);
+    });
+    const entry = renderer.root.findByProps({ 'data-menu-entry': '' });
+    expect(entry.props.icon).toBe(RunStatsIcon);
+    expect(entry.props['aria-haspopup']).toBe('dialog');
+    renderer.unmount();
   });
 });

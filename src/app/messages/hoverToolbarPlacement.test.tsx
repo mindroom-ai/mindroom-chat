@@ -166,8 +166,10 @@ describe('useToolbarClearance', () => {
     expect(renderRow(140, 900, undefined, 4)).toBe(36);
     // Buttons it is clear of leave it below the toggle.
     expect(renderRow(140, 900, undefined, 48)).toBe(-2);
-    // In its usual place above the row it stays, also over buttons at the row's top.
-    expect(renderRow(400, 900, undefined, 4)).toBeUndefined();
+    // When the resting toolbar edge overlaps code block buttons at the top of the row, it moves
+    // below them instead of covering them, and stays in place when clear.
+    expect(renderRow(400, 900, undefined, 4)).toBe(36);
+    expect(renderRow(400, 900, undefined, 48)).toBeUndefined();
   });
 
   it('stays over the sender line where the buttons of a file card are under it', () => {
@@ -204,8 +206,8 @@ describe('useToolbarClearance', () => {
   });
 
   it('moves the toolbar of a row under the sticky header into the visible part of the row', () => {
-    // No overlay over the toolbar; the visible rows start at 100.
-    expect(renderRow(90, 100)).toBe(10);
+    // No overlay over the toolbar; the visible rows start at 100, plus a 6 px breathing gap.
+    expect(renderRow(90, 100)).toBe(16);
   });
 });
 
@@ -265,8 +267,11 @@ describe('toolbarOffset', () => {
 
   describe('with the sender line of its row from 4 to 26 px', () => {
     const sender = { top: 4, bottom: 26 };
-    const placeWithSender = (covered: number, folds: Parameters<typeof toolbarOffset>[4] = []) =>
-      toolbarOffset(-36, covered, 60, 42, folds, sender);
+    const placeWithSender = (
+      covered: number,
+      folds: Parameters<typeof toolbarOffset>[4] = [],
+      rowHeight = 90
+    ) => toolbarOffset(-36, covered, rowHeight, 42, folds, sender);
 
     it('keeps the usual place, which ends just inside the row', () => {
       expect(placeWithSender(-200)).toBeUndefined();
@@ -283,7 +288,7 @@ describe('toolbarOffset', () => {
     });
 
     it('ignores a sender line hidden under the header', () => {
-      expect(placeWithSender(40)).toBe(14);
+      expect(placeWithSender(40, [], 60)).toBe(14);
     });
 
     it('moves below the buttons right under the sender line where it would cover them', () => {
@@ -313,5 +318,37 @@ describe('toolbarOffset', () => {
       // Below the sender line it would cover its own Show less.
       expect(toolbarOffset(-36, -200, 400, 42, foldAboveAndOwn, sender)).toBe(-6);
     });
+  });
+});
+
+describe('headered and collapsed compact toolbar placement', () => {
+  // Headered row: 32 px compact pill docked inside the top-end of the header row (usual = 2).
+  it('stays docked at usual (2 px) when header is visible right below the sticky banner', () => {
+    expect(toolbarOffset(2, -10, 120, 32, [])).toBeUndefined();
+    expect(toolbarOffset(2, 2, 120, 32, [])).toBeUndefined();
+  });
+
+  it('travels smoothly below the sticky banner on tall scrolled replies and stops 4 px before the bottom', () => {
+    expect(toolbarOffset(2, 48, 400, 32, [])).toBe(48);
+    expect(toolbarOffset(2, 390, 400, 32, [])).toBe(364);
+  });
+
+  it('moves below a tight sender line only when it reaches horizontally under the headered pill and fits in the row', () => {
+    const sender = { top: 4, bottom: 26 };
+    // Normal wide row: sender line ends well left of the pill, so senderLine is undefined.
+    expect(toolbarOffset(2, -10, 120, 32, [], undefined)).toBeUndefined();
+    // Narrow viewport / long username with room below: moves 8 px below the sender line.
+    expect(toolbarOffset(2, -10, 120, 32, [], sender)).toBe(34);
+    // Short 1-line row where below (34 + 32 = 66) would overflow past rowHeight - 4 (56): stays.
+    expect(toolbarOffset(2, -10, 60, 32, [], sender)).toBeUndefined();
+    // Bubble/Compact resting above the row (-26 px, 32 px tall -> ends at +6 px): stays clear.
+    expect(toolbarOffset(-26, -100, 60, 32, [], sender)).toBeUndefined();
+  });
+
+  it('clears code block actions on a collapsed follow-up row (usual = -14) even mid-thread', () => {
+    // Tall collapsed code block: moves 8 px below the code actions at 9..33.
+    expect(toolbarOffset(-14, -54, 400, 32, [], undefined, [{ top: 9, bottom: 33 }])).toBe(41);
+    // Short 1-line collapsed code block where below would overflow: steps above when clear.
+    expect(toolbarOffset(-14, -54, 68, 32, [], undefined, [{ top: 9, bottom: 33 }])).toBe(-31);
   });
 });

@@ -12,6 +12,7 @@ import {
   type Ref,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import classNames from 'classnames';
 import { useFocusWithin, useHover } from 'react-aria';
 import { FocusTrap } from 'focus-trap-react';
 import type { MatrixEvent, Relations, Room } from 'matrix-js-sdk';
@@ -36,6 +37,7 @@ import { Menu } from '../ui/glass/GlassPrimitives';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
 import { ForkIcon } from './ForkIcon';
+import { RunStatsIcon } from './RunStatsIcon';
 import { IconTooltip } from '../ui/IconTooltip';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';
@@ -73,18 +75,13 @@ import { isKeyboardFocus, useToolbarClearance } from './hoverToolbarPlacement';
 import { getSenderNameTone } from './senderNameTone';
 import {
   AiRunControls,
-  AiRunInfoButton,
   AiRunMenuItem,
   DownloadOriginalMenuItem,
   useMessageControls,
 } from './MessageControls';
 import { AiRunDetailsTarget as aiRunDetailsTarget } from './MessageControls.css';
-import {
-  getMessageCopyTexts,
-  getMessageCopyTextSource,
-  isCopyTextMessageContent,
-  scanToolMarkerLines,
-} from './messageCopyText';
+import { isCopyTextMessageContent } from './messageCopyText';
+import { MessageToolbarCopyButton, resolveMessageCopyTexts } from './MessageToolbarCopyButton';
 import {
   MessageAllReactionItem,
   MessageQuickReactions,
@@ -101,9 +98,14 @@ type ToolbarActionProps = {
   onClick: MouseEventHandler<HTMLButtonElement>;
   /** For buttons that open something: whether it is open. */
   pressed?: boolean;
+  /** For buttons that open a dialog (e.g. Reply details). */
+  expanded?: boolean;
+  hasPopup?: 'dialog';
+  /** Optional accent class on the toolbar button itself. */
+  buttonClassName?: string;
   /** The icon points along the reading direction, so right-to-left languages mirror it. */
   directional?: boolean;
-  /** Moves a glyph that is drawn off-centre in its box back to the middle of the button. */
+  /** Moves a glyph that is drawn off-centre in its box back to the middle, or tints it. */
   iconClassName?: string;
 };
 
@@ -113,6 +115,9 @@ function ToolbarAction({
   icon,
   onClick,
   pressed,
+  expanded,
+  hasPopup,
+  buttonClassName,
   directional,
   iconClassName,
 }: ToolbarActionProps) {
@@ -121,16 +126,18 @@ function ToolbarAction({
       {(tooltipRef) => (
         <IconButton
           ref={tooltipRef}
-          className={css.MessageOptionsButton}
+          className={classNames(css.MessageToolbarButton, buttonClassName)}
           variant="SurfaceVariant"
           fill="None"
           aria-label={label}
           aria-pressed={pressed}
+          aria-expanded={expanded}
+          aria-haspopup={hasPopup}
           onClick={onClick}
         >
           <Icon
             src={icon}
-            size="100"
+            size="50"
             className={iconClassName}
             data-directional={directional || undefined}
           />
@@ -246,15 +253,7 @@ export function MessageCopyTextItem({
   const [failed, setFailed] = useState(false);
   const texts = useMemo(() => {
     if (loading) return undefined;
-    const source = getMessageCopyTextSource(content, originalContent ?? content, resolvedContent);
-    if (!source) return undefined;
-    const scan = scanToolMarkerLines(
-      source.body,
-      source.formattedBody,
-      source.plainBodyFallback,
-      toolRows
-    );
-    return getMessageCopyTexts(source, scan);
+    return resolveMessageCopyTexts(content, originalContent ?? content, resolvedContent, toolRows);
   }, [content, loading, originalContent, resolvedContent, toolRows]);
   const handleCopy = async (text: string | undefined) => {
     if (text === undefined) return;
@@ -993,9 +992,12 @@ export function Message({
     [mEvent, resolvedMessageContent]
   );
   // An agent reply's run details, and for a long reply the file with its whole text, which
-  // loads while the menu is open so that Copy Text copies all of it.
+  // loads while the menu is open (never on mere hover) so that Copy Text copies all of it.
   const { aiRunInfo, longTextSource, resolvedLongTextContent, longTextLoading } =
     useMessageControls(content, !!menuAnchor, mEvent);
+  const canCopyText = !!longTextSource || isCopyTextMessageContent(content);
+  // As the message is drawn (RenderMessageContent): only an agent's markers are rows.
+  const toolRows = isMindroomAgentUserIdForViewer(senderId, client.getUserId() ?? undefined);
   // The sender edits their own confirmed text messages, long texts included.
   const canEdit = !!onEditId && confirmed && canEditEvent(client, mEvent);
   const startEdit = () => onEditId?.(eventId);
@@ -1077,36 +1079,29 @@ export function Message({
       dismissMenu();
       controls?.openDetails();
     };
-    // The name on the left; the reply details button and the time on the right.
+    // Sender name and timestamp sit together at the start of the header row, freeing the end side
+    // for the hover toolbar pill.
     const header = (
       <Box
         className={css.SenderLine}
         data-message-sender-line=""
-        gap="300"
-        justifyContent="SpaceBetween"
+        gap="200"
+        justifyContent="Start"
         alignItems="Center"
-        grow="Yes"
       >
         <Username as="button" data-user-id={senderId} tone={nameTone} onClick={onUsernameClick}>
           <Text as="span" size="T400" truncate>
             <UsernameBold>{senderDisplayName}</UsernameBold>
           </Text>
         </Username>
-        <Box
-          className={controls ? aiRunDetailsTarget : undefined}
-          shrink="No"
-          alignItems="Center"
-          gap="100"
-        >
-          {controls && <AiRunInfoButton open={controls.open} onOpen={openAiRun} />}
+        <Box className={controls ? aiRunDetailsTarget : undefined} shrink="No" alignItems="Center">
           <Time
             ts={mEvent.getTs()}
             compact={compactLayout}
             timing={replyTiming}
             hour24Clock={hour24Clock}
             dateFormatString={dateFormatString}
-            // With a hovering pointer the time, whose unfolding moves the small button, opens
-            // the details too. A tap keeps unfolding it.
+            // With a hovering pointer the time opens the reply details. A tap keeps unfolding it.
             onPointerDown={(evt: PointerEvent<HTMLTimeElement>) => {
               timePointer.current = evt.pointerType;
             }}
@@ -1219,16 +1214,46 @@ export function Message({
         }
       />
     );
+    // A follow-up row from the same sender drops the name and time, but an agent reply keeps
+    // them: each reply is its own run, with its own time and details. A streaming reply has its
+    // timing before its run details.
+    const showHeader = !collapse || !!aiRunInfo || !!replyTiming;
+    const toolbarAnchorClass =
+      messageLayout === MessageLayout.Modern
+        ? !showHeader && css.MessageOptionsBaseCollapsed
+        : css.MessageOptionsBaseAbove;
     const options = (
       <div
         ref={toolbarRef}
-        className={css.MessageOptionsBase}
+        className={classNames(css.MessageOptionsBase, toolbarAnchorClass)}
         style={
           toolbarClearance === undefined ? undefined : { insetBlockStart: `${toolbarClearance}px` }
         }
       >
         <Menu role="none" variant="SurfaceVariant" className={css.MessageOptionsBar}>
           <Box className={css.MessageOptionsRow}>
+            {controls && (
+              <>
+                <ToolbarAction
+                  label={t('mindroomUi.messages.mindroomMessageControls.replyDetails')}
+                  icon={RunStatsIcon}
+                  expanded={controls.open}
+                  hasPopup="dialog"
+                  buttonClassName={css.MessageToolbarRunStatsButton}
+                  onClick={openAiRun}
+                />
+                <span aria-hidden="true" className={css.MessageToolbarSeparator} />
+              </>
+            )}
+            {canCopyText && (
+              <MessageToolbarCopyButton
+                content={content}
+                originalContent={mEvent.getContent<Record<string, unknown>>()}
+                longTextSource={longTextSource}
+                resolvedLongTextContent={resolvedLongTextContent}
+                toolRows={toolRows}
+              />
+            )}
             {canSendReaction && confirmed && onReactionToggle && (
               <ToolbarAction
                 label={t('mindroomUi.messages.mindroomMessage.addReaction')}
@@ -1279,10 +1304,17 @@ export function Message({
       </div>
     );
 
-    // A follow-up row from the same sender drops the name and time, but an agent reply keeps
-    // them: each reply is its own run, with its own time and details. A streaming reply has its
-    // timing before its run details.
-    const showHeader = !collapse || !!aiRunInfo || !!replyTiming;
+    const collapsedTime =
+      !showHeader && toolbarVisible ? (
+        <div className={css.CollapsedTime}>
+          <Time
+            ts={mEvent.getTs()}
+            compact
+            hour24Clock={hour24Clock}
+            dateFormatString={dateFormatString}
+          />
+        </div>
+      ) : undefined;
     const layout =
       messageLayout === MessageLayout.Compact ? (
         <CompactLayout before={header}>{body}</CompactLayout>
@@ -1295,7 +1327,7 @@ export function Message({
           {body}
         </BubbleLayout>
       ) : (
-        <ModernLayout before={showHeader ? renderAvatar(true) : undefined}>
+        <ModernLayout before={showHeader ? renderAvatar(true) : collapsedTime}>
           {showHeader && header}
           {body}
         </ModernLayout>
