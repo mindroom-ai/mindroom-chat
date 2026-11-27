@@ -123,6 +123,14 @@ describe('nativeSso', () => {
     expect(getAppPathFromNativeSsoUrl('mindroom://wrong/login/mindroom.chat')).toBeUndefined();
   });
 
+  it('rejects native callback urls containing backslashes or userinfo', () => {
+    expect(getAppPathFromNativeSsoUrl('mindroom://auth/\\evil.example/login')).toBeUndefined();
+    expect(getAppPathFromNativeSsoUrl('mindroom://auth/\\\\evil.example')).toBeUndefined();
+    expect(getAppPathFromNativeSsoUrl('mindroom:/auth/\\evil.example')).toBeUndefined();
+    expect(getAppPathFromNativeSsoUrl('mindroom://auth/login\\evil.example')).toBeUndefined();
+    expect(getAppPathFromNativeSsoUrl('mindroom://evil@auth/login/mindroom.chat')).toBeUndefined();
+  });
+
   it('detects native iOS platform', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
@@ -464,6 +472,7 @@ describe('nativeSso', () => {
     );
     expect(manifestSource).toContain('android:scheme="mindroom"');
     expect(manifestSource).toContain('android:host="auth"');
+    expect(manifestSource).toContain('android:pathPrefix="/login"');
     expect(manifestSource).not.toContain('android:host="cloudflare-access"');
     expect(stringsSource).toContain('<string name="custom_url_scheme">mindroom</string>');
   });

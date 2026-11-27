@@ -37,7 +37,7 @@ public class MindRoomCallServiceTest {
         assertEquals("Call in Team Room", MindRoomCallService.formatNotificationTitle("  Team\nRoom "));
         assertEquals(MindRoomCallService.DEFAULT_TITLE, MindRoomCallService.formatNotificationTitle(null));
         assertEquals(MindRoomCallService.DEFAULT_TITLE, MindRoomCallService.formatNotificationTitle("   "));
-        assertEquals(MindRoomCallService.DEFAULT_CONTENT_TEXT, MindRoomCallService.formatNotificationText());
+        assertEquals("Tap to open MindRoom", MindRoomCallService.formatNotificationText());
     }
 
     @Test

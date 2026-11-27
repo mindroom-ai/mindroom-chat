@@ -318,26 +318,39 @@ export const signInWithNativeApple = async ({
   routeLoginTokenRedirect(redirectUrl, body.loginToken);
 };
 
+const isSafeRelativeAppPath = (appPath: string): boolean => {
+  if (!appPath.startsWith('/') || appPath.startsWith('//') || appPath.includes('\\')) {
+    return false;
+  }
+  try {
+    return new URL(appPath, 'https://mindroom.invalid').origin === 'https://mindroom.invalid';
+  } catch {
+    return false;
+  }
+};
+
 export const getAppPathFromNativeSsoUrl = (incomingUrl: string): string | undefined => {
+  if (incomingUrl.split(/[?#]/, 1)[0]?.includes('\\')) return undefined;
   try {
     const parsed = new URL(incomingUrl);
 
-    if (parsed.protocol !== `${NATIVE_SSO_SCHEME}:`) return undefined;
+    if (parsed.protocol !== `${NATIVE_SSO_SCHEME}:` || parsed.username || parsed.password) {
+      return undefined;
+    }
+    if (parsed.pathname.includes('\\')) return undefined;
+
+    let path: string | undefined;
     if (parsed.host === NATIVE_SSO_HOST) {
-      const path = normalizePath(parsed.pathname || '/');
-      return `${path}${parsed.search}${parsed.hash}`;
+      path = normalizePath(parsed.pathname || '/');
+    } else if (!parsed.host) {
+      // Some iOS URL open paths arrive as `mindroom:/auth/...` (no host) instead
+      // of `mindroom://auth/...`. Accept both formats.
+      path = getPathFromHostlessNativeUrl(parsed.pathname);
     }
 
-    // Some iOS URL open paths arrive as `mindroom:/auth/...` (no host) instead
-    // of `mindroom://auth/...`. Accept both formats.
-    if (!parsed.host) {
-      const hostlessPath = getPathFromHostlessNativeUrl(parsed.pathname);
-      if (!hostlessPath) return undefined;
-
-      return `${hostlessPath}${parsed.search}${parsed.hash}`;
-    }
-
-    return undefined;
+    if (!path || !isSafeRelativeAppPath(path)) return undefined;
+    const result = `${path}${parsed.search}${parsed.hash}`;
+    return isSafeRelativeAppPath(result) ? result : undefined;
   } catch {
     return undefined;
   }

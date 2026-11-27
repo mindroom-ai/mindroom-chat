@@ -26,7 +26,7 @@ public class MindRoomNotificationChannelsTest {
 
         MindRoomNotificationChannels.ChannelSpec silentMessages = specs.get(1);
         assertEquals("mindroom_messages_silent", silentMessages.id);
-        assertEquals(MindRoomNotificationChannels.CHANNEL_MESSAGES_SILENT, silentMessages.id);
+        assertEquals(MindRoomNotificationChannels.MESSAGES_SILENT_CHANNEL_ID, silentMessages.id);
         assertEquals("Silent messages", silentMessages.name);
         assertEquals(NotificationManager.IMPORTANCE_LOW, silentMessages.importance);
         assertTrue(silentMessages.silent);

@@ -22,7 +22,7 @@ public class MindRoomCallService extends Service {
     static final int NOTIFICATION_ID = 4101;
     static final String DEFAULT_TITLE = "MindRoom call in progress";
     static final String CALL_TITLE_PREFIX = "Call in ";
-    static final String DEFAULT_CONTENT_TEXT = "Tap to return to the call";
+    static final String DEFAULT_CONTENT_TEXT = "Tap to open MindRoom";
     static final int MAX_ROOM_NAME_LENGTH = 80;
 
     @Override

@@ -19,7 +19,7 @@ import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
 import { desktopBridge, isAppWindowFocused, isDesktopApp } from '../lib/nativeShell';
-import { isNativeIOS } from '../native/nativeSso';
+import { isNativeApp } from '../native/nativeSso';
 import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
 import { CallMemberAvatar } from './CallTile';
@@ -96,15 +96,15 @@ function RingAlerts({
   const mx = useMatrixClient();
   const [sound] = useSetting(settingsAtom, 'isNotificationSounds');
   const [desktop] = useSetting(settingsAtom, 'showNotifications');
-  const [hiddenOnIOS, setHiddenOnIOS] = useState(
-    () => isNativeIOS() && typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  const [hiddenOnNative, setHiddenOnNative] = useState(
+    () => isNativeApp() && typeof document !== 'undefined' && document.visibilityState === 'hidden'
   );
   const latest = useRef({ line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') });
   latest.current = { line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') };
 
   useEffect(() => {
-    if (!isNativeIOS() || typeof document === 'undefined') return undefined;
-    const syncVisibility = () => setHiddenOnIOS(document.visibilityState === 'hidden');
+    if (!isNativeApp() || typeof document === 'undefined') return undefined;
+    const syncVisibility = () => setHiddenOnNative(document.visibilityState === 'hidden');
     syncVisibility();
     document.addEventListener('visibilitychange', syncVisibility);
     return () => document.removeEventListener('visibilitychange', syncVisibility);
@@ -113,12 +113,12 @@ function RingAlerts({
   const startedRingId = useRef<string>(undefined);
 
   useEffect(() => {
-    if (hiddenOnIOS || !sound || muted || Date.now() >= ring.expiresAt) return undefined;
+    if (hiddenOnNative || !sound || muted || Date.now() >= ring.expiresAt) return undefined;
     const isReplay = startedRingId.current === ring.eventId;
     if (isReplay && !isRingCallLive(mx, room, ring.expiresAt)) return undefined;
     startedRingId.current = ring.eventId;
     return startRingtone();
-  }, [sound, muted, hiddenOnIOS, mx, room, ring.eventId, ring.expiresAt]);
+  }, [sound, muted, hiddenOnNative, mx, room, ring.eventId, ring.expiresAt]);
 
   useEffect(() => {
     const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
