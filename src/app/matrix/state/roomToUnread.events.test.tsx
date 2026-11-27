@@ -244,4 +244,32 @@ describe('useBindRoomToUnreadAtom', () => {
     await afterCounts();
     expect(entry()).toBeUndefined();
   });
+
+  it('skips live edit and reaction events in handleTimeline', () => {
+    const { mx, room } = setUp();
+    room.getUnreadNotificationCount.mockClear();
+    const edit = new MatrixEvent({
+      event_id: '$edit',
+      room_id: room.roomId,
+      sender: '@writer:example.org',
+      type: 'm.room.message',
+      content: {
+        body: '* edited',
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: RelationType.Replace, event_id: '$target' },
+      },
+    });
+    const reaction = new MatrixEvent({
+      event_id: '$react',
+      room_id: room.roomId,
+      sender: '@writer:example.org',
+      type: 'm.reaction',
+      content: {
+        'm.relates_to': { rel_type: RelationType.Annotation, event_id: '$target', key: '👍' },
+      },
+    });
+    mx.emit(RoomEvent.Timeline, edit, room, false, false, { liveEvent: true });
+    mx.emit(RoomEvent.Timeline, reaction, room, false, false, { liveEvent: true });
+    expect(room.getUnreadNotificationCount).not.toHaveBeenCalled();
+  });
 });

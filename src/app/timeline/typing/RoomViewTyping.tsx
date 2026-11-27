@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
 import { RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
+import { usePauseAnimationWhenHidden } from '../../lib/hooks/usePauseWhenHidden';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomTypingMember } from './useRoomTypingMembers';
 import { IconTooltip } from '../../ui/IconTooltip';
@@ -289,8 +290,10 @@ const TYPING_KEYS = [
 
 /** Three dots that take turns rising, the usual sign that someone is writing. */
 function TypingDots() {
+  const ref = useRef<HTMLSpanElement>(null);
+  usePauseAnimationWhenHidden(ref);
   return (
-    <span className={css.TypingDots} aria-hidden>
+    <span ref={ref} className={css.TypingDots} aria-hidden>
       <span className={css.TypingDot} />
       <span className={css.TypingDot} />
       <span className={css.TypingDot} />

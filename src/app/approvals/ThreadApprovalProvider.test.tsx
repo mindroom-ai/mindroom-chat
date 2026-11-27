@@ -1063,4 +1063,34 @@ describe('thread approval provider rescans', () => {
     act(() => renderer.update(<Both view={false} />));
     expect(mocks.abort.mock.calls).toEqual([[room.roomId, '$thread', 'thread-approvals']]);
   });
+
+  it('ignores MatrixEventEvent.Replaced for unrelated rooms and ordinary messages', async () => {
+    vi.useFakeTimers();
+    try {
+      await mount();
+      const liveSpy = vi.spyOn(room, 'getLiveTimeline');
+      liveSpy.mockClear();
+
+      const plainInRoom = new MatrixEvent({
+        event_id: '$plain',
+        room_id: room.roomId,
+        sender: '@mindroom_router:example.org',
+        type: 'm.room.message',
+        content: { msgtype: 'm.text', body: 'streaming chunk' },
+      });
+      const approvalOtherRoom = new MatrixEvent({
+        ...event('$other-approval').event,
+        room_id: '!other:example.org',
+      });
+
+      act(() => {
+        mx.emit(MatrixEventEvent.Replaced, plainInRoom);
+        mx.emit(MatrixEventEvent.Replaced, approvalOtherRoom);
+        vi.runAllTimers();
+      });
+      expect(liveSpy).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

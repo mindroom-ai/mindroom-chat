@@ -11,7 +11,7 @@ import {
 } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
-import { buildActivityRows, type ActivityRowsResult } from './activityRows';
+import { buildActivityRows, type ActivityRow, type ActivityRowsResult } from './activityRows';
 import { readActivityInvites } from './activityInvites';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 
@@ -67,10 +67,43 @@ const useComputedActivityRows = (): ActivityRowsResult => {
   }, [index, inviteIds, mx, now, roomUnreads, showAutomations, userId]);
 };
 
+const sameActivityRow = (a: ActivityRow, b: ActivityRow): boolean => {
+  if (
+    a.type !== b.type ||
+    a.key !== b.key ||
+    a.kind !== b.kind ||
+    a.unread !== b.unread ||
+    a.ts !== b.ts
+  ) {
+    return false;
+  }
+  if (a.type === 'invite' && b.type === 'invite') {
+    return a.roomId === b.roomId && a.inviterId === b.inviterId;
+  }
+  return (
+    a.type === 'thread' &&
+    b.type === 'thread' &&
+    a.entry === b.entry &&
+    a.signals === b.signals &&
+    a.actorIds.length === b.actorIds.length &&
+    a.actorIds.every((id, index) => id === b.actorIds[index])
+  );
+};
+
+const sameActivityRows = (a: ActivityRowsResult, b: ActivityRowsResult): boolean =>
+  a.loading === b.loading &&
+  a.showAutomations === b.showAutomations &&
+  a.hiddenAutomations === b.hiddenAutomations &&
+  a.rows.length === b.rows.length &&
+  a.rows.every((row, index) => sameActivityRow(row, b.rows[index]!));
+
 /** Keeps Activity's rows current for the whole session; `ClientNonUIFeatures` mounts it once. */
 export function ActivityRowsFeature() {
   const rows = useComputedActivityRows();
   const setRows = useSetAtom(activityRowsAtom);
-  useEffect(() => setRows(rows), [rows, setRows]);
+  useEffect(
+    () => setRows((previous) => (sameActivityRows(previous, rows) ? previous : rows)),
+    [rows, setRows]
+  );
   return null;
 }

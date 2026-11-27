@@ -308,3 +308,14 @@ kbd[data-keys]::after {
 [role='alertdialog'][tabindex='-1']:focus {
   outline: none;
 }
+
+/* Pause infinite animations on off-screen, hidden-tab, or collapsed-pane elements without
+   changing keyframes or visual styling while visible. */
+[data-animation-paused='true'],
+[data-animation-paused='true'] *,
+[data-animation-paused='true']::before,
+[data-animation-paused='true']::after,
+[data-animation-paused='true'] *::before,
+[data-animation-paused='true'] *::after {
+  animation-play-state: paused !important;
+}

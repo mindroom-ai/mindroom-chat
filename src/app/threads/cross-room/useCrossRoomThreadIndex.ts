@@ -194,13 +194,11 @@ export const useCrossRoomThreadIndex = () => {
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const recentThreads = useAtomValue(useMemo(() => makeRecentThreadsAtom(userId ?? ''), [userId]));
   const store = useStore();
-  const snapshot = useAtomValue(crossRoomThreadIndexAtom);
   const setSnapshot = useSetAtom(crossRoomThreadIndexAtom);
   const recentThreadsRef = useRef(recentThreads);
   const sessionIdRef = useRef(activeSession?.sessionId);
   const userIdRef = useRef(userId);
   const joinedRoomIdsRef = useRef(joinedRoomIds);
-  const snapshotRef = useRef(snapshot);
   const roomDisposersRef = useRef(new Map<string, RoomListenerDisposer>());
   const controllerRef = useRef<CrossRoomThreadIndexController | undefined>(undefined);
 
@@ -208,12 +206,9 @@ export const useCrossRoomThreadIndex = () => {
   sessionIdRef.current = activeSession?.sessionId;
   userIdRef.current = userId;
   joinedRoomIdsRef.current = joinedRoomIds;
-  snapshotRef.current = snapshot;
 
   useLayoutEffect(() => {
-    const emptySnapshot = emptyCrossRoomThreadIndexSnapshot();
-    snapshotRef.current = emptySnapshot;
-    setSnapshot(emptySnapshot);
+    setSnapshot(emptyCrossRoomThreadIndexSnapshot());
   }, [activeSession?.sessionId, mx, setSnapshot, userId]);
 
   useEffect(() => {
@@ -348,7 +343,7 @@ export const useCrossRoomThreadIndex = () => {
     };
 
     const enqueueTrackedEntriesContainingEventId = (room: Room, eventId: string | undefined) => {
-      getCrossRoomThreadRootsForEvent(snapshotRef.current, room.roomId, eventId).forEach(
+      getCrossRoomThreadRootsForEvent(store.get(crossRoomThreadIndexAtom), room.roomId, eventId).forEach(
         (threadRootId) => enqueueThread(room.roomId, threadRootId)
       );
     };
@@ -464,7 +459,7 @@ export const useCrossRoomThreadIndex = () => {
             : undefined;
         if (editedThreadRootId) {
           if (
-            snapshotRef.current.entries.has(
+            store.get(crossRoomThreadIndexAtom).entries.has(
               getCrossRoomThreadIndexKey(room.roomId, editedThreadRootId)
             )
           ) {
@@ -600,7 +595,7 @@ export const useCrossRoomThreadIndex = () => {
         .filter(isJoinedTimelineRoom)
         .filter((room) => !roomDisposers.has(room.roomId));
       addedRooms.forEach(addRoomListeners);
-      const shouldScanAddedRoomsImmediately = snapshotRef.current.bootstrapped;
+      const shouldScanAddedRoomsImmediately = store.get(crossRoomThreadIndexAtom).bootstrapped;
       if (shouldScanAddedRoomsImmediately) {
         addedRooms.forEach(scanRoom);
       } else {
@@ -630,7 +625,7 @@ export const useCrossRoomThreadIndex = () => {
     const handlePinChange = (room: Room) => {
       if (mx.getRoom(room.roomId) !== room || !roomDisposers.has(room.roomId)) return;
       enqueueRoomThreads(room);
-      snapshotRef.current.entries.forEach((entry) => {
+      store.get(crossRoomThreadIndexAtom).entries.forEach((entry) => {
         if (entry.roomId === room.roomId) enqueueThread(room.roomId, entry.threadRootId);
       });
     };
@@ -642,7 +637,7 @@ export const useCrossRoomThreadIndex = () => {
       lastBackgroundJobs.set(room, states);
       // Lazy member state can arrive unchanged with every sync. Only rebuild roots whose
       // workflow flags actually changed, including jobs that disappeared from state.
-      snapshotRef.current.entries.forEach((entry) => {
+      store.get(crossRoomThreadIndexAtom).entries.forEach((entry) => {
         if (entry.roomId !== room.roomId) return;
         const next = states.get(entry.threadRootId);
         const previous = entry.threadRecord.status;
@@ -689,7 +684,7 @@ export const useCrossRoomThreadIndex = () => {
 
       if (schedulesChanged) {
         const schedules = getRoomThreadScheduledStatusMap(room);
-        snapshotRef.current.entries.forEach((entry) => {
+        store.get(crossRoomThreadIndexAtom).entries.forEach((entry) => {
           if (entry.roomId !== room.roomId) return;
           const next = getThreadScheduledStatus(schedules, entry.threadRootId);
           const previous = entry.threadRecord.status;
@@ -726,7 +721,7 @@ export const useCrossRoomThreadIndex = () => {
       const editedThreadRootId = getReplaceRelationTargetId(event);
       if (
         editedThreadRootId &&
-        snapshotRef.current.entries.has(getCrossRoomThreadIndexKey(room.roomId, editedThreadRootId))
+        store.get(crossRoomThreadIndexAtom).entries.has(getCrossRoomThreadIndexKey(room.roomId, editedThreadRootId))
       ) {
         enqueueThread(room.roomId, editedThreadRootId);
       } else if (editedThreadRootId) {
@@ -761,5 +756,5 @@ export const useCrossRoomThreadIndex = () => {
     controllerRef.current?.syncJoinedRooms(joinedRoomIds);
   }, [joinedRoomIds]);
 
-  return snapshot;
+  return store.get(crossRoomThreadIndexAtom);
 };

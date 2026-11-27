@@ -5,6 +5,7 @@ import { Icon, Icons, Text, color } from 'folds';
 import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk';
 import { RelationsEvent } from 'matrix-js-sdk/lib/models/relations';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
+import { usePauseAnimationWhenHidden } from '../../lib/hooks/usePauseWhenHidden';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { getEventReactions, getMemberDisplayName } from '../../matrix/room';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
@@ -203,6 +204,7 @@ export function QuestionCard({
     !!room &&
     isConfirmedMatrixEventId(eventId) &&
     !isMindroomAgentUserIdForViewer(viewerId, viewerId);
+  usePauseAnimationWhenHidden(cardRef, !answer && canAnswer);
   const answererName =
     answer && answer.senderId !== viewerId
       ? ((room && getMemberDisplayName(room, answer.senderId)) ?? answer.senderId)

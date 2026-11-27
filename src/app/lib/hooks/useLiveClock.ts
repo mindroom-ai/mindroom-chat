@@ -8,6 +8,44 @@ type RelativeTimeClock = {
 };
 
 const relativeTimeClocks = new Map<number, RelativeTimeClock>();
+let listeningVisibility = false;
+
+const isHidden = (): boolean => typeof document !== 'undefined' && document.hidden === true;
+
+const startClock = (intervalMs: number, clock: RelativeTimeClock) => {
+  if (clock.intervalId !== undefined || isHidden()) return;
+  clock.intervalId = window.setInterval(() => {
+    clock.listeners.forEach((currentListener) => currentListener());
+  }, intervalMs);
+};
+
+const stopClock = (clock: RelativeTimeClock) => {
+  if (clock.intervalId === undefined) return;
+  window.clearInterval(clock.intervalId);
+  clock.intervalId = undefined;
+};
+
+const onVisibilityChange = () => {
+  if (isHidden()) {
+    relativeTimeClocks.forEach(stopClock);
+    return;
+  }
+  relativeTimeClocks.forEach((clock, intervalMs) => {
+    startClock(intervalMs, clock);
+    clock.listeners.forEach((currentListener) => currentListener());
+  });
+};
+
+const syncVisibilityListener = () => {
+  if (typeof document === 'undefined') return;
+  if (relativeTimeClocks.size > 0 && !listeningVisibility) {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    listeningVisibility = true;
+  } else if (relativeTimeClocks.size === 0 && listeningVisibility) {
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    listeningVisibility = false;
+  }
+};
 
 const getRelativeTimeClock = (intervalMs: number): RelativeTimeClock => {
   const existingClock = relativeTimeClocks.get(intervalMs);
@@ -22,7 +60,8 @@ const getRelativeTimeClock = (intervalMs: number): RelativeTimeClock => {
 };
 
 /**
- * Calls `listener` every `intervalMs` on one timer that every listener of that interval shares.
+ * Calls `listener` every `intervalMs` on one timer that every listener of that interval shares,
+ * pausing while `document.hidden` is true and syncing once when returning to visible.
  * Returns a function that unsubscribes it.
  */
 export const subscribeRelativeTimeClock = (
@@ -31,12 +70,8 @@ export const subscribeRelativeTimeClock = (
 ): (() => void) => {
   const clock = getRelativeTimeClock(intervalMs);
   clock.listeners.add(listener);
-
-  if (clock.intervalId === undefined) {
-    clock.intervalId = window.setInterval(() => {
-      clock.listeners.forEach((currentListener) => currentListener());
-    }, intervalMs);
-  }
+  syncVisibilityListener();
+  startClock(intervalMs, clock);
 
   return () => {
     const currentClock = relativeTimeClocks.get(intervalMs);
@@ -45,8 +80,9 @@ export const subscribeRelativeTimeClock = (
     currentClock.listeners.delete(listener);
     if (currentClock.listeners.size > 0) return;
 
-    window.clearInterval(currentClock.intervalId);
+    stopClock(currentClock);
     relativeTimeClocks.delete(intervalMs);
+    syncVisibilityListener();
   };
 };
 

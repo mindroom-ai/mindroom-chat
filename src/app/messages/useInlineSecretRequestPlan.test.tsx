@@ -128,4 +128,15 @@ describe('useInlineSecretRequestPlan', () => {
     expect(allowed()).toEqual(['$card']);
     expect(plan().drawn).toBe(drawn);
   });
+
+  it('ignores MatrixEventEvent.Replaced on ordinary streaming replies', () => {
+    const reply = replyEvent();
+    render([reply]);
+    const rendersBefore = plans.length;
+
+    act(() => {
+      client.emit(MatrixEventEvent.Replaced, reply);
+    });
+    expect(plans.length).toBe(rendersBefore);
+  });
 });

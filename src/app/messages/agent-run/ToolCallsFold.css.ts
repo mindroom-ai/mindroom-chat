@@ -66,6 +66,7 @@ export const CogIcon = style({
   position: 'relative',
   display: 'flex',
   flexShrink: 0,
+  contain: 'layout style',
   fontSize: toRem(14),
   '@media': {
     '(prefers-reduced-motion: no-preference)': {

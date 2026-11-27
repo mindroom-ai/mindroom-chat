@@ -3,6 +3,7 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../../config/useClientConfig';
+import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
 import { ThinkingPlaceholder } from './ThinkingPlaceholder';
 import thinkingMark from './thinking-mark.svg?raw';
 import {
@@ -222,6 +223,43 @@ describe('ThinkingPlaceholder', () => {
     );
 
     renderer.unmount();
+  });
+
+  it('pauses elapsed and rotation timers while collapsed and resyncs immediately on resume', () => {
+    vi.useFakeTimers({ now: 10_000 });
+    const renderCollapsed = (collapsed: boolean) =>
+      React.createElement(
+        ClientConfigProvider,
+        { value: { mindroom: { thinkingPlaceholderMessages: ['Working', 'Still working'] } } },
+        React.createElement(
+          PaneCollapsedContext.Provider,
+          { value: collapsed },
+          React.createElement(ThinkingPlaceholder, { startedAt: 10_000 })
+        )
+      );
+
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(renderCollapsed(true));
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
+
+    act(() => {
+      vi.advanceTimersByTime(5_400);
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (0.0s)', 'Working (0.0s)']);
+
+    act(() => {
+      renderer.update(renderCollapsed(false));
+    });
+    expect(labelTexts(renderer)).toEqual(['Working (5.4s)', 'Working (5.4s)']);
+
+    act(() => {
+      renderer.unmount();
+    });
+    expect(vi.getTimerCount()).toBe(0);
+    vi.useRealTimers();
   });
 });
 

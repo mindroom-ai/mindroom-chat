@@ -15,6 +15,10 @@ import { useAnchoredCard } from '../../ui/useAnchoredCard';
 import { timeHourMinuteSecond } from '../../lib/time';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { useForceUpdate } from '../../lib/hooks/useForceUpdate';
+import {
+  useActiveWhenVisible,
+  usePauseAnimationWhenHidden,
+} from '../../lib/hooks/usePauseWhenHidden';
 import { MAX_TIME_MS, type ReplyCompaction } from '../../matrix/protocol/compactions';
 import {
   formatSeconds,
@@ -254,9 +258,13 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   const { open, triggerRef, cardRef, show, toggle, pin, hover, onFocusLeave } =
     useAnchoredCard(HOVER_CLOSE_DELAY_MS);
   const cardId = useId();
+  const seamRef = useRef<HTMLDivElement>(null);
   const state = seamState(compaction, interrupted);
   const place = seamPlace(compaction);
-  const seconds = useElapsedSeconds(compaction.startedAt, state === 'running');
+  const running = state === 'running';
+  usePauseAnimationWhenHidden(seamRef, running);
+  const ticking = useActiveWhenVisible(seamRef, running);
+  const seconds = useElapsedSeconds(compaction.startedAt, ticking);
   // The running clock, on the row and in the card's head.
   const elapsed =
     state === 'running' && seconds !== undefined ? t(`${KEY}.elapsed`, { n: seconds }) : undefined;
@@ -289,7 +297,7 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   return (
     // Keeps the interface's direction in a reply that reads the other way (index.css), as the tool
     // rows do: in an Arabic reply an English row still reads `367k → 6k tokens`.
-    <div className={css.Seam} data-compaction-seam data-state={state}>
+    <div ref={seamRef} className={css.Seam} data-compaction-seam data-state={state}>
       <button
         ref={triggerRef}
         type="button"

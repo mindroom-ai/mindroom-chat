@@ -344,23 +344,47 @@ it('skips the arrive animation when switching rooms or threads into active typin
 });
 
 it('tracks streaming reply visibility with scoped IntersectionObserver without scroll listeners or polling', async () => {
-  let notifyIntersection: IntersectionObserverCallback | undefined;
-  const observed = new Set<Element>();
-  const observe = vi.fn((el: Element) => observed.add(el));
-  const unobserve = vi.fn((el: Element) => observed.delete(el));
-  const disconnect = vi.fn(() => observed.clear());
+  const callbacksByTarget = new Map<Element, Set<IntersectionObserverCallback>>();
+  const observe = vi.fn();
+  const unobserve = vi.fn();
+  const disconnect = vi.fn();
+  const notifyTarget = (target: Element, isIntersecting: boolean) => {
+    callbacksByTarget.get(target)?.forEach((callback) =>
+      callback(
+        [{ target, isIntersecting } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      )
+    );
+  };
   vi.stubGlobal(
     'IntersectionObserver',
     class {
+      private callback: IntersectionObserverCallback;
+      private targets = new Set<Element>();
+
       constructor(callback: IntersectionObserverCallback) {
-        notifyIntersection = callback;
+        this.callback = callback;
       }
 
-      observe = observe;
+      observe = (el: Element) => {
+        observe(el);
+        this.targets.add(el);
+        const set = callbacksByTarget.get(el) ?? new Set();
+        set.add(this.callback);
+        callbacksByTarget.set(el, set);
+      };
 
-      unobserve = unobserve;
+      unobserve = (el: Element) => {
+        unobserve(el);
+        this.targets.delete(el);
+        callbacksByTarget.get(el)?.delete(this.callback);
+      };
 
-      disconnect = disconnect;
+      disconnect = () => {
+        disconnect();
+        this.targets.forEach((el) => callbacksByTarget.get(el)?.delete(this.callback));
+        this.targets.clear();
+      };
     }
   );
   const addDocListener = vi.spyOn(document, 'addEventListener');
@@ -407,21 +431,11 @@ it('tracks streaming reply visibility with scoped IntersectionObserver without s
     expect(container.querySelector('[role="status"]')).toBeNull();
 
     // Scroll off-screen via IntersectionObserver: typing strip appears without polling.
-    act(() => {
-      notifyIntersection?.(
-        [{ target: row, isIntersecting: false } as unknown as IntersectionObserverEntry],
-        {} as IntersectionObserver
-      );
-    });
+    act(() => notifyTarget(row, false));
     expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
 
     // Back in view: typing strip hides again.
-    act(() => {
-      notifyIntersection?.(
-        [{ target: row, isIntersecting: true } as unknown as IntersectionObserverEntry],
-        {} as IntersectionObserver
-      );
-    });
+    act(() => notifyTarget(row, true));
     expect(container.querySelector('[role="status"]')).toBeNull();
     area.remove();
   } finally {

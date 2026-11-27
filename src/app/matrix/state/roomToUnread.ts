@@ -20,7 +20,7 @@ import {
 } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { RoomToUnread, Unread, UnreadInfo } from '../types/room';
-import { getUnreadInfo, isMainUnreadCountRead, roomHaveUnread } from '../room';
+import { getUnreadInfo, isMainUnreadCountRead, reactionOrEditEvent, roomHaveUnread } from '../room';
 import { isRecord } from '../../lib/isRecord';
 import { chatRoomParentsAtom, roomToParentsAtom } from './roomToParents';
 import { matchesEnum } from '../../lib/matchesEnum';
@@ -255,13 +255,13 @@ export const useBindRoomToUnreadAtom = (
     initialRooms.forEach(watchCounts);
 
     const handleTimeline = (
-      _event: MatrixEvent,
+      event: MatrixEvent,
       room: Room | undefined,
       toStartOfTimeline: boolean | undefined,
       _removed: boolean,
       data: { liveEvent?: boolean }
     ) => {
-      if (!room || toStartOfTimeline || !data.liveEvent) return;
+      if (!room || toStartOfTimeline || !data.liveEvent || reactionOrEditEvent(event)) return;
       update(room);
     };
     const handleReceipt = (event: MatrixEvent, room: Room) => {

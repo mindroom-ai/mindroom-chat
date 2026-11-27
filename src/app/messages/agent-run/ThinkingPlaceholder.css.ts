@@ -110,6 +110,7 @@ export const Indicator = style({
   height: '2em',
   perspective: '7em',
   isolation: 'isolate',
+  contain: 'layout style',
   // Keep the decorative image layers out of image drag, callout and context menus.
   pointerEvents: 'none',
 });
