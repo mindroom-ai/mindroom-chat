@@ -13,7 +13,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Direction, type EventTimelineSet, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { createEngineGapTracker, type GapFillJob } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
-import { loadRoomCacheGap, revokeCacheStoreWrites, type CachedRoomEventPage } from '../../cache/db';
+import {
+  hasUnsavedRoomCacheGap,
+  loadRoomCacheGap,
+  revokeCacheStoreWrites,
+  type CachedRoomEventPage,
+} from '../../cache/db';
 
 const makeRoom = ({
   roomId,
@@ -180,25 +185,31 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
       getRooms: () => [joinedA, joinedB, leftC, invitedD],
     } as unknown as MatrixClient;
 
+    const loadRoomDiscontinuities = vi.fn().mockResolvedValue(
+      new Map([
+        [
+          '!join-a',
+          {
+            markedAt: 1000,
+            prevBatch: 'ta',
+            nextToken: 'ta-checkpoint',
+            generation: 'gap-a',
+          },
+        ],
+        ['!left-c', { markedAt: 1500, prevBatch: 'tc', generation: 'gap-c' }],
+      ])
+    );
     const tracker = createEngineGapTracker({
       mx,
       sessionId: 'session',
       enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
-      loadDiscontinuity: async (_sessionId, roomId) => {
-        if (roomId === '!join-a') {
-          return {
-            markedAt: 1000,
-            prevBatch: 'ta',
-            nextToken: 'ta-checkpoint',
-            generation: 'gap-a',
-          };
-        }
-        return undefined;
-      },
+      loadRoomDiscontinuities,
     });
 
     await tracker.handleSyncPrepared();
+    expect(loadRoomDiscontinuities).toHaveBeenCalledTimes(1);
+    expect(loadRoomDiscontinuities).toHaveBeenCalledWith('session', ['!join-a', '!join-b']);
 
     expect(enqueued).toEqual([
       {
@@ -222,10 +233,8 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
       enqueueGapFill: (job) => enqueued.push(job),
       markDiscontinuity,
       loadCachedTail,
-      loadDiscontinuity: async () => ({
-        markedAt: 2000,
-        prevBatch: 'old-batch',
-      }),
+      loadRoomDiscontinuities: async () =>
+        new Map([['!a', { markedAt: 2000, prevBatch: 'old-batch' }]]),
       now: () => 3000,
     });
 
@@ -476,5 +485,93 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
       },
     ]);
     tracker.stop();
+  });
+
+  it('serializes multi-room resets in FIFO order without stalling other rooms on retry backoff', async () => {
+    vi.useFakeTimers();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const enqueued: GapFillJob[] = [];
+    const tailOrder: string[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const serialLoadCachedTail = vi.fn(
+      async (_sessionId: string, roomId: string): Promise<CachedRoomEventPage> => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        tailOrder.push(roomId);
+        await Promise.resolve();
+        inFlight -= 1;
+        return {
+          events: [{ event_id: `$tail-${roomId}`, origin_server_ts: 1 }],
+          hasMoreBefore: false,
+        };
+      }
+    );
+    markDiscontinuity
+      .mockRejectedValueOnce(new Error('transient idb failure'))
+      .mockImplementation(defaultMarkDiscontinuity);
+
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'serial-session',
+      enqueueGapFill: (job) => enqueued.push(job),
+      markDiscontinuity,
+      loadCachedTail: serialLoadCachedTail,
+      now: () => 1000,
+    });
+
+    const r1 = makeRoom({ roomId: '!r1', paginationToken: 'b1' });
+    const r2 = makeRoom({ roomId: '!r2', paginationToken: 'b2' });
+    const r3 = makeRoom({ roomId: '!r3', paginationToken: 'b3' });
+    tracker.handleTimelineReset(r1, r1.getUnfilteredTimelineSet());
+    tracker.handleTimelineReset(r2, r2.getUnfilteredTimelineSet());
+    tracker.handleTimelineReset(r3, r3.getUnfilteredTimelineSet());
+
+    // Only !r1 started synchronously; !r2 and !r3 wait in the single-flight FIFO queue.
+    expect(tailOrder).toEqual(['!r1']);
+    await vi.waitFor(() => expect(enqueued.map((job) => job.roomId)).toEqual(['!r2', '!r3']));
+
+    expect(maxInFlight).toBe(1);
+    expect(tailOrder).toEqual(['!r1', '!r2', '!r3']);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+
+    // !r1 retries on backoff without re-reading loadCachedTail.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(enqueued.map((job) => job.roomId)).toEqual(['!r2', '!r3', '!r1']);
+    expect(tailOrder).toEqual(['!r1', '!r2', '!r3']);
+    tracker.stop();
+  });
+
+  it('stops retrying on VersionError while keeping the unsaved gap hold and invoking onVersionError', async () => {
+    vi.useFakeTimers();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const enqueued: GapFillJob[] = [];
+    const onVersionError = vi.fn();
+    markDiscontinuity.mockRejectedValue(new DOMException('newer schema', 'VersionError'));
+
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'version-error-session',
+      enqueueGapFill: (job) => enqueued.push(job),
+      markDiscontinuity,
+      loadCachedTail,
+      onVersionError,
+      now: () => 1000,
+    });
+
+    const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
+
+    await vi.waitFor(() => expect(onVersionError).toHaveBeenCalledTimes(1));
+    expect(hasUnsavedRoomCacheGap('version-error-session', '!a')).toBe(true);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(markDiscontinuity).toHaveBeenCalledTimes(1);
+    expect(onVersionError).toHaveBeenCalledTimes(1);
+    expect(enqueued).toEqual([]);
+
+    tracker.stop();
+    expect(hasUnsavedRoomCacheGap('version-error-session', '!a')).toBe(false);
   });
 });

@@ -106,6 +106,7 @@ describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
         path.resolve(APP_ROOT, 'event-store/engine', 'gapFillExecutor.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'deepHistoryJob.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'syncEngine.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'liveWriteQueue.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'roomOffline.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'engineWriteThrough.ts'),
         path.resolve(APP_ROOT, 'event-store/engine', 'enginePersistFacade.ts'),

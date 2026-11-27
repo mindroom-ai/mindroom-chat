@@ -151,22 +151,23 @@ export const createRoomOfflineController = ({
     listeners.get(roomId)?.forEach((notify) => notify());
   };
   const eligible = (roomId: string) => {
-    const intent = state(roomId);
+    const intent = rooms.get(roomId);
     return (
-      !intent.canceled &&
-      (intent.explicit || focused === roomId || getPrefetchConfig().scope === 'all-rooms')
+      !intent?.canceled &&
+      (intent?.explicit === true || focused === roomId || getPrefetchConfig().scope === 'all-rooms')
     );
   };
   const pauseReason = (roomId: string, checkAllowance = true): OfflineRoomStatus | undefined => {
-    const intent = state(roomId);
+    const intent = rooms.get(roomId);
     if (!started || !eligible(roomId)) return 'idle';
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return 'hidden';
     if (!connection.getSnapshot().connected) return 'offline';
     if (!isCacheWritable()) return 'read-only';
     if (
       checkAllowance &&
-      !intent.explicit &&
-      intent.used >= (connection.getSnapshot().unmetered ? CURRENT_ROOM_DEEP_HISTORY_TARGET : 200)
+      !intent?.explicit &&
+      (intent?.used ?? 0) >=
+        (connection.getSnapshot().unmetered ? CURRENT_ROOM_DEEP_HISTORY_TARGET : 200)
     )
       return 'limited';
     return undefined;
@@ -229,6 +230,29 @@ export const createRoomOfflineController = ({
         publish(roomId, { loaded: true, storageAvailable: false, status: 'unavailable' });
     }
   };
+  // Automatic saving keeps message bodies only; media and files of the open room load as the
+  // timeline shows them, and an explicit download saves them all.
+  const selectEligibleAttachmentEvents = (roomId: string, events: MatrixEvent[]): MatrixEvent[] => {
+    if (!events.length) return [];
+    const intent = rooms.get(roomId);
+    const explicit = intent?.explicit === true;
+    const includeAllMedia = intent?.includeAllMedia === true;
+    const owners = collectEventAttachments(events);
+    const essential = new Set(
+      owners
+        .filter((owner) => owner.attachments.some((attachment) => attachment.essential))
+        .map((owner) => owner.eventId)
+    );
+    return events
+      .filter((event) => {
+        const owner = owners.find((item) => item.eventId === event.getId());
+        return owner?.attachments.some(
+          (attachment) =>
+            attachment.essential || (explicit && (attachment.autoDownload || includeAllMedia))
+        );
+      })
+      .sort((a, b) => Number(essential.has(b.getId()!)) - Number(essential.has(a.getId()!)));
+  };
   const bodyBatch = async (
     roomId: string,
     events: MatrixEvent[],
@@ -238,25 +262,7 @@ export const createRoomOfflineController = ({
     const paused = () => !!pauseReason(roomId, false);
     if (!events.length || paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
     let admitted = true;
-    const owners = collectEventAttachments(events);
-    const essential = new Set(
-      owners
-        .filter((owner) => owner.attachments.some((attachment) => attachment.essential))
-        .map((owner) => owner.eventId)
-    );
-    // Automatic saving keeps message bodies only; media and files of the open room load as the
-    // timeline shows them, and an explicit download saves them all.
-    const essentialOnly = () => !state(roomId).explicit;
-    const ordered = events
-      .filter((event) => {
-        const owner = owners.find((item) => item.eventId === event.getId());
-        return owner?.attachments.some(
-          (attachment) =>
-            attachment.essential ||
-            (!essentialOnly() && (attachment.autoDownload || state(roomId).includeAllMedia))
-        );
-      })
-      .sort((a, b) => Number(essential.has(b.getId()!)) - Number(essential.has(a.getId()!)));
+    const ordered = selectEligibleAttachmentEvents(roomId, events);
     if (!ordered.length) return;
     for (const event of ordered) {
       if (paused() || !isCacheStoreWriteLeaseCurrent(lease)) return;
@@ -275,7 +281,7 @@ export const createRoomOfflineController = ({
               signal,
               writeLease: lease,
               includeAllMedia: state(roomId).includeAllMedia,
-              essentialOnly: essentialOnly(),
+              essentialOnly: !state(roomId).explicit,
               canDownload: async () => {
                 admitted = await canSavePage(roomId, lease);
                 return admitted && !paused() && isCacheStoreWriteLeaseCurrent(lease);
@@ -286,12 +292,7 @@ export const createRoomOfflineController = ({
         .catch((error: unknown) => {
           if (!live || !(error instanceof Error) || error.name !== 'AbortError') throw error;
         });
-      if (
-        !admitted ||
-        (owners.some((owner) => owner.eventId === event.getId() && owner.attachments.length) &&
-          !(await canSavePage(roomId, lease)))
-      )
-        return false;
+      if (!admitted || !(await canSavePage(roomId, lease))) return false;
     }
     return true;
   };
@@ -576,12 +577,20 @@ export const createRoomOfflineController = ({
       lease = captureCacheStoreWriteLease(sessionId, roomId)
     ): Promise<void> => {
       try {
+        if (!started || !isCacheStoreWriteLeaseCurrent(lease) || rooms.get(roomId)?.canceled)
+          return;
+        if (
+          !listeners.has(roomId) &&
+          (pauseReason(roomId, false) ||
+            selectEligibleAttachmentEvents(roomId, events).length === 0)
+        )
+          return;
         const progress = await readRoomOfflineProgress(sessionId, roomId);
         if (
           !progress.opened ||
           !started ||
           !isCacheStoreWriteLeaseCurrent(lease) ||
-          state(roomId).canceled
+          rooms.get(roomId)?.canceled
         )
           return;
         await bodyBatch(roomId, events, lease, true);

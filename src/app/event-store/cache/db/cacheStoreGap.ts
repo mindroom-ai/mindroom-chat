@@ -49,6 +49,10 @@ export const holdUnsavedRoomCacheGap = (sessionId: string, roomId: string): (() 
   };
 };
 
+/** Whether the room currently has an unsaved limited-sync gap waiting for its durable marker. */
+export const hasUnsavedRoomCacheGap = (sessionId: string, roomId: string): boolean =>
+  unsavedGaps.has(gapKey(sessionId, roomId));
+
 /**
  * Resolves once every hole of the room seen so far has its durable marker. A room event saved
  * before that could outlive a page that closes before the marker is saved, and the next visit

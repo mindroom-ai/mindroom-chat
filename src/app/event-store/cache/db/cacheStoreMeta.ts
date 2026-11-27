@@ -89,6 +89,39 @@ export const readMetaRecord = async (
   });
 };
 
+/**
+ * Read the meta rows for `(roomId, scope)` across `roomIds` in one `readonly`
+ * transaction. Throws `CacheStoreMetaUnavailableError` when IndexedDB is
+ * unavailable and rejects on transaction failure.
+ */
+export const readMetaRecords = async (
+  sessionId: string,
+  roomIds: readonly string[],
+  scope: string
+): Promise<Map<string, CachedMetaRecord>> => {
+  const uniqueRoomIds = [...new Set(roomIds)];
+  if (uniqueRoomIds.length === 0) return new Map();
+  const db = await openCacheStore(sessionId);
+  if (!db) throw new CacheStoreMetaUnavailableError();
+
+  return new Promise<Map<string, CachedMetaRecord>>((resolve, reject) => {
+    const records = new Map<string, CachedMetaRecord>();
+    const transaction = db.transaction(META_STORE, 'readonly');
+    const store = transaction.objectStore(META_STORE);
+    for (const roomId of uniqueRoomIds) {
+      const request = store.get(buildMetaKey(roomId, scope));
+      request.onsuccess = () => {
+        const record = request.result as CachedMetaRecord | undefined;
+        if (record) records.set(roomId, record);
+      };
+      request.onerror = () => reject(request.error);
+    }
+    transaction.oncomplete = () => resolve(records);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+};
+
 // Ordinary room/thread writers rebuild their metadata. Keep durable offline
 // progress in its own scope, removed by the existing whole-room clear.
 const OFFLINE_SCOPE = '__offline';

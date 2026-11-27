@@ -15,7 +15,7 @@
  * version does not change and older readers ignore it.
  */
 
-import { readMetaRecord, updateMetaRecord } from './cacheStoreMeta';
+import { readMetaRecord, readMetaRecords, updateMetaRecord } from './cacheStoreMeta';
 import { buildMetaKey, ROOM_SCOPE, type CachedMetaRecord } from './cacheStoreSchema';
 
 export type TailDiscontinuityMarker = NonNullable<CachedMetaRecord['tailDiscontinuity']>;
@@ -129,4 +129,23 @@ export const loadRoomTailDiscontinuity = async (
 ): Promise<TailDiscontinuityMarker | undefined> => {
   const existing = await readMetaRecord(sessionId, roomId, ROOM_SCOPE);
   return existing?.tailDiscontinuity;
+};
+
+/**
+ * Read room tail-discontinuity markers for `roomIds` in one `readonly` meta
+ * transaction. Rejects with `CacheStoreMetaUnavailableError` when IndexedDB is
+ * unavailable.
+ */
+export const loadRoomTailDiscontinuities = async (
+  sessionId: string,
+  roomIds: readonly string[]
+): Promise<Map<string, TailDiscontinuityMarker>> => {
+  const records = await readMetaRecords(sessionId, roomIds, ROOM_SCOPE);
+  const markers = new Map<string, TailDiscontinuityMarker>();
+  for (const [roomId, record] of records) {
+    if (record.tailDiscontinuity) {
+      markers.set(roomId, record.tailDiscontinuity);
+    }
+  }
+  return markers;
 };

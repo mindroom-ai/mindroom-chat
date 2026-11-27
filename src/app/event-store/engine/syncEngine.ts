@@ -51,11 +51,8 @@ import { createGapFillExecutor } from './gapFillExecutor';
 import { DEFAULT_PREFETCH_SCOPE, type PrefetchConfig } from './prefetchPolicy';
 import type { EngineLiveEventMeta, SyncEngine } from './types';
 import { trackPendingThreadEvent } from '../cache/pendingThreadEvents';
-import {
-  persistRoomChunkWithPreferLive,
-  rememberEventCacheWriteLease,
-  canPersistDecryptedEvent,
-} from '../cache/eventRepository';
+import { rememberEventCacheWriteLease, canPersistDecryptedEvent } from '../cache/eventRepository';
+import { createLiveWriteQueue } from './liveWriteQueue';
 import { createRoomOfflineController } from './roomOffline';
 import { registerEncryptedRoomCheck } from '../cache/db/cacheStoreEncryptedRooms';
 import type { OfflineConnection } from './offlineConnection';
@@ -163,27 +160,6 @@ export const createSyncEngine = ({
     onPolicyChange: () => gapFillExecutor.recheckDeferred(),
   });
 
-  const effectiveWriteThrough =
-    writeThrough ??
-    createEngineWriteThrough({
-      sessionId,
-      persist: (room, events, roomTailLoaded, threadId) => {
-        const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
-        void persistRoomChunkWithPreferLive({
-          mx,
-          sessionId,
-          room,
-          chunk: events.map((event) => event.event),
-          mappedEvents: events,
-          roomTailLoaded: roomTailLoaded ?? false,
-          threadId,
-          writeLease: lease,
-        })
-          .then((saved) => saved && offline.observe(saved.events, room.roomId, lease))
-          .catch(() => undefined);
-      },
-    });
-
   // ISSUE-207 P4.2: the executor runs every limited-sync / startup job the
   // gap tracker enqueues. A test's stub `gapTracker` enqueues none.
   const gapFillExecutor = createGapFillExecutor({
@@ -206,13 +182,23 @@ export const createSyncEngine = ({
       });
     },
   });
+  const liveWriteQueue = createLiveWriteQueue({
+    mx,
+    sessionId,
+    onSaved: (events, roomId, lease) => {
+      void offline.observe(events, roomId, lease);
+    },
+  });
   const effectiveGapTracker =
     gapTracker ??
     createEngineGapTracker({
       mx,
       sessionId,
       enqueueGapFill: gapFillExecutor.enqueue,
+      onVersionError: liveWriteQueue.disable,
     });
+  const effectiveWriteThrough =
+    writeThrough ?? createEngineWriteThrough({ sessionId, persist: liveWriteQueue.enqueue });
 
   let started = false;
   let liveMode = false;
@@ -221,9 +207,10 @@ export const createSyncEngine = ({
   const bindableWindow = getBindableWindow();
   const bindableDocument = getBindableDocument();
 
-  // Drain the edit compaction debounce before the page freezes.
+  // Drain edit compaction and queued live writes before the page freezes.
   const flushForVisibility = () => {
     effectiveWriteThrough.flush();
+    liveWriteQueue.drainNow();
   };
 
   const handlePageHide = () => flushForVisibility();
@@ -437,6 +424,7 @@ export const createSyncEngine = ({
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
       offline.stop();
       revokeCacheStoreWrites(sessionId);
+      liveWriteQueue.clear();
       forgetEncryptedRoomCheck?.();
 
       bindableWindow?.removeEventListener('pagehide', handlePageHide);
