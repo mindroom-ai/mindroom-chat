@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildContextMenu, buildMenuTemplate } from './menu';
+import { buildContextMenu, buildMenuTemplate, toggleWindowDevTools } from './menu';
 
 const flattenItems = (
   items: Electron.MenuItemConstructorOptions[]
@@ -49,18 +49,20 @@ describe('buildMenuTemplate', () => {
       for (const updateReady of [false, true]) {
         for (const canCheck of [false, true]) {
           for (const quickCapture of [false, true]) {
-            const template = buildMenuTemplate(
-              { updateReady, canCheck, quickCapture },
-              undefined,
-              platform
-            );
-            expect(template.map((m) => m.label ?? m.role)).toEqual(expectedTop);
-            for (const item of flattenItems(template)) {
-              const role = String(item.role ?? '').toLowerCase();
-              expect(forbiddenRoles.has(role)).toBe(false);
-              expect(String(item.label ?? '').toLowerCase()).not.toBe('new window');
-              if (platform !== 'darwin') {
-                expect(macOnlyRoles.has(role)).toBe(false);
+            for (const debugMode of [false, true]) {
+              const template = buildMenuTemplate(
+                { updateReady, canCheck, quickCapture, debugMode },
+                undefined,
+                platform
+              );
+              expect(template.map((m) => m.label ?? m.role)).toEqual(expectedTop);
+              for (const item of flattenItems(template)) {
+                const role = String(item.role ?? '').toLowerCase();
+                expect(forbiddenRoles.has(role)).toBe(false);
+                expect(String(item.label ?? '').toLowerCase()).not.toBe('new window');
+                if (platform !== 'darwin') {
+                  expect(macOnlyRoles.has(role)).toBe(false);
+                }
               }
             }
           }
@@ -192,9 +194,9 @@ describe('buildMenuTemplate', () => {
   it('contains no leading, trailing, or consecutive separators in any submenu', () => {
     for (const platform of ['darwin', 'linux'] as const) {
       for (const state of [
-        { updateReady: false, canCheck: false, quickCapture: false },
-        { updateReady: false, canCheck: true, quickCapture: true },
-        { updateReady: true, canCheck: true, quickCapture: true },
+        { updateReady: false, canCheck: false, quickCapture: false, debugMode: false },
+        { updateReady: false, canCheck: true, quickCapture: true, debugMode: true },
+        { updateReady: true, canCheck: true, quickCapture: true, debugMode: true },
       ]) {
         for (const top of buildMenuTemplate(state, undefined, platform)) {
           const sub = (top.submenu as Electron.MenuItemConstructorOptions[]) ?? [];
@@ -314,5 +316,60 @@ describe('buildContextMenu', () => {
       })
     );
     expect(linkOnly.map((i) => i.label)).toEqual(['Copy Link']);
+  });
+});
+
+describe('debug mode DevTools menu and toggle', () => {
+  it('gates View -> Toggle Developer Tools on debugMode with platform accelerators', () => {
+    for (const [platform, expectedAccelerator] of [
+      ['darwin', 'Alt+Command+I'],
+      ['linux', 'Control+Shift+I'],
+    ] as const) {
+      const hiddenView = buildMenuTemplate(
+        { updateReady: false, canCheck: false, quickCapture: false, debugMode: false },
+        undefined,
+        platform
+      ).find((m) => m.label === 'View')?.submenu as Electron.MenuItemConstructorOptions[];
+      expect(hiddenView.some((i) => i.label === 'Toggle Developer Tools')).toBe(false);
+
+      const onToggleDevTools = vi.fn();
+      const shownView = buildMenuTemplate(
+        { updateReady: false, canCheck: false, quickCapture: false, debugMode: true },
+        { onToggleDevTools },
+        platform
+      ).find((m) => m.label === 'View')?.submenu as Electron.MenuItemConstructorOptions[];
+      const item = shownView.find((i) => i.label === 'Toggle Developer Tools');
+      expect(item?.accelerator).toBe(expectedAccelerator);
+      expect(shownView.at(-2)?.type).toBe('separator');
+      invokeClick(item);
+      expect(onToggleDevTools).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('opens DevTools detached when closed, closes when open, and skips destroyed windows', () => {
+    let opened = false;
+    const openDevTools = vi.fn(() => {
+      opened = true;
+    });
+    const closeDevTools = vi.fn(() => {
+      opened = false;
+    });
+    const win = {
+      isDestroyed: () => false,
+      webContents: { isDevToolsOpened: () => opened, openDevTools, closeDevTools },
+    } as unknown as Electron.BrowserWindow;
+
+    toggleWindowDevTools(undefined);
+    toggleWindowDevTools(win);
+    expect(openDevTools).toHaveBeenCalledWith({ mode: 'detach' });
+    toggleWindowDevTools(win);
+    expect(closeDevTools).toHaveBeenCalledOnce();
+
+    const destroyed = {
+      isDestroyed: () => true,
+      webContents: { isDevToolsOpened: () => false, openDevTools, closeDevTools },
+    } as unknown as Electron.BrowserWindow;
+    toggleWindowDevTools(destroyed);
+    expect(openDevTools).toHaveBeenCalledTimes(1);
   });
 });

@@ -75,6 +75,9 @@ const bridge = {
   setBadge: (count) => {
     void ipcRenderer.invoke('desktop:set-badge', count).catch(() => undefined);
   },
+  setDebugMode: (enabled) => {
+    void ipcRenderer.invoke('desktop:set-debug-mode', enabled).catch(() => undefined);
+  },
   isWindowFocused: () => windowFocused,
   screenShare: process.argv.includes('--mindroom-screen-share=1'),
   customTitlebar: process.argv.includes('--mindroom-custom-titlebar=1'),

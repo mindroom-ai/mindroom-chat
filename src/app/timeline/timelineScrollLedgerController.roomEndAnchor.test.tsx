@@ -2,6 +2,7 @@
 import { useCallback, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
+import { _resetIOSDetectionForTests } from '@tanstack/react-virtual';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ROOM_INTRO_KEY } from './roomTimelineRows';
 import { useTimelineRowJumps } from './roomTimelineScroll';
@@ -18,11 +19,17 @@ const SAFARI_MAC_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15';
 const CHROME_MAC_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+const IPHONE_UA =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 18_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.4 Mobile/15E148 Safari/604.1';
 
-const stubUserAgent = (userAgent: string) => {
+const stubUserAgent = (userAgent: string, platform = 'MacIntel', maxTouchPoints = 0) => {
   Object.defineProperty(navigator, 'userAgent', { value: userAgent, configurable: true });
-  Object.defineProperty(navigator, 'platform', { value: 'MacIntel', configurable: true });
-  Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
+  Object.defineProperty(navigator, 'platform', { value: platform, configurable: true });
+  Object.defineProperty(navigator, 'maxTouchPoints', {
+    value: maxTouchPoints,
+    configurable: true,
+  });
+  _resetIOSDetectionForTests();
 };
 
 type ObservedResize = {
@@ -94,6 +101,7 @@ describe('oldest-first room anchoring with real virtualizer', () => {
       value: origTouchPoints,
       configurable: true,
     });
+    _resetIOSDetectionForTests();
     document.body.replaceChildren();
   });
 
@@ -473,5 +481,46 @@ describe('oldest-first room anchoring with real virtualizer', () => {
     expect(readVirtualizerHoldOffset(v)).toBe(0);
     expect(scrollElement.scrollTop).toBe(3500);
     expect(getTileTop('$ev-34')! - scrollElement.scrollTop).toBe(visualBefore);
+  });
+
+  it('bounds pastEndCorrection to the new maxScroll on iOS at rest when a visible penultimate room row shrinks', async () => {
+    stubUserAgent(IPHONE_UA, 'iPhone', 5);
+    const { scrollElement, fireRowBatch, getVirtualizer, getTileTop, render } = await mountRoom({
+      initialScrollTop: 3400,
+    });
+    const v = getVirtualizer();
+    const row38 = scrollElement.querySelector('[data-index="38"]')!;
+    const row39 = scrollElement.querySelector('[data-index="39"]')!;
+    expect(row38).not.toBeNull();
+    expect(row39).not.toBeNull();
+
+    // Expand row 38 to 720px and row 39 to 80px (totalHeight = 4600, maxScroll = 4000).
+    fireRowBatch([
+      { target: row38, height: 720 },
+      { target: row39, height: 80 },
+    ]);
+    render();
+    await Promise.resolve();
+
+    // Position the reader 440px above maxScroll (scrollTop = 3560; row 38 is visible at y = 240px).
+    scrollElement.scrollTop = 3560;
+    scrollElement.dispatchEvent(new Event('scroll'));
+    render();
+    await Promise.resolve();
+    expect(scrollElement.scrollHeight).toBe(4600);
+    expect(getTileTop('$ev-38')! - scrollElement.scrollTop).toBe(240);
+    expect((v as unknown as { _canWriteScroll: () => boolean })._canWriteScroll()).toBe(true);
+    expect(scrollElement.querySelector('[data-index="39"]')).not.toBeNull();
+
+    // Shrinking row 38 from 720px -> 120px (-600px) must clamp only by the 160px overshoot to the
+    // new maxScroll (3400), keeping row 38 visible at y = 400px instead of overshooting to 2960.
+    const currentRow38 = scrollElement.querySelector('[data-index="38"]')!;
+    fireRowBatch([{ target: currentRow38, height: 120 }]);
+    expect(scrollElement.scrollTop).toBe(3400);
+
+    await Promise.resolve();
+    expect(scrollElement.scrollHeight).toBe(4000);
+    expect(scrollElement.scrollTop).toBe(3400);
+    expect(getTileTop('$ev-38')! - scrollElement.scrollTop).toBe(400);
   });
 });

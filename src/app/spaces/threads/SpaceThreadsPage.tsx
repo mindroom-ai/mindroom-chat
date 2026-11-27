@@ -4,6 +4,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
+import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import {
   addTagFilter,
   applyFrozenThreadOrder,
@@ -185,7 +186,9 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
 
   const allSpaceEntries = useMemo(() => {
     void timelineTick;
-    return collectSpaceThreadEntries(indexSnapshot.entries, spaceRooms, myUserId, ignoredUsersSet);
+    return measureDeepTracePhase('spaceThreads.collect', () =>
+      collectSpaceThreadEntries(indexSnapshot.entries, spaceRooms, myUserId, ignoredUsersSet)
+    );
   }, [ignoredUsersSet, indexSnapshot.entries, myUserId, spaceRooms, timelineTick]);
   const snoozeNow = useSnoozeNow(
     useMemo(() => allSpaceEntries.map((entry) => entry.snoozedUntilTs), [allSpaceEntries])
@@ -194,26 +197,28 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
 
   const result = useMemo(
     () =>
-      filterAndSortSpaceThreads({
-        entries: allSpaceEntries,
-        roomsById,
-        selectedRoomIds: effectiveSelectedRoomIds,
-        filterState,
-        simpleMode,
-        snoozeNow,
-        quietNow,
-        hasMindroomAgents,
-        groupSections: sectionsEnabled,
-        pinnedKeys,
-        signalsOf: sectionsEnabled
-          ? (entry) => {
-              const room = roomsById.get(entry.roomId)?.room;
-              return room
-                ? getThreadSignalsReader(mx).read(room, entry, myUserId, quietNow)
-                : undefined;
-            }
-          : undefined,
-      }),
+      measureDeepTracePhase('spaceThreads.filterSort', () =>
+        filterAndSortSpaceThreads({
+          entries: allSpaceEntries,
+          roomsById,
+          selectedRoomIds: effectiveSelectedRoomIds,
+          filterState,
+          simpleMode,
+          snoozeNow,
+          quietNow,
+          hasMindroomAgents,
+          groupSections: sectionsEnabled,
+          pinnedKeys,
+          signalsOf: sectionsEnabled
+            ? (entry) => {
+                const room = roomsById.get(entry.roomId)?.room;
+                return room
+                  ? getThreadSignalsReader(mx).read(room, entry, myUserId, quietNow)
+                  : undefined;
+              }
+            : undefined,
+        })
+      ),
     [
       allSpaceEntries,
       effectiveSelectedRoomIds,

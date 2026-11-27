@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
+import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 
 const BLOCK_CARDS = 12;
@@ -383,13 +384,14 @@ export function useCompactBlocks(options: Options) {
       // A Back placed or retired since this render is dropped by the next one.
       return changed || hole || back || (!!visible.length && `${slots(visible)}` !== `${reader}`);
     };
-    const measured = layout();
+    const runLayout = () => measureDeepTracePhase('compactBlocks.layout', layout);
+    const measured = runLayout();
     const pending = measured || (!small && probe >= 0);
-    state.onWrite = () => layout() && (hole ? render : state.wake)?.();
+    state.onWrite = () => runLayout() && (hole ? render : state.wake)?.();
     // Discovery parks while the list cannot measure. A frame advances it; a scroll does not.
     state.measure = (advance) => {
       if (advance) state.end = false;
-      const now = layout();
+      const now = runLayout();
       return now !== undefined && (now || (!!advance && pending));
     };
     if (hole) render();

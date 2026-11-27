@@ -101,26 +101,6 @@ const installTouchTracker = () => {
 };
 installTouchTracker();
 
-// Mirrors @tanstack/virtual-core's unexported isIOSWebKit(): every iOS
-// browser is WebKit (UA carries iPhone/iPod/iPad), and iPadOS desktop mode
-// masquerades as MacIntel but exposes touch points.
-let iosWebKitResult: boolean | undefined;
-export const isIOSWebKitDevice = (): boolean => {
-  if (iosWebKitResult !== undefined) return iosWebKitResult;
-  if (typeof navigator === 'undefined') {
-    iosWebKitResult = false;
-    return iosWebKitResult;
-  }
-  if (/iP(hone|od|ad)/.test(navigator.userAgent)) {
-    iosWebKitResult = true;
-    return iosWebKitResult;
-  }
-  const maxTouchPoints = navigator.maxTouchPoints;
-  iosWebKitResult =
-    navigator.platform === 'MacIntel' && maxTouchPoints !== undefined && maxTouchPoints > 0;
-  return iosWebKitResult;
-};
-
 export const waitForScrollQuiescence = (
   scrollElement: HTMLElement | null,
   { idleMs = SCROLL_QUIESCENCE_IDLE_MS, maxWaitMs = 2500 }: WaitForScrollQuiescenceOptions = {}

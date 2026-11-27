@@ -2,6 +2,7 @@ export type MenuState = {
   updateReady: boolean;
   canCheck: boolean;
   quickCapture: boolean;
+  debugMode?: boolean;
 };
 
 export type MenuHandlers = {
@@ -9,6 +10,18 @@ export type MenuHandlers = {
   onCheckForUpdates?: () => void;
   onRestartToUpdate?: () => void;
   onQuickCapture?: () => void;
+  onToggleDevTools?: () => void;
+};
+
+export const toggleWindowDevTools = (
+  win: Pick<Electron.BrowserWindow, 'isDestroyed' | 'webContents'> | undefined
+): void => {
+  if (!win || win.isDestroyed()) return;
+  if (win.webContents.isDevToolsOpened()) {
+    win.webContents.closeDevTools();
+  } else {
+    win.webContents.openDevTools({ mode: 'detach' });
+  }
 };
 
 export type ContextMenuActions = {
@@ -71,9 +84,20 @@ export const buildMenuTemplate = (
     ],
   };
 
+  const devToolsItems: Electron.MenuItemConstructorOptions[] = state.debugMode
+    ? [
+        { type: 'separator' },
+        {
+          label: 'Toggle Developer Tools',
+          accelerator: platform === 'darwin' ? 'Alt+Command+I' : 'Control+Shift+I',
+          click: () => handlers?.onToggleDevTools?.(),
+        },
+      ]
+    : [];
+
   const viewMenu: Electron.MenuItemConstructorOptions = {
     label: 'View',
-    submenu: [
+    submenu: cleanSeparators([
       {
         label: 'Zoom In',
         accelerator: 'CommandOrControl+Plus',
@@ -91,7 +115,8 @@ export const buildMenuTemplate = (
       },
       { type: 'separator' },
       { role: 'togglefullscreen' },
-    ],
+      ...devToolsItems,
+    ]),
   };
 
   if (platform === 'darwin') {

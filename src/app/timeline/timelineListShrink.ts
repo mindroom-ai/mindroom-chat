@@ -79,7 +79,8 @@ export const pastEndCorrection = (
 ): number => {
   const { scrollHeight, clientHeight } = scrollElement ?? {};
   if (delta >= 0 || scrollHeight === undefined || clientHeight === undefined) return 0;
-  if (shownPx === undefined)
-    return scrollHeight - clientHeight - renderedOffset < -delta ? delta : 0;
+  if (shownPx === undefined) {
+    return Math.max(delta, Math.min(0, scrollHeight - clientHeight + delta - renderedOffset));
+  }
   return Math.min(0, scrollHeight - clientHeight - shownPx + rowMovesPx - scrollOffset);
 };

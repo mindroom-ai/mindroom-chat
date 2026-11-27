@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../matrix/types/room';
+import { MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../matrix/protocol/scheduledTaskContract';
+import { MINDROOM_ACTIVE_RUNS_EVENT } from '../../matrix/protocol/activeRunsContract';
 import {
   createDefaultThreadFilterState,
   type ThreadFilterState,
@@ -441,6 +444,119 @@ describe('spaceThreadsModel', () => {
       '@alice:example.org'
     );
     expect(merged.map((e) => e.threadRootId)).toEqual(['$existing', '$fresh']);
+  });
+
+  it('reads tag, scheduled, and active-run state once per room for standalone roots and preserves metadata', () => {
+    const now = Date.now();
+    const agentId = '@mindroom_bot:example.org';
+    const userId = '@alice:example.org';
+    const liveStateEvents = vi.fn((type: string, stateKey?: string): unknown => {
+      if (stateKey !== undefined) return null;
+      return type === MINDROOM_THREAD_TAGS_EVENT
+        ? [
+            {
+              getSender: () => userId,
+              getStateKey: () => '$s1',
+              getTs: () => NOW,
+              isRedacted: () => false,
+              getContent: () => ({ tags: { urgent: { set_by: userId, set_at: NOW } } }),
+            },
+          ]
+        : [];
+    });
+    const currentStateEvents = vi.fn((type: string, stateKey?: string): unknown => {
+      if (stateKey !== undefined) return null;
+      if (type === MINDROOM_SCHEDULED_TASK_EVENT) {
+        return [
+          {
+            getSender: () => agentId,
+            getStateKey: () => 'task-1',
+            getContent: () => ({
+              status: 'pending',
+              thread_id: '$s2',
+              execute_at: '2099-01-01T00:00:00Z',
+            }),
+          },
+        ];
+      }
+      if (type === MINDROOM_ACTIVE_RUNS_EVENT) {
+        return [
+          {
+            getSender: () => agentId,
+            getStateKey: () => agentId,
+            getTs: () => now,
+            isRedacted: () => false,
+            getContent: () => ({ version: 1, updated_at: now, threads: [{ thread_id: '$s3' }] }),
+          },
+        ];
+      }
+      return [];
+    });
+    const makeStatefulRoom = (
+      roomId: string,
+      events: unknown[],
+      liveSpy: typeof liveStateEvents,
+      currentSpy: typeof currentStateEvents
+    ): Room =>
+      ({
+        roomId,
+        name: roomId,
+        myUserId: userId,
+        getMember: () => null,
+        getLiveTimeline: () => ({
+          getEvents: () => events,
+          getState: () => ({ getStateEvents: liveSpy }),
+        }),
+        getThread: () => undefined,
+        findEventById: () => undefined,
+        getUnfilteredTimelineSet: () => undefined,
+        currentState: { getStateEvents: currentSpy },
+      }) as unknown as Room;
+
+    const standaloneEvents = ['$s0', '$s1', '$s2', '$s3', '$s4'].map((id) => makeEvent(id, id));
+    const roomWithStandalones = makeStatefulRoom(
+      ROOM_A,
+      standaloneEvents,
+      liveStateEvents,
+      currentStateEvents
+    );
+    const idleLiveSpy = vi.fn(() => []);
+    const idleCurrentSpy = vi.fn(() => []);
+    const alreadyIndexed = makeSpaceThreadEntry({ roomId: ROOM_B, threadRootId: '$indexed' });
+    const roomWithoutStandalones = makeStatefulRoom(
+      ROOM_B,
+      [makeEvent('$indexed', 'Already indexed')],
+      idleLiveSpy,
+      idleCurrentSpy
+    );
+
+    const collected = collectSpaceThreadEntries(
+      new Map([[alreadyIndexed.key, alreadyIndexed]]),
+      [roomWithStandalones, roomWithoutStandalones],
+      userId
+    );
+    const byId = new Map(collected.map((entry) => [entry.threadRootId, entry]));
+
+    expect(
+      liveStateEvents.mock.calls.filter(([t]) => t === MINDROOM_THREAD_TAGS_EVENT)
+    ).toHaveLength(1);
+    expect(
+      currentStateEvents.mock.calls.filter(([t]) => t === MINDROOM_SCHEDULED_TASK_EVENT)
+    ).toHaveLength(1);
+    expect(
+      currentStateEvents.mock.calls.filter(([t]) => t === MINDROOM_ACTIVE_RUNS_EVENT)
+    ).toHaveLength(1);
+    expect(idleLiveSpy).not.toHaveBeenCalled();
+    expect(idleCurrentSpy).not.toHaveBeenCalled();
+
+    expect(byId.get('$s0')?.tags).toEqual([]);
+    expect(byId.get('$s0')?.threadRecord.status.scheduledTaskCount).toBe(0);
+    expect(byId.get('$s0')?.threadRecord.status.isStreaming).toBe(false);
+    expect(byId.get('$s1')?.tags).toEqual(['urgent']);
+    expect(byId.get('$s2')?.threadRecord.status.scheduledTaskCount).toBe(1);
+    expect(byId.get('$s2')?.hasAttention).toBe(true);
+    expect(byId.get('$s3')?.threadRecord.status.isStreaming).toBe(true);
+    expect(byId.get('$s3')?.hasAttention).toBe(true);
   });
 
   it('filters out ignored users from indexed entries and standalone live roots', () => {

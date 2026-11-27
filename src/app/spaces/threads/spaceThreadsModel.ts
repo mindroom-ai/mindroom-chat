@@ -16,6 +16,12 @@ import {
 } from '../../threads/overview/compactThreadSections';
 import { isZeroReplyStandaloneThreadRootEvent } from '../../event-store/threads/compactThreadRootData';
 import {
+  getRoomThreadScheduledStatusMap,
+  getThreadScheduledStatus,
+} from '../../event-store/threads/threadScheduledStatus';
+import { roomActiveRuns } from '../../matrix/protocol/activeRunsContract';
+import { getRoomThreadTagSnapshotMap } from '../../threads/tags/threadTagSnapshots';
+import {
   projectThreadFilterState,
   type StatusCounts,
   type ThreadFilterState,
@@ -70,6 +76,9 @@ export const collectSpaceThreadEntries = (
     entries.set(entry.key, entry);
   });
   rooms.forEach((room) => {
+    let tagSnapshots: ReturnType<typeof getRoomThreadTagSnapshotMap> | undefined;
+    let scheduledStatuses: ReturnType<typeof getRoomThreadScheduledStatusMap> | undefined;
+    let activeRunThreads: ReadonlySet<string> | undefined;
     (room.getLiveTimeline?.()?.getEvents?.() ?? []).forEach((event) => {
       const eventId = event.getId?.();
       if (!eventId) return;
@@ -81,11 +90,18 @@ export const collectSpaceThreadEntries = (
       ) {
         return;
       }
+      // Compute room-wide snapshots lazily once per room to avoid per-event state scans.
+      if (!tagSnapshots) tagSnapshots = getRoomThreadTagSnapshotMap(room);
+      if (!scheduledStatuses) scheduledStatuses = getRoomThreadScheduledStatusMap(room);
+      if (!activeRunThreads) activeRunThreads = roomActiveRuns(room).threads;
       const entry = buildCrossRoomThreadIndexEntry({
         room,
         threadRootId: eventId,
         threadRootEvent: event,
         currentUserId: userId,
+        tagSnapshot: tagSnapshots.get(eventId) ?? null,
+        scheduledStatus: getThreadScheduledStatus(scheduledStatuses, eventId),
+        activeRunThreads,
       });
       if (entry) entries.set(key, entry);
     });

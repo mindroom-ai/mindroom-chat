@@ -207,6 +207,8 @@ AGENT_DELEGATE_TO = ("src/mindroom/config/agent.py", "delegate_to")
 CONSOLIDATED_THREAD_TAGS = ("src/mindroom/custom_tools/thread_tags.py", "async def thread_tags(")
 # A commit that consolidated terminal_open/run/send/read/list into terminal_read and terminal_write (MindRoom #4442).
 CONSOLIDATED_TERMINAL = ("src/mindroom/custom_tools/terminal.py", "async def terminal_write(")
+# A commit that consolidated resolve_thread and reopen_thread into thread_resolution (MindRoom #4451).
+CONSOLIDATED_THREAD_RESOLUTION = ("src/mindroom/custom_tools/thread_resolution.py", "async def thread_resolution(")
 # The stub model with reasoning levels, which the model picker's effort column runs a thread on.
 REASONING_MODEL = {"key": "think", "id": "stub-think", "displayName": "Stub Think", "levels": ["low", "medium", "high"]}
 TRANSCRIPTION_MODES = ("stub", "real")
@@ -783,8 +785,9 @@ REAL_INSTRUCTIONS = [
 def real_instructions(
     consolidated_thread_tags: bool = False,
     consolidated_terminal: bool = False,
+    consolidated_thread_resolution: bool = False,
 ) -> list[str]:
-    """The real-model hashtag script, adapting #tag/#expire and #terminal to consolidated tools when enabled."""
+    """The real-model hashtag script, adapting #tag/#expire, #terminal, and #resolve to consolidated tools."""
     replacements: dict[str, str] = {}
     if consolidated_thread_tags:
         replacements.update(
@@ -803,6 +806,10 @@ def real_instructions(
         replacements["#terminal:"] = (
             "#terminal: call terminal_write once with action 'open', then terminal_write once with action 'run', "
             "the session_id it returned, and command 'echo stub-terminal-$((6 * 7))', then reply with its output."
+        )
+    if consolidated_thread_resolution:
+        replacements["#resolve:"] = (
+            "#resolve: call thread_resolution once with action 'resolve', then reply with what the tool returned."
         )
     if not replacements:
         return list(REAL_INSTRUCTIONS)
@@ -892,6 +899,7 @@ def config_yaml(
     delegate_to_scout: bool = False,
     consolidated_thread_tags: bool = False,
     consolidated_terminal: bool = False,
+    consolidated_thread_resolution: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -932,6 +940,7 @@ def config_yaml(
             for line in real_instructions(
                 consolidated_thread_tags=consolidated_thread_tags,
                 consolidated_terminal=consolidated_terminal,
+                consolidated_thread_resolution=consolidated_thread_resolution,
             )
         )
         models = real_models_yaml()
@@ -991,6 +1000,18 @@ def config_yaml(
         header = "# Written by scripts/agent-stack/stack.py; the stub model picks a scenario from hashtags in the message."
     if transcription and transcription["notesModel"] == NOTES_MODEL["key"]:
         models += notes_model_yaml()
+    if consolidated_thread_resolution:
+        resolve_rule = (
+            "    - match: thread_resolution\n"
+            "      arguments:\n"
+            "        action: resolve\n"
+            "      action: require_approval"
+        )
+    else:
+        resolve_rule = (
+            "    - match: resolve_thread\n"
+            "      action: require_approval"
+        )
     if consolidated_thread_tags:
         untag_rule = (
             "    - match: thread_tags\n"
@@ -1013,8 +1034,7 @@ router:
 tool_approval:
   default: auto_approve
   rules:
-    - match: resolve_thread
-      action: require_approval
+{resolve_rule}
 {untag_rule}
 {shell_review}
 background_tool_jobs:
@@ -1433,6 +1453,7 @@ def start(
     delegate_to_scout = args.model == "stub" and commit_mentions(checkout, sha, *AGENT_DELEGATE_TO)
     consolidated_thread_tags = commit_mentions(checkout, sha, *CONSOLIDATED_THREAD_TAGS)
     consolidated_terminal = commit_mentions(checkout, sha, *CONSOLIDATED_TERMINAL)
+    consolidated_thread_resolution = commit_mentions(checkout, sha, *CONSOLIDATED_THREAD_RESOLUTION)
     if consolidated_thread_tags:
         (slot_dir / "approval_scripts" / "thread_tags_review.py").write_text(THREAD_TAGS_REVIEW)
     config_path.write_text(
@@ -1454,6 +1475,7 @@ def start(
             delegate_to_scout=delegate_to_scout,
             consolidated_thread_tags=consolidated_thread_tags,
             consolidated_terminal=consolidated_terminal,
+            consolidated_thread_resolution=consolidated_thread_resolution,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
