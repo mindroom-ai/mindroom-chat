@@ -183,7 +183,7 @@ export const isReducedMotion = (): boolean => {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches === true;
 };
 
-const TRANSITION_FALLBACK_GRACE_MS = 100;
+const TRANSITION_FALLBACK_GRACE_MS = 200;
 
 type SavedStyleProp = { prop: string; value: string; priority: string };
 
@@ -257,8 +257,11 @@ export const animateSwipeElements = async (
 
   if (prepared.length === 0) return;
 
-  // Commit start frames as the before-change style in a single batched flush.
-  for (const { element } of prepared) void element.getBoundingClientRect();
+  // Commit start frames as the before-change style in a single batched style flush.
+  for (const { element, finalEntries } of prepared) {
+    const firstProp = finalEntries[0]?.[0];
+    if (firstProp) void getComputedStyle(element).getPropertyValue(firstProp);
+  }
 
   const active: Array<
     (typeof prepared)[number] & { pendingProps: Set<string>; onEnd: (event: Event) => void }
@@ -324,6 +327,7 @@ export const animateSwipeElements = async (
           if (!item.pendingProps.has(propertyName)) return;
           item.pendingProps.delete(propertyName);
         } else {
+          // Synthetic jsdom `new Event('transitionend')` omits `propertyName`.
           item.pendingProps.clear();
         }
         if (item.pendingProps.size === 0) {

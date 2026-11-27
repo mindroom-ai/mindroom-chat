@@ -1067,22 +1067,15 @@ describe('interactiveSwipe', () => {
       const animateSpy = vi.fn();
       el.animate = animateSpy;
       let flushedState: { translate: string; transition: string } | undefined;
-      vi.spyOn(el, 'getBoundingClientRect').mockImplementation(() => {
-        flushedState = {
-          translate: el.style.translate,
-          transition: el.style.getPropertyValue('transition'),
-        };
-        return {
-          width: 390,
-          height: 800,
-          top: 0,
-          left: 0,
-          right: 390,
-          bottom: 800,
-          x: 0,
-          y: 0,
-          toJSON: () => ({}),
-        };
+      const originalGetComputedStyle = window.getComputedStyle.bind(window);
+      vi.spyOn(window, 'getComputedStyle').mockImplementation((target, pseudo) => {
+        if (target === el) {
+          flushedState = {
+            translate: el.style.translate,
+            transition: el.style.getPropertyValue('transition'),
+          };
+        }
+        return originalGetComputedStyle(target, pseudo);
       });
 
       let settled = false;
@@ -1177,7 +1170,7 @@ describe('interactiveSwipe', () => {
       ).then(() => {
         timedOut = true;
       });
-      vi.advanceTimersByTime(249);
+      vi.advanceTimersByTime(349);
       await flushMicrotasks();
       expect(timedOut).toBe(false);
 

@@ -177,13 +177,11 @@ describe('playLiveSlide', () => {
     await fwd.finished;
 
     const backStart: { over?: string; under?: string } = {};
-    vi.spyOn(over, 'getBoundingClientRect').mockImplementation(() => {
-      backStart.over = over.style.translate;
-      return rectOf(400);
-    });
-    vi.spyOn(under, 'getBoundingClientRect').mockImplementation(() => {
-      backStart.under = under.style.translate;
-      return rectOf(400);
+    const originalGetComputedStyle = window.getComputedStyle.bind(window);
+    vi.spyOn(window, 'getComputedStyle').mockImplementation((target, pseudo) => {
+      if (target === over) backStart.over = over.style.translate;
+      if (target === under) backStart.under = under.style.translate;
+      return originalGetComputedStyle(target, pseudo);
     });
     const back = playLiveSlide({ direction: 'back', stage, over, under, exit: vi.fn() });
     expect(backStart).toEqual({ over: '0px', under: '120px' });

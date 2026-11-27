@@ -129,32 +129,87 @@ const recordSlides = (page: Page, heldAt?: number) =>
       return Number.isFinite(px) && width > 0 ? Math.round((px / width) * 100) : 0;
     };
 
-    const originalAnimate = Element.prototype.animate;
-    Element.prototype.animate = function patchedAnimate(
-      keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
-      options?: number | KeyframeAnimationOptions
-    ) {
-      const animation = originalAnimate.call(this, keyframes, options);
-      const stage = this.closest('[data-swipe-thread-stage]');
-      if (stage && Array.isArray(keyframes) && keyframes.length >= 2) {
-        const first = keyframes[0] ?? {};
-        const last = keyframes[keyframes.length - 1] ?? {};
+    const formatOpacity = (value: unknown): string => {
+      const num = Number(value);
+      return Number.isFinite(num) ? String(Number(num.toFixed(4))) : String(value ?? '');
+    };
+
+    let activeStage: Element | null = null;
+    let activeSlide: Slide | null = null;
+    const activeSlots = new Set<'over' | 'under' | 'dim'>();
+
+    const getOrCreateSlide = (stage: Element, slot: 'over' | 'under' | 'dim'): Slide => {
+      if (
+        !activeSlide ||
+        !slides.includes(activeSlide) ||
+        activeStage !== stage ||
+        activeSlots.has(slot)
+      ) {
+        activeStage = stage;
+        activeSlots.clear();
+        activeSlide = {
+          direction: 'forward',
+          overFromPct: 0,
+          overToPct: 0,
+          hasUnder: false,
+          underInert: false,
+          hasDim: false,
+          hasShield: false,
+          hasShadow: false,
+          tapHitsShield: false,
+          topBarTop: -1,
+          topBarInsideStage: false,
+          canvasCount: 0,
+        };
+        slides.push(activeSlide);
+      }
+      activeSlots.add(slot);
+      return activeSlide;
+    };
+
+    document.addEventListener(
+      'transitionrun',
+      (event) => {
+        const { target } = event;
+        if (!(target instanceof HTMLElement)) return;
+        const stage = target.closest('[data-swipe-thread-stage]');
+        if (!stage) return;
+
+        const isOver =
+          target.hasAttribute('data-swipe-over-thread') && event.propertyName === 'translate';
+        const isUnder =
+          target.hasAttribute('data-swipe-under-thread') && event.propertyName === 'translate';
+        const isDim = target.hasAttribute('data-swipe-dim') && event.propertyName === 'opacity';
+        if (!isOver && !isUnder && !isDim) return;
+
+        const animation = target
+          .getAnimations()
+          .find(
+            (each): each is CSSTransition =>
+              'transitionProperty' in each &&
+              (each as CSSTransition).transitionProperty === event.propertyName
+          );
+        const effect = animation?.effect as KeyframeEffect | null | undefined;
+        const keyframes = effect?.getKeyframes?.() ?? [];
+        const first: Record<string, unknown> = keyframes[0] ?? {};
+        const last: Record<string, unknown> = keyframes[keyframes.length - 1] ?? {};
         const width = stage.getBoundingClientRect().width || innerWidth;
 
-        if (this.hasAttribute('data-swipe-over-thread')) {
+        if (isOver) {
+          const slide = getOrCreateSlide(stage, 'over');
           const overFromPct = parsePct(first.translate, width);
           const overToPct = parsePct(last.translate, width);
           const under = stage.querySelector('[data-swipe-under-thread]');
           const topBar = document.querySelector('[data-phone-top-bar]');
           const hit = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
-          slides.push({
+          const timingDuration = effect?.getTiming?.().duration;
+          const duration =
+            typeof timingDuration === 'number'
+              ? Math.round(timingDuration)
+              : Math.round(parseFloat(getComputedStyle(target).transitionDuration || '0') * 1000);
+          Object.assign(slide, {
             direction: overFromPct > overToPct ? 'forward' : 'back',
-            duration:
-              typeof options === 'number'
-                ? options
-                : typeof options?.duration === 'number'
-                  ? options.duration
-                  : undefined,
+            duration,
             overFromPct,
             overToPct,
             hasUnder: Boolean(under),
@@ -163,39 +218,30 @@ const recordSlides = (page: Page, heldAt?: number) =>
             ),
             hasDim: Boolean(stage.querySelector('[data-swipe-dim]')),
             hasShield: Boolean(stage.querySelector('[data-swipe-hold-shield]')),
-            hasShadow: this.hasAttribute('data-swipe-shadow'),
+            hasShadow: target.hasAttribute('data-swipe-shadow'),
             tapHitsShield: Boolean(hit?.hasAttribute('data-swipe-hold-shield')),
             topBarTop: topBar ? Math.round(topBar.getBoundingClientRect().top) : -1,
             topBarInsideStage: Boolean(stage.querySelector('[data-phone-top-bar]')),
             canvasCount: stage.querySelectorAll('canvas').length,
           });
-        } else if (this.hasAttribute('data-swipe-under-thread')) {
-          const slide = slides.at(-1);
-          if (slide && slide.underFromPct === undefined) {
-            slide.underFromPct = parsePct(first.translate, width);
-            slide.underToPct = parsePct(last.translate, width);
-          }
-        } else if (this.hasAttribute('data-swipe-dim')) {
-          const slide = slides.at(-1);
-          if (slide && slide.dimFrom === undefined) {
-            slide.dimFrom = String(first.opacity ?? '');
-            slide.dimTo = String(last.opacity ?? '');
-          }
+        } else if (isUnder) {
+          const slide = getOrCreateSlide(stage, 'under');
+          slide.underFromPct = parsePct(first.translate, width);
+          slide.underToPct = parsePct(last.translate, width);
+        } else if (isDim) {
+          const slide = getOrCreateSlide(stage, 'dim');
+          slide.dimFrom = formatOpacity(first.opacity);
+          slide.dimTo = formatOpacity(last.opacity);
         }
 
-        if (
-          held !== undefined &&
-          (this.hasAttribute('data-swipe-over-thread') ||
-            this.hasAttribute('data-swipe-under-thread') ||
-            this.hasAttribute('data-swipe-dim'))
-        ) {
+        if (held !== undefined && animation) {
           animation.pause();
           animation.currentTime = held;
           pausedAnimations.push(animation);
         }
-      }
-      return animation;
-    };
+      },
+      true
+    );
 
     const drawerSlides: string[] = [];
     recorded.drawerSlides = drawerSlides;
@@ -231,7 +277,9 @@ const takeDrawerSlide = async (page: Page, step: string): Promise<string[]> => {
 const finishPausedSlides = (page: Page) =>
   page.evaluate(() => {
     const animations = (window as unknown as Recorded).pausedAnimations.splice(0);
-    animations.forEach((animation) => animation.finish());
+    animations.forEach((animation) => {
+      if (animation.playState === 'paused') animation.finish();
+    });
   });
 
 const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
