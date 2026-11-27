@@ -299,8 +299,8 @@ export function LiveStepRow({
   const stepResult = state === 'done' || state === 'failed' ? result : undefined;
   const expandable = Boolean(detail || activeOutput || stepResult);
 
-  const head = (
-    <span className={css.StepHead}>
+  const rowContent = (
+    <>
       <span className={css.StepIcon[state]} role="img" aria-label={statusLabel} title={statusLabel}>
         {state === 'running' ? (
           <Spinner size="50" variant="Secondary" aria-hidden />
@@ -309,11 +309,23 @@ export function LiveStepRow({
         )}
       </span>
       <span className={stepNameClass}>{toolName}</span>
-      <LiveStepElapsed state={state} startedAt={startedAt} endedAt={endedAt} language={language} />
-      {expandable && (
-        <Icon size="50" className={css.StepChevron} src={Icons.ChevronRight} aria-hidden />
+      {arg && !open && (
+        <span className={css.StepArg} title={arg} {...ownDirectionLine}>
+          {arg}
+        </span>
       )}
-    </span>
+      <span className={css.StepTrail}>
+        <LiveStepElapsed
+          state={state}
+          startedAt={startedAt}
+          endedAt={endedAt}
+          language={language}
+        />
+        {expandable && (
+          <Icon size="50" className={css.StepChevron} src={Icons.ChevronRight} aria-hidden />
+        )}
+      </span>
+    </>
   );
 
   return (
@@ -331,14 +343,7 @@ export function LiveStepRow({
               setOpen((value) => !value);
             }}
           >
-            {head}
-            {arg && !open && (
-              <span className={css.StepArgWrap}>
-                <span className={css.StepArg} title={arg} {...ownDirectionLine}>
-                  {arg}
-                </span>
-              </span>
-            )}
+            {rowContent}
           </button>
           {!open && activeOutput && <TerminalWell lines={outputLines} output={activeOutput} />}
           {open && (
@@ -379,7 +384,7 @@ export function LiveStepRow({
           )}
         </>
       ) : (
-        <div className={css.StepRow}>{head}</div>
+        <div className={css.StepRow}>{rowContent}</div>
       )}
     </div>
   );

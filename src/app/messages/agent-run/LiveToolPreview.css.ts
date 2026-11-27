@@ -107,9 +107,8 @@ export const Step = style({
 
 export const StepRow = style({
   display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'stretch',
-  gap: toRem(2),
+  alignItems: 'center',
+  gap: toRem(8),
   width: '100%',
   minWidth: 0,
   paddingBlock: toRem(6),
@@ -123,7 +122,6 @@ export const StepRowButton = style([
   DefaultReset,
   StepRow,
   {
-    justifyContent: 'center',
     border: 'none',
     background: 'none',
     font: 'inherit',
@@ -147,14 +145,6 @@ export const StepRowButton = style([
   },
 ]);
 
-export const StepHead = style({
-  display: 'flex',
-  alignItems: 'center',
-  gap: toRem(8),
-  width: '100%',
-  minWidth: 0,
-});
-
 const stepIconBase = style({
   display: 'grid',
   placeItems: 'center',
@@ -174,7 +164,6 @@ const stepNameBase = style({
   ...mono,
   ...truncate,
   flex: '0 1 auto',
-  marginInlineEnd: 'auto',
   color: color.Surface.OnContainer,
 });
 
@@ -184,24 +173,15 @@ export const StepName = styleVariants({
   failed: [stepNameBase, { fontWeight: config.fontWeight.W500 }],
 });
 
-// Indented in interface direction past StepIcon (16px) + StepHead gap (8px) so an LTR command
-// inside an RTL interface still aligns under StepName.
-export const StepArgWrap = style({
-  display: 'block',
-  minWidth: 0,
-  paddingInlineStart: toRem(24),
-});
+export const StepArg = style({ ...mono, ...truncate, ...muted, flex: '1 1 0px' });
 
-export const StepArg = style({
-  ...mono,
-  ...muted,
-  display: '-webkit-box',
-  minWidth: 0,
-  overflow: 'hidden',
-  overflowWrap: 'anywhere',
-  wordBreak: 'break-word',
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: 'vertical',
+export const StepTrail = style({
+  marginInlineStart: 'auto',
+  flexShrink: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(6),
+  selectors: { '&:empty': { display: 'none' } },
 });
 
 export const StepElapsed = style({

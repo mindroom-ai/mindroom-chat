@@ -231,7 +231,9 @@ describe('LiveToolPreview', () => {
     expect(steps[0]?.textContent).toContain('src/app/HtmlBlocks.tsx');
     expect(steps[0]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Done');
     expect(steps[0]?.querySelector('[role="img"] > *')?.getAttribute('aria-hidden')).toBe('true');
-    expect(steps[0]?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('1s');
+    const firstTrail = steps[0]?.querySelector(`.${css.StepTrail.split(' ')[0]}`);
+    expect(firstTrail?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('1s');
+    expect(firstTrail?.querySelector(`.${css.StepChevron.split(' ')[0]}`)).not.toBeNull();
     expect(steps[1]?.textContent).toContain('grep');
     expect(steps[1]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
       "Didn't complete"
@@ -306,14 +308,13 @@ describe('LiveToolPreview', () => {
       expect(bare.querySelector(`.${css.StepChevron.split(' ')[0]}`)).toBeNull();
     }
     const withArg = subSteps[3]!;
-    expect(withArg.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded')).toBe(
-      'false'
-    );
-    const argWrap = withArg.querySelector(`.${css.StepArgWrap.split(' ')[0]}`);
-    const argText = argWrap?.querySelector(`.${css.StepArg.split(' ')[0]}`);
-    expect(argWrap?.getAttribute('dir')).toBeNull();
+    const toggle = withArg.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+    const argText = toggle?.querySelector(`:scope > .${css.StepArg.split(' ')[0]}`);
     expect(argText?.getAttribute('dir')).toBe('auto');
     expect(argText?.textContent).toBe('src/index.ts');
+    const trail = toggle?.querySelector(`:scope > .${css.StepTrail.split(' ')[0]}`);
+    expect(trail?.querySelector(`.${css.StepChevron.split(' ')[0]}`)).not.toBeNull();
     // Bare foreground shell step without args or progress is also non-interactive.
     expect(container.querySelector('[data-live-shell="2"] button[aria-expanded]')).toBeNull();
   });
