@@ -146,16 +146,17 @@ export const resolveLocalThreadSummary = (
 ): string | undefined => {
   const localRoot =
     room?.getThread?.(threadRootId)?.rootEvent ?? room?.findEventById?.(threadRootId);
-  const bundled =
-    getBundledTitleEvent(room, localRoot) ??
-    (threadRootId === event.event_id && hasBundledThread(event.unsigned)
+  const localBundled = getBundledTitleEvent(room, localRoot);
+  const hitBundled =
+    threadRootId === event.event_id && hasBundledThread(event.unsigned)
       ? getBundledTitleEvent(room, new MatrixEvent(event))
-      : undefined);
+      : undefined;
   return pickLatestThreadSummaryInfo(
     getEntrySummaryInfo(entry),
     summaries.get(threadRootId),
     resolveThreadSummaryInfo({ thread: room?.getThread?.(threadRootId) }),
-    bundled ? getThreadSummaryEventInfo(bundled) : undefined,
+    localBundled ? getThreadSummaryEventInfo(localBundled) : undefined,
+    hitBundled ? getThreadSummaryEventInfo(hitBundled) : undefined,
     fetchedSummary
   )?.summaryText;
 };
@@ -165,13 +166,17 @@ export const resolveThreadRootPreview = (
   threadRootId: string,
   entry: CrossRoomThreadIndexEntry | undefined,
   fetchedPreview?: string
-): string | undefined =>
-  entry?.threadRecord?.presentation.rootPreviewText ||
-  entry?.rootPreviewText ||
-  fetchedPreview ||
-  getVisibleThreadEventBodyPreviewText(
-    room?.getThread?.(threadRootId)?.rootEvent ?? room?.findEventById?.(threadRootId)
+): string | undefined => {
+  const localRoot =
+    room?.getThread?.(threadRootId)?.rootEvent ?? room?.findEventById?.(threadRootId);
+  if (localRoot?.isRedacted?.()) return undefined;
+  return (
+    getVisibleThreadEventBodyPreviewText(localRoot) ||
+    entry?.threadRecord?.presentation.rootPreviewText ||
+    entry?.rootPreviewText ||
+    fetchedPreview
   );
+};
 
 export const fetchEditThread = async (
   client: MatrixClient,
