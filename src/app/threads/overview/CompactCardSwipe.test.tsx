@@ -8,6 +8,7 @@ import {
   getParkWidth,
   useCompactCardSwipeList,
 } from './CompactCardSwipe';
+import { isCardActionTarget } from './compactCardSwipeListeners';
 
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();
@@ -1203,5 +1204,107 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
       vi.runAllTimers();
     });
     expect(onSwipe).not.toHaveBeenCalled();
+  });
+
+  it('ignores inline-end touch swipes on a closed card in LTR and RTL without claiming, while parked cards close on return swipe', () => {
+    const { onSwipe, swipe, pointer, actionStrip } = renderSplit();
+    const touchMove = () => {
+      const event = {
+        cancelable: true,
+        preventDefault: vi.fn(),
+        composedPath: () => [track, list],
+      };
+      list.touchMoveListener!(event);
+      return event.preventDefault;
+    };
+
+    // Closed card in LTR ignores inline-end (rightward) swipe completely.
+    pointer('onPointerDown', 100);
+    pointer('onPointerMove', 120);
+    expect(track.setPointerCapture).not.toHaveBeenCalled();
+    expect(actionStrip()).toHaveLength(0);
+    expect(touchMove()).not.toHaveBeenCalled();
+    expect(track.style.transform).toBe('');
+    pointer('onPointerUp', 160);
+    expect(onSwipe).not.toHaveBeenCalled();
+
+    // Closed card in RTL ignores inline-end (leftward) swipe completely.
+    direction = 'rtl';
+    pointer('onPointerDown', 280);
+    pointer('onPointerMove', 260);
+    expect(track.setPointerCapture).not.toHaveBeenCalled();
+    expect(actionStrip()).toHaveLength(0);
+    expect(touchMove()).not.toHaveBeenCalled();
+    expect(track.style.transform).toBe('');
+    pointer('onPointerUp', 220);
+    expect(onSwipe).not.toHaveBeenCalled();
+
+    // Parked card still claims and closes on a return swipe in RTL and LTR.
+    swipe(100, 210);
+    expect(track.style.transform).toBe('translateX(156px)');
+    track.setPointerCapture.mockClear();
+    pointer('onPointerDown', 260);
+    pointer('onPointerMove', 250);
+    expect(track.setPointerCapture).toHaveBeenCalledWith(1);
+    expect(touchMove()).toHaveBeenCalled();
+    pointer('onPointerMove', 210);
+    pointer('onPointerUp', 210);
+    expect(track.style.transform).toBe('');
+
+    direction = 'ltr';
+    swipe(300, 190);
+    expect(track.style.transform).toBe('translateX(-156px)');
+    track.setPointerCapture.mockClear();
+    pointer('onPointerDown', 100);
+    pointer('onPointerMove', 110);
+    expect(track.setPointerCapture).toHaveBeenCalledWith(1);
+    expect(touchMove()).toHaveBeenCalled();
+    pointer('onPointerMove', 150);
+    pointer('onPointerUp', 150);
+    expect(track.style.transform).toBe('');
+  });
+
+  it('lets independent card buttons pass through while parked, but swallows card body button clicks', async () => {
+    const { swipe, pointer, trackElement } = renderSplit();
+    const parkAndClick = async (target: EventTarget) => {
+      swipe(300, 190);
+      expect(track.style.transform).toBe('translateX(-156px)');
+      pointer('onPointerDown', 80);
+      pointer('onPointerUp', 80);
+      const event = { detail: 1, target, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+      await act(() => trackElement().props.onClickCapture(event));
+      expect(track.style.transform).toBe('');
+      return event;
+    };
+
+    // Independent button (e.g. CallRow Join/Transcript without data-compact-thread-*) passes through.
+    const joinBtn = document.createElement('button');
+    const joinLabel = document.createElement('span');
+    joinBtn.appendChild(joinLabel);
+    const joinClick = await parkAndClick(joinLabel);
+    expect(joinClick.preventDefault).not.toHaveBeenCalled();
+    expect(joinClick.stopPropagation).not.toHaveBeenCalled();
+
+    // Thread-opening card button and its descendants are swallowed while closing the tray.
+    const cardBtn = document.createElement('button');
+    cardBtn.setAttribute('data-thread-root-id', 'r1');
+    const titleSpan = document.createElement('span');
+    cardBtn.appendChild(titleSpan);
+    const bodyClick = await parkAndClick(cardBtn);
+    expect(bodyClick.preventDefault).toHaveBeenCalled();
+    expect(bodyClick.stopPropagation).toHaveBeenCalled();
+
+    const childClick = await parkAndClick(titleSpan);
+    expect(childClick.preventDefault).toHaveBeenCalled();
+    expect(childClick.stopPropagation).toHaveBeenCalled();
+
+    // An ancestor control wrapping the track itself is not treated as an independent card action.
+    const outer = document.createElement('div');
+    outer.setAttribute('role', 'button');
+    const realTrack = document.createElement('div');
+    const cardBg = document.createElement('div');
+    realTrack.appendChild(cardBg);
+    outer.appendChild(realTrack);
+    expect(isCardActionTarget(cardBg, realTrack)).toBe(false);
   });
 });

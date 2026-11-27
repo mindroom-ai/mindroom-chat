@@ -88,6 +88,9 @@ const closeActiveParked = (exceptTrack?: EventTarget | null) => {
   if (activeParked && activeParked.track !== exceptTrack) activeParked.close();
 };
 
+const getTowardStart = (track: HTMLElement): 1 | -1 =>
+  getComputedStyle(track).direction === 'rtl' ? -1 : 1;
+
 const shouldPark = (s: Swipe): boolean =>
   s.parkWidth > 0 &&
   s.offset >= Math.min(SWIPE.parkThreshold, s.parkWidth * 0.5) &&
@@ -207,7 +210,7 @@ export function CompactCardSwipe(props: CompactCardSwipeProps) {
     const prev = getParked();
     if (prev) activeParked = undefined;
     const width = track.getBoundingClientRect().width;
-    const towardStart: 1 | -1 = getComputedStyle(track).direction === 'rtl' ? -1 : 1;
+    const towardStart = getTowardStart(track);
     const deepThreshold = getDeepThreshold(width, p.canSnooze);
     const parkWidth = p.canSnooze ? getParkWidth(width, deepThreshold) : 0;
     const startOffset = prev?.offset ?? 0;
@@ -284,7 +287,7 @@ export function CompactCardSwipe(props: CompactCardSwipeProps) {
     if (!track || !propsRef.current.enabled || activeRef.current?.swipe) return undefined;
     const prev = getParked();
     if (!prev && blockedByDom) return undefined;
-    const dir: 1 | -1 = getComputedStyle(track).direction === 'rtl' ? -1 : 1;
+    const dir = getTowardStart(track);
     const delta = deltaX * dir;
     if (!prev && delta < 0) return undefined; // Closed cards yield to inline-end (Back) swipes.
     const swipe = startSwipe(0, delta);
@@ -375,7 +378,12 @@ export function CompactCardSwipe(props: CompactCardSwipeProps) {
         const dx = e.clientX - active.startX;
         const dy = e.clientY - active.startY;
         if (Math.abs(dx) < SWIPE.lock && Math.abs(dy) < SWIPE.lock) return;
-        if (Math.abs(dy) >= Math.abs(dx)) {
+        const track = trackRef.current;
+        if (
+          Math.abs(dy) >= Math.abs(dx) ||
+          !track ||
+          (!getParked() && -dx * getTowardStart(track) <= 0)
+        ) {
           activeRef.current = undefined;
           return closeParked();
         }
@@ -386,7 +394,7 @@ export function CompactCardSwipe(props: CompactCardSwipeProps) {
         }
         active.swipe = swipe;
         // Capture on the always-mounted track so hiding/unmounting the tray never drops capture.
-        trackRef.current?.setPointerCapture?.(e.pointerId);
+        track.setPointerCapture?.(e.pointerId);
       }
       const { swipe } = active;
       updateSwipe(swipe, swipe.startOffset + (swipe.originX - e.clientX) * swipe.towardStart);
@@ -407,7 +415,7 @@ export function CompactCardSwipe(props: CompactCardSwipeProps) {
       swipedRef.current = false;
     } else if (!isTray && getParked()) {
       closeParked();
-      if (isCardActionTarget(event.target)) return;
+      if (isCardActionTarget(event.target, trackRef.current)) return;
     } else {
       return;
     }

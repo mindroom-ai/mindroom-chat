@@ -3,16 +3,17 @@ import { hasOpenOverlay } from '../../lib/openOverlay';
 
 // Ignore tiny residual vertical momentum right after parking a card on a trackpad.
 const PARK_SCROLL_DRIFT_PX = 8;
-const CARD_ACTION_SELECTOR =
-  '[data-compact-thread-more],[data-compact-thread-pin],[data-compact-thread-resolve]';
 const PASSIVE = { capture: true, passive: true } as const;
 
-export const isCardActionTarget = (target: EventTarget | null): boolean =>
-  Boolean(
-    (target instanceof Element ? target : (target as Node | null)?.parentElement)?.closest(
-      CARD_ACTION_SELECTOR
-    )
+export const isCardActionTarget = (target: EventTarget | null, track?: Element | null): boolean => {
+  const el = target instanceof Element ? target : (target as Node | null)?.parentElement;
+  const control = el?.closest('button,a[href],[role="button"]');
+  return Boolean(
+    control &&
+    !control.hasAttribute('data-thread-root-id') &&
+    (!(track instanceof Node) || !control.contains(track))
   );
+};
 
 export const focusCompactCardButton = (track: HTMLElement | null): void =>
   (

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DesktopBridge, DesktopShellEvent } from '../lib/desktopBridge';
-import { installDesktopHistorySwipe, registerTrackpadSwipeClaimer } from './desktopHistorySwipe';
+import { installDesktopHistorySwipe } from './desktopHistorySwipe';
+import { registerTrackpadSwipeClaimer } from './trackpadSwipeClaim';
 
 type WheelOpts = WheelEventInit & { momentum?: boolean; defaultPrevented?: boolean };
 type SwipeOpts = Parameters<typeof installDesktopHistorySwipe>[1];

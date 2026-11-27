@@ -7,13 +7,6 @@ import { documentIsRightToLeft } from '../ui/directional';
 import { SwipeChevron, SwipeIndicator } from './desktopHistorySwipe.css';
 import { trackpadSwipeClaimers, type TrackpadSwipeClaim } from './trackpadSwipeClaim';
 
-export {
-  registerTrackpadSwipeClaimer,
-  type TrackpadSwipeCandidate,
-  type TrackpadSwipeClaim,
-  type TrackpadSwipeClaimer,
-} from './trackpadSwipeClaim';
-
 type Dir = 'back' | 'forward';
 type NavWindow = Window & { navigation?: { canGoBack?: boolean; canGoForward?: boolean } };
 type SwipeGesture =
