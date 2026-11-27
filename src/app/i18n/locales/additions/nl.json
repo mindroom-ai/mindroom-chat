@@ -1913,7 +1913,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "Pushmeldingen",
+        "title": "Android-pushmeldingen",
         "description": "Android-pushmeldingen toestaan voor berichtmeldingen op de achtergrond.",
         "notConfigured": "Android-push is niet geconfigureerd door de deployment. Voeg `push.android`-instellingen toe in `config.json`.",
         "disabled": "Android-push is uitgeschakeld voor dit apparaat.",

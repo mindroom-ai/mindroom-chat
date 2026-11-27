@@ -1978,7 +1978,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "Notifications push",
+        "title": "Notifications push Android",
         "description": "Autoriser les notifications push Android pour les alertes de messages en arrière-plan.",
         "notConfigured": "Le push Android n'est pas configuré par le déploiement. Ajoutez les paramètres `push.android` dans `config.json`.",
         "disabled": "Les notifications push Android sont désactivées pour cet appareil.",

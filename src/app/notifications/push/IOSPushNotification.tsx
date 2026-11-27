@@ -21,7 +21,7 @@ import {
   resolveIOSPushConfig,
   setIOSPushEnabled,
 } from './iosPush';
-import { useIOSPushEnabled } from './useIOSPushEnabled';
+import { useIOSPushEnabled, useNativeAndroidPushConfigured } from './useIOSPushEnabled';
 
 /** The explanation under the switch: what push does, the device's state, and the last failure. */
 function PushDescription({
@@ -133,7 +133,7 @@ function IOSPushNotificationTile() {
   return (
     <SettingsCard>
       <SettingTile
-        focusId="pushNotifications"
+        focusId={isAndroid ? 'androidPushNotifications' : 'pushNotifications'}
         title={title}
         description={
           <PushDescription
@@ -162,6 +162,9 @@ function IOSPushNotificationTile() {
  */
 export function IOSPushNotification() {
   const mx = useMatrixClient();
+  const isAndroid = isNativeAndroidPushPlatform();
+  const androidPushConfigured = useNativeAndroidPushConfigured();
   if (!isNativePushPlatform() || !cloudflareAccessAllowsPush(mx.getHomeserverUrl())) return null;
+  if (isAndroid && !androidPushConfigured) return null;
   return <IOSPushNotificationTile />;
 }

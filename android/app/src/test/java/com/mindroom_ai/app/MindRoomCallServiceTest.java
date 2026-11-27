@@ -34,11 +34,10 @@ public class MindRoomCallServiceTest {
 
     @Test
     public void formatNotificationCopyUsesRoomNameOrFallback() {
-        assertEquals(MindRoomCallService.DEFAULT_TITLE, MindRoomCallService.formatNotificationTitle("Team"));
+        assertEquals("Call in Team Room", MindRoomCallService.formatNotificationTitle("  Team\nRoom "));
         assertEquals(MindRoomCallService.DEFAULT_TITLE, MindRoomCallService.formatNotificationTitle(null));
-        assertEquals("Team Room", MindRoomCallService.formatNotificationText("  Team\nRoom "));
-        assertEquals(MindRoomCallService.DEFAULT_CONTENT_TEXT, MindRoomCallService.formatNotificationText(null));
-        assertEquals(MindRoomCallService.DEFAULT_CONTENT_TEXT, MindRoomCallService.formatNotificationText("   "));
+        assertEquals(MindRoomCallService.DEFAULT_TITLE, MindRoomCallService.formatNotificationTitle("   "));
+        assertEquals(MindRoomCallService.DEFAULT_CONTENT_TEXT, MindRoomCallService.formatNotificationText());
     }
 
     @Test

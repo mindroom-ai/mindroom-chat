@@ -16,6 +16,7 @@ const pluginMocks = vi.hoisted(() => ({
   start: vi.fn<(options?: { roomName?: string }) => Promise<{ active?: boolean }>>(),
   stop: vi.fn<() => Promise<void>>(),
   rooms: new Map<string, { name: string }>(),
+  onAppStateChange: undefined as ((state: { isActive: boolean }) => void) | undefined,
 }));
 
 vi.mock('@capacitor/core', () => ({
@@ -30,6 +31,21 @@ vi.mock('@capacitor/core', () => ({
   })),
 }));
 
+vi.mock('@capacitor/app', () => ({
+  App: {
+    addListener: vi.fn(async (event: string, listener: (state: { isActive: boolean }) => void) => {
+      if (event === 'appStateChange') pluginMocks.onAppStateChange = listener;
+      return {
+        remove: vi.fn(async () => {
+          if (event === 'appStateChange' && pluginMocks.onAppStateChange === listener) {
+            pluginMocks.onAppStateChange = undefined;
+          }
+        }),
+      };
+    }),
+  },
+}));
+
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
     getRoom: (roomId: string) => pluginMocks.rooms.get(roomId) ?? null,
@@ -42,21 +58,28 @@ const enableAndroidPlugin = () => {
   vi.mocked(Capacitor.isPluginAvailable).mockImplementation((name) => name === 'MindRoomCall');
 };
 
-const createFakeCall = (roomId: string, roomName: string, initialPhase: CallPhase) => {
-  let phase: CallPhase = initialPhase;
+type FakeCallState = {
+  phase: CallPhase;
+  microphone: boolean;
+  microphoneTrack?: { id: string };
+};
+
+const createFakeCall = (roomId: string, roomName: string, initialState: FakeCallState) => {
+  let state: FakeCallState = initialState;
   const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach((listener) => listener());
   return {
     room: { roomId, name: roomName },
-    getState: () => ({ phase }),
+    getState: () => state,
     subscribe: (listener: () => void) => {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
       };
     },
-    setPhase(next: CallPhase) {
-      phase = next;
-      listeners.forEach((listener) => listener());
+    update(patch: Partial<FakeCallState>) {
+      state = { ...state, ...patch };
+      notify();
     },
   };
 };
@@ -65,6 +88,7 @@ describe('androidCallService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     pluginMocks.rooms.clear();
+    pluginMocks.onAppStateChange = undefined;
     pluginMocks.start.mockResolvedValue({ active: true });
     pluginMocks.stop.mockResolvedValue(undefined);
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
@@ -116,7 +140,10 @@ describe('androidCallService', () => {
 
   it('does nothing in AndroidCallServiceFeature outside native Android', async () => {
     const store = createStore();
-    const call = createFakeCall('!room:example', 'General', 'connected');
+    const call = createFakeCall('!room:example', 'General', {
+      phase: 'connected',
+      microphone: true,
+    });
     store.set(activeCallAtom, { kind: 'room', call } as unknown as ActiveCall);
 
     let renderer!: ReactTestRenderer;
@@ -133,9 +160,14 @@ describe('androidCallService', () => {
     act(() => renderer.unmount());
   });
 
-  it('starts on live calls, retries after denied start once connected, and stops on end/failed/unmount', async () => {
+  it('retries start once microphone becomes active after connected on Android 14+ and stops on end/unmount', async () => {
     enableAndroidPlugin();
-    pluginMocks.start.mockResolvedValueOnce({ active: false }).mockResolvedValue({ active: true });
+    // RoomCall connects BEFORE requesting RECORD_AUDIO, so initial connecting + connected starts
+    // return { active: false }, then publishing the microphone track retries and succeeds.
+    pluginMocks.start
+      .mockResolvedValueOnce({ active: false })
+      .mockResolvedValueOnce({ active: false })
+      .mockResolvedValue({ active: true });
     const store = createStore();
 
     let renderer!: ReactTestRenderer;
@@ -147,37 +179,48 @@ describe('androidCallService', () => {
       );
     });
     expect(pluginMocks.start).not.toHaveBeenCalled();
-    expect(pluginMocks.stop).not.toHaveBeenCalled();
 
-    // First call starts connecting before mic permission is granted -> resolves active: false.
-    const call = createFakeCall('!room:example', 'Design Sync', 'connecting');
+    const call = createFakeCall('!room:example', 'Design Sync', {
+      phase: 'connecting',
+      microphone: true,
+    });
     await act(async () => {
       store.set(activeCallAtom, { kind: 'room', call } as unknown as ActiveCall);
     });
     expect(pluginMocks.start).toHaveBeenCalledTimes(1);
     expect(pluginMocks.start).toHaveBeenLastCalledWith({ roomName: 'Design Sync' });
 
-    // Once connected after mic grant, retries start and succeeds.
+    // RoomCall enters connected while RECORD_AUDIO prompt is still pending -> still active: false.
     await act(async () => {
-      call.setPhase('connected');
+      call.update({ phase: 'connected' });
     });
     expect(pluginMocks.start).toHaveBeenCalledTimes(2);
 
-    // Reconnecting while already active on native does not spam start.
+    // Microphone permission is granted and the local audio track is published -> retries and succeeds.
     await act(async () => {
-      call.setPhase('reconnecting');
+      call.update({ microphoneTrack: { id: 'mic-track-1' } });
     });
-    expect(pluginMocks.start).toHaveBeenCalledTimes(2);
+    expect(pluginMocks.start).toHaveBeenCalledTimes(3);
+
+    // Further state updates while already active on native do not spam start.
+    await act(async () => {
+      call.update({ phase: 'reconnecting' });
+    });
+    expect(pluginMocks.start).toHaveBeenCalledTimes(3);
 
     // Entering failed stops the foreground service.
     await act(async () => {
-      call.setPhase('failed');
+      call.update({ phase: 'failed' });
     });
     expect(pluginMocks.stop).toHaveBeenCalledTimes(1);
 
-    // Agent call prefers the origin room's display name and stops on unmount.
+    // Agent call prefers origin room name, retries on foreground return if denied initially, and stops on unmount.
     pluginMocks.rooms.set('!origin:example', { name: 'Product Chat' });
-    const agentCall = createFakeCall('!agent-call:example', 'Agent Call', 'connected');
+    pluginMocks.start.mockResolvedValueOnce({ active: false }).mockResolvedValue({ active: true });
+    const agentCall = createFakeCall('!agent-call:example', 'Agent Call', {
+      phase: 'connected',
+      microphone: false,
+    });
     await act(async () => {
       store.set(activeCallAtom, {
         kind: 'agent',
@@ -186,6 +229,11 @@ describe('androidCallService', () => {
       } as unknown as ActiveCall);
     });
     expect(pluginMocks.start).toHaveBeenLastCalledWith({ roomName: 'Product Chat' });
+
+    await act(async () => {
+      pluginMocks.onAppStateChange?.({ isActive: true });
+    });
+    expect(pluginMocks.start).toHaveBeenCalledTimes(5);
 
     await act(async () => {
       renderer.unmount();

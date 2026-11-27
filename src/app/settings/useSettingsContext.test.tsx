@@ -8,6 +8,7 @@ import { useSettingsContext } from './useSettingsContext';
 
 const mocks = vi.hoisted(() => ({
   getDebugModeEnabled: vi.fn(() => false),
+  androidPushConfigured: false,
 }));
 
 vi.mock('../diagnostics/debugMode', () => ({ getDebugModeEnabled: mocks.getDebugModeEnabled }));
@@ -17,6 +18,9 @@ vi.mock('./railButtons', () => ({ useOfferedRailButtons: () => [] }));
 vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => ({}) }));
 vi.mock('../matrix/hooks/useCapabilities', () => ({ useCapabilities: () => undefined }));
 vi.mock('../server-admin/accounts', () => ({ isServerAdmin: () => false }));
+vi.mock('../notifications/push/useIOSPushEnabled', () => ({
+  useNativeAndroidPushConfigured: () => mocks.androidPushConfigured,
+}));
 
 describe('useSettingsContext', () => {
   let renderer: ReactTestRenderer | undefined;
@@ -44,6 +48,7 @@ describe('useSettingsContext', () => {
     vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(false);
     vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('web');
     mocks.getDebugModeEnabled.mockReturnValue(false);
+    mocks.androidPushConfigured = false;
     Reflect.deleteProperty(window, 'mindroomDesktop');
   });
 
@@ -93,7 +98,7 @@ describe('useSettingsContext', () => {
     expect(read()).toMatchObject({ native: true, capacitor: false, desktopAccess: true });
   });
 
-  it('sets capacitor and diagnostics on native Android and iOS', () => {
+  it('sets capacitor, platform flags, androidPushConfigured, and diagnostics on native Android and iOS', () => {
     vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
     vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
 
@@ -101,15 +106,27 @@ describe('useSettingsContext', () => {
       native: true,
       capacitor: true,
       nativeIOS: false,
+      nativeAndroid: true,
+      androidPushConfigured: false,
       diagnostics: true,
     });
     act(() => renderer?.unmount());
 
+    mocks.androidPushConfigured = true;
+    expect(read()).toMatchObject({
+      nativeAndroid: true,
+      androidPushConfigured: true,
+    });
+    act(() => renderer?.unmount());
+
+    mocks.androidPushConfigured = false;
     vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('ios');
     expect(read()).toMatchObject({
       native: true,
       capacitor: true,
       nativeIOS: true,
+      nativeAndroid: false,
+      androidPushConfigured: false,
       diagnostics: true,
     });
   });

@@ -18,23 +18,17 @@ import com.getcapacitor.Logger;
 public class MindRoomCallService extends Service {
 
     static final String ACTION_START = "com.mindroom_ai.app.action.START_CALL_SERVICE";
-    static final String ACTION_STOP = "com.mindroom_ai.app.action.STOP_CALL_SERVICE";
     static final String EXTRA_ROOM_NAME = "room_name";
     static final int NOTIFICATION_ID = 4101;
     static final String DEFAULT_TITLE = "MindRoom call in progress";
+    static final String CALL_TITLE_PREFIX = "Call in ";
     static final String DEFAULT_CONTENT_TEXT = "Tap to return to the call";
     static final int MAX_ROOM_NAME_LENGTH = 80;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent == null || ACTION_STOP.equals(intent.getAction())) {
-            ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
-            stopSelf();
-            return START_NOT_STICKY;
-        }
-
         MindRoomNotificationChannels.ensureCreated(this);
-        String roomName = intent.getStringExtra(EXTRA_ROOM_NAME);
+        String roomName = intent != null ? intent.getStringExtra(EXTRA_ROOM_NAME) : null;
         Notification notification = buildNotification(roomName);
 
         try {
@@ -48,7 +42,7 @@ public class MindRoomCallService extends Service {
             } else {
                 startForeground(NOTIFICATION_ID, notification);
             }
-        } catch (SecurityException | IllegalStateException e) {
+        } catch (RuntimeException e) {
             Logger.warn("MindRoomCallService failed to enter foreground: " + e.getMessage());
             stopSelf();
         }
@@ -81,7 +75,7 @@ public class MindRoomCallService extends Service {
         return new NotificationCompat.Builder(this, MindRoomNotificationChannels.ACTIVE_CALL_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_phone_call)
             .setContentTitle(formatNotificationTitle(roomName))
-            .setContentText(formatNotificationText(roomName))
+            .setContentText(formatNotificationText())
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
@@ -122,12 +116,12 @@ public class MindRoomCallService extends Service {
     }
 
     static String formatNotificationTitle(String roomName) {
-        return DEFAULT_TITLE;
+        String sanitized = sanitizeRoomName(roomName);
+        return sanitized != null ? CALL_TITLE_PREFIX + sanitized : DEFAULT_TITLE;
     }
 
-    static String formatNotificationText(String roomName) {
-        String sanitized = sanitizeRoomName(roomName);
-        return sanitized != null ? sanitized : DEFAULT_CONTENT_TEXT;
+    static String formatNotificationText() {
+        return DEFAULT_CONTENT_TEXT;
     }
 
     static boolean requiresRecordAudioPermission(int sdkInt) {

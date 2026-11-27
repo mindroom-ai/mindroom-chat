@@ -73,6 +73,7 @@ const state = vi.hoisted(() => {
     // False on the Mac app and on Android, which have no iOS notification extension.
     nativeNotificationsAvailable: true,
     nativeAndroid: false,
+    androidPushConfigured: true,
     hasCompletedInitialSync: false,
     // False for a client that has no token to send to the authenticated media endpoint.
     authenticatedMedia: true,
@@ -175,7 +176,10 @@ vi.mock('./iosPush', () => ({
   upsertIOSPushPusher: vi.fn(async () => undefined),
 }));
 
-vi.mock('./useIOSPushEnabled', () => ({ useIOSPushEnabled: () => state.pushEnabled }));
+vi.mock('./useIOSPushEnabled', () => ({
+  useIOSPushEnabled: () => state.pushEnabled,
+  useNativeAndroidPushConfigured: () => state.nativeAndroid && state.androidPushConfigured,
+}));
 vi.mock('../../native/cloudflareAccess', () => ({
   cloudflareAccessAllowsPush: () => state.pushAllowed,
   hasCloudflareAccess: () => state.hasCloudflareAccess,
@@ -254,6 +258,7 @@ describe('NativeIOSPushFeature', () => {
     state.hasCloudflareAccess = false;
     state.nativeNotificationsAvailable = true;
     state.nativeAndroid = false;
+    state.androidPushConfigured = true;
     state.onRegistration = undefined;
     state.onRegistrationError = undefined;
     state.hasCompletedInitialSync = false;
@@ -1335,6 +1340,36 @@ describe('NativeIOSPushFeature', () => {
       expect(setIOSPushEnabled).not.toHaveBeenCalled();
 
       warn.mockRestore();
+      renderer.unmount();
+    });
+
+    it('never calls register or setPusher when Android FCM is not configured in this build', async () => {
+      state.nativeAndroid = true;
+      state.androidPushConfigured = false;
+      state.nativeNotificationsAvailable = false;
+      state.signInRequired = false;
+
+      const renderer = await mount();
+
+      expect(registerIOSPush).not.toHaveBeenCalled();
+      expect(state.onRegistration).toBeUndefined();
+      expect(upsertIOSPushPusher).not.toHaveBeenCalled();
+      renderer.unmount();
+    });
+
+    it('ignores an unsolicited Android registration token before notification permission is granted', async () => {
+      state.nativeAndroid = true;
+      state.androidPushConfigured = true;
+      state.nativeNotificationsAvailable = false;
+      state.signInRequired = false;
+      state.permission = 'prompt';
+
+      const renderer = await mount();
+      expect(registerIOSPush).not.toHaveBeenCalled();
+
+      await act(async () => state.onRegistration?.({ value: 'unsolicited-fcm-token' }));
+
+      expect(upsertIOSPushPusher).not.toHaveBeenCalled();
       renderer.unmount();
     });
   });

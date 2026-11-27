@@ -2173,7 +2173,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "إشعارات الدفع",
+        "title": "إشعارات Android",
         "description": "السماح بإشعارات Android لتنبيهات الرسائل في الخلفية.",
         "notConfigured": "لم يتم إعداد إشعارات Android في هذا النشر. أضف إعدادات `push.android` في `config.json`.",
         "disabled": "إشعارات Android معطّلة لهذا الجهاز.",

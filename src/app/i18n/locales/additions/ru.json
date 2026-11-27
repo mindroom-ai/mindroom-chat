@@ -2043,7 +2043,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "Push-уведомления",
+        "title": "Push-уведомления Android",
         "description": "Разрешить push-уведомления Android для оповещений о сообщениях в фоне.",
         "notConfigured": "Push-уведомления Android не настроены в развертывании. Добавьте настройки `push.android` в `config.json`.",
         "disabled": "Push-уведомления Android отключены на этом устройстве.",

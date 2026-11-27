@@ -1913,7 +1913,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "Anlık Bildirimler",
+        "title": "Android anlık bildirimleri",
         "description": "Arka plan mesaj uyarıları için Android anlık bildirimlerine izin verin.",
         "notConfigured": "Android anlık bildirimleri dağıtım tarafından yapılandırılmamış. `config.json` dosyasına `push.android` ayarlarını ekleyin.",
         "disabled": "Bu cihaz için Android anlık bildirimleri devre dışı.",

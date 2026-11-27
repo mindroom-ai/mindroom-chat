@@ -1848,7 +1848,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "Notifikasi Push",
+        "title": "Notifikasi push Android",
         "description": "Izinkan notifikasi push Android untuk peringatan pesan di latar belakang.",
         "notConfigured": "Push Android belum dikonfigurasi oleh deployment. Tambahkan pengaturan `push.android` di `config.json`.",
         "disabled": "Push Android dinonaktifkan untuk perangkat ini.",

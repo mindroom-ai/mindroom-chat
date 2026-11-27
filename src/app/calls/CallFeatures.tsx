@@ -1,4 +1,5 @@
-import { useEffect, useRef, useSyncExternalStore } from 'react';
+import { useEffect } from 'react';
+import { App as NativeApp } from '@capacitor/app';
 import { useStore } from 'jotai';
 import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -135,67 +136,75 @@ function CallResume() {
  * reload, the call's lifetime, transcribing this device's speech in it (reading an agent call's
  * transcript), and the floating call window.
  */
-const noCallSubscription = () => () => undefined;
-
 function AndroidCallServiceSync() {
   const mx = useMatrixClient();
   const active = useActiveCall();
   const call = active?.call;
-  const phase = useSyncExternalStore(
-    call?.subscribe ?? noCallSubscription,
-    () => call?.getState().phase
-  );
-  const live = phase !== undefined && isLiveCallPhase(phase);
-  const roomName = active
-    ? (active.origin?.roomId ? mx.getRoom(active.origin.roomId)?.name : undefined) ||
-      active.call.room.name ||
-      undefined
-    : undefined;
-  const startedRef = useRef(false);
-  const activeOnNativeRef = useRef(false);
-  const lastRoomNameRef = useRef<string | undefined>(undefined);
+  const originRoomId = active?.origin?.roomId;
 
   useEffect(() => {
-    if (!live) {
-      if (startedRef.current) {
-        startedRef.current = false;
-        activeOnNativeRef.current = false;
-        lastRoomNameRef.current = undefined;
-        void stopAndroidCallService();
-      }
-      return undefined;
-    }
+    if (!call) return undefined;
+    let disposed = false;
+    let serviceActive = false;
+    let starting = false;
+    let retryQueued = false;
+    let lastAttemptKey = '';
 
-    if (activeOnNativeRef.current && lastRoomNameRef.current === roomName) {
-      return undefined;
-    }
+    const getRoomName = () =>
+      (originRoomId ? mx.getRoom(originRoomId)?.name : undefined) || call.room.name || undefined;
 
-    let cancelled = false;
-    startedRef.current = true;
-    lastRoomNameRef.current = roomName;
-    void startAndroidCallService(roomName).then((started) => {
-      if (cancelled) {
-        if (started && !startedRef.current) void stopAndroidCallService();
+    const sync = (force = false) => {
+      if (disposed) return;
+      const state = call.getState();
+      if (!isLiveCallPhase(state.phase)) {
+        retryQueued = false;
+        lastAttemptKey = '';
+        if (serviceActive) {
+          serviceActive = false;
+          void stopAndroidCallService();
+        }
         return;
       }
-      activeOnNativeRef.current = started;
-    });
-    return () => {
-      cancelled = true;
+      if (serviceActive) return;
+      const attemptKey = `${state.phase}:${state.microphone ? 1 : 0}:${state.microphoneTrack ? 1 : 0}`;
+      if (!force && attemptKey === lastAttemptKey) return;
+      if (starting) {
+        retryQueued = true;
+        return;
+      }
+      starting = true;
+      retryQueued = false;
+      lastAttemptKey = attemptKey;
+      void startAndroidCallService(getRoomName()).then((started) => {
+        starting = false;
+        if (disposed || !isLiveCallPhase(call.getState().phase)) {
+          if (started) void stopAndroidCallService();
+          return;
+        }
+        serviceActive = started;
+        if (!started && retryQueued) {
+          retryQueued = false;
+          sync(true);
+        }
+      });
     };
-  }, [live, phase, roomName]);
 
-  useEffect(
-    () => () => {
-      if (startedRef.current) {
-        startedRef.current = false;
-        activeOnNativeRef.current = false;
-        lastRoomNameRef.current = undefined;
+    sync(true);
+    const unsubscribe = call.subscribe(() => sync(false));
+    const appStateHandle = NativeApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) sync(true);
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+      appStateHandle.then((listener) => listener.remove()).catch(() => undefined);
+      if (serviceActive) {
+        serviceActive = false;
         void stopAndroidCallService();
       }
-    },
-    []
-  );
+    };
+  }, [call, mx, originRoomId]);
 
   return null;
 }

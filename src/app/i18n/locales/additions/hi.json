@@ -1913,7 +1913,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "पुश सूचनाएँ",
+        "title": "Android पुश सूचनाएँ",
         "description": "पृष्ठभूमि संदेश अलर्ट के लिए Android पुश सूचनाओं की अनुमति दें।",
         "notConfigured": "डिप्लॉयमेंट में Android पुश कॉन्फ़िगर नहीं है। `config.json` में `push.android` सेटिंग्स जोड़ें।",
         "disabled": "इस डिवाइस के लिए Android पुश अक्षम है।",

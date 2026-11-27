@@ -30,7 +30,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="mindroom" android:host="auth" />
-                <data android:scheme="mindroom" android:host="cloudflare-access" />
             </intent-filter>
 
             <intent-filter android:autoVerify="true">

@@ -1913,7 +1913,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "Push-Benachrichtigungen",
+        "title": "Android-Push-Benachrichtigungen",
         "description": "Android-Push-Benachrichtigungen für Nachrichten im Hintergrund zulassen.",
         "notConfigured": "Android-Push ist von der Bereitstellung nicht konfiguriert. Füge `push.android`-Einstellungen in `config.json` hinzu.",
         "disabled": "Android-Push ist für dieses Gerät deaktiviert.",

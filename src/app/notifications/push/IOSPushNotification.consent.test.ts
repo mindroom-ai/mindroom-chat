@@ -35,7 +35,10 @@ vi.mock('../../matrix/session/useSessionStore', () => ({
 }));
 
 // The first tap on a fresh install: push is already on by default, notifications not yet allowed.
-vi.mock('./useIOSPushEnabled', () => ({ useIOSPushEnabled: () => true }));
+vi.mock('./useIOSPushEnabled', () => ({
+  useIOSPushEnabled: () => true,
+  useNativeAndroidPushConfigured: () => false,
+}));
 
 vi.mock('./iosPush', () => ({
   checkIOSPushPermission: vi.fn().mockResolvedValue('prompt'),

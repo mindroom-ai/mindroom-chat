@@ -1848,7 +1848,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "プッシュ通知",
+        "title": "Android プッシュ通知",
         "description": "バックグラウンドでのメッセージ通知に Android プッシュ通知を許可します。",
         "notConfigured": "デプロイで Android プッシュが設定されていません。`config.json` に `push.android` 設定を追加してください。",
         "disabled": "このデバイスでは Android プッシュが無効になっています。",

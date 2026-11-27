@@ -41,7 +41,7 @@ import {
   collectJoinedMemberAvatars,
   prewarmNativeNotificationAvatars,
 } from './nativeNotificationAvatars';
-import { useIOSPushEnabled } from './useIOSPushEnabled';
+import { useIOSPushEnabled, useNativeAndroidPushConfigured } from './useIOSPushEnabled';
 
 export { collectJoinedMemberAvatars } from './nativeNotificationAvatars';
 
@@ -71,6 +71,8 @@ export function NativeIOSPushFeature() {
   const pushAllowed = cloudflareAccessAllowsPush(homeserverUrl);
   const native = isNativePushPlatform();
   const isAndroid = isNativeAndroidPushPlatform();
+  const androidPushConfigured = useNativeAndroidPushConfigured();
+  const pushConfigured = !isAndroid || androidPushConfigured;
   const logTag = isAndroid ? '[android-push]' : '[ios-push]';
   const pushService = isAndroid ? 'FCM' : 'APNs';
   // The notification extension is part of the iPhone and iPad app only: the Mac app registers
@@ -283,7 +285,8 @@ export function NativeIOSPushFeature() {
 
   // Tokens can arrive from a registration started earlier, so the listener lives as long as the client.
   useEffect(() => {
-    if (!native || !stableConfig) return undefined;
+    if (!native || !stableConfig || !pushConfigured) return undefined;
+    let disposed = false;
     const registrationHandle = PushNotifications.addListener('registration', ({ value }) => {
       const state = latest.current;
       if (!state.pushAllowed) {
@@ -291,23 +294,38 @@ export function NativeIOSPushFeature() {
         return;
       }
       if (!state.enabled || state.signInRequired) return;
-      upsertIOSPushPusher(mx, stableConfig, value, sessionId).catch((error: unknown) => {
-        // eslint-disable-next-line no-console
-        console.warn(`${logTag} could not register the pusher`, error);
-      });
+      checkIOSPushPermission()
+        .then((currentPermission) => {
+          const currentState = latest.current;
+          if (
+            disposed ||
+            currentPermission !== 'granted' ||
+            !currentState.pushAllowed ||
+            !currentState.enabled ||
+            currentState.signInRequired
+          ) {
+            return undefined;
+          }
+          return upsertIOSPushPusher(mx, stableConfig, value, sessionId);
+        })
+        .catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn(`${logTag} could not register the pusher`, error);
+        });
     });
     const errorHandle = PushNotifications.addListener('registrationError', (error) => {
       // eslint-disable-next-line no-console
       console.warn(`${logTag} ${pushService} registration failed`, error);
     });
     return () => {
+      disposed = true;
       registrationHandle.then((listener) => listener.remove()).catch(() => undefined);
       errorHandle.then((listener) => listener.remove()).catch(() => undefined);
     };
-  }, [latest, logTag, mx, native, pushService, sessionId, stableConfig]);
+  }, [latest, logTag, mx, native, pushConfigured, pushService, sessionId, stableConfig]);
 
   useEffect(() => {
-    if (!native || !stableConfig) return;
+    if (!native || !stableConfig || !pushConfigured) return;
     if (!pushAllowed) {
       disableIOSPushPusher(mx, stableConfig, sessionId).catch(() => undefined);
       return;
@@ -332,6 +350,7 @@ export function NativeIOSPushFeature() {
     mx,
     native,
     pushAllowed,
+    pushConfigured,
     pushService,
     sessionId,
     signInRequired,

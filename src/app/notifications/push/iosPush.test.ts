@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { Capacitor } from '@capacitor/core';
+import * as CapacitorCore from '@capacitor/core';
+const { Capacitor } = CapacitorCore;
 import { PushNotifications } from '@capacitor/push-notifications';
 import {
   buildIOSPushPusherRequest,
@@ -10,8 +11,10 @@ import {
   getAllowedNativeNotificationAccountTags,
   getIOSPushEnabled,
   getStoredIOSPushToken,
+  isNativeAndroidPushConfigured,
   isNativeAndroidPushPlatform,
   isNativePushPlatform,
+  resetNativeAndroidPushConfiguredCache,
   migrateLegacyIOSPushEnabled,
   reconcileIOSPushNativeState,
   resolveEffectiveIOSPushFormat,
@@ -1087,5 +1090,42 @@ describe('Android FCM push support', () => {
         '   '
       )
     ).rejects.toThrow('FCM registration returned an empty push token.');
+  });
+
+  it('gates Android FCM on MindRoomPushConfig.isConfigured() and caches the result', async () => {
+    resetNativeAndroidPushConfiguredCache();
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('ios');
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(true);
+
+    // On Android without the native plugin, report unconfigured.
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    vi.spyOn(Capacitor, 'isPluginAvailable').mockReturnValue(false);
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(false);
+
+    // On Android with MindRoomPushConfig resolving configured: true, cache the result.
+    const isConfigured = vi.fn().mockResolvedValue({ configured: true });
+    vi.spyOn(Capacitor, 'isPluginAvailable').mockImplementation(
+      (name) => name === 'MindRoomPushConfig'
+    );
+    const registerSpy = vi
+      .spyOn(CapacitorCore, 'registerPlugin')
+      .mockReturnValue({ isConfigured });
+    resetNativeAndroidPushConfiguredCache();
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(true);
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(true);
+    expect(isConfigured).toHaveBeenCalledTimes(1);
+
+    // On failure or configured: false, resolve false cleanly.
+    resetNativeAndroidPushConfiguredCache();
+    isConfigured.mockResolvedValueOnce({ configured: false });
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(false);
+
+    resetNativeAndroidPushConfiguredCache();
+    isConfigured.mockRejectedValueOnce(new Error('plugin error'));
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(false);
+
+    registerSpy.mockRestore();
+    resetNativeAndroidPushConfiguredCache();
   });
 });

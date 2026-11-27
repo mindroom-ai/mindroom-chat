@@ -8,6 +8,7 @@ import en from '../../i18n/englishResources';
 const nativeState = vi.hoisted(() => ({
   native: false,
   android: false,
+  androidPushConfigured: true,
   failed: false,
   pushAllowed: true,
   toggle: vi.fn<(enabled: boolean) => Promise<void>>(),
@@ -66,6 +67,8 @@ vi.mock('../../lib/hooks/useAsyncCallback', () => ({
 
 vi.mock('./useIOSPushEnabled', () => ({
   useIOSPushEnabled: () => false,
+  useNativeAndroidPushConfigured: () =>
+    nativeState.native && nativeState.android && nativeState.androidPushConfigured,
 }));
 
 vi.mock('./iosPush', () => ({
@@ -215,7 +218,7 @@ it('renders Android push copy on native Android while keeping iOS copy unchanged
       );
     });
     const androidJson = JSON.stringify(renderer!.toJSON());
-    expect(androidJson).toContain('Push Notifications');
+    expect(androidJson).toContain('Android Push Notifications');
     expect(androidJson).toContain(
       'Allow Android push notifications for background message alerts.'
     );
@@ -236,8 +239,23 @@ it('renders Android push copy on native Android while keeping iOS copy unchanged
     expect(iosJson).toContain('iOS Push Notifications');
     expect(iosJson).toContain('Allow native iOS push notifications for background message alerts.');
     act(() => renderer!.unmount());
+    // On Android builds without google-services.json, hide the tile completely.
+    nativeState.android = true;
+    nativeState.androidPushConfigured = false;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          I18nextProvider,
+          { i18n: language },
+          React.createElement(IOSPushNotification)
+        )
+      );
+    });
+    expect(renderer!.toJSON()).toBeNull();
+    act(() => renderer!.unmount());
   } finally {
     nativeState.native = false;
     nativeState.android = false;
+    nativeState.androidPushConfigured = true;
   }
 });

@@ -1848,7 +1848,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "推播通知",
+        "title": "Android 推播通知",
         "description": "允許 Android 推播通知以在背景接收訊息提醒。",
         "notConfigured": "部署尚未設定 Android 推播。請在 `config.json` 中加入 `push.android` 設定。",
         "disabled": "此裝置已停用 Android 推播。",

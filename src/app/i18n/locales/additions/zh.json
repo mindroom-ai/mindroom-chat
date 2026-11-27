@@ -1848,7 +1848,7 @@
     },
     "native": {
       "androidPushNotification": {
-        "title": "推送通知",
+        "title": "Android 推送通知",
         "description": "允许 Android 推送通知以在后台接收消息提醒。",
         "notConfigured": "部署未配置 Android 推送。请在 `config.json` 中添加 `push.android` 设置。",
         "disabled": "此设备已禁用 Android 推送。",

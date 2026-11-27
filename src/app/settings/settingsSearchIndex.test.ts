@@ -24,6 +24,7 @@ const WEB: SettingsContext = {
   native: false,
   capacitor: false,
   nativeIOS: false,
+  nativeAndroid: false,
   diagnostics: false,
   localMindroom: true,
   serverAdmin: false,
@@ -65,6 +66,34 @@ describe('settings search', () => {
   it('fills in the placeholders of a label, as its page does', () => {
     const [mention] = searchSettings('mention user', SETTINGS, english, VALUES);
     expect(mention?.label).toBe('Mention User ID ("@alice:example.org")');
+  });
+
+  it('finds iOS Push Notifications on iOS and Android Push Notifications on configured Android', () => {
+    const iosContext: SettingsContext = { ...WEB, native: true, capacitor: true, nativeIOS: true };
+    const androidContext: SettingsContext = {
+      ...WEB,
+      native: true,
+      capacitor: true,
+      nativeAndroid: true,
+      androidPushConfigured: true,
+    };
+    const [iosHit] = searchSettings(
+      'iOS Push Notifications',
+      getShownSettings(iosContext),
+      english,
+      VALUES
+    );
+    expect(iosHit?.setting.id).toBe('pushNotifications');
+    expect(iosHit?.label).toBe('iOS Push Notifications');
+
+    const [androidHit] = searchSettings(
+      'Android Push Notifications',
+      getShownSettings(androidContext),
+      english,
+      VALUES
+    );
+    expect(androidHit?.setting.id).toBe('androidPushNotifications');
+    expect(androidHit?.label).toBe('Android Push Notifications');
   });
 
   it('marks a setting in an Advanced fold, and leaves out settings that are not offered', () => {

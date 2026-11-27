@@ -18,6 +18,7 @@ const WEB: SettingsContext = {
   native: false,
   capacitor: false,
   nativeIOS: false,
+  nativeAndroid: false,
   diagnostics: false,
   localMindroom: true,
   serverAdmin: false,
@@ -126,25 +127,41 @@ describe('settings registry', () => {
     const electronSettings = getShownSettings({ ...WEB, native: true, capacitor: false }).map(
       (setting) => setting.id
     );
-    const androidSettings = getShownSettings({
+    const androidContext: SettingsContext = {
       ...WEB,
       native: true,
       capacitor: true,
       nativeIOS: false,
+      nativeAndroid: true,
+      androidPushConfigured: true,
+    };
+    const androidSettings = getShownSettings(androidContext).map((setting) => setting.id);
+    const unconfiguredAndroidSettings = getShownSettings({
+      ...androidContext,
+      androidPushConfigured: false,
     }).map((setting) => setting.id);
     expect(webSettings).toContain('desktopNotifications');
     expect(electronSettings).toContain('desktopNotifications');
     expect(appSettings).not.toContain('desktopNotifications');
     expect(androidSettings).not.toContain('desktopNotifications');
     expect(electronSettings).not.toContain('pushNotifications');
-    expect(androidSettings).toContain('pushNotifications');
+    expect(electronSettings).not.toContain('androidPushNotifications');
+    expect(appSettings).not.toContain('androidPushNotifications');
+    expect(androidSettings).not.toContain('pushNotifications');
+    expect(androidSettings).toContain('androidPushNotifications');
+    expect(unconfiguredAndroidSettings).not.toContain('androidPushNotifications');
     expect(
-      searchSettings(
-        'push notifications',
-        getShownSettings({ ...WEB, native: true, capacitor: true, nativeIOS: false }),
-        (key, values) => translateFromEn(key, values)
+      searchSettings('iOS Push Notifications', getShownSettings(app), (key, values) =>
+        translateFromEn(key, values)
       ).map(({ setting }) => setting.id)
     ).toContain('pushNotifications');
+    expect(
+      searchSettings(
+        'Android Push Notifications',
+        getShownSettings(androidContext),
+        (key, values) => translateFromEn(key, values)
+      ).map(({ setting }) => setting.id)
+    ).toContain('androidPushNotifications');
     expect(webSettings).toContain('sidebarThreads');
     expect(webSettings).not.toContain('sidebarSearch');
     expect(webSettings).toEqual(expect.arrayContaining(['lightTheme', 'darkTheme']));
@@ -286,6 +303,7 @@ describe('settings registry', () => {
       'desktopNotifications',
       'notificationSound',
       'pushNotifications',
+      'androidPushNotifications',
       'language',
       'computerServer',
       'prefetchScope',

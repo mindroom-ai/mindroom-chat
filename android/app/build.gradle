@@ -23,16 +23,22 @@ if (mindroomAndroidVersionCodeOverride) {
     }
 }
 def mindroomAndroidVersionName = System.getenv('MINDROOM_ANDROID_VERSION_NAME')?.trim() ?: "4.11.1"
+def googleServicesJsonFile = file('google-services.json')
+def hasGoogleServicesJson = googleServicesJsonFile.exists() && !googleServicesJsonFile.text.trim().isEmpty()
 
 android {
     namespace = "com.mindroom_ai.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    buildFeatures {
+        buildConfig true
+    }
     defaultConfig {
         applicationId "com.mindroom_ai.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode mindroomAndroidVersionCode
         versionName mindroomAndroidVersionName
+        buildConfigField "boolean", "MINDROOM_FCM_CONFIGURED", hasGoogleServicesJson ? "true" : "false"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -70,7 +76,6 @@ repositories {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
-    implementation "androidx.browser:browser:$androidxBrowserVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
@@ -82,11 +87,8 @@ dependencies {
 
 apply from: 'capacitor.build.gradle'
 
-try {
-    def servicesJSON = file('google-services.json')
-    if (servicesJSON.text) {
-        apply plugin: 'com.google.gms.google-services'
-    }
-} catch(Exception e) {
+if (hasGoogleServicesJson) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
     logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
 }
