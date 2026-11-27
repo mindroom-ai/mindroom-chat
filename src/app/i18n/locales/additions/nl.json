@@ -1914,6 +1914,16 @@
         "showInSidebar": "In de zijbalk tonen",
         "sidebarSettings": "Zijbalkinstellingen…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android-pushmeldingen",
+        "description": "Android-pushmeldingen toestaan voor berichtmeldingen op de achtergrond.",
+        "notConfigured": "Android-push is niet geconfigureerd door de deployment. Voeg `push.android`-instellingen toe in `config.json`.",
+        "disabled": "Android-push is uitgeschakeld voor dit apparaat.",
+        "registered": "Apparaat geregistreerd voor Android-pushmeldingen.",
+        "permissionDenied": "Meldingstoestemming is geweigerd. Schakel meldingen voor {{appName}} in via Android-instellingen."
+      }
     }
   },
   "composer": {

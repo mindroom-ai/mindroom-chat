@@ -123,6 +123,14 @@ describe('nativeSso', () => {
     expect(getAppPathFromNativeSsoUrl('mindroom://wrong/login/mindroom.chat')).toBeUndefined();
   });
 
+  it('rejects native callback urls containing backslashes or userinfo', () => {
+    expect(getAppPathFromNativeSsoUrl('mindroom://auth/\\evil.example/login')).toBeUndefined();
+    expect(getAppPathFromNativeSsoUrl('mindroom://auth/\\\\evil.example')).toBeUndefined();
+    expect(getAppPathFromNativeSsoUrl('mindroom:/auth/\\evil.example')).toBeUndefined();
+    expect(getAppPathFromNativeSsoUrl('mindroom://auth/login\\evil.example')).toBeUndefined();
+    expect(getAppPathFromNativeSsoUrl('mindroom://evil@auth/login/mindroom.chat')).toBeUndefined();
+  });
+
   it('detects native iOS platform', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
@@ -447,9 +455,13 @@ describe('nativeSso', () => {
     ).rejects.toThrow('login token');
   });
 
-  it('registers the Android native SSO callback intent filter', () => {
+  it('registers the Android mindroom://auth SSO callback intent filter', () => {
     const manifestSource = readFileSync(
       new URL('../../../android/app/src/main/AndroidManifest.xml', import.meta.url),
+      'utf8'
+    );
+    const stringsSource = readFileSync(
+      new URL('../../../android/app/src/main/res/values/strings.xml', import.meta.url),
       'utf8'
     );
 
@@ -461,6 +473,32 @@ describe('nativeSso', () => {
     expect(manifestSource).toContain('android:scheme="mindroom"');
     expect(manifestSource).toContain('android:host="auth"');
     expect(manifestSource).toContain('android:pathPrefix="/login"');
+    expect(manifestSource).not.toContain('android:host="cloudflare-access"');
+    expect(stringsSource).toContain('<string name="custom_url_scheme">mindroom</string>');
+  });
+
+  it('opens Browser.open on native Android for SSO and keeps native Apple sign-in iOS-only', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    vi.mocked(Browser.open).mockResolvedValue();
+
+    await openNativeSsoBrowser('https://mindroom.chat/_matrix/client/v3/login/sso/redirect', true);
+
+    expect(authenticate).not.toHaveBeenCalled();
+    expect(vi.mocked(Browser.open)).toHaveBeenCalledWith({
+      url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+      presentationStyle: 'fullscreen',
+    });
+
+    await expect(
+      signInWithNativeApple({
+        ssoUrl: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+        baseUrl: 'https://mindroom.chat',
+        redirectUrl: 'mindroom://auth/login/mindroom.chat',
+      })
+    ).rejects.toThrow('Native Apple sign-in is unavailable');
+    expect(signInWithApple).not.toHaveBeenCalled();
   });
 
   it('starts and opens a loopback sign-in through the desktop bridge', async () => {

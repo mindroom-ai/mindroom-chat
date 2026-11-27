@@ -70,8 +70,10 @@ const state = vi.hoisted(() => {
     pushAllowed: true,
     pushEnabled: true,
     hasCloudflareAccess: false,
-    // False on the Mac app, which has no notification extension.
+    // False on the Mac app and on Android, which have no iOS notification extension.
     nativeNotificationsAvailable: true,
+    nativeAndroid: false,
+    androidPushConfigured: true,
     hasCompletedInitialSync: false,
     // False for a client that has no token to send to the authenticated media endpoint.
     authenticatedMedia: true,
@@ -81,6 +83,7 @@ const state = vi.hoisted(() => {
     // Storage that is full or blocked: a new tag is handed out but not kept.
     tagStorageFails: false,
     onRegistration: undefined as ((token: { value: string }) => void) | undefined,
+    onRegistrationError: undefined as ((error: unknown) => void) | undefined,
     appStateListeners: new Set<(appState: { isActive: boolean }) => void>(),
     onAppStateChange: undefined as ((appState: { isActive: boolean }) => void) | undefined,
     rooms: [] as RoomStub[],
@@ -133,8 +136,12 @@ vi.mock('@capacitor/app', () => ({
 
 vi.mock('@capacitor/push-notifications', () => ({
   PushNotifications: {
-    addListener: vi.fn(async (event: string, listener: (token: { value: string }) => void) => {
-      if (event === 'registration') state.onRegistration = listener;
+    addListener: vi.fn(async (event: string, listener: (payload: unknown) => void) => {
+      if (event === 'registration') {
+        state.onRegistration = listener;
+      } else if (event === 'registrationError') {
+        state.onRegistrationError = listener;
+      }
       return { remove: vi.fn(async () => undefined) };
     }),
   },
@@ -157,7 +164,9 @@ vi.mock('./iosPush', () => ({
     if (!state.tagStorageFails) state.storedTags.set(key, tag);
     return tag;
   }),
-  isNativeIOSPlatform: () => true,
+  isNativeAndroidPushPlatform: () => state.nativeAndroid,
+  isNativeIOSPlatform: () => !state.nativeAndroid,
+  isNativePushPlatform: () => true,
   reconcileIOSPushNativeState: vi.fn(async () => undefined),
   registerIOSPush: vi.fn(async () => undefined),
   resolveEffectiveIOSPushFormat: (pushConfig: { format: 'full' | 'event_id_only' }) =>
@@ -167,7 +176,10 @@ vi.mock('./iosPush', () => ({
   upsertIOSPushPusher: vi.fn(async () => undefined),
 }));
 
-vi.mock('./useIOSPushEnabled', () => ({ useIOSPushEnabled: () => state.pushEnabled }));
+vi.mock('./useIOSPushEnabled', () => ({
+  useIOSPushEnabled: () => state.pushEnabled,
+  useNativeAndroidPushConfigured: () => state.nativeAndroid && state.androidPushConfigured,
+}));
 vi.mock('../../native/cloudflareAccess', () => ({
   cloudflareAccessAllowsPush: () => state.pushAllowed,
   hasCloudflareAccess: () => state.hasCloudflareAccess,
@@ -245,6 +257,10 @@ describe('NativeIOSPushFeature', () => {
     };
     state.hasCloudflareAccess = false;
     state.nativeNotificationsAvailable = true;
+    state.nativeAndroid = false;
+    state.androidPushConfigured = true;
+    state.onRegistration = undefined;
+    state.onRegistrationError = undefined;
     state.hasCompletedInitialSync = false;
     state.authenticatedMedia = true;
     state.activeSession = { sessionId: 's1', accessToken: 'session-token-v1' };
@@ -1273,6 +1289,109 @@ describe('NativeIOSPushFeature', () => {
       await vi.waitFor(() => expect(storeNativeNotificationAvatar).toHaveBeenCalledTimes(2));
       expect(syncNativeNotificationAvatars).toHaveBeenCalledTimes(3);
       expect(storedMxcUrls()).toEqual([mxc('agent'), mxc('bob')]);
+      renderer.unmount();
+    });
+  });
+
+  describe('on native Android', () => {
+    it('registers FCM and upserts the pusher without calling iOS notification extension APIs', async () => {
+      state.nativeAndroid = true;
+      state.nativeNotificationsAvailable = false;
+      state.signInRequired = false;
+      state.hasCompletedInitialSync = true;
+      state.rooms = [agentRoom()];
+
+      const renderer = await mount();
+
+      expect(registerIOSPush).toHaveBeenCalledTimes(1);
+      await act(async () => state.onRegistration?.({ value: 'fcm-token-abc' }));
+
+      expect(upsertIOSPushPusher).toHaveBeenCalledWith(
+        state.mx,
+        expect.anything(),
+        'fcm-token-abc',
+        's1'
+      );
+      expect(syncNativeNotificationAccount).not.toHaveBeenCalled();
+      expect(syncNativeNotificationAvatars).not.toHaveBeenCalled();
+      expect(reconcileIOSPushNativeState).not.toHaveBeenCalled();
+      renderer.unmount();
+    });
+
+    it('logs platform context and keeps push enabled when FCM registration fails', async () => {
+      state.nativeAndroid = true;
+      state.nativeNotificationsAvailable = false;
+      state.signInRequired = false;
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      vi.mocked(registerIOSPush).mockRejectedValueOnce(
+        new Error('Default FirebaseApp is not initialized')
+      );
+
+      const renderer = await mount();
+      await act(async () => state.onRegistrationError?.({ error: 'SERVICE_NOT_AVAILABLE' }));
+
+      expect(warn).toHaveBeenCalledWith(
+        '[android-push] could not register with FCM',
+        expect.any(Error)
+      );
+      expect(warn).toHaveBeenCalledWith('[android-push] FCM registration failed', {
+        error: 'SERVICE_NOT_AVAILABLE',
+      });
+      expect(setIOSPushEnabled).not.toHaveBeenCalled();
+
+      warn.mockRestore();
+      renderer.unmount();
+    });
+
+    it('never calls register or setPusher when Android FCM is not configured in this build', async () => {
+      state.nativeAndroid = true;
+      state.androidPushConfigured = false;
+      state.nativeNotificationsAvailable = false;
+      state.signInRequired = false;
+
+      const renderer = await mount();
+
+      expect(registerIOSPush).not.toHaveBeenCalled();
+      expect(state.onRegistration).toBeUndefined();
+      expect(upsertIOSPushPusher).not.toHaveBeenCalled();
+      renderer.unmount();
+    });
+
+    it('ignores an unsolicited Android registration token before notification permission is granted', async () => {
+      state.nativeAndroid = true;
+      state.androidPushConfigured = true;
+      state.nativeNotificationsAvailable = false;
+      state.signInRequired = false;
+      state.permission = 'prompt';
+
+      const renderer = await mount();
+      expect(registerIOSPush).not.toHaveBeenCalled();
+
+      await act(async () => state.onRegistration?.({ value: 'unsolicited-fcm-token' }));
+
+      expect(upsertIOSPushPusher).not.toHaveBeenCalled();
+      renderer.unmount();
+    });
+
+    it('re-registers FCM when returning to foreground after permission is granted in Android Settings', async () => {
+      state.nativeAndroid = true;
+      state.androidPushConfigured = true;
+      state.nativeNotificationsAvailable = false;
+      state.signInRequired = false;
+      state.permission = 'denied';
+
+      const renderer = await mount();
+      expect(registerIOSPush).not.toHaveBeenCalled();
+
+      // Going to background does not re-check or register.
+      state.permission = 'granted';
+      await act(async () => state.onAppStateChange?.({ isActive: false }));
+      expect(registerIOSPush).not.toHaveBeenCalled();
+
+      // Returning to foreground after granting permission in Android Settings triggers registration.
+      await act(async () => state.onAppStateChange?.({ isActive: true }));
+      expect(registerIOSPush).toHaveBeenCalledTimes(1);
+
       renderer.unmount();
     });
   });

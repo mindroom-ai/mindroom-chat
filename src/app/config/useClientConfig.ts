@@ -128,6 +128,19 @@ type SidebarConfig = {
   mindRoomProvisioningUrl?: string;
 };
 
+/** Native push gateway configuration for a Capacitor platform (iOS or Android). */
+export type NativePushClientConfig = {
+  enabled?: boolean;
+  appId?: string;
+  gatewayUrl?: string;
+  appDisplayName?: string;
+  deviceDisplayName?: string;
+  profileTag?: string;
+  append?: boolean;
+  format?: string;
+  lang?: string;
+};
+
 /**
  * The deployment's `config.json`. Every field is optional: a missing field means the built-in
  * default, so an empty object is a valid configuration.
@@ -229,17 +242,8 @@ export type ClientConfig = {
   };
 
   push?: {
-    ios?: {
-      enabled?: boolean;
-      appId?: string;
-      gatewayUrl?: string;
-      appDisplayName?: string;
-      deviceDisplayName?: string;
-      profileTag?: string;
-      append?: boolean;
-      format?: string;
-      lang?: string;
-    };
+    ios?: NativePushClientConfig;
+    android?: NativePushClientConfig;
   };
 
   mindroom?: {

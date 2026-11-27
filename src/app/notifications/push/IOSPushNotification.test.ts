@@ -3,10 +3,12 @@ import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
-import en from '../../i18n/locales/en.json';
+import en from '../../i18n/englishResources';
 
 const nativeState = vi.hoisted(() => ({
   native: false,
+  android: false,
+  androidPushConfigured: true,
   failed: false,
   pushAllowed: true,
   toggle: vi.fn<(enabled: boolean) => Promise<void>>(),
@@ -18,8 +20,15 @@ vi.mock('../../ui/SequenceCard', () => ({
 }));
 
 vi.mock('../../ui/SettingTile', () => ({
-  SettingTile: ({ description, after }: { description: React.ReactNode; after: React.ReactNode }) =>
-    React.createElement('div', { 'data-renderer': 'setting-tile' }, description, after),
+  SettingTile: ({
+    title,
+    description,
+    after,
+  }: {
+    title?: React.ReactNode;
+    description: React.ReactNode;
+    after: React.ReactNode;
+  }) => React.createElement('div', { 'data-renderer': 'setting-tile' }, title, description, after),
 }));
 
 vi.mock('../../ui/settings/styles.css', () => ({
@@ -58,12 +67,16 @@ vi.mock('../../lib/hooks/useAsyncCallback', () => ({
 
 vi.mock('./useIOSPushEnabled', () => ({
   useIOSPushEnabled: () => false,
+  useNativeAndroidPushConfigured: () =>
+    nativeState.native && nativeState.android && nativeState.androidPushConfigured,
 }));
 
 vi.mock('./iosPush', () => ({
   checkIOSPushPermission: vi.fn().mockResolvedValue('prompt'),
   disableIOSPushPusher: vi.fn().mockResolvedValue(undefined),
-  isNativeIOSPlatform: () => nativeState.native,
+  isNativeAndroidPushPlatform: () => nativeState.native && nativeState.android,
+  isNativeIOSPlatform: () => nativeState.native && !nativeState.android,
+  isNativePushPlatform: () => nativeState.native,
   registerIOSPush: vi.fn().mockResolvedValue(undefined),
   requestIOSPushPermission: vi.fn().mockResolvedValue('prompt'),
   resolveIOSPushConfig: vi.fn(() => (nativeState.native ? {} : undefined)),
@@ -180,5 +193,69 @@ it('renders a localized native failure and refreshes it after a language change'
   } finally {
     nativeState.native = false;
     nativeState.failed = false;
+  }
+});
+
+it('renders Android push copy on native Android while keeping iOS copy unchanged', async () => {
+  const { IOSPushNotification } = await import('./IOSPushNotification');
+  const language = createInstance();
+  await language.init({
+    lng: 'en',
+    fallbackLng: 'en',
+    resources: { en: { translation: en } },
+  });
+  nativeState.native = true;
+  nativeState.android = true;
+  let renderer: ReturnType<typeof create> | undefined;
+  try {
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          I18nextProvider,
+          { i18n: language },
+          React.createElement(IOSPushNotification)
+        )
+      );
+    });
+    const androidJson = JSON.stringify(renderer!.toJSON());
+    expect(androidJson).toContain('Android Push Notifications');
+    expect(androidJson).toContain(
+      'Allow Android push notifications for background message alerts.'
+    );
+    expect(androidJson).not.toContain('iOS Push Notifications');
+    act(() => renderer!.unmount());
+
+    nativeState.android = false;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          I18nextProvider,
+          { i18n: language },
+          React.createElement(IOSPushNotification)
+        )
+      );
+    });
+    const iosJson = JSON.stringify(renderer!.toJSON());
+    expect(iosJson).toContain('iOS Push Notifications');
+    expect(iosJson).toContain('Allow native iOS push notifications for background message alerts.');
+    act(() => renderer!.unmount());
+    // On Android builds without google-services.json, hide the tile completely.
+    nativeState.android = true;
+    nativeState.androidPushConfigured = false;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          I18nextProvider,
+          { i18n: language },
+          React.createElement(IOSPushNotification)
+        )
+      );
+    });
+    expect(renderer!.toJSON()).toBeNull();
+    act(() => renderer!.unmount());
+  } finally {
+    nativeState.native = false;
+    nativeState.android = false;
+    nativeState.androidPushConfigured = true;
   }
 });

@@ -1,9 +1,17 @@
 import { useEffect } from 'react';
+import { App as NativeApp } from '@capacitor/app';
 import { useStore } from 'jotai';
 import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { startAgentCall } from './agent/agentCaller';
-import { activeCallAtom, dropActiveCall, leaveCallNow, useCallActions } from './callStore';
+import {
+  activeCallAtom,
+  dropActiveCall,
+  isLiveCallPhase,
+  leaveCallNow,
+  useActiveCall,
+  useCallActions,
+} from './callStore';
 import {
   forgetCallResume,
   rememberCallForResume,
@@ -19,6 +27,11 @@ import { AgentCallTranscript } from './transcription/AgentCallTranscript';
 import { CallTranscription } from './transcription/CallTranscription';
 import * as css from './IncomingCalls.css';
 import { CallWindowHost } from './window/CallWindowHost';
+import {
+  isAndroidCallServiceAvailable,
+  startAndroidCallService,
+  stopAndroidCallService,
+} from '../native/androidCallService';
 
 /**
  * Ends the call with the signed-in session: when the account signs out or switches (the shell
@@ -118,6 +131,88 @@ function CallResume() {
   return null;
 }
 
+function AndroidCallServiceSync() {
+  const mx = useMatrixClient();
+  const active = useActiveCall();
+  const call = active?.call;
+  const originRoomId = active?.origin?.roomId;
+
+  useEffect(() => {
+    if (!call) return undefined;
+    let disposed = false;
+    let serviceActive = false;
+    let starting = false;
+    let retryQueued = false;
+    let lastAttemptKey = '';
+
+    const getRoomName = () =>
+      (originRoomId ? mx.getRoom(originRoomId)?.name : undefined) || call.room.name || undefined;
+
+    const sync = (force = false) => {
+      if (disposed) return;
+      const state = call.getState();
+      if (!isLiveCallPhase(state.phase)) {
+        retryQueued = false;
+        lastAttemptKey = '';
+        if (serviceActive) {
+          serviceActive = false;
+          void stopAndroidCallService();
+        }
+        return;
+      }
+      if (serviceActive) return;
+      const attemptKey = `${state.phase}:${state.microphone ? 1 : 0}:${state.microphoneTrack ? 1 : 0}`;
+      if (!force && attemptKey === lastAttemptKey) return;
+      if (starting) {
+        retryQueued = true;
+        return;
+      }
+      starting = true;
+      retryQueued = false;
+      lastAttemptKey = attemptKey;
+      void startAndroidCallService(getRoomName()).then((started) => {
+        starting = false;
+        if (disposed || !isLiveCallPhase(call.getState().phase)) {
+          if (started) void stopAndroidCallService();
+          return;
+        }
+        serviceActive = started;
+        if (!started && retryQueued) {
+          retryQueued = false;
+          sync(true);
+        }
+      });
+    };
+
+    sync(true);
+    const unsubscribe = call.subscribe(() => sync(false));
+    const appStateHandle = NativeApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) sync(true);
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+      appStateHandle.then((listener) => listener.remove()).catch(() => undefined);
+      if (serviceActive) {
+        serviceActive = false;
+        void stopAndroidCallService();
+      }
+    };
+  }, [call, mx, originRoomId]);
+
+  return null;
+}
+
+/**
+ * On native Android, holds a microphone foreground service while a call is live so WebRTC audio
+ * stays alive when the user switches apps or locks the screen.
+ */
+export function AndroidCallServiceFeature() {
+  if (!isAndroidCallServiceAvailable()) return null;
+  return <AndroidCallServiceSync />;
+}
+
 /**
  * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
  * reload, the call's lifetime, transcribing this device's speech in it (reading an agent call's
@@ -127,6 +222,7 @@ export function CallFeatures() {
   return (
     <>
       <CallLifetime />
+      <AndroidCallServiceFeature />
       <CallResume />
       <CallTranscription />
       <AgentCallTranscript />

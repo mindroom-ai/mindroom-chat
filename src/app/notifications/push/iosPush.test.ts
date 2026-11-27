@@ -1,18 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
+import * as CapacitorCore from '@capacitor/core';
+const { Capacitor } = CapacitorCore;
 import { PushNotifications } from '@capacitor/push-notifications';
 import {
   buildIOSPushPusherRequest,
+  checkIOSPushPermission,
   clearIOSPushState,
   disableIOSPushPusher,
   findIOSPushAccount,
   getAllowedNativeNotificationAccountTags,
   getIOSPushEnabled,
   getStoredIOSPushToken,
+  isNativeAndroidPushConfigured,
+  isNativeAndroidPushPlatform,
+  isNativePushPlatform,
+  resetNativeAndroidPushConfiguredCache,
   migrateLegacyIOSPushEnabled,
   reconcileIOSPushNativeState,
+  requestIOSPushPermission,
   resolveEffectiveIOSPushFormat,
   resolveIOSPushConfig,
+  resolveNativePushConfig,
   setIOSPushEnabled,
   upsertIOSPushPusher,
 } from './iosPush';
@@ -26,7 +35,10 @@ import {
 } from '../../native/nativeNotifications';
 
 vi.mock('@capacitor/push-notifications', () => ({
-  PushNotifications: { checkPermissions: vi.fn(async () => ({ receive: 'granted' })) },
+  PushNotifications: {
+    checkPermissions: vi.fn(async () => ({ receive: 'granted' })),
+    requestPermissions: vi.fn(async () => ({ receive: 'granted' })),
+  },
 }));
 vi.mock('../../native/cloudflareAccess', () => ({
   cloudflareAccessAllowsPush: vi.fn(() => true),
@@ -971,5 +983,182 @@ describe('upsertIOSPushPusher', () => {
       })
     );
     expect(hasCloudflareAccess).toHaveBeenCalledWith('https://private.example');
+  });
+});
+
+describe('Android FCM push support', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('detects native Android as a native push platform while keeping iOS check false', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+
+    expect(isNativeAndroidPushPlatform()).toBe(true);
+    expect(isNativePushPlatform()).toBe(true);
+  });
+
+  it('resolves push.android on native Android with Android display name defaults', () => {
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+
+    const config = resolveIOSPushConfig(
+      {
+        push: {
+          ios: {
+            enabled: true,
+            appId: 'chat.mindroom.app',
+            gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+          },
+          android: {
+            enabled: true,
+            appId: 'com.mindroom_ai.app',
+            gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+            format: 'full',
+          },
+        },
+      },
+      undefined,
+      'en'
+    );
+
+    expect(config).toMatchObject({
+      platform: 'android',
+      appId: 'com.mindroom_ai.app',
+      gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+      appDisplayName: 'MindRoom Android',
+      deviceDisplayName: 'MindRoom Android',
+      format: 'full',
+      append: true,
+      lang: 'en',
+    });
+  });
+
+  it('builds Android pusher requests without an iOS aps block', () => {
+    const config = resolveNativePushConfig(
+      {
+        push: {
+          android: {
+            enabled: true,
+            appId: 'com.mindroom_ai.app',
+            gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+            profileTag: 'android-tag',
+            format: 'event_id_only',
+          },
+        },
+      },
+      'android',
+      undefined,
+      'en'
+    );
+    expect(config).toBeDefined();
+
+    const request = buildIOSPushPusherRequest('fcm-token-123', config!, 'account-tag');
+
+    expect(request).toEqual({
+      kind: 'http',
+      app_id: 'com.mindroom_ai.app',
+      pushkey: 'fcm-token-123',
+      app_display_name: 'MindRoom Android',
+      device_display_name: 'MindRoom Android',
+      profile_tag: 'android-tag',
+      append: true,
+      lang: 'en',
+      data: {
+        url: 'https://push.example.com/_matrix/push/v1/notify',
+        format: 'event_id_only',
+        default_payload: {
+          mindroom_account: 'account-tag',
+        },
+      },
+    });
+    expect(request.data.default_payload).not.toHaveProperty('aps');
+  });
+
+  it('reports FCM when Android push registration returns an empty token', async () => {
+    const mx = { setPusher: vi.fn(), getHomeserverUrl: () => 'https://matrix.example' };
+    await expect(
+      upsertIOSPushPusher(
+        mx,
+        {
+          platform: 'android',
+          appId: 'com.mindroom_ai.app',
+          gatewayUrl: 'https://push.example.com/_matrix/push/v1/notify',
+          appDisplayName: 'MindRoom Android',
+          deviceDisplayName: 'MindRoom Android',
+          profileTag: 'profile-1',
+          append: true,
+          format: 'full',
+          lang: 'en',
+        },
+        '   '
+      )
+    ).rejects.toThrow('FCM registration returned an empty push token.');
+  });
+
+  it('gates Android FCM on MindRoomPushConfig.isConfigured() and caches the result', async () => {
+    resetNativeAndroidPushConfiguredCache();
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('ios');
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(true);
+
+    // On Android without the native plugin, report unconfigured.
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    vi.spyOn(Capacitor, 'isPluginAvailable').mockReturnValue(false);
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(false);
+
+    // On Android with MindRoomPushConfig resolving configured: true, cache the result.
+    const isConfigured = vi.fn().mockResolvedValue({ configured: true });
+    vi.spyOn(Capacitor, 'isPluginAvailable').mockImplementation(
+      (name) => name === 'MindRoomPushConfig'
+    );
+    const registerSpy = vi.spyOn(CapacitorCore, 'registerPlugin').mockReturnValue({ isConfigured });
+    resetNativeAndroidPushConfiguredCache();
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(true);
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(true);
+    expect(isConfigured).toHaveBeenCalledTimes(1);
+
+    // On failure or configured: false, resolve false cleanly.
+    resetNativeAndroidPushConfiguredCache();
+    isConfigured.mockResolvedValueOnce({ configured: false });
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(false);
+
+    resetNativeAndroidPushConfiguredCache();
+    isConfigured.mockRejectedValueOnce(new Error('plugin error'));
+    await expect(isNativeAndroidPushConfigured()).resolves.toBe(false);
+
+    registerSpy.mockRestore();
+    resetNativeAndroidPushConfiguredCache();
+  });
+
+  it('reports denied on Android when OS notifications are disabled despite Capacitor returning granted', async () => {
+    resetNativeAndroidPushConfiguredCache();
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    vi.spyOn(Capacitor, 'isPluginAvailable').mockImplementation(
+      (name) => name === 'MindRoomPushConfig'
+    );
+    const areNotificationsEnabled = vi
+      .fn()
+      .mockResolvedValueOnce({ enabled: false })
+      .mockResolvedValueOnce({ enabled: false })
+      .mockResolvedValueOnce({ enabled: true });
+    const registerSpy = vi
+      .spyOn(CapacitorCore, 'registerPlugin')
+      .mockReturnValue({ isConfigured: vi.fn(), areNotificationsEnabled });
+
+    await expect(checkIOSPushPermission()).resolves.toBe('denied');
+    await expect(requestIOSPushPermission()).resolves.toBe('denied');
+    await expect(checkIOSPushPermission()).resolves.toBe('granted');
+    expect(areNotificationsEnabled).toHaveBeenCalledTimes(3);
+
+    // On iOS, never query Android MindRoomPushConfig.areNotificationsEnabled.
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('ios');
+    await expect(checkIOSPushPermission()).resolves.toBe('granted');
+    expect(areNotificationsEnabled).toHaveBeenCalledTimes(3);
+
+    registerSpy.mockRestore();
+    resetNativeAndroidPushConfiguredCache();
   });
 });

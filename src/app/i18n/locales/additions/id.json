@@ -1849,6 +1849,16 @@
         "showInSidebar": "Tampilkan di bilah sisi",
         "sidebarSettings": "Pengaturan bilah sisi…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Notifikasi push Android",
+        "description": "Izinkan notifikasi push Android untuk peringatan pesan di latar belakang.",
+        "notConfigured": "Push Android belum dikonfigurasi oleh deployment. Tambahkan pengaturan `push.android` di `config.json`.",
+        "disabled": "Push Android dinonaktifkan untuk perangkat ini.",
+        "registered": "Perangkat terdaftar untuk notifikasi push Android.",
+        "permissionDenied": "Izin notifikasi ditolak. Aktifkan notifikasi untuk {{appName}} di Pengaturan Android."
+      }
     }
   },
   "composer": {

@@ -67,6 +67,7 @@ const SETTINGS_CONTEXT: SettingsContext = {
   native: false,
   capacitor: false,
   nativeIOS: false,
+  nativeAndroid: false,
   diagnostics: false,
   localMindroom: true,
   serverAdmin: false,

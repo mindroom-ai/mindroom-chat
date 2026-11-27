@@ -1849,6 +1849,16 @@
         "showInSidebar": "在側邊欄顯示",
         "sidebarSettings": "側邊欄設定…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android 推播通知",
+        "description": "允許 Android 推播通知以在背景接收訊息提醒。",
+        "notConfigured": "部署尚未設定 Android 推播。請在 `config.json` 中加入 `push.android` 設定。",
+        "disabled": "此裝置已停用 Android 推播。",
+        "registered": "裝置已註冊 Android 推播通知。",
+        "permissionDenied": "通知權限已被拒絕。請在 Android 設定中為 {{appName}} 啟用通知。"
+      }
     }
   },
   "composer": {

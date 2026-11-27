@@ -23,6 +23,8 @@ public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         registerPlugin(MindRoomFileSavePlugin.class);
+        registerPlugin(MindRoomPushConfigPlugin.class);
+        registerPlugin(MindRoomCallPlugin.class);
         bridgeBuilder.setRouteProcessor((basePath, path) -> {
             ProcessedRoute route = new ProcessedRoute();
             String resolved = MindRoomRouteResolver.resolvePath(path);
@@ -49,6 +51,7 @@ public class MainActivity extends BridgeActivity {
             }
         });
         super.onCreate(savedInstanceState);
+        MindRoomNotificationChannels.ensureCreated(this);
     }
 
     static boolean recordRenderProcessRecovery(long nowMs) {

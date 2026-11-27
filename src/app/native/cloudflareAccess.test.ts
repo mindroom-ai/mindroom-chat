@@ -7,6 +7,7 @@ import {
   discoverCloudflareAccess,
   getCloudflareAccessToken,
   hasCloudflareAccess,
+  isCloudflareAccessSupported,
   parseCloudflareAccessCallback,
   renewExpiredCloudflareAccess,
   signInToCloudflareAccess,
@@ -68,7 +69,10 @@ describe('cloudflareAccess', () => {
   });
 
   it('does not look for an advert outside the iOS app', async () => {
+    expect(isCloudflareAccessSupported()).toBe(true);
     vi.mocked(isNativeIOS).mockReturnValue(false);
+    expect(isCloudflareAccessSupported()).toBe(false);
+
     const request = advert(HANDOFF_URL);
 
     await expect(discoverCloudflareAccess(BASE_URL, request)).resolves.toBe(false);

@@ -1914,6 +1914,16 @@
         "showInSidebar": "সাইডবারে দেখান",
         "sidebarSettings": "সাইডবার সেটিংস…"
       }
+    },
+    "native": {
+      "androidPushNotification": {
+        "title": "Android পুশ বিজ্ঞপ্তি",
+        "description": "ব্যাকগ্রাউন্ড বার্তা সতর্কতার জন্য Android পুশ বিজ্ঞপ্তির অনুমতি দিন।",
+        "notConfigured": "ডিপ্লয়মেন্টে Android পুশ কনফিগার করা হয়নি। `config.json`-এ `push.android` সেটিংস যোগ করুন।",
+        "disabled": "এই ডিভাইসের জন্য Android পুশ অক্ষম করা আছে।",
+        "registered": "ডিভাইসটি Android পুশ বিজ্ঞপ্তির জন্য নিবন্ধিত।",
+        "permissionDenied": "বিজ্ঞপ্তির অনুমতি প্রত্যাখ্যাত হয়েছে। Android সেটিংসে {{appName}}-এর জন্য বিজ্ঞপ্তি সক্ষম করুন।"
+      }
     }
   },
   "composer": {

@@ -3,5 +3,5 @@
     <string name="app_name">MindRoom</string>
     <string name="title_activity_main">MindRoom</string>
     <string name="package_name">com.mindroom_ai.app</string>
-    <string name="custom_url_scheme">com.mindroom_ai.app</string>
+    <string name="custom_url_scheme">mindroom</string>
 </resources>

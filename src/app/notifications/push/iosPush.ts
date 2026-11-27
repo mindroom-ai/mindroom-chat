@@ -8,6 +8,11 @@ import {
   listSessions,
   type StoredSession,
 } from '../../matrix/session/sessions';
+import {
+  getMindRoomPushConfigPlugin,
+  isNativeAndroidPushConfigured,
+  resetNativeAndroidPushConfiguredCache,
+} from '../../native/androidPushConfig';
 import { cloudflareAccessAllowsPush, hasCloudflareAccess } from '../../native/cloudflareAccess';
 import {
   isNativeNotificationsAvailable,
@@ -35,18 +40,27 @@ type IOSPushDefaultPayload = {
   [IOS_PUSH_ACCOUNT_KEY]: string;
 };
 
+type AndroidPushDefaultPayload = {
+  [IOS_PUSH_ACCOUNT_KEY]: string;
+};
+
+type NativePushDefaultPayload = IOSPushDefaultPayload | AndroidPushDefaultPayload;
+
 type MatrixPusherRequest = Omit<IPusherRequest, 'data'> & {
   data: IPusherRequest['data'] & {
-    default_payload: IOSPushDefaultPayload;
+    default_payload: NativePushDefaultPayload;
   };
 };
 type MatrixPusherClient = Pick<MatrixClient, 'setPusher' | 'getHomeserverUrl'>;
 
 export type NativePushPermission = 'prompt' | 'granted' | 'denied';
 
+export type NativePushPlatform = 'ios' | 'android';
+
 export type IOSPushFormat = 'event_id_only' | 'full';
 
 export type IOSPushConfig = {
+  platform?: NativePushPlatform;
   appId: string;
   gatewayUrl: string;
   appDisplayName: string;
@@ -167,6 +181,14 @@ export const migrateLegacyIOSPushEnabled = (): void => {
 export const isNativeIOSPlatform = (): boolean =>
   Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
+export const isNativeAndroidPushPlatform = (): boolean =>
+  Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android';
+
+export const isNativePushPlatform = (): boolean =>
+  isNativeIOSPlatform() || isNativeAndroidPushPlatform();
+
+export { isNativeAndroidPushConfigured, resetNativeAndroidPushConfiguredCache };
+
 export const subscribeToIOSPushState = (listener: () => void): (() => void) => {
   if (typeof window === 'undefined') return () => undefined;
 
@@ -226,55 +248,82 @@ export const resolveEffectiveIOSPushFormat = (
 ): IOSPushFormat =>
   homeserverUrl && hasCloudflareAccess(homeserverUrl) ? 'event_id_only' : pushConfig.format;
 
-export const resolveIOSPushConfig = (
+export const resolveNativePushConfig = (
   clientConfig: ClientConfig,
+  platform: NativePushPlatform,
   sessionId?: string,
   appLanguage?: string
 ): IOSPushConfig | undefined => {
-  const iosPushConfig = clientConfig.push?.ios;
+  const platformPushConfig =
+    platform === 'android' ? clientConfig.push?.android : clientConfig.push?.ios;
 
-  if (iosPushConfig?.enabled !== true) return undefined;
+  if (platformPushConfig?.enabled !== true) return undefined;
 
-  const appId = trimConfigValue(iosPushConfig.appId);
-  const gatewayUrl = trimConfigValue(iosPushConfig.gatewayUrl);
+  const appId = trimConfigValue(platformPushConfig.appId);
+  const gatewayUrl = trimConfigValue(platformPushConfig.gatewayUrl);
 
   if (!appId || !gatewayUrl || !isHttpsUrl(gatewayUrl)) return undefined;
 
+  const defaultDisplayName = platform === 'android' ? 'MindRoom Android' : 'MindRoom iOS';
+
   return {
+    platform,
     appId,
     gatewayUrl,
-    appDisplayName: trimConfigValue(iosPushConfig.appDisplayName) ?? 'MindRoom iOS',
-    deviceDisplayName: trimConfigValue(iosPushConfig.deviceDisplayName) ?? 'MindRoom iOS',
+    appDisplayName: trimConfigValue(platformPushConfig.appDisplayName) ?? defaultDisplayName,
+    deviceDisplayName: trimConfigValue(platformPushConfig.deviceDisplayName) ?? defaultDisplayName,
     profileTag:
-      trimConfigValue(iosPushConfig.profileTag) ?? getOrCreateIOSPushProfileTag(sessionId),
-    append: iosPushConfig.append !== false,
-    format: iosPushConfig.format === 'full' ? 'full' : 'event_id_only',
-    lang: trimConfigValue(iosPushConfig.lang) ?? trimConfigValue(appLanguage) ?? defaultLanguage(),
+      trimConfigValue(platformPushConfig.profileTag) ?? getOrCreateIOSPushProfileTag(sessionId),
+    append: platformPushConfig.append !== false,
+    format: platformPushConfig.format === 'full' ? 'full' : 'event_id_only',
+    lang:
+      trimConfigValue(platformPushConfig.lang) ?? trimConfigValue(appLanguage) ?? defaultLanguage(),
   };
 };
+
+export const resolveIOSPushConfig = (
+  clientConfig: ClientConfig,
+  sessionId?: string,
+  appLanguage?: string,
+  platform?: NativePushPlatform
+): IOSPushConfig | undefined =>
+  resolveNativePushConfig(
+    clientConfig,
+    platform ?? (isNativeAndroidPushPlatform() ? 'android' : 'ios'),
+    sessionId,
+    appLanguage
+  );
+
+const isAndroidPushConfig = (pushConfig: Pick<IOSPushConfig, 'platform'>): boolean =>
+  pushConfig.platform === 'android' || (!pushConfig.platform && isNativeAndroidPushPlatform());
 
 export const buildIOSPushPusherRequest = (
   token: string,
   pushConfig: IOSPushConfig,
   accountTag: string
 ): MatrixPusherRequest => {
-  const defaultPayload: IOSPushDefaultPayload = {
-    // Sygnal merges the push's room and event IDs into this payload, so a tap knows the account.
-    [IOS_PUSH_ACCOUNT_KEY]: accountTag,
-    aps: {
-      sound: 'default',
-      category: IOS_PUSH_CATEGORY,
-      // Sygnal adds loc-key/loc-args for full pushes; a default body would mask that preview.
-      ...(pushConfig.format === 'event_id_only'
-        ? {
-            alert: {
-              title: pushConfig.appDisplayName,
-              body: 'New message',
-            },
-          }
-        : {}),
-    },
-  };
+  const defaultPayload: NativePushDefaultPayload = isAndroidPushConfig(pushConfig)
+    ? {
+        // Sygnal merges the push's room and event IDs into the FCM data payload; no iOS aps block.
+        [IOS_PUSH_ACCOUNT_KEY]: accountTag,
+      }
+    : {
+        // Sygnal merges the push's room and event IDs into this payload, so a tap knows the account.
+        [IOS_PUSH_ACCOUNT_KEY]: accountTag,
+        aps: {
+          sound: 'default',
+          category: IOS_PUSH_CATEGORY,
+          // Sygnal adds loc-key/loc-args for full pushes; a default body would mask that preview.
+          ...(pushConfig.format === 'event_id_only'
+            ? {
+                alert: {
+                  title: pushConfig.appDisplayName,
+                  body: 'New message',
+                },
+              }
+            : {}),
+        },
+      };
 
   const request: MatrixPusherRequest = {
     kind: 'http',
@@ -309,14 +358,27 @@ const parseNativePushPermission = (receive: string | undefined): NativePushPermi
   return 'prompt';
 };
 
+const resolveAndroidPushPermission = async (
+  permission: NativePushPermission
+): Promise<NativePushPermission> => {
+  if (permission !== 'granted' || !isNativeAndroidPushPlatform()) return permission;
+  if (!Capacitor.isPluginAvailable('MindRoomPushConfig')) return permission;
+  try {
+    const result = await getMindRoomPushConfigPlugin().areNotificationsEnabled();
+    return result?.enabled === false ? 'denied' : permission;
+  } catch {
+    return permission;
+  }
+};
+
 export const checkIOSPushPermission = async (): Promise<NativePushPermission> => {
   const permissions = await PushNotifications.checkPermissions();
-  return parseNativePushPermission(permissions.receive);
+  return resolveAndroidPushPermission(parseNativePushPermission(permissions.receive));
 };
 
 export const requestIOSPushPermission = async (): Promise<NativePushPermission> => {
   const permissions = await PushNotifications.requestPermissions();
-  return parseNativePushPermission(permissions.receive);
+  return resolveAndroidPushPermission(parseNativePushPermission(permissions.receive));
 };
 
 export const registerIOSPush = async (): Promise<void> => {
@@ -368,7 +430,7 @@ export const getAllowedNativeNotificationAccountTags = (clientConfig?: ClientCon
     if (!accountTag || !getIOSPushEnabled(session.sessionId)) return [];
     if (!cloudflareAccessAllowsPush(session.baseUrl)) return [];
     if (clientConfig) {
-      const pushConfig = resolveIOSPushConfig(clientConfig, session.sessionId);
+      const pushConfig = resolveIOSPushConfig(clientConfig, session.sessionId, undefined, 'ios');
       if (!pushConfig) return [];
       if (resolveEffectiveIOSPushFormat(pushConfig, session.baseUrl) !== 'full') return [];
     }
@@ -451,7 +513,8 @@ const setIOSPushPusher = async (
 ) => {
   const normalizedToken = token.trim();
   if (normalizedToken.length === 0) {
-    throw new Error('APNs registration returned an empty push token.');
+    const service = isAndroidPushConfig(pushConfig) ? 'FCM' : 'APNs';
+    throw new Error(`${service} registration returned an empty push token.`);
   }
 
   const previousToken = getStoredIOSPushToken(sessionId);
