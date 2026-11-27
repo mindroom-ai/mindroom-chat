@@ -35,6 +35,8 @@ export const trimSavedSyncTimelines = (
     if (timeline.length <= maxLimit || !hasToken(timeline[0])) return;
 
     const startIndex = Math.max(0, timeline.length - targetLimit);
+    // Live multi-batch accumulators keep batch-start tokens on later entries; startup IDB loads
+    // flatten intermediate tokens to index 0 and fall through to the `nextBatch` anchor below.
     for (let i = startIndex; i < timeline.length; i += 1) {
       if (hasToken(timeline[i])) {
         room._timeline = timeline.slice(i);

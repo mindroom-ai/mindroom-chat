@@ -267,6 +267,61 @@ describe('trimSavedSyncTimelines', () => {
     expect(liveTimeline.getPaginationToken(Direction.Backward)).toBe('T_before_25');
   });
 
+  it('advances the backward token on a duplicate-only first page and fetches older history on the next page', async () => {
+    const legacy = new SyncAccumulator({ maxTimelineEntries: 500 });
+    legacy.accumulate(
+      syncOf(
+        'S_60',
+        Array.from({ length: 60 }, (_, i) => messageEvent(i)),
+        'T0'
+      )
+    );
+    const reloaded = reloadFromDatabase(legacy.getJSON(true));
+    trimSavedSyncTimelines(reloaded as unknown as SavedTimelineSync);
+
+    const savedRoom = reloaded.getJSON().roomsData.join[ROOM];
+    expect(savedRoom).toBeDefined();
+
+    const client = createClient({
+      baseUrl: 'https://example.org',
+      userId: SENDER,
+      timelineSupport: true,
+    });
+    const room = new Room(ROOM, client, SENDER, { timelineSupport: true });
+    const liveTimeline = room.getLiveTimeline();
+    liveTimeline.setPaginationToken(savedRoom!.timeline.prev_batch, Direction.Backward);
+    await room.addLiveEvents(
+      savedRoom!.timeline.events.map((event) => new MatrixEvent({ ...event, room_id: ROOM })),
+      { addToState: true }
+    );
+
+    // First /messages?from=S_60&dir=b&limit=20 page returns only the 20 already-kept events.
+    const duplicateOnlyPage = Array.from({ length: 20 }, (_, offset) => 59 - offset).map(
+      (index) => new MatrixEvent({ ...messageEvent(index), room_id: ROOM })
+    );
+    room
+      .getUnfilteredTimelineSet()
+      .addEventsToTimeline(duplicateOnlyPage, true, true, liveTimeline, 'T_before_40');
+
+    expect(liveTimeline.getEvents().map((event) => event.getId())).toEqual(
+      Array.from({ length: 20 }, (_, i) => `$ev-${40 + i}`)
+    );
+    expect(liveTimeline.getPaginationToken(Direction.Backward)).toBe('T_before_40');
+
+    // Second page from T_before_40 prepends the older events with zero gaps.
+    const olderPage = Array.from({ length: 20 }, (_, offset) => 39 - offset).map(
+      (index) => new MatrixEvent({ ...messageEvent(index), room_id: ROOM })
+    );
+    room
+      .getUnfilteredTimelineSet()
+      .addEventsToTimeline(olderPage, true, true, liveTimeline, 'T_before_20');
+
+    expect(liveTimeline.getEvents().map((event) => event.getId())).toEqual(
+      Array.from({ length: 40 }, (_, i) => `$ev-${20 + i}`)
+    );
+    expect(liveTimeline.getPaginationToken(Direction.Backward)).toBe('T_before_20');
+  });
+
   it('gives a 20-event room a full page of headroom before pruning to a newer batch boundary', () => {
     const initial = new SyncAccumulator({ maxTimelineEntries: SYNC_ARCHIVE_TIMELINE_LIMIT });
     initial.accumulate(

@@ -10,10 +10,13 @@ import {
 } from 'matrix-js-sdk';
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
+import { SyncAccumulator } from 'matrix-js-sdk/lib/sync-accumulator';
+import type { ISyncResponse } from 'matrix-js-sdk/lib/sync-accumulator';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
 import { keepSyncedEdits } from './syncedEdits';
+import { trimSavedSyncTimelines, type SavedTimelineSync } from './savedSyncTimeline';
 
 // Regression (L5-F012): in an encrypted room the SDK counts unread messages itself as they decrypt.
 // An agent's reply that the reader read half-way, then finished while the reader was elsewhere,
@@ -944,5 +947,112 @@ describe('unread counts of an encrypted room', () => {
       expect([f.threadCount(), f.totalCount()]).toEqual([0, 0]);
       clients.splice(0).forEach((mx) => mx.stopClient());
     }
+  });
+
+  // Regression: when a legacy saved-sync timeline is trimmed past an older read receipt whose
+  // `takenTs` is newer than the kept messages, falling back to `takenTs` must not bypass the
+  // server's unread count and report 0 for the 30 unread messages.
+  it.each([
+    ['main', 'main'],
+    ['unthreaded', undefined],
+  ] as const)(
+    'keeps server unread count after trimming past an older %s receipt taken after newer messages',
+    async (_label, threadId) => {
+      const messages = Array.from({ length: 60 }, (_, index) =>
+        encrypted(`$msg-${index + 1}`, OTHER, 101 + index)
+      );
+      const receipt = {
+        type: 'm.receipt',
+        content: {
+          '$msg-30': {
+            'm.read': {
+              [ME]: threadId ? { ts: 200, thread_id: threadId } : { ts: 200 },
+            },
+          },
+        },
+      };
+      const legacy = new SyncAccumulator({ maxTimelineEntries: 500 });
+      legacy.accumulate({
+        next_batch: 'S_60',
+        rooms: {
+          join: {
+            [ROOM]: {
+              state: { events: [encryption, member(ME), member(OTHER)] },
+              timeline: { events: messages, prev_batch: 'T0', limited: false },
+              ephemeral: { events: [receipt] },
+              account_data: { events: [] },
+              summary: {},
+              unread_notifications: { notification_count: 30, highlight_count: 0 },
+            },
+          },
+        },
+      } as unknown as ISyncResponse);
+      const persisted = legacy.getJSON(true);
+
+      const loadSaved = (trim: boolean) => {
+        const reloaded = new SyncAccumulator({ maxTimelineEntries: 40 });
+        reloaded.accumulate(
+          {
+            next_batch: persisted.nextBatch,
+            rooms: persisted.roomsData,
+            account_data: { events: persisted.accountData },
+          },
+          true
+        );
+        if (trim) trimSavedSyncTimelines(reloaded as unknown as SavedTimelineSync);
+        return reloaded.getJSON().roomsData.join[ROOM]!;
+      };
+
+      for (const [trim, expectedEvents] of [
+        [false, 60],
+        [true, 20],
+      ] as const) {
+        const saved = loadSaved(trim);
+        expect(saved.timeline.events).toHaveLength(expectedEvents);
+
+        const f = await fixture(true);
+        await f.deliver(saved.timeline.events as unknown as IEvent[], saved.ephemeral.events, {
+          counts: { room: saved.unread_notifications?.notification_count ?? 0 },
+        });
+        for (const event of saved.timeline.events) {
+          await f.decrypt(f.find(event.event_id), {
+            msgtype: 'm.text',
+            body: `message ${event.event_id}`,
+          });
+        }
+        expect(f.totalCount()).toBe(30);
+
+        // Once the reader reads a held message in the trimmed window, the resolved read point
+        // bounds the unread count immediately even before the server updates its unread count.
+        if (trim) {
+          await f.deliver([], [readMain('$msg-50', 205)]);
+          expect(f.totalCount()).toBe(10);
+          await f.deliver([], [readMain('$msg-60', 210)]);
+          expect(f.totalCount()).toBe(0);
+        }
+        clients.splice(0).forEach((mx) => mx.stopClient());
+      }
+    }
+  );
+
+  it('keeps an unheld terminal-edit receipt read when the server reports 0 unread', async () => {
+    const f = await fixture(true);
+    await f.deliver(
+      [encrypted(ROOT, ME, 10), streamedReply(REPLY, 11), finishingEdit('$done', REPLY, 15)],
+      [
+        {
+          type: 'm.receipt',
+          content: {
+            $done: { 'm.read': { [ME]: { ts: 20, thread_id: ROOT } } },
+            $elsewhere: { 'm.read': { [ME]: { ts: 1, thread_id: '$other' } } },
+          },
+        },
+      ],
+      { counts: { room: 0, threads: { [ROOT]: 0 } } }
+    );
+    await f.decrypt(f.find(ROOT), clear[ROOT]);
+    await f.decrypt(f.find(REPLY), clear[REPLY]);
+    await f.decrypt(f.find('$done'), finishedContent(REPLY));
+    expect([f.threadCount(), f.totalCount()]).toEqual([0, 0]);
   });
 });

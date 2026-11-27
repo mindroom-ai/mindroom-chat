@@ -118,6 +118,52 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
 };
 
 /**
+ * How far receipts read (`ts`, including `takenTs` fallbacks for unheld events) alongside the
+ * furthest point backed by a held event (`resolvedTs`, or `-Infinity` when none resolved).
+ */
+export type ReceiptReadBounds = { ts: number; resolvedTs: number };
+
+/** Combines receipt read bounds pointwise so an unresolved `takenTs` never hides a resolved target. */
+export const maxReadBounds = (
+  ...bounds: Array<ReceiptReadBounds | undefined>
+): ReceiptReadBounds | undefined =>
+  bounds.reduce<ReceiptReadBounds | undefined>((best, entry) => {
+    if (!entry) return best;
+    if (!best) return entry;
+    return {
+      ts: Math.max(best.ts, entry.ts),
+      resolvedTs: Math.max(best.resolvedTs, entry.resolvedTs),
+    };
+  }, undefined);
+
+/**
+ * Resolves how far a receipt in `context` (the room's main timeline, or a thread) reads: up to the
+ * event it names (`resolvedTs === ts`), or to when the server took it (`takenTs`, with
+ * `resolvedTs === -Infinity`) when the client does not hold that event.
+ */
+export const resolveReceiptReadBounds = (
+  room: Room,
+  context: Room | Thread,
+  eventId: string | undefined,
+  takenTs: number
+): ReceiptReadBounds => {
+  if (!eventId) return { ts: takenTs, resolvedTs: -Infinity };
+  // Before the answer, so the room counts what happens to a named event from the first lookup.
+  const kept = namedEventsOf(room);
+  kept?.asked.add(eventId);
+  // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
+  // or, for a thread, its room.
+  const named = context.findEventById?.(eventId) ?? room.findEventById?.(eventId);
+  if (named) {
+    kept?.held.add(eventId);
+    const ts = named.getTs();
+    return { ts, resolvedTs: ts };
+  }
+  kept?.held.delete(eventId);
+  return { ts: takenTs, resolvedTs: -Infinity };
+};
+
+/**
  * How far a receipt in `context` (the room's main timeline, or a thread) reads: up to the event it
  * names. A receipt on an event the client does not hold (often a reply's terminal edit, which no
  * timeline keeps) reads up to when the server took it, `takenTs`.
@@ -127,37 +173,34 @@ export const receiptReadTs = (
   context: Room | Thread,
   eventId: string | undefined,
   takenTs: number
-): number => {
-  if (!eventId) return takenTs;
-  // Before the answer, so the room counts what happens to a named event from the first lookup.
-  const kept = namedEventsOf(room);
-  kept?.asked.add(eventId);
-  // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
-  // or, for a thread, its room.
-  const named = context.findEventById?.(eventId) ?? room.findEventById?.(eventId);
-  if (named) kept?.held.add(eventId);
-  else kept?.held.delete(eventId);
-  return named?.getTs() ?? takenTs;
-};
-
-const maxOf = (...values: Array<number | undefined>): number | undefined => {
-  const known = values.filter((value): value is number => value !== undefined);
-  return known.length > 0 ? Math.max(...known) : undefined;
-};
+): number => resolveReceiptReadBounds(room, context, eventId, takenTs).ts;
 
 /** How far the user's remembered receipts in `threadId` (public or private) read `context`. */
-const seenReceiptReadTs = (
+const seenReceiptReadBounds = (
   room: Room,
   userId: string,
   context: Room | Thread,
   threadId: string
-): number | undefined => {
+): ReceiptReadBounds | undefined => {
   const seen = room ? seenReceipts.get(room) : undefined;
-  return maxOf(
+  return maxReadBounds(
     ...[ReceiptType.Read, ReceiptType.ReadPrivate].map((type) => {
       const receipt = seen?.get(seenReceiptKey(userId, type, threadId));
-      return receipt && receiptReadTs(room, context, receipt.eventId, receipt.ts);
+      return receipt && resolveReceiptReadBounds(room, context, receipt.eventId, receipt.ts);
     })
+  );
+};
+
+const unthreadedReceiptReadBounds = (
+  room: Room,
+  userId: string,
+  context: Room | Thread = room
+): ReceiptReadBounds | undefined => {
+  const receipt = room?.getLastUnthreadedReceiptFor?.(userId);
+  return maxReadBounds(
+    receipt &&
+      resolveReceiptReadBounds(room, context, unthreadedReceiptEvents.get(receipt), receipt.ts),
+    seenReceiptReadBounds(room, userId, context, '')
   );
 };
 
@@ -169,13 +212,26 @@ export const unthreadedReceiptReadTs = (
   room: Room,
   userId: string,
   context: Room | Thread = room
-): number | undefined => {
-  const receipt = room?.getLastUnthreadedReceiptFor?.(userId);
-  return maxOf(
-    receipt && receiptReadTs(room, context, unthreadedReceiptEvents.get(receipt), receipt.ts),
-    seenReceiptReadTs(room, userId, context, '')
+): number | undefined => unthreadedReceiptReadBounds(room, userId, context)?.ts;
+
+/**
+ * Resolves how far the user's receipts read `context` (the room's main timeline, or a thread) and
+ * the furthest point backed by a held event. Undefined when the user has none.
+ */
+export const resolveContextReceiptReadBounds = (
+  room: Room,
+  userId: string,
+  context: Room | Thread = room
+): ReceiptReadBounds | undefined =>
+  maxReadBounds(
+    unthreadedReceiptReadBounds(room, userId, context),
+    seenReceiptReadBounds(
+      room,
+      userId,
+      context,
+      context === room ? MAIN_ROOM_TIMELINE : (context as Thread).id
+    )
   );
-};
 
 /**
  * How far the user's receipts read `context` (the room's main timeline, or a thread): the newest of
@@ -187,13 +243,4 @@ export const contextReceiptReadTs = (
   room: Room,
   userId: string,
   context: Room | Thread = room
-): number | undefined =>
-  maxOf(
-    unthreadedReceiptReadTs(room, userId, context),
-    seenReceiptReadTs(
-      room,
-      userId,
-      context,
-      context === room ? MAIN_ROOM_TIMELINE : (context as Thread).id
-    )
-  );
+): number | undefined => resolveContextReceiptReadBounds(room, userId, context)?.ts;

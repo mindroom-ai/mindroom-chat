@@ -15,7 +15,12 @@ import {
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { getStreamStatusFromContent, TERMINAL_STREAM_STATUSES } from '../protocol/aiRun';
 import { isRecord } from '../../lib/isRecord';
-import { contextReceiptReadTs, receiptReadTs } from '../receiptReadTs';
+import {
+  maxReadBounds,
+  resolveContextReceiptReadBounds,
+  resolveReceiptReadBounds,
+  type ReceiptReadBounds,
+} from '../receiptReadTs';
 import { getFinishingEdit } from './syncedEdits';
 
 // The server cannot read an encrypted event, so in an encrypted room the SDK takes the server's
@@ -141,16 +146,21 @@ const readUpTo = (
   context: Room | Thread,
   userId: string,
   ownReadTs: number
-): number => {
-  let readTs = Math.max(ownReadTs, contextReceiptReadTs(room, userId, context) ?? -Infinity);
+): ReceiptReadBounds => {
+  const base: ReceiptReadBounds = { ts: ownReadTs, resolvedTs: ownReadTs };
+  let read = maxReadBounds(base, resolveContextReceiptReadBounds(room, userId, context)) ?? base;
   [ReceiptType.Read, ReceiptType.ReadPrivate].forEach((receiptType) => {
     [true, false].forEach((realOnly) => {
       const receipt = context.getReadReceiptForUserId(userId, realOnly, receiptType);
       if (!receipt) return;
-      readTs = Math.max(readTs, receiptReadTs(room, context, receipt.eventId, receipt.data.ts));
+      read =
+        maxReadBounds(
+          read,
+          resolveReceiptReadBounds(room, context, receipt.eventId, receipt.data.ts)
+        ) ?? read;
     });
   });
-  return readTs;
+  return read;
 };
 
 /**
@@ -239,7 +249,7 @@ const recount = (mx: MatrixClient, room: Room): void => {
     since: number,
     threadId?: string
   ): Counts => {
-    const readTs = readUpTo(
+    const { ts: readTs, resolvedTs } = readUpTo(
       room,
       context,
       userId,
@@ -249,10 +259,22 @@ const recount = (mx: MatrixClient, room: Room): void => {
     const fromServer = serverCountsOf(
       threadId ? room.serverThreadUnreadNotifications?.[threadId] : room.serverUnreadNotifications
     );
-    if (readTs >= since || !fromServer) return local;
-    return {
+    // An unresolved receipt falls back to when the server took it (`takenTs`), which can be newer
+    // than unread events when its named event fell out of the timeline, so only a resolved read
+    // point at or after `since` proves the client holds every event since the read point.
+    if (!fromServer || since === -Infinity) return local;
+    if (resolvedTs >= since && readTs === resolvedTs) return local;
+    const combined = {
       total: Math.max(local.total, fromServer.total - local.serverOnly),
       highlight: Math.max(local.highlight, fromServer.highlight),
+    };
+    if (resolvedTs < since) return combined;
+    // A resolved read point inside the held window bounds unread events from above even when an
+    // older unresolved receipt carries a later `takenTs`.
+    const upper = countContext(mx, room, events, threadId, resolvedTs, userId);
+    return {
+      total: Math.min(upper.total, combined.total),
+      highlight: Math.min(upper.highlight, combined.highlight),
     };
   };
   setCounts(room, undefined, count(room, room.getLiveTimeline().getEvents(), roomSince));

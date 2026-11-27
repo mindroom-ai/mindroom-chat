@@ -10,7 +10,12 @@ import {
   type Thread,
 } from 'matrix-js-sdk';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { receiptEventsVersion, receiptReadTs } from './receiptReadTs';
+import {
+  maxReadBounds,
+  receiptEventsVersion,
+  receiptReadTs,
+  resolveReceiptReadBounds,
+} from './receiptReadTs';
 
 // A receipt reads up to the event it names, or to when the server took it while the room does not
 // hold that event. `receiptEventsVersion` counts what may move that, for the thread records kept
@@ -255,5 +260,26 @@ describe('receiptEventsVersion', () => {
 
     expect(receiptReadTs(standIn, standIn, '$named', 5000)).toBe(1000);
     expect(receiptEventsVersion(standIn)).toBe(0);
+  });
+
+  it('distinguishes resolved receipt targets from unresolved takenTs fallbacks', async () => {
+    expect(resolveReceiptReadBounds(room, room, undefined, 5000)).toEqual({
+      ts: 5000,
+      resolvedTs: -Infinity,
+    });
+    expect(resolveReceiptReadBounds(room, room, '$missing', 5000)).toEqual({
+      ts: 5000,
+      resolvedTs: -Infinity,
+    });
+
+    await room.addLiveEvents([message('$held', 1000)], { addToState: false });
+    expect(resolveReceiptReadBounds(room, room, '$held', 5000)).toEqual({
+      ts: 1000,
+      resolvedTs: 1000,
+    });
+
+    expect(
+      maxReadBounds({ ts: 2000, resolvedTs: -Infinity }, { ts: 1000, resolvedTs: 1000 })
+    ).toEqual({ ts: 2000, resolvedTs: 1000 });
   });
 });
