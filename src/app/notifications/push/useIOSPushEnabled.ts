@@ -1,10 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
-import {
-  getIOSPushEnabled,
-  isNativeAndroidPushConfigured,
-  isNativeAndroidPushPlatform,
-  subscribeToIOSPushState,
-} from './iosPush';
+import { useSyncExternalStore } from 'react';
+import { getIOSPushEnabled, subscribeToIOSPushState } from './iosPush';
+
+export { useNativeAndroidPushConfigured } from '../../native/androidPushConfig';
 
 export const useIOSPushEnabled = (sessionId?: string): boolean =>
   useSyncExternalStore(
@@ -12,25 +9,3 @@ export const useIOSPushEnabled = (sessionId?: string): boolean =>
     () => getIOSPushEnabled(sessionId),
     () => getIOSPushEnabled(sessionId)
   );
-
-/** True only on native Android builds compiled with `google-services.json`. */
-export const useNativeAndroidPushConfigured = (): boolean => {
-  const isAndroid = isNativeAndroidPushPlatform();
-  const [configured, setConfigured] = useState(false);
-
-  useEffect(() => {
-    if (!isAndroid) {
-      setConfigured(false);
-      return undefined;
-    }
-    let active = true;
-    void isNativeAndroidPushConfigured().then((value) => {
-      if (active) setConfigured(value);
-    });
-    return () => {
-      active = false;
-    };
-  }, [isAndroid]);
-
-  return isAndroid && configured;
-};

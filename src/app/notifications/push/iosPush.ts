@@ -1,4 +1,4 @@
-import { Capacitor, registerPlugin } from '@capacitor/core';
+import { Capacitor } from '@capacitor/core';
 import { PushNotifications } from '@capacitor/push-notifications';
 import type { IPusherRequest, MatrixClient } from 'matrix-js-sdk';
 import { ClientConfig } from '../../config/useClientConfig';
@@ -8,6 +8,11 @@ import {
   listSessions,
   type StoredSession,
 } from '../../matrix/session/sessions';
+import {
+  getMindRoomPushConfigPlugin,
+  isNativeAndroidPushConfigured,
+  resetNativeAndroidPushConfiguredCache,
+} from '../../native/androidPushConfig';
 import { cloudflareAccessAllowsPush, hasCloudflareAccess } from '../../native/cloudflareAccess';
 import {
   isNativeNotificationsAvailable,
@@ -182,41 +187,7 @@ export const isNativeAndroidPushPlatform = (): boolean =>
 export const isNativePushPlatform = (): boolean =>
   isNativeIOSPlatform() || isNativeAndroidPushPlatform();
 
-type MindRoomPushConfigPlugin = {
-  isConfigured(): Promise<{ configured?: boolean }>;
-  areNotificationsEnabled(): Promise<{ enabled?: boolean }>;
-};
-
-let pushConfigPlugin: MindRoomPushConfigPlugin | undefined;
-let androidPushConfiguredPromise: Promise<boolean> | undefined;
-
-const getPushConfigPlugin = (): MindRoomPushConfigPlugin => {
-  pushConfigPlugin ??= registerPlugin<MindRoomPushConfigPlugin>('MindRoomPushConfig');
-  return pushConfigPlugin;
-};
-
-/**
- * Whether this build includes Firebase configuration (`google-services.json`) for Android FCM.
- * Always true outside native Android; cached on Android so we never call
- * `PushNotifications.register()` without an initialized default `FirebaseApp`.
- */
-export const isNativeAndroidPushConfigured = (): Promise<boolean> => {
-  if (!isNativeAndroidPushPlatform()) return Promise.resolve(true);
-  if (!Capacitor.isPluginAvailable('MindRoomPushConfig')) return Promise.resolve(false);
-  if (!androidPushConfiguredPromise) {
-    androidPushConfiguredPromise = getPushConfigPlugin()
-      .isConfigured()
-      .then((result) => result?.configured === true)
-      .catch(() => false);
-  }
-  return androidPushConfiguredPromise;
-};
-
-/** Clears the cached Android FCM build-config probe (for tests). */
-export const resetNativeAndroidPushConfiguredCache = (): void => {
-  androidPushConfiguredPromise = undefined;
-  pushConfigPlugin = undefined;
-};
+export { isNativeAndroidPushConfigured, resetNativeAndroidPushConfiguredCache };
 
 export const subscribeToIOSPushState = (listener: () => void): (() => void) => {
   if (typeof window === 'undefined') return () => undefined;
@@ -393,7 +364,7 @@ const resolveAndroidPushPermission = async (
   if (permission !== 'granted' || !isNativeAndroidPushPlatform()) return permission;
   if (!Capacitor.isPluginAvailable('MindRoomPushConfig')) return permission;
   try {
-    const result = await getPushConfigPlugin().areNotificationsEnabled();
+    const result = await getMindRoomPushConfigPlugin().areNotificationsEnabled();
     return result?.enabled === false ? 'denied' : permission;
   } catch {
     return permission;

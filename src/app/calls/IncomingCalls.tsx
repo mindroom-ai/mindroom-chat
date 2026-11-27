@@ -19,7 +19,8 @@ import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
 import { desktopBridge, isAppWindowFocused, isDesktopApp } from '../lib/nativeShell';
-import { isNativeApp } from '../native/nativeSso';
+import { useNativeAndroidPushConfigured } from '../native/androidPushConfig';
+import { isNativeAndroid, isNativeIOS } from '../native/nativeSso';
 import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
 import { CallMemberAvatar } from './CallTile';
@@ -96,19 +97,22 @@ function RingAlerts({
   const mx = useMatrixClient();
   const [sound] = useSetting(settingsAtom, 'isNotificationSounds');
   const [desktop] = useSetting(settingsAtom, 'showNotifications');
-  const [hiddenOnNative, setHiddenOnNative] = useState(
-    () => isNativeApp() && typeof document !== 'undefined' && document.visibilityState === 'hidden'
+  const androidPushConfigured = useNativeAndroidPushConfigured();
+  const suppressHiddenRingtone = isNativeIOS() || (isNativeAndroid() && androidPushConfigured);
+  const [hidden, setHidden] = useState(
+    () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
   );
+  const hiddenOnNative = suppressHiddenRingtone && hidden;
   const latest = useRef({ line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') });
   latest.current = { line, onOpen, title: t('sharedUi.callEmbedProvider.incomingCall') };
 
   useEffect(() => {
-    if (!isNativeApp() || typeof document === 'undefined') return undefined;
-    const syncVisibility = () => setHiddenOnNative(document.visibilityState === 'hidden');
+    if (!suppressHiddenRingtone || typeof document === 'undefined') return undefined;
+    const syncVisibility = () => setHidden(document.visibilityState === 'hidden');
     syncVisibility();
     document.addEventListener('visibilitychange', syncVisibility);
     return () => document.removeEventListener('visibilitychange', syncVisibility);
-  }, []);
+  }, [suppressHiddenRingtone]);
 
   const startedRingId = useRef<string>(undefined);
 
