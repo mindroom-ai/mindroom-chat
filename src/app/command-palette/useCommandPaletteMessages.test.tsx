@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ISearchResponse } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -142,6 +142,7 @@ const searchHits = async (res: ISearchResponse, qc?: QueryClient) => {
 };
 
 afterEach(() => {
+  cleanup();
   pending.length = 0;
   roomEvents.clear();
   clearThreadSummarySharedState();
