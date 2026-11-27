@@ -126,8 +126,8 @@ describe('PhoneNavDrawer', () => {
       });
       swipeFromLeftEdge();
       expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
-      // The drawer slides in on its own: nothing turns its slide off.
-      expect(document.documentElement.dataset.pageSlide).toBeUndefined();
+      // The drawer slides in on its own without activating a page slide stage.
+      expect(document.querySelector('[data-swipe-thread-stage]')).toBeNull();
       act(() => renderer?.unmount());
     } finally {
       stage.remove();

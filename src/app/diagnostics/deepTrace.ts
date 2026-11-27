@@ -284,8 +284,7 @@ const SURFACE_HIT_TEST_SELECTOR = Array.from(
   SURFACE_HIT_TEST_IDS,
   (id) => `[data-testid="${id}"]`
 ).join(',');
-const liveElement = (selector: string): Element | null =>
-  document.querySelector(`${selector}:not([data-page-slide-copy], [data-page-slide-copy] *)`);
+const liveElement = (selector: string): Element | null => document.querySelector(selector);
 
 const SAFE_EVENT_PATTERNS = [
   /^calls\.ring\.join\.(none|ring|notification)$/,
@@ -752,16 +751,14 @@ const startGlobalCapture = (target: Runtime): void => {
   const pointerDown = (event: PointerEvent) => {
     const action = classifyFlightRecorderAction(event.target);
     setFlightRecorderLastAction(action);
-    // The slide's input shield is a pseudo-element: its pointer target is the stage itself.
-    const slide = document.documentElement.dataset.pageSlide;
+    // Live phone slides mount an explicit shield overlay above the stage to block double-taps.
+    const slideActive = !!document.querySelector('[data-swipe-hold-shield]');
     const slideDetails =
-      action.kind === 'surface' &&
-      action.surface === 'app' &&
-      (slide === 'forward' || slide === 'back')
+      action.kind === 'surface' && action.surface === 'app' && slideActive
         ? {
-            phone_slide_back: slide === 'back',
-            phone_slide_stage_hit:
-              event.target instanceof Element && event.target.hasAttribute('data-phone-stage'),
+            phone_slide_shield_hit:
+              event.target instanceof Element &&
+              event.target.hasAttribute('data-swipe-hold-shield'),
           }
         : undefined;
     const surface =
@@ -777,7 +774,6 @@ const startGlobalCapture = (target: Runtime): void => {
             hit_tag: surface.localName,
             hit_test_id:
               surface.closest(SURFACE_HIT_TEST_SELECTOR)?.getAttribute('data-testid') ?? null,
-            ...(slide === '' ? { phone_slide_waiting: true } : undefined),
             blocking_portal: hasBlockingPortalOverlay(),
             open_overlay: hasOpenOverlay(),
             hit_outside_app_root: appRoot ? !appRoot.contains(surface) : null,

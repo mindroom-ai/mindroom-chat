@@ -136,10 +136,14 @@ const expectDrawer = async (page: Page, open: boolean, step: string) => {
 const openDrawer = async (page: Page) => {
   await menuButton(page).tap();
   await expectDrawer(page, true, 'the menu button slides the drawer in');
-  // Until it has slid in, a finger at its middle may still land on the scrim; and while the
-  // whole page slides (phone-page-slide.spec.ts), it takes no taps.
+  // Until it has slid in, a finger at its middle may still land on the scrim; and while a live
+  // slide or swipe handoff runs (phone-page-slide.spec.ts), its shield blocks taps.
   await expect.poll(() => drawer(page).evaluate((panel) => panel.getAnimations().length)).toBe(0);
-  await expect(page.locator('html[data-page-slide]')).toHaveCount(0);
+  await expect(
+    page.locator(
+      '[data-swipe-thread-stage], [data-swipe-stage], [data-swipe-hold-shield], [data-swipe-dim]'
+    )
+  ).toHaveCount(0);
 };
 
 const pickRoom = async (page: Page, name: string, room: string) => {
@@ -360,7 +364,11 @@ for (const engine of ENGINES) {
         await pickRoom(page, 'Garden Club', garden);
         await page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first().tap();
         await expectAt(page, { room: garden, thread: gardenRoot }, 'the thread opens');
-        await expect.poll(() => page.locator('html[data-page-slide]').count()).toBe(0);
+        await expect(
+          page.locator(
+            '[data-swipe-thread-stage], [data-swipe-stage], [data-swipe-hold-shield], [data-swipe-dim]'
+          )
+        ).toHaveCount(0);
         await edgeSwipe(page, engine);
         await expectAt(page, inRoom(garden), 'the edge swipe leaves the thread for its room');
         await expectDrawer(page, false, 'and leaves the drawer away');
@@ -557,9 +565,12 @@ test('chromium: the drawer slides, except with reduced motion, and mirrors right
   const moving = await signIn(browser, seeded);
   try {
     await pickRoom(moving.page, 'Garden Club', seeded.garden);
-    // Its own slide, which also takes it away from the room picked in it; while the whole page
-    // slides back to the list (phone-page-slide.spec.ts) the drawer has none.
-    await expect(moving.page.locator('html[data-page-slide]')).toHaveCount(0);
+    // Its own 280 ms slide takes it in and out without activating a live page-slide stage.
+    await expect(
+      moving.page.locator(
+        '[data-swipe-thread-stage], [data-swipe-stage], [data-swipe-hold-shield], [data-swipe-dim]'
+      )
+    ).toHaveCount(0);
     expect(await transitionOf(moving.page)).toMatch(/^0\.28s/);
     // Turned sideways, the phone gets the wider layout, and the room stays mounted.
     await roomBanner(moving.page).evaluate((element) =>

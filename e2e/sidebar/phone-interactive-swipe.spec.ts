@@ -2,6 +2,11 @@ import { mkdirSync } from 'node:fs';
 import { expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+} from '../helpers/disposableAccounts';
+import {
+  addRoomToSpace,
   createPrivateRoom,
   createPrivateSpace,
   joinRoom,
@@ -10,44 +15,38 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
-import {
-  DISPOSABLE_HOMESERVER as HOMESERVER,
-  disposableHomeserverIsUp,
-} from '../helpers/disposableAccounts';
 
-// Interactive finger-following phone swipes at 390x844 with touch:
-// 1) Thread -> Room left-edge back swipe tracks the finger continuously, reveals the cached room
-//    preview underneath without premature navigation, springs back cleanly on cancel, and commits
-//    once with zero stuck swipe chrome or double-slide.
-// 2) Sidebar navigation drawer opens interactively from the left edge (cancel + commit) and closes
-//    interactively by dragging left inside the open drawer.
-// 3) Members sheet closes interactively by dragging right inside the open sheet (cancel + commit).
-// Chromium uses real CDP Input.dispatchTouchEvent; WebKit (when PLAYWRIGHT_WEBKIT_EXECUTABLE is
-// set) uses synthetic multi-step touch events. Set INTERACTIVE_SWIPE_SHOTS=<directory> to save
-// Chromium mid-drag screenshots while the finger is held down.
+// Verifies 1:1 finger-following interactive touch swipes on phones across the live 2-layer
+// navigation stack (zero DOM cloning, zero `<canvas>` bitmaps):
+// 1. Thread <-> Room edge-swipe back (cancel + commit) and end-edge forward swipe into
+//    `lastExitedThread` (cancel + commit) without double-sliding.
+// 2. Thread -> Room swipe-back after creating a new thread across a soft-keyboard height change.
+// 3. Direct-link / reload thread swipe-back revealing live Room focused on the thread card.
+// 4. Space All threads <-> Thread 1:1 edge-swipe back with `<Activity>` scroll preservation and
+//    cold-reload neutral backdrop fallback.
+// 5. PhoneNavDrawer open (left-edge drag) and close (swipe left on panel).
+// 6. PhoneMembersSheet close (swipe right on sheet) with cancel and commit.
+//
+// Set PHONE_SWIPE_SHOTS=<dir> to save mid-drag screenshots for visual inspection.
 const PASSWORD = 'phone-interactive-swipe-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const SHOTS = process.env.INTERACTIVE_SWIPE_SHOTS;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
-const ENGINES = ['chromium', 'webkit'] as const;
-type Engine = (typeof ENGINES)[number];
+const SHOTS = process.env.PHONE_SWIPE_SHOTS;
+const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
+const OTHER_ROOMS = ['Art Guild', 'Book Swap', 'Bike Repair', 'Seed Library'];
 
-const OTHER_ROOMS = [
-  'Book Swap',
-  'Bike Shed',
-  'Compost Crew',
-  'Tool Library',
-  'Porch Concerts',
-  'Trail Watch',
-  'Seed Exchange',
-  'Rain Barrels',
-];
+test.use(PHONE);
+
+type Engine = (typeof ENGINES)[number];
 
 type Seed = {
   username: string;
   garden: string;
   gardenRoot: string;
   harbor: string;
+  spaceId?: string;
+  spaceRoom?: string;
+  spaceRoot?: string;
 };
 
 type Place = { path: string; room: string | null; thread: string | null };
@@ -69,10 +68,27 @@ const EXTRA_GARDEN_THREADS = [
   'Watering can spouts are back on the pegboard after the gasket swap.',
 ];
 
+const EXTRA_SPACE_THREADS = [
+  'Ventilation louver actuator calibrated for south bay.',
+  'Potting soil pallets arrive Friday before noon.',
+  'Shade cloth hooks need replacement along the west ridge.',
+  'Misting manifold filter cartridge swapped after pressure drop.',
+  'Seedling heat mat thermostat set to 22 degrees for peppers.',
+  'Bench drainage trays flushed and leveled on aisle two.',
+  'Sticky traps refreshed near the basil propagation table.',
+  'Rain sensor wiring checked ahead of weekend squalls.',
+  'Propagation dome clips sorted into the labeled wall bins.',
+  'Heirloom tomato stakes bundled by height beside the door.',
+  'Compost thermometer probe reading steady at 58 degrees.',
+  'Trellis twine spools restocked on the north tool rail.',
+  'Citrus pots rotated for even morning sun exposure.',
+  'Drip emitter flow rates checked across the herb bench.',
+];
+
 const seed = async (
   engine: Engine,
   label: string,
-  options?: { extraGardenThreads?: boolean }
+  options?: { extraGardenThreads?: boolean; withSpaceThreads?: boolean }
 ): Promise<Seed> => {
   const username = `iswipe_${engine[0]}_${label}_${RUN}`;
   const reader = await matrixFetch<{ user_id: string; access_token: string }>(
@@ -151,16 +167,70 @@ const seed = async (
   const harbor = await create('Harbor Plans', [agent.userId]);
   await say(harbor, text('Crane schedule for the north pier next week: who still needs a slot?'));
 
-  return { username, garden, gardenRoot, harbor };
+  let spaceId: string | undefined;
+  let spaceRoom: string | undefined;
+  let spaceRoot: string | undefined;
+  if (options?.withSpaceThreads) {
+    spaceId = await createPrivateSpace(HOMESERVER, token, {
+      name: 'Garden Space',
+      topic: 'Shared garden rooms',
+    });
+    spaceRoom = await create('Greenhouse', [agent.userId]);
+    await addRoomToSpace(HOMESERVER, token, spaceId, spaceRoom);
+    spaceRoot = await say(
+      spaceRoom,
+      text('Greenhouse glazing panels arrive Thursday morning at the south gate.')
+    );
+    await say(spaceRoom, {
+      ...text('Extra glazing clips are in the north locker.'),
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: spaceRoot,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: spaceRoot },
+      },
+    });
+    for (const body of EXTRA_SPACE_THREADS) {
+      // eslint-disable-next-line no-await-in-loop
+      const rootId = await say(spaceRoom, text(body));
+      // eslint-disable-next-line no-await-in-loop
+      await say(spaceRoom, {
+        ...text('Logged on the weekly checklist.'),
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: rootId,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: rootId },
+        },
+      });
+    }
+  }
+
+  return { username, garden, gardenRoot, harbor, spaceId, spaceRoom, spaceRoot };
 };
+
+const signIn = async (browser: Browser, seeded: Seed) => {
+  const context = await browser.newContext(PHONE);
+  const page = await context.newPage();
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: seeded.username,
+    password: PASSWORD,
+  });
+  return { context, page };
+};
+
+const drawer = (page: Page) => page.locator('#phone-nav-drawer');
+const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
+const roomList = (page: Page) => drawer(page).getByRole('navigation', { name: 'Rooms' });
+const membersSheet = (page: Page) => page.getByTestId('phone-members-sheet');
+const threadColumn = (page: Page) => page.getByTestId('thread-column');
 
 const place = (page: Page): Place => {
   const url = new URL(page.url());
-  const room = url.pathname
-    .split('/')
-    .map((segment) => decodeURIComponent(segment))
-    .find((segment) => segment.startsWith('!'));
-  return { path: url.pathname, room: room ?? null, thread: url.searchParams.get('threadId') };
+  const parts = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
+  const room = parts.find((part) => part.startsWith('!')) ?? null;
+  return { path: url.pathname, room, thread: url.searchParams.get('threadId') };
 };
 
 const inRoom = (room: string): Partial<Place> => ({ room, thread: null });
@@ -168,20 +238,14 @@ const inRoom = (room: string): Partial<Place> => ({ room, thread: null });
 const expectAt = (page: Page, expected: Partial<Place>, step: string) =>
   expect.poll(() => place(page), { message: step, timeout: 20_000 }).toMatchObject(expected);
 
-const roomList = (page: Page) => page.getByTestId('resizable-page-nav');
-const drawer = (page: Page) => page.locator('#phone-nav-drawer');
-const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
-const membersSheet = (page: Page) => page.getByTestId('phone-members-sheet');
-const topPhonePage = (page: Page) => page.locator('[data-phone-stage] > [data-phone-page]');
-
 const waitAnimationFrames = (page: Page, count = 2) =>
   page.evaluate(
     (frames) =>
       new Promise<void>((resolve) => {
-        let left = frames;
+        let remaining = frames;
         const step = () => {
-          left -= 1;
-          if (left <= 0) resolve();
+          remaining -= 1;
+          if (remaining <= 0) resolve();
           else requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
@@ -191,10 +255,26 @@ const waitAnimationFrames = (page: Page, count = 2) =>
 
 const settled = (page: Page, selector: string) =>
   expect
-    .poll(() =>
-      page.evaluate((css) => document.querySelector(css)?.getAnimations().length ?? 0, selector)
+    .poll(
+      () =>
+        page.locator(selector).evaluate((element) => {
+          const animations = element.getAnimations();
+          return animations.filter((animation) => animation.playState === 'running').length;
+        }),
+      { timeout: 10_000 }
     )
     .toBe(0);
+
+const expectLiveSwipeSettled = async (page: Page) => {
+  await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-stage]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
+  await expect(page.locator('[data-swipe-backdrop]')).toHaveCount(0);
+  await expect(page.locator('[data-swiping]')).toHaveCount(0);
+};
 
 const expectDrawer = async (page: Page, open: boolean, step: string) => {
   if (open) {
@@ -219,8 +299,7 @@ const openFromList = async (page: Page, name: string, room: string) => {
   await roomList(page).getByRole('link', { name }).tap();
   await expectAt(page, inRoom(room), `${name} opens from the list`);
   await expect(page.getByRole('banner').getByRole('heading', { name, exact: true })).toBeVisible();
-  await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
-  await settled(page, '[data-phone-stage] > [data-phone-page]');
+  await expectLiveSwipeSettled(page);
 };
 
 type TouchDrag = {
@@ -307,16 +386,16 @@ const startTouchDrag = async (
         const nextY = fromY + (y - fromY) * ratio;
         // eslint-disable-next-line no-await-in-loop
         await page.evaluate(
-          ({ moveX, moveY }) => {
+          ({ px, py }) => {
             const key = Symbol.for('phoneInteractiveSwipeTouchTarget');
             const target = (window as unknown as Record<symbol, EventTarget>)[key] ?? window;
             const event = new Event('touchmove', { bubbles: true, cancelable: true });
-            const point = [{ identifier: 1, clientX: moveX, clientY: moveY }];
+            const point = [{ identifier: 1, clientX: px, clientY: py }];
             Object.defineProperty(event, 'touches', { value: point });
             Object.defineProperty(event, 'changedTouches', { value: point });
             target.dispatchEvent(event);
           },
-          { moveX: x, moveY: nextY }
+          { px: x, py: nextY }
         );
         // eslint-disable-next-line no-await-in-loop
         await page.waitForTimeout(stepMs);
@@ -331,48 +410,30 @@ const startTouchDrag = async (
       if (released) return;
       released = true;
       await page.evaluate(
-        ({ endX, endY }) => {
+        ({ px, py }) => {
           const key = Symbol.for('phoneInteractiveSwipeTouchTarget');
-          const store = window as unknown as Record<symbol, EventTarget | undefined>;
-          const target = store[key] ?? window;
+          const target = (window as unknown as Record<symbol, EventTarget>)[key] ?? window;
           const event = new Event('touchend', { bubbles: true, cancelable: true });
-          const point = [{ identifier: 1, clientX: endX, clientY: endY }];
+          const point = [{ identifier: 1, clientX: px, clientY: py }];
           Object.defineProperty(event, 'touches', { value: [] });
           Object.defineProperty(event, 'changedTouches', { value: point });
           target.dispatchEvent(event);
-          delete store[key];
         },
-        { endX: currentX, endY: currentY }
+        { px: currentX, py: currentY }
       );
     },
   };
 };
 
-const signIn = async (browser: Browser, { username }: Seed) => {
-  const context = await browser.newContext(PHONE);
-  context.setDefaultTimeout(30_000);
-  const page = await context.newPage();
-  await page.route('**/v1/local-mindroom/connections', (route) =>
-    route.fulfill({ json: { connections: [] } })
-  );
-  await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
-  await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
-  await page.goto('/home/');
-  await expect(roomList(page).getByRole('link', { name: 'Harbor Plans' })).toBeVisible({
-    timeout: 60_000,
-  });
-  return { context, page };
-};
-
-test.beforeEach(async () => {
+test.beforeAll(async () => {
   test.skip(
     !(await disposableHomeserverIsUp()),
-    `No homeserver at ${HOMESERVER}; run \`just hs-up\``
+    `Disposable homeserver is not reachable at ${HOMESERVER}. Run \`just hs-up\` first.`
   );
 });
 
 for (const engine of ENGINES) {
-  test(`${engine}: thread back swipe tracks finger, cancels cleanly, and commits once`, async ({
+  test(`${engine}: thread back swipe and end-edge forward swipe track finger 1:1, cancel cleanly, and commit without double-sliding`, async ({
     browser,
   }, testInfo) => {
     test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
@@ -384,34 +445,55 @@ for (const engine of ENGINES) {
       const { context, page } = await signIn(own, seeded);
       try {
         await openFromList(page, 'Garden Club', garden);
-        const threadCard = page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first();
-        await expect(threadCard).toBeVisible();
-        await threadCard.tap();
 
-        await expectAt(page, { room: garden, thread: gardenRoot }, 'entering the thread');
-        await expect(page.getByText('Add marigolds for the border')).toBeVisible();
-        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
-        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first().tap();
+        await expectAt(page, { room: garden, thread: gardenRoot }, 'the thread opens');
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText('Add marigolds for the border')).toBeVisible({
+          timeout: 20_000,
+        });
+        await expectLiveSwipeSettled(page);
         await waitAnimationFrames(page, 2);
 
-        // Drag from left edge to ~45% of viewport width without lifting.
+        // 1. Back swipe cancel: drag from left edge to ~45% of viewport width without lifting.
         const cancelDrag = await startTouchDrag(page, engine, 6, 420);
         try {
           await cancelDrag.moveTo(180, { steps: 10, stepMs: 16 });
           await waitAnimationFrames(page, 2);
 
-          const midState = await topPhonePage(page).evaluate((element) => ({
+          const stage = page.locator('[data-swipe-thread-stage]');
+          await expect(stage).toHaveCount(1);
+          expect(await stage.locator('canvas').count(), 'zero canvas bitmaps in live stage').toBe(
+            0
+          );
+
+          const over = page.locator('[data-swipe-over-thread]');
+          await expect(over).toHaveAttribute('data-swipe-shadow');
+          const midOver = await over.evaluate((element) => ({
             x: element.getBoundingClientRect().x,
             inlineTranslate: element.style.translate,
           }));
-          expect(midState.x, 'thread page tracks finger horizontally').toBeGreaterThan(100);
-          expect(midState.inlineTranslate, 'inline translate is positive px').toMatch(
+          expect(midOver.x, 'thread column tracks finger horizontally').toBeGreaterThan(100);
+          expect(midOver.inlineTranslate, 'inline translate is positive px').toMatch(
             /^[1-9]\d*(?:\.\d+)?px\b/
           );
-          await expect(
-            page.locator('[data-swipe-preview="under"]'),
-            'cached room preview is visible behind the dragged thread'
-          ).toBeVisible();
+
+          const under = page.locator('[data-swipe-under-thread]');
+          await expect(under, 'live room is visible behind the dragged thread').toBeVisible();
+          await expect(under).toContainText('Garden Club');
+          await expect(under).toContainText('Seed order for spring');
+          expect(
+            await under.evaluate((element) => element.style.translate),
+            'live room parallaxes from negative x'
+          ).toMatch(/^-/);
+          await expect(page.locator('[data-swipe-dim]')).toBeVisible();
+          await expect(page.locator('[data-swipe-backdrop]')).toHaveCount(0);
+          expect(
+            await page
+              .locator('[data-phone-top-bar]')
+              .evaluate((bar) => Math.round(bar.getBoundingClientRect().top)),
+            'PhoneTopBar stays fixed at top during swipe'
+          ).toBe(0);
           expect(place(page), 'URL stays on the thread mid-drag').toMatchObject({
             room: garden,
             thread: gardenRoot,
@@ -427,17 +509,8 @@ for (const engine of ENGINES) {
         }
 
         // Cancelled drag springs back cleanly and stays in the thread.
-        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
-        await expect(page.locator('[data-swiping]')).toHaveCount(0);
-        await expect
-          .poll(() =>
-            topPhonePage(page).evaluate((element) => ({
-              x: Math.abs(element.getBoundingClientRect().x),
-              inlineTranslate: element.style.translate,
-            }))
-          )
-          .toEqual({ x: expect.any(Number), inlineTranslate: '' });
-        const afterCancelX = await topPhonePage(page).evaluate(
+        await expectLiveSwipeSettled(page);
+        const afterCancelX = await threadColumn(page).evaluate(
           (element) => element.getBoundingClientRect().x
         );
         expect(Math.abs(afterCancelX), 'thread springs back to x ≈ 0').toBeLessThan(2);
@@ -446,7 +519,7 @@ for (const engine of ENGINES) {
           thread: gardenRoot,
         });
 
-        // Commit swipe past 35% of the viewport width.
+        // 2. Back swipe commit: drag past 35% of viewport width and release.
         const commitDrag = await startTouchDrag(page, engine, 6, 420);
         try {
           await commitDrag.moveTo(240, { steps: 12, stepMs: 16 });
@@ -455,16 +528,64 @@ for (const engine of ENGINES) {
         }
 
         await expectAt(page, inRoom(garden), 'committed back swipe returns to Garden Club');
-        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
-        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expectLiveSwipeSettled(page);
 
         // No double-slide: stays in Garden Club with the drawer closed.
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(400);
         expect(place(page), 'stays in Garden Club without double-sliding').toMatchObject(
           inRoom(garden)
         );
         await expectDrawer(page, false, 'drawer remains closed after exiting thread');
+
+        // 3. End-edge forward swipe cancel into `lastExitedThread`.
+        const forwardCancel = await startTouchDrag(page, engine, 384, 420);
+        try {
+          await forwardCancel.moveTo(200, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(1);
+          const over = page.locator('[data-swipe-over-thread]');
+          await expect(over, 'passively mounted thread tracks right-edge drag').toBeVisible();
+          await expect(over).toHaveAttribute('data-swipe-shadow');
+          const overX = await over.evaluate((element) => element.getBoundingClientRect().x);
+          expect(overX, 'thread column slides in from right edge').toBeGreaterThan(100);
+          expect(overX, 'thread column moved inward past 280px').toBeLessThan(280);
+          await expect(page.locator('[data-swipe-under-thread]')).toBeVisible();
+          await expect(page.locator('[data-swipe-dim]')).toBeVisible();
+          expect(place(page), 'URL stays on room mid-forward-drag').toMatchObject(inRoom(garden));
+
+          await saveShot(page, testInfo, engine, 'thread-forward-mid-drag');
+
+          await forwardCancel.moveTo(340, { steps: 8, stepMs: 16 });
+          await forwardCancel.hold(150);
+        } finally {
+          await forwardCancel.release();
+        }
+
+        await expectLiveSwipeSettled(page);
+        await expect(threadColumn(page)).toHaveCount(0);
+        expect(place(page), 'URL remains on room after cancelled forward swipe').toMatchObject(
+          inRoom(garden)
+        );
+
+        // 4. End-edge forward swipe commit back into `lastExitedThread`.
+        const forwardCommit = await startTouchDrag(page, engine, 384, 420);
+        try {
+          await forwardCommit.moveTo(120, { steps: 12, stepMs: 16 });
+        } finally {
+          await forwardCommit.release();
+        }
+
+        await expectAt(
+          page,
+          { room: garden, thread: gardenRoot },
+          'committed forward swipe reopens lastExitedThread'
+        );
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expect(page.getByText('Add marigolds for the border')).toBeVisible({
+          timeout: 20_000,
+        });
+        await expectLiveSwipeSettled(page);
       } finally {
         await context.close();
       }
@@ -473,7 +594,7 @@ for (const engine of ENGINES) {
     }
   });
 
-  test(`${engine}: back swipe from a newly created thread reveals room preview across keyboard height change`, async ({
+  test(`${engine}: back swipe from a newly created thread reveals live room across keyboard height change`, async ({
     browser,
   }, testInfo) => {
     test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
@@ -493,7 +614,7 @@ for (const engine of ENGINES) {
         await expect(composer).toBeVisible();
         await composer.tap();
         await expect(composer).toBeFocused();
-        const newThreadText = 'Fresh seedlings ready for the weekend swap?';
+        const newThreadText = 'Fresh thread from phone composer: soil delivery?';
         await page.keyboard.type(newThreadText);
 
         const stageHeight = () =>
@@ -524,8 +645,7 @@ for (const engine of ENGINES) {
         await page.evaluate(() => {
           document.documentElement.style.removeProperty('--app-height');
         });
-        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
-        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await expectLiveSwipeSettled(page);
         await waitAnimationFrames(page, 2);
         expect(await stageHeight(), 'stage returns to full phone height').toBe(844);
 
@@ -534,18 +654,17 @@ for (const engine of ENGINES) {
           await drag.moveTo(180, { steps: 10, stepMs: 16 });
           await waitAnimationFrames(page, 2);
 
-          const preview = page.locator('[data-swipe-preview="under"]');
+          const liveUnder = page.locator('[data-swipe-under-thread]');
           await expect(
-            preview,
-            'retained room preview is visible behind the newly created thread'
+            liveUnder,
+            'live room is visible behind the newly created thread'
           ).toBeVisible();
+          await expect(liveUnder, 'live room shows the existing room thread card').toContainText(
+            'Seed order for spring'
+          );
           await expect(
-            preview,
-            'retained room preview shows the existing room thread card'
-          ).toContainText('Seed order for spring');
-          await expect(
-            page.locator('[data-swipe-preview="backdrop"]'),
-            'no blank backdrop fallback when room preview matches'
+            page.locator('[data-swipe-backdrop]'),
+            'no blank backdrop fallback for same-room thread'
           ).toHaveCount(0);
 
           await saveShot(page, testInfo, engine, 'new-thread-back-mid-drag');
@@ -556,130 +675,8 @@ for (const engine of ENGINES) {
         }
 
         await expectAt(page, inRoom(garden), 'committed back swipe returns to Garden Club');
-        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
-        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expectLiveSwipeSettled(page);
         await expectDrawer(page, false, 'drawer remains closed after exiting new thread');
-
-        // Repeat from a short keyboard height (room area <= 240px, hiding the floating room header
-        // and setting inline --room-header-height: 0px): swiping back at full height must refresh
-        // the cloned header inset so the visible header never overlaps the filter bar.
-        await expect(composer).toBeVisible();
-        await composer.tap();
-        await expect(composer).toBeFocused();
-        const shortAreaThreadText = 'Short landscape keyboard thread preview check?';
-        await page.keyboard.type(shortAreaThreadText);
-
-        await page.waitForTimeout(120);
-        await page.evaluate(() => {
-          document.documentElement.style.setProperty('--app-height', '280px');
-        });
-        await waitAnimationFrames(page, 2);
-        expect(await stageHeight(), 'stage shrinks to short keyboard height').toBe(280);
-        await expect
-          .poll(
-            () =>
-              page.evaluate(() => {
-                const header = document.querySelector<HTMLElement>('[data-room-header="true"]');
-                const area = header?.parentElement;
-                return {
-                  headerHeight: header?.offsetHeight ?? -1,
-                  inlineHeaderInset:
-                    area?.style.getPropertyValue('--room-header-height').trim() ?? '',
-                };
-              }),
-            { message: 'short room area hides header and sets --room-header-height: 0px' }
-          )
-          .toEqual({ headerHeight: 0, inlineHeaderInset: '0px' });
-        const shortAreaHeight = await page.evaluate(() => {
-          const area = document.querySelector<HTMLElement>(
-            '[data-room-header="true"]'
-          )?.parentElement;
-          return area ? Math.round(area.getBoundingClientRect().height) : -1;
-        });
-        expect(shortAreaHeight, 'room area height is <= 240px').toBeGreaterThan(0);
-        expect(shortAreaHeight, 'room area height is <= 240px').toBeLessThanOrEqual(240);
-
-        const shortSendButton = page.getByRole('button', { name: 'Send message', exact: true });
-        await expect(shortSendButton).toBeVisible();
-        await shortSendButton.tap();
-
-        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
-        await expect(page.getByText(shortAreaThreadText, { exact: true }).first()).toBeVisible();
-        await expect
-          .poll(() => place(page).thread, {
-            message: 'short-area new thread URL confirms to a $... event ID',
-            timeout: 20_000,
-          })
-          .toMatch(/^\$/);
-
-        await page.evaluate(() => {
-          document.documentElement.style.removeProperty('--app-height');
-        });
-        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
-        await settled(page, '[data-phone-stage] > [data-phone-page]');
-        await waitAnimationFrames(page, 2);
-        expect(await stageHeight(), 'stage returns to full phone height after short send').toBe(
-          844
-        );
-
-        const shortBackDrag = await startTouchDrag(page, engine, 6, 420);
-        try {
-          await shortBackDrag.moveTo(180, { steps: 10, stepMs: 16 });
-          await waitAnimationFrames(page, 2);
-
-          const preview = page.locator('[data-swipe-preview="under"]');
-          await expect(
-            preview,
-            'short-area retained room preview is visible behind the newly created thread'
-          ).toBeVisible();
-          await expect(
-            page.locator('[data-swipe-preview="backdrop"]'),
-            'no blank backdrop fallback after short-area capture'
-          ).toHaveCount(0);
-
-          const previewLayout = await preview.evaluate((copy) => {
-            const header = copy.querySelector<HTMLElement>('[data-room-header="true"]');
-            const area = header?.parentElement;
-            const overview = copy.querySelector<HTMLElement>('[data-room-thread-overview="true"]');
-            const headerRect = header?.getBoundingClientRect();
-            const overviewRect = overview?.getBoundingClientRect();
-            return {
-              headerOffsetHeight: header?.offsetHeight ?? 0,
-              inlineHeaderInset: area?.style.getPropertyValue('--room-header-height').trim() ?? '',
-              headerBottom: headerRect?.bottom ?? -1,
-              overviewTop: overviewRect?.top ?? -1,
-              overviewHeight: overviewRect?.height ?? 0,
-            };
-          });
-          expect(
-            previewLayout.headerOffsetHeight,
-            'cloned room header becomes visible at full height'
-          ).toBeGreaterThan(0);
-          expect(
-            previewLayout.inlineHeaderInset,
-            'cloned --room-header-height refreshes to match the visible header'
-          ).toBe(`${previewLayout.headerOffsetHeight}px`);
-          expect(previewLayout.overviewHeight, 'cloned filter bar is visible').toBeGreaterThan(0);
-          expect(
-            previewLayout.headerBottom,
-            'visible cloned room header does not overlap the thread filter bar'
-          ).toBeLessThanOrEqual(previewLayout.overviewTop + 0.5);
-
-          await shortBackDrag.moveTo(240, { steps: 6, stepMs: 16 });
-        } finally {
-          await shortBackDrag.release();
-        }
-
-        await expectAt(
-          page,
-          inRoom(garden),
-          'committed back swipe from short-area new thread returns to Garden Club'
-        );
-        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
-        await expect(page.locator('[data-swiping]')).toHaveCount(0);
-        await expectDrawer(page, false, 'drawer remains closed after exiting short-area thread');
       } finally {
         await context.close();
       }
@@ -700,7 +697,7 @@ for (const engine of ENGINES) {
       const { context, page } = await signIn(own, seeded);
       try {
         // Navigate directly to the thread without visiting the room first (simulates cold reload,
-        // notification, or direct link so roomPreview is guaranteed empty).
+        // notification, or direct link).
         await page.goto(
           `/home/${encodeURIComponent(garden)}/?threadId=${encodeURIComponent(gardenRoot)}`
         );
@@ -709,8 +706,7 @@ for (const engine of ENGINES) {
         await expect(page.getByText('Add marigolds for the border')).toBeVisible({
           timeout: 20_000,
         });
-        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
-        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await expectLiveSwipeSettled(page);
         await waitAnimationFrames(page, 2);
 
         // 1. Drag from left edge mid-way -> verify live room underneath, no backdrop -> cancel.
@@ -720,12 +716,8 @@ for (const engine of ENGINES) {
           await waitAnimationFrames(page, 2);
 
           await expect(
-            page.locator('[data-swipe-preview="backdrop"]'),
+            page.locator('[data-swipe-backdrop]'),
             'no blank backdrop fallback when live room peek is available'
-          ).toHaveCount(0);
-          await expect(
-            page.locator('[data-swipe-preview="under"]'),
-            'no cached snapshot preview on direct thread load'
           ).toHaveCount(0);
 
           const liveUnder = page.locator('[data-swipe-under-thread]');
@@ -735,7 +727,7 @@ for (const engine of ENGINES) {
           ).toBeVisible();
           await expect(liveUnder).toContainText('Garden Club');
           await expect(liveUnder).toContainText('Seed order for spring');
-          await expect(page.locator('[data-swipe-dim="live-back"]')).toBeVisible();
+          await expect(page.locator('[data-swipe-dim]')).toBeVisible();
 
           const overX = await page
             .locator('[data-swipe-over-thread]')
@@ -755,19 +747,14 @@ for (const engine of ENGINES) {
         }
 
         // Cancelled drag returns cleanly to the thread with the room re-collapsed.
-        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
-        await expect(page.locator('[data-swiping]')).toHaveCount(0);
+        await expectLiveSwipeSettled(page);
         await expect(page.locator('[data-room-header="true"]')).toHaveCount(1);
         expect(place(page), 'URL still on thread after cancel').toMatchObject({
           room: garden,
           thread: gardenRoot,
         });
 
-        // 2. Drag past threshold and release to commit return to Garden Club.
+        // 2. Drag past threshold and release to commit back into Garden Club.
         const commitDrag = await startTouchDrag(page, engine, 6, 420);
         try {
           await commitDrag.moveTo(240, { steps: 12, stepMs: 16 });
@@ -775,22 +762,16 @@ for (const engine of ENGINES) {
           await commitDrag.release();
         }
 
-        await expectAt(page, inRoom(garden), 'committed live-peek swipe returns to Garden Club');
-        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
-        await expect(page.locator('[data-swiping]')).toHaveCount(0);
-        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await expectAt(page, inRoom(garden), 'committed swipe back returns to Garden Club');
+        await expectLiveSwipeSettled(page);
+
         await expect(
           page.getByRole('banner').getByRole('heading', { name: 'Garden Club', exact: true })
         ).toBeVisible();
         const focusedCard = page.locator(`button[data-thread-root-id="${gardenRoot}"]`).first();
         await expect(
           focusedCard,
-          'directly opened older thread card is placed in viewport after commit'
+          'focused older thread card is visible in viewport'
         ).toBeInViewport();
         await expect
           .poll(
@@ -799,23 +780,17 @@ for (const engine of ENGINES) {
                 overflows: view.scrollHeight > view.clientHeight,
                 scrolled: view.scrollTop > 0,
               })),
-            { message: 'compact list scrolled down to reveal the initially offscreen older card' }
+            { message: 'compact list is scrolled to bring the older thread card into view' }
           )
           .toEqual({ overflows: true, scrolled: true });
-
-        // No double-slide: stays in Garden Club with the drawer closed.
-        await page.waitForTimeout(500);
-        expect(place(page), 'stays in Garden Club without double-sliding').toMatchObject(
-          inRoom(garden)
-        );
         await expectDrawer(page, false, 'drawer remains closed after live-peek exit');
         expect(
           new URL(page.url()).searchParams.get('focusEvent'),
           'direct-exit lands on focused room URL'
         ).toBe('1');
 
-        // 3. Re-open the thread from that focused room URL, reload to clear scroll memory and
-        // room preview cache, then swipe back: live peek still focuses the offscreen older card.
+        // 3. Re-open the thread from that focused room URL, reload to clear scroll memory, then
+        // swipe back: live peek still focuses the offscreen older card.
         await focusedCard.tap();
         await expectAt(
           page,
@@ -826,8 +801,7 @@ for (const engine of ENGINES) {
         await expect(page.getByText('Add marigolds for the border')).toBeVisible({
           timeout: 20_000,
         });
-        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
-        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await expectLiveSwipeSettled(page);
 
         await page.reload();
         await expectAt(
@@ -839,17 +813,12 @@ for (const engine of ENGINES) {
         await expect(page.getByText('Add marigolds for the border')).toBeVisible({
           timeout: 20_000,
         });
-        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
-        await settled(page, '[data-phone-stage] > [data-phone-page]');
+        await expectLiveSwipeSettled(page);
         await waitAnimationFrames(page, 2);
 
         const reloadDrag = await startTouchDrag(page, engine, 6, 420);
         try {
           await reloadDrag.moveTo(240, { steps: 12, stepMs: 16 });
-          await expect(
-            page.locator('[data-swipe-preview="under"]'),
-            'no cached room preview after reload'
-          ).toHaveCount(0);
           await expect(
             page.locator('[data-swipe-under-thread]'),
             'live room peek reveals focused room entry after reload'
@@ -863,14 +832,7 @@ for (const engine of ENGINES) {
           inRoom(garden),
           'committed swipe back after reload returns to focused Garden Club entry'
         );
-        await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-over-thread]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-preview]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-dim]')).toHaveCount(0);
-        await expect(page.locator('[data-swipe-hold-shield]')).toHaveCount(0);
-        await expect(page.locator('[data-swiping]')).toHaveCount(0);
-        await expect(page.locator('html')).not.toHaveAttribute('data-page-slide');
+        await expectLiveSwipeSettled(page);
         expect(
           new URL(page.url()).searchParams.get('focusEvent'),
           'returns to focused room URL after reload'
@@ -898,6 +860,177 @@ for (const engine of ENGINES) {
     }
   });
 
+  test(`${engine}: Space All threads ↔ Thread supports 1:1 edge-swipe back with scroll preservation and cold-reload fallback`, async ({
+    browser,
+  }, testInfo) => {
+    test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.setTimeout(240_000);
+    const own = engine === 'webkit' ? await launchWebKit() : browser;
+    try {
+      const seeded = await seed(engine, 'spacethreads', { withSpaceThreads: true });
+      const spaceId = seeded.spaceId!;
+      const { context, page } = await signIn(own, seeded);
+      try {
+        await page.goto(`/${encodeURIComponent(spaceId)}/threads`);
+        const spaceThreadsPage = page.locator(`[data-space-threads-page="${spaceId}"]`);
+        const spaceList = page.locator('[data-space-threads-list="true"]');
+        await expect(spaceThreadsPage).toBeVisible({ timeout: 30_000 });
+        await expect(spaceList).toBeVisible({ timeout: 30_000 });
+        await expect
+          .poll(() => spaceList.evaluate((el) => el.scrollHeight > el.clientHeight + 200), {
+            timeout: 30_000,
+          })
+          .toBe(true);
+
+        // Scroll Space All threads to a non-zero offset and tap a card already centered in view.
+        await spaceList.evaluate((el) => {
+          el.scrollTop = 220;
+        });
+        await waitAnimationFrames(page, 2);
+
+        const picked = await spaceList.evaluate((scroller) => {
+          const { top, bottom } = scroller.getBoundingClientRect();
+          const buttons = Array.from(
+            scroller.querySelectorAll<HTMLButtonElement>('button[data-thread-root-id]')
+          );
+          for (const button of buttons) {
+            const rect = button.getBoundingClientRect();
+            const x = rect.left + rect.width / 2;
+            const y = rect.top + rect.height / 2;
+            if (
+              rect.top >= top + 80 &&
+              rect.bottom <= bottom - 80 &&
+              button.contains(document.elementFromPoint(x, y))
+            ) {
+              return {
+                rootId: button.dataset.threadRootId ?? '',
+                x,
+                y,
+                scrollTop: scroller.scrollTop,
+              };
+            }
+          }
+          return null;
+        });
+        expect(picked, 'found a centered visible Space thread card').not.toBeNull();
+        expect(picked!.scrollTop, 'Space All threads is scrolled before opening').toBeGreaterThan(
+          100
+        );
+
+        await page.touchscreen.tap(picked!.x, picked!.y);
+        await expect(page).toHaveURL(/threadId=/, { timeout: 20_000 });
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expectLiveSwipeSettled(page);
+        await waitAnimationFrames(page, 2);
+
+        // 1. 1:1 cancel swipe back over live parked Space All threads preserving scrollTop.
+        const cancelDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await cancelDrag.moveTo(180, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          const stage = page.locator(
+            `[data-space-section-stage="${spaceId}"][data-swipe-thread-stage]`
+          );
+          await expect(stage).toHaveCount(1);
+          expect(await stage.locator('canvas').count(), 'zero canvas bitmaps in Space stage').toBe(
+            0
+          );
+          await expect(page.locator('[data-swipe-backdrop]')).toHaveCount(0);
+
+          const under = page.locator('[data-space-threads-layer][data-swipe-under-thread]');
+          await expect(under, 'live Space All threads revealed underneath').toBeVisible();
+          const peekScrollTop = await spaceList.evaluate((el) => el.scrollTop);
+          expect(
+            Math.abs(peekScrollTop - picked!.scrollTop),
+            `Space All threads scrollTop preserved while peeking (${peekScrollTop} vs ${picked!.scrollTop})`
+          ).toBeLessThanOrEqual(2);
+
+          const over = page.locator('[data-space-outlet-layer][data-swipe-over-thread]');
+          await expect(over).toHaveAttribute('data-swipe-shadow');
+          const overX = await over.evaluate((el) => el.getBoundingClientRect().x);
+          expect(overX, 'Space thread outlet tracks finger horizontally').toBeGreaterThan(100);
+          await expect(page.locator('[data-swipe-dim]')).toBeVisible();
+
+          await saveShot(page, testInfo, engine, 'space-threads-back-mid-drag');
+
+          await cancelDrag.moveTo(60, { steps: 8, stepMs: 16 });
+          await cancelDrag.hold(150);
+        } finally {
+          await cancelDrag.release();
+        }
+
+        await expectLiveSwipeSettled(page);
+        await expect(page).toHaveURL(/threadId=/);
+
+        // 2. 1:1 commit swipe back to Space All threads with exact scrollTop preserved.
+        const commitDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await commitDrag.moveTo(240, { steps: 12, stepMs: 16 });
+        } finally {
+          await commitDrag.release();
+        }
+
+        await expect(page).toHaveURL(/\/threads\/?$/, { timeout: 20_000 });
+        await expect(spaceThreadsPage).toBeVisible({ timeout: 20_000 });
+        await expectLiveSwipeSettled(page);
+        const restoredScrollTop = await spaceList.evaluate((el) => el.scrollTop);
+        expect(
+          Math.abs(restoredScrollTop - picked!.scrollTop),
+          `Space All threads scrollTop preserved after commit (${restoredScrollTop} vs ${picked!.scrollTop})`
+        ).toBeLessThanOrEqual(2);
+
+        // 3. Cold reload inside the Space thread falls back to neutral backdrop without eagerly
+        // mounting SpaceThreadsPage on touchstart, then commits back cleanly.
+        await page.locator(`button[data-thread-root-id="${picked!.rootId}"]`).first().tap();
+        await expect(page).toHaveURL(/threadId=/, { timeout: 20_000 });
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 20_000 });
+        await expectLiveSwipeSettled(page);
+
+        await page.reload();
+        await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
+        await expectLiveSwipeSettled(page);
+        await expect(
+          page.locator('[data-space-threads-layer]'),
+          'SpaceThreadsPage is not eagerly mounted on cold reload inside a thread'
+        ).toHaveCount(0);
+        await waitAnimationFrames(page, 2);
+
+        const coldDrag = await startTouchDrag(page, engine, 6, 420);
+        try {
+          await coldDrag.moveTo(180, { steps: 10, stepMs: 16 });
+          await waitAnimationFrames(page, 2);
+
+          await expect(
+            page.locator('[data-swipe-stage="back"]'),
+            'cold reload uses lightweight fallback stage'
+          ).toHaveCount(1);
+          await expect(
+            page.locator('[data-swipe-backdrop]'),
+            'neutral themed backdrop shown on cold reload'
+          ).toBeVisible();
+          await expect(page.locator('[data-swipe-under-thread]')).toHaveCount(0);
+          await expect(page.locator('[data-swipe-over-thread]')).toHaveAttribute(
+            'data-swipe-shadow'
+          );
+          await expect(page.locator('[data-swipe-dim]')).toBeVisible();
+
+          await coldDrag.moveTo(240, { steps: 6, stepMs: 16 });
+        } finally {
+          await coldDrag.release();
+        }
+
+        await expect(page).toHaveURL(/\/threads\/?$/, { timeout: 20_000 });
+        await expect(spaceThreadsPage).toBeVisible({ timeout: 20_000 });
+        await expectLiveSwipeSettled(page);
+      } finally {
+        await context.close();
+      }
+    } finally {
+      if (engine === 'webkit') await own.close();
+    }
+  });
+
   test(`${engine}: sidebar drawer tracks finger interactively on open and close`, async ({
     browser,
   }, testInfo) => {
@@ -912,58 +1045,47 @@ for (const engine of ENGINES) {
         await openFromList(page, 'Garden Club', garden);
         await expectDrawer(page, false, 'drawer starts closed in Garden Club');
 
-        // 1. Open drag mid-way -> hold -> verify tracking -> cancel back.
+        // 1. Drag from left edge mid-way -> verify live tracking -> drag back to cancel.
         const cancelOpen = await startTouchDrag(page, engine, 6, 420);
         try {
           await cancelOpen.moveTo(160, { steps: 10, stepMs: 16 });
           await waitAnimationFrames(page, 2);
 
-          await expect(drawer(page), 'drawer has data-swiping mid-open').toHaveAttribute(
+          await expect(drawer(page), 'drawer has data-swiping while dragging').toHaveAttribute(
             'data-swiping'
           );
-          await expect(drawer(page), 'data-open stays absent mid-open').not.toHaveAttribute(
-            'data-open'
+          const midLeft = await drawer(page).evaluate(
+            (element) => element.getBoundingClientRect().left
           );
-          await expect(menuButton(page)).toHaveAttribute('aria-expanded', 'false');
-
-          const midOpenRight = await drawer(page).evaluate(
-            (element) => element.getBoundingClientRect().right
-          );
-          expect(midOpenRight, 'drawer right edge is partially on screen').toBeGreaterThan(100);
-          expect(midOpenRight, 'drawer right edge is not fully open yet').toBeLessThan(320);
+          expect(midLeft, 'drawer is partially open mid-drag').toBeGreaterThan(-260);
+          expect(midLeft, 'drawer is not yet fully open mid-drag').toBeLessThan(-20);
 
           await saveShot(page, testInfo, engine, 'drawer-open-mid-drag');
 
-          await cancelOpen.moveTo(40, { steps: 8, stepMs: 16 });
+          await cancelOpen.moveTo(30, { steps: 8, stepMs: 16 });
           await cancelOpen.hold(150);
         } finally {
           await cancelOpen.release();
         }
 
-        await expectDrawer(page, false, 'cancelled open drag springs drawer back closed');
+        await expectDrawer(page, false, 'cancelled open drag keeps drawer closed');
 
-        // 2. Commit open drag.
+        // 2. Drag from left edge past threshold to commit open.
         const commitOpen = await startTouchDrag(page, engine, 6, 420);
         try {
-          await commitOpen.moveTo(230, { steps: 12, stepMs: 16 });
+          await commitOpen.moveTo(260, { steps: 12, stepMs: 16 });
         } finally {
           await commitOpen.release();
         }
 
-        await expectDrawer(page, true, 'committed open drag opens drawer');
+        await expectDrawer(page, true, 'committed edge drag opens drawer');
+        await expect(roomList(page).getByRole('link', { name: 'Garden Club' })).toBeVisible();
 
-        // 3. Close drag inside the open drawer -> hold -> verify tracking -> continue to commit.
-        const closeDrag = await startTouchDrag(page, engine, 260, 420);
+        // 3. Drag left on the open drawer panel to track close and commit closed.
+        const closeDrag = await startTouchDrag(page, engine, 240, 420);
         try {
-          await closeDrag.moveTo(110, { steps: 10, stepMs: 16 });
+          await closeDrag.moveTo(100, { steps: 10, stepMs: 16 });
           await waitAnimationFrames(page, 2);
-
-          await expect(drawer(page), 'drawer has data-swiping mid-close').toHaveAttribute(
-            'data-swiping'
-          );
-          await expect(drawer(page), 'data-open stays present mid-close').toHaveAttribute(
-            'data-open'
-          );
 
           const midCloseLeft = await drawer(page).evaluate(
             (element) => element.getBoundingClientRect().left

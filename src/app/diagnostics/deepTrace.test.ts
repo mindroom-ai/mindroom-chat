@@ -450,30 +450,27 @@ describe('opt-in deep diagnostic trace', () => {
     expect(JSON.stringify(snapshot)).not.toContain('fake.js');
   });
 
-  it('records whether a surface tap hit the phone stage during a slide', async () => {
+  it('records whether a surface tap hit the live slide shield during a slide', async () => {
     await setDeepTraceEnabled(true, storage);
     const stage = document.createElement('div');
-    stage.setAttribute('data-phone-stage', '');
+    stage.setAttribute('data-swipe-thread-stage', '');
+    const shield = document.createElement('div');
+    shield.setAttribute('data-swipe-hold-shield', '');
     const child = stage.appendChild(document.createElement('div'));
+    stage.append(shield);
     document.body.append(stage);
     try {
-      document.documentElement.dataset.pageSlide = 'back';
-      stage.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      shield.dispatchEvent(new Event('pointerdown', { bubbles: true }));
       child.dispatchEvent(new Event('pointerdown', { bubbles: true }));
-      delete document.documentElement.dataset.pageSlide;
-      stage.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      shield.remove();
+      child.dispatchEvent(new Event('pointerdown', { bubbles: true }));
       const { events } = await readDeepTraceSnapshot();
       expect(
         events
           .filter(({ name }) => name === 'interaction.pointer.surface.app')
-          .map(({ data }) => [data?.phone_slide_back, data?.phone_slide_stage_hit])
-      ).toEqual([
-        [true, true],
-        [true, false],
-        [undefined, undefined],
-      ]);
+          .map(({ data }) => data?.phone_slide_shield_hit)
+      ).toEqual([true, false, undefined]);
     } finally {
-      delete document.documentElement.dataset.pageSlide;
       stage.remove();
     }
   });
@@ -488,19 +485,13 @@ describe('opt-in deep diagnostic trace', () => {
     const conversation = document.createElement('div');
     conversation.dataset.conversationBehindPanel = 'true';
     conversation.setAttribute('inert', '');
-    const copy = document.createElement('div');
-    copy.setAttribute('data-page-slide-copy', '');
-    copy.append(panel.cloneNode(), document.createElement('div'));
-    copy.lastElementChild?.setAttribute('data-conversation-behind-panel', 'false');
     const hit = panel.appendChild(document.createElement('span'));
     hit.textContent = 'invented private message';
     const release = holdModalSheet();
-    document.body.append(copy, wrapper, conversation);
+    document.body.append(wrapper, conversation);
     try {
       hit.dataset.testid = 'unknown-private-id';
-      document.documentElement.dataset.pageSlide = '';
       hit.dispatchEvent(new Event('pointerdown', { bubbles: true }));
-      delete document.documentElement.dataset.pageSlide;
       wrapper.setAttribute('inert', '');
       // The browser cannot target the now-inert panel. Tap outside it to sample its state.
       document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }));
@@ -515,20 +506,16 @@ describe('opt-in deep diagnostic trace', () => {
         plugin_panel_inert: false,
         conversation_inert: true,
         conversation_behind_panel: true,
-        phone_slide_waiting: true,
         blocking_portal: true,
         plugin_panel_open: true,
       });
       expect(surfaces[1]?.data).toMatchObject({ hit_test_id: null, plugin_panel_inert: true });
-      expect(surfaces[1]?.data).not.toHaveProperty('phone_slide_waiting');
       expect(
         events.find(({ name }) => name === 'interaction.pointer.button.app')?.data
       ).not.toHaveProperty('hit_tag');
       expect(JSON.stringify(events)).not.toMatch(/invented private message|unknown-private-id/);
     } finally {
       release();
-      delete document.documentElement.dataset.pageSlide;
-      copy.remove();
       wrapper.remove();
       conversation.remove();
     }

@@ -123,14 +123,17 @@ const expectFixtureAvatars = async (page: Page, requiredNames: string[], timeout
     .toBe(true);
 };
 
-// The page on screen, not the still copy of the last one that slides away over it on a phone
+// Active foreground content, excluding the inert live under-layer during a phone slide
 // (navigation/phonePageSlide.ts).
-const LIVE = ':not([data-page-slide-copy] *)';
+const LIVE = ':not([data-swipe-under-thread], [data-swipe-under-thread] *)';
 
-/** Until a phone's page slide has played and its copy of the last page is gone. */
+/** Until a phone's live slide or swipe handoff has finished and its stage markers are gone. */
 const waitForPageSlide = async (page: Page) => {
-  await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0, { timeout: 10_000 });
-  await expect(page.locator('html[data-page-slide]')).toHaveCount(0, { timeout: 10_000 });
+  await expect(
+    page.locator(
+      '[data-swipe-thread-stage], [data-swipe-stage], [data-swipe-hold-shield], [data-swipe-dim]'
+    )
+  ).toHaveCount(0, { timeout: 10_000 });
 };
 
 const captureScene = async (

@@ -105,8 +105,8 @@ function fakeIOS(key: string) {
   };
 }
 
-// The page on screen, not the copy of the last one that slides away under it on a phone.
-const LIVE = ':not([data-page-slide-copy] *)';
+// Foreground content on screen, not the inert live under-layer during a phone slide.
+const LIVE = ':not([data-swipe-under-thread], [data-swipe-under-thread] *)';
 const banner = (page: Page) => page.locator(`[data-thread-context-banner]${LIVE}`);
 const back = (page: Page) => banner(page).getByRole('button', { name: 'Back', exact: true });
 const openThread = (page: Page) => new URL(page.url()).searchParams.get('threadId');

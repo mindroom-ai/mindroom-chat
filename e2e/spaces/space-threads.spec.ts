@@ -523,8 +523,11 @@ test.describe.serial('Space Threads overview', () => {
       });
       const banner = page.locator('[data-thread-context-banner="true"]');
       await expect(banner).toBeVisible({ timeout: 20_000 });
-      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0, { timeout: 10_000 });
-      await expect(page.locator('html[data-page-slide]')).toHaveCount(0, { timeout: 10_000 });
+      await expect(
+        page.locator(
+          '[data-swipe-thread-stage], [data-swipe-stage], [data-swipe-hold-shield], [data-swipe-dim]'
+        )
+      ).toHaveCount(0, { timeout: 10_000 });
 
       const backButton = banner.getByRole('button', { name: 'Back', exact: true });
       if (isPhone) await backButton.tap();
@@ -536,8 +539,11 @@ test.describe.serial('Space Threads overview', () => {
         { timeout: 20_000 }
       );
       await expect(page).toHaveURL(/\/threads\/?$/, { timeout: 20_000 });
-      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0, { timeout: 10_000 });
-      await expect(page.locator('html[data-page-slide]')).toHaveCount(0, { timeout: 10_000 });
+      await expect(
+        page.locator(
+          '[data-swipe-thread-stage], [data-swipe-stage], [data-swipe-hold-shield], [data-swipe-dim]'
+        )
+      ).toHaveCount(0, { timeout: 10_000 });
       await expect(roomsTrigger).toHaveText('Platform');
       await expect(page.locator('[data-space-rooms-badge="true"]')).toHaveText('2 of 4 rooms');
       await expect(page.getByText('Blue-green deploy rollback checklist')).toBeVisible();
