@@ -131,11 +131,6 @@ function CallResume() {
   return null;
 }
 
-/**
- * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
- * reload, the call's lifetime, transcribing this device's speech in it (reading an agent call's
- * transcript), and the floating call window.
- */
 function AndroidCallServiceSync() {
   const mx = useMatrixClient();
   const active = useActiveCall();
@@ -218,6 +213,11 @@ export function AndroidCallServiceFeature() {
   return <AndroidCallServiceSync />;
 }
 
+/**
+ * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
+ * reload, the call's lifetime, transcribing this device's speech in it (reading an agent call's
+ * transcript), and the floating call window.
+ */
 export function CallFeatures() {
   return (
     <>

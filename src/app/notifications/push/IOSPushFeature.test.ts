@@ -1372,6 +1372,28 @@ describe('NativeIOSPushFeature', () => {
       expect(upsertIOSPushPusher).not.toHaveBeenCalled();
       renderer.unmount();
     });
+
+    it('re-registers FCM when returning to foreground after permission is granted in Android Settings', async () => {
+      state.nativeAndroid = true;
+      state.androidPushConfigured = true;
+      state.nativeNotificationsAvailable = false;
+      state.signInRequired = false;
+      state.permission = 'denied';
+
+      const renderer = await mount();
+      expect(registerIOSPush).not.toHaveBeenCalled();
+
+      // Going to background does not re-check or register.
+      state.permission = 'granted';
+      await act(async () => state.onAppStateChange?.({ isActive: false }));
+      expect(registerIOSPush).not.toHaveBeenCalled();
+
+      // Returning to foreground after granting permission in Android Settings triggers registration.
+      await act(async () => state.onAppStateChange?.({ isActive: true }));
+      expect(registerIOSPush).toHaveBeenCalledTimes(1);
+
+      renderer.unmount();
+    });
   });
 });
 

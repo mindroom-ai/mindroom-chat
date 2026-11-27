@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { App as NativeApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 import { useTranslation } from 'react-i18next';
 import { Box, Switch, Text, color } from 'folds';
 import { SettingTile } from '../../ui/SettingTile';
@@ -67,6 +69,13 @@ function IOSPushNotificationTile() {
 
   useEffect(() => {
     refreshPermission();
+    if (!Capacitor.isNativePlatform()) return undefined;
+    const handle = NativeApp.addListener('appStateChange', ({ isActive }) => {
+      if (isActive) refreshPermission();
+    });
+    return () => {
+      handle.then((listener) => listener.remove()).catch(() => undefined);
+    };
   }, [refreshPermission]);
 
   const [toggleState, toggle] = useAsyncCallback<void, unknown, [boolean]>(

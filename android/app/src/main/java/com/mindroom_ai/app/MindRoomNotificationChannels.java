@@ -9,6 +9,7 @@ import java.util.List;
 final class MindRoomNotificationChannels {
 
     static final String MESSAGES_CHANNEL_ID = "mindroom_messages";
+    static final String CHANNEL_MESSAGES_SILENT = "mindroom_messages_silent";
     static final String CALLS_CHANNEL_ID = "mindroom_calls";
     static final String ACTIVE_CALL_CHANNEL_ID = "mindroom_active_call";
 
@@ -29,6 +30,7 @@ final class MindRoomNotificationChannels {
 
     private static final List<ChannelSpec> CHANNEL_SPECS = List.of(
         new ChannelSpec(MESSAGES_CHANNEL_ID, "Messages", NotificationManager.IMPORTANCE_HIGH, false),
+        new ChannelSpec(CHANNEL_MESSAGES_SILENT, "Silent messages", NotificationManager.IMPORTANCE_LOW, true),
         new ChannelSpec(CALLS_CHANNEL_ID, "Incoming calls", NotificationManager.IMPORTANCE_HIGH, false),
         new ChannelSpec(ACTIVE_CALL_CHANNEL_ID, "Active call", NotificationManager.IMPORTANCE_LOW, true)
     );

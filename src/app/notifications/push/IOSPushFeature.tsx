@@ -325,27 +325,39 @@ export function NativeIOSPushFeature() {
   }, [latest, logTag, mx, native, pushConfigured, pushService, sessionId, stableConfig]);
 
   useEffect(() => {
-    if (!native || !stableConfig || !pushConfigured) return;
+    if (!native || !stableConfig || !pushConfigured) return undefined;
     if (!pushAllowed) {
       disableIOSPushPusher(mx, stableConfig, sessionId).catch(() => undefined);
-      return;
+      return undefined;
     }
-    if (!enabled || signInRequired) return;
+    if (!enabled || signInRequired) return undefined;
     let active = true;
-    checkIOSPushPermission()
-      .then((currentPermission) => {
-        if (active && currentPermission === 'granted') return registerIOSPush();
-        return undefined;
-      })
-      .catch((error: unknown) => {
-        // eslint-disable-next-line no-console
-        console.warn(`${logTag} could not register with ${pushService}`, error);
-      });
+    const registerIfGranted = () => {
+      checkIOSPushPermission()
+        .then((currentPermission) => {
+          if (active && currentPermission === 'granted') return registerIOSPush();
+          return undefined;
+        })
+        .catch((error: unknown) => {
+          // eslint-disable-next-line no-console
+          console.warn(`${logTag} could not register with ${pushService}`, error);
+        });
+    };
+    registerIfGranted();
+    // On Android 13+, enabling notifications in Android Settings does not mount this effect anew;
+    // re-checking on return to foreground ensures FCM registration and Matrix pusher upsert run.
+    const appStateHandle = isAndroid
+      ? NativeApp.addListener('appStateChange', ({ isActive }) => {
+          if (isActive) registerIfGranted();
+        })
+      : undefined;
     return () => {
       active = false;
+      appStateHandle?.then((listener) => listener.remove()).catch(() => undefined);
     };
   }, [
     enabled,
+    isAndroid,
     logTag,
     mx,
     native,

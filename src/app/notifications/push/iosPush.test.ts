@@ -5,6 +5,7 @@ const { Capacitor } = CapacitorCore;
 import { PushNotifications } from '@capacitor/push-notifications';
 import {
   buildIOSPushPusherRequest,
+  checkIOSPushPermission,
   clearIOSPushState,
   disableIOSPushPusher,
   findIOSPushAccount,
@@ -17,6 +18,7 @@ import {
   resetNativeAndroidPushConfiguredCache,
   migrateLegacyIOSPushEnabled,
   reconcileIOSPushNativeState,
+  requestIOSPushPermission,
   resolveEffectiveIOSPushFormat,
   resolveIOSPushConfig,
   resolveNativePushConfig,
@@ -33,7 +35,10 @@ import {
 } from '../../native/nativeNotifications';
 
 vi.mock('@capacitor/push-notifications', () => ({
-  PushNotifications: { checkPermissions: vi.fn(async () => ({ receive: 'granted' })) },
+  PushNotifications: {
+    checkPermissions: vi.fn(async () => ({ receive: 'granted' })),
+    requestPermissions: vi.fn(async () => ({ receive: 'granted' })),
+  },
 }));
 vi.mock('../../native/cloudflareAccess', () => ({
   cloudflareAccessAllowsPush: vi.fn(() => true),
@@ -1108,9 +1113,7 @@ describe('Android FCM push support', () => {
     vi.spyOn(Capacitor, 'isPluginAvailable').mockImplementation(
       (name) => name === 'MindRoomPushConfig'
     );
-    const registerSpy = vi
-      .spyOn(CapacitorCore, 'registerPlugin')
-      .mockReturnValue({ isConfigured });
+    const registerSpy = vi.spyOn(CapacitorCore, 'registerPlugin').mockReturnValue({ isConfigured });
     resetNativeAndroidPushConfiguredCache();
     await expect(isNativeAndroidPushConfigured()).resolves.toBe(true);
     await expect(isNativeAndroidPushConfigured()).resolves.toBe(true);
@@ -1124,6 +1127,36 @@ describe('Android FCM push support', () => {
     resetNativeAndroidPushConfiguredCache();
     isConfigured.mockRejectedValueOnce(new Error('plugin error'));
     await expect(isNativeAndroidPushConfigured()).resolves.toBe(false);
+
+    registerSpy.mockRestore();
+    resetNativeAndroidPushConfiguredCache();
+  });
+
+  it('reports denied on Android when OS notifications are disabled despite Capacitor returning granted', async () => {
+    resetNativeAndroidPushConfiguredCache();
+    vi.spyOn(Capacitor, 'isNativePlatform').mockReturnValue(true);
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('android');
+    vi.spyOn(Capacitor, 'isPluginAvailable').mockImplementation(
+      (name) => name === 'MindRoomPushConfig'
+    );
+    const areNotificationsEnabled = vi
+      .fn()
+      .mockResolvedValueOnce({ enabled: false })
+      .mockResolvedValueOnce({ enabled: false })
+      .mockResolvedValueOnce({ enabled: true });
+    const registerSpy = vi
+      .spyOn(CapacitorCore, 'registerPlugin')
+      .mockReturnValue({ isConfigured: vi.fn(), areNotificationsEnabled });
+
+    await expect(checkIOSPushPermission()).resolves.toBe('denied');
+    await expect(requestIOSPushPermission()).resolves.toBe('denied');
+    await expect(checkIOSPushPermission()).resolves.toBe('granted');
+    expect(areNotificationsEnabled).toHaveBeenCalledTimes(3);
+
+    // On iOS, never query Android MindRoomPushConfig.areNotificationsEnabled.
+    vi.spyOn(Capacitor, 'getPlatform').mockReturnValue('ios');
+    await expect(checkIOSPushPermission()).resolves.toBe('granted');
+    expect(areNotificationsEnabled).toHaveBeenCalledTimes(3);
 
     registerSpy.mockRestore();
     resetNativeAndroidPushConfiguredCache();

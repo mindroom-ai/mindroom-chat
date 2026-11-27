@@ -184,6 +184,7 @@ export const isNativePushPlatform = (): boolean =>
 
 type MindRoomPushConfigPlugin = {
   isConfigured(): Promise<{ configured?: boolean }>;
+  areNotificationsEnabled(): Promise<{ enabled?: boolean }>;
 };
 
 let pushConfigPlugin: MindRoomPushConfigPlugin | undefined;
@@ -386,14 +387,27 @@ const parseNativePushPermission = (receive: string | undefined): NativePushPermi
   return 'prompt';
 };
 
+const resolveAndroidPushPermission = async (
+  permission: NativePushPermission
+): Promise<NativePushPermission> => {
+  if (permission !== 'granted' || !isNativeAndroidPushPlatform()) return permission;
+  if (!Capacitor.isPluginAvailable('MindRoomPushConfig')) return permission;
+  try {
+    const result = await getPushConfigPlugin().areNotificationsEnabled();
+    return result?.enabled === false ? 'denied' : permission;
+  } catch {
+    return permission;
+  }
+};
+
 export const checkIOSPushPermission = async (): Promise<NativePushPermission> => {
   const permissions = await PushNotifications.checkPermissions();
-  return parseNativePushPermission(permissions.receive);
+  return resolveAndroidPushPermission(parseNativePushPermission(permissions.receive));
 };
 
 export const requestIOSPushPermission = async (): Promise<NativePushPermission> => {
   const permissions = await PushNotifications.requestPermissions();
-  return parseNativePushPermission(permissions.receive);
+  return resolveAndroidPushPermission(parseNativePushPermission(permissions.receive));
 };
 
 export const registerIOSPush = async (): Promise<void> => {

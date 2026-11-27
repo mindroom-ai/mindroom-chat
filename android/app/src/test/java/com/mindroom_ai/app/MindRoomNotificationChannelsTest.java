@@ -13,9 +13,9 @@ import org.junit.Test;
 public class MindRoomNotificationChannelsTest {
 
     @Test
-    public void definesMessagesCallsAndSilentActiveCallChannels() {
+    public void definesMessagesSilentMessagesCallsAndActiveCallChannels() {
         List<MindRoomNotificationChannels.ChannelSpec> specs = MindRoomNotificationChannels.getChannelSpecs();
-        assertEquals(3, specs.size());
+        assertEquals(4, specs.size());
 
         MindRoomNotificationChannels.ChannelSpec messages = specs.get(0);
         assertEquals("mindroom_messages", messages.id);
@@ -24,14 +24,21 @@ public class MindRoomNotificationChannelsTest {
         assertEquals(NotificationManager.IMPORTANCE_HIGH, messages.importance);
         assertFalse(messages.silent);
 
-        MindRoomNotificationChannels.ChannelSpec calls = specs.get(1);
+        MindRoomNotificationChannels.ChannelSpec silentMessages = specs.get(1);
+        assertEquals("mindroom_messages_silent", silentMessages.id);
+        assertEquals(MindRoomNotificationChannels.CHANNEL_MESSAGES_SILENT, silentMessages.id);
+        assertEquals("Silent messages", silentMessages.name);
+        assertEquals(NotificationManager.IMPORTANCE_LOW, silentMessages.importance);
+        assertTrue(silentMessages.silent);
+
+        MindRoomNotificationChannels.ChannelSpec calls = specs.get(2);
         assertEquals("mindroom_calls", calls.id);
         assertEquals(MindRoomNotificationChannels.CALLS_CHANNEL_ID, calls.id);
         assertEquals("Incoming calls", calls.name);
         assertEquals(NotificationManager.IMPORTANCE_HIGH, calls.importance);
         assertFalse(calls.silent);
 
-        MindRoomNotificationChannels.ChannelSpec activeCall = specs.get(2);
+        MindRoomNotificationChannels.ChannelSpec activeCall = specs.get(3);
         assertEquals("mindroom_active_call", activeCall.id);
         assertEquals(MindRoomNotificationChannels.ACTIVE_CALL_CHANNEL_ID, activeCall.id);
         assertEquals("Active call", activeCall.name);
