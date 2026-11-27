@@ -745,7 +745,7 @@ describe('opt-in deep diagnostic trace', () => {
     expect(storage.getItem(DEEP_TRACE_ENABLED_KEY)).toBe('1');
   });
 
-  it('observes long-animation-frame entries only while recording and sanitizes script attribution', async () => {
+  it('observes long-animation-frame entries only while recording and omits script URLs and function names', async () => {
     let observerCallback: ((list: { getEntries: () => unknown[] }) => void) | undefined;
     const observe = vi.fn();
     const disconnect = vi.fn();
@@ -768,7 +768,7 @@ describe('opt-in deep diagnostic trace', () => {
         getEntries: () => [
           // Below threshold and non-blocking: ignored.
           { startTime: 10, duration: 49.9, blockingDuration: 0, scripts: [] },
-          // Long frame with multiple scripts: keeps longest script and strips origin/path/query/hash.
+          // Long frame with multiple scripts: keeps longest script's numeric timings & invoker enum only.
           {
             startTime: 1000,
             duration: 120.46,
@@ -780,14 +780,13 @@ describe('opt-in deep diagnostic trace', () => {
               {
                 duration: 64.26,
                 invokerType: 'event-listener',
-                sourceURL:
-                  'https://secret.example.test/assets/index-AbCd1234.js?token=syt_secret#room',
-                sourceFunctionName: 'collectSpaceThreadEntries',
+                sourceURL: 'file:///Users/alice/Scripts/alice.js',
+                sourceFunctionName: '$abc123',
                 sourceCharPosition: 4210,
               },
             ],
           },
-          // Blocking frame with unsafe script metadata & zero render/style timestamps.
+          // Blocking frame with unknown invoker type & zero render/style timestamps.
           {
             startTime: 2000,
             duration: 42,
@@ -798,8 +797,8 @@ describe('opt-in deep diagnostic trace', () => {
               {
                 duration: 30,
                 invokerType: 'custom-secret',
-                sourceURL: 'blob:https://secret.example.test/550e8400-e29b-41d4-a716-446655440000',
-                sourceFunctionName: 'private room !abc:secret.test',
+                sourceURL: 'https://secret.example.test/assets/index-AbCd1234.js?token=syt_secret',
+                sourceFunctionName: 'collectSpaceThreadEntries',
                 sourceCharPosition: -1,
               },
             ],
@@ -809,11 +808,11 @@ describe('opt-in deep diagnostic trace', () => {
         ],
       });
 
-      // Defense in depth: direct recordDeepTraceEvent still strips non-allowlisted strings.
+      // Defense in depth: safeData strips script file/fn strings and non-allowlisted invoker types.
       recordDeepTraceEvent('performance.long_animation_frame', {
         duration_ms: 90,
-        top_script_file: 'https://secret.example.test/bad.js',
-        top_script_fn: 'bad fn name',
+        top_script_file: 'alice.js',
+        top_script_fn: '$abc123',
         top_script_invoker_type: 'secret-type',
       });
 
@@ -834,8 +833,6 @@ describe('opt-in deep diagnostic trace', () => {
         script_count: 2,
         top_script_ms: 64.3,
         top_script_invoker_type: 'event-listener',
-        top_script_file: 'index-AbCd1234.js',
-        top_script_fn: 'collectSpaceThreadEntries',
         top_script_pos: 4210,
       });
       expect(loafs[1]?.data).toEqual({
@@ -844,13 +841,13 @@ describe('opt-in deep diagnostic trace', () => {
         script_count: 1,
         top_script_ms: 30,
         top_script_invoker_type: 'other',
-        top_script_file: null,
-        top_script_fn: null,
         top_script_pos: null,
       });
       expect(loafs[2]?.data).toEqual({ duration_ms: 80, blocking_ms: 30, script_count: 0 });
       expect(loafs[3]?.data).toEqual({ duration_ms: 90 });
-      expect(JSON.stringify(snapshot)).not.toMatch(/secret|550e8400|!abc/);
+      expect(JSON.stringify(snapshot)).not.toMatch(
+        /alice|abc123|secret|index-AbCd1234|collectSpaceThreadEntries/
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -872,18 +869,42 @@ describe('opt-in deep diagnostic trace', () => {
     }
   });
 
-  it('splits Space overview routes into threads, room, overview, and thread without leaking IDs', async () => {
-    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Atest/threads/')).toBe(
+  it('splits validated Space routes into threads, room, overview, and thread without misclassifying non-space pages', async () => {
+    expect(classifyDeepTraceRoute('https://chat.test/!space:example.org/threads/')).toBe(
       'space.threads'
     );
-    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Atest/%21room%3Atest/')).toBe(
+    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Aexample.org/threads/')).toBe(
+      'space.threads'
+    );
+    expect(classifyDeepTraceRoute('https://chat.test/!space:example.org/!room:example.org/')).toBe(
       'space.room'
     );
-    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Atest/')).toBe('space.overview');
-    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Atest/lobby/')).toBe(
+    expect(
+      classifyDeepTraceRoute('https://chat.test/%21space%3Aexample.org/%21room%3Aexample.org/')
+    ).toBe('space.room');
+    expect(
+      classifyDeepTraceRoute(
+        'https://chat.test/%23space-alias%3Aexample.org/%23room-alias%3Aexample.org/'
+      )
+    ).toBe('space.room');
+    expect(
+      classifyDeepTraceRoute('https://chat.test/!space:example.org/!room:example.org/%24ev1/')
+    ).toBe('space.room');
+    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Aexample.org/')).toBe(
       'space.overview'
     );
-    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Atest/search/')).toBe(
+    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Aexample.org/lobby/')).toBe(
+      'space.overview'
+    );
+    expect(classifyDeepTraceRoute('https://chat.test/%21space%3Aexample.org/search/')).toBe(
+      'space.overview'
+    );
+    // Non-space pages (plugins, settings, etc.) must keep the coarse fallback, never space.room/threads.
+    expect(classifyDeepTraceRoute('https://chat.test/p/example/')).toBe('space.overview');
+    expect(classifyDeepTraceRoute('https://chat.test/p/threads/')).toBe('space.overview');
+    expect(classifyDeepTraceRoute('https://chat.test/p/!room:example.org/')).toBe('space.overview');
+    expect(classifyDeepTraceRoute('https://chat.test/settings/about/')).toBe('space.overview');
+    expect(classifyDeepTraceRoute('https://chat.test/!space:example.org/not-a-room/')).toBe(
       'space.overview'
     );
     expect(
@@ -895,6 +916,7 @@ describe('opt-in deep diagnostic trace', () => {
     await setDeepTraceEnabled(true, storage);
     try {
       for (const nextPath of [
+        '/p/example/',
         '/%21secret-space%3Atest/threads/',
         '/%21secret-space%3Atest/%21secret-room%3Atest/',
         '/%21secret-space%3Atest/lobby/',
@@ -907,6 +929,7 @@ describe('opt-in deep diagnostic trace', () => {
       expect(
         snapshot.events.filter((e) => e.name.startsWith('navigation.')).map((e) => e.name)
       ).toEqual([
+        'navigation.space.overview',
         'navigation.space.threads',
         'navigation.space.room',
         'navigation.space.overview',

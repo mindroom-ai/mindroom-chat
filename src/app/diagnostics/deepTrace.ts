@@ -2,6 +2,8 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { hasOpenOverlay } from '../lib/openOverlay';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { APP_BUILD_VERSION } from '../config/appVersion';
+import { isEventId, isRoomAlias, isRoomId } from '../lib/matrixIds';
+import { LOAF_INVOKER_TYPES, startLongAnimationFrameCapture } from './deepTraceLoaf';
 import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
 import {
@@ -42,7 +44,6 @@ const FLUSH_RETRY_DELAY_MS = 1_000;
 const MAX_FLUSH_RETRIES = 3;
 const LOOP_INTERVAL_MS = 1_000;
 const LOOP_STALL_THRESHOLD_MS = 250;
-const LOAF_DURATION_THRESHOLD_MS = 50;
 const SLOW_PHASE_THRESHOLD_MS = 16;
 
 const DEEP_TRACE_PHASE_EVENTS = {
@@ -54,21 +55,6 @@ const DEEP_TRACE_PHASE_EVENTS = {
 } as const;
 
 export type DeepTracePhaseName = keyof typeof DEEP_TRACE_PHASE_EVENTS;
-
-type LongAnimationFrameScript = {
-  duration?: number;
-  invokerType?: string;
-  sourceURL?: string;
-  sourceFunctionName?: string;
-  sourceCharPosition?: number;
-};
-
-type LongAnimationFrameEntry = PerformanceEntry & {
-  blockingDuration?: number;
-  renderStart?: number;
-  styleAndLayoutStart?: number;
-  scripts?: ReadonlyArray<LongAnimationFrameScript>;
-};
 
 export type DeepTraceData = Record<string, number | boolean | string | null>;
 
@@ -316,20 +302,6 @@ const SURFACE_HIT_TEST_SELECTOR = Array.from(
 ).join(',');
 const liveElement = (selector: string): Element | null => document.querySelector(selector);
 
-const LOAF_INVOKER_TYPES = new Set([
-  'classic-script',
-  'module-script',
-  'event-listener',
-  'user-callback',
-  'resolve-promise',
-  'reject-promise',
-  'other',
-]);
-const LOAF_ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'capacitor:', 'file:']);
-const LOAF_SCRIPT_FILE =
-  /^(?=.{1,64}$)[A-Za-z0-9_-][A-Za-z0-9._-]*\.(?:[cm]?js|[jt]sx?|wasm|html)$/;
-const LOAF_SCRIPT_FN = /^[A-Za-z0-9_$.-]{1,64}$/;
-
 const SAFE_EVENT_PATTERNS = [
   /^calls\.ring\.join\.(none|ring|notification)$/,
   /^calls\.ring\.local_echo\.(encrypting|queued|sending|sent|not_sent|cancelled|unknown)$/,
@@ -366,14 +338,11 @@ const safeData = (name: string, value: DeepTraceData | undefined): DeepTraceData
             (key === 'hit_test_id' && SURFACE_HIT_TEST_IDS.has(item))
           );
         }
-        if (name === 'performance.long_animation_frame') {
-          return (
-            (key === 'top_script_invoker_type' && LOAF_INVOKER_TYPES.has(item)) ||
-            (key === 'top_script_file' && LOAF_SCRIPT_FILE.test(item)) ||
-            (key === 'top_script_fn' && LOAF_SCRIPT_FN.test(item))
-          );
-        }
-        return false;
+        return (
+          name === 'performance.long_animation_frame' &&
+          key === 'top_script_invoker_type' &&
+          LOAF_INVOKER_TYPES.has(item)
+        );
       }
       if (item === null || typeof item === 'boolean') return true;
       return typeof item === 'number' && Number.isFinite(item);
@@ -932,109 +901,43 @@ const installGlobalFetchCapture = (): void => {
   window.fetch = tracedFetch;
 };
 
+const decodeRouteSegment = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const isSpaceOrRoomSegment = (segment: string | undefined): boolean => {
+  if (!segment) return false;
+  const decoded = decodeRouteSegment(segment);
+  return isRoomId(decoded) || isRoomAlias(decoded);
+};
+
 export const classifyDeepTraceRoute = (href: string = window.location.href): string => {
   const { route, hasThreadId } = classifyFlightRecorderRoute(href);
-  if (hasThreadId) return `${route}.thread`;
-  if (route !== 'space') return `${route}.overview`;
-  const subSegment = new URL(href, window.location.origin).pathname.split('/').filter(Boolean)[1];
-  if (subSegment === 'threads') return 'space.threads';
-  if (!subSegment || subSegment === 'lobby' || subSegment === 'search') return 'space.overview';
-  return 'space.room';
-};
-
-const sanitizeLoafInvokerType = (value: unknown): string =>
-  typeof value === 'string' && LOAF_INVOKER_TYPES.has(value) ? value : 'other';
-
-const sanitizeLoafScriptFile = (value: unknown): string | null => {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  try {
-    const baseOrigin =
-      typeof window !== 'undefined' && window.location?.origin && window.location.origin !== 'null'
-        ? window.location.origin
-        : 'https://localhost';
-    const url = new URL(trimmed, baseOrigin);
-    if (!LOAF_ALLOWED_PROTOCOLS.has(url.protocol)) return null;
-    const base = url.pathname.split(/[\\/]/).pop() ?? '';
-    return LOAF_SCRIPT_FILE.test(base) ? base : null;
-  } catch {
-    return null;
-  }
-};
-
-const finiteNumber = (value: unknown): number | undefined =>
-  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-
-const sanitizeLoafScriptFn = (value: unknown): string | null =>
-  typeof value === 'string' && LOAF_SCRIPT_FN.test(value.trim()) ? value.trim() : null;
-
-const recordLongAnimationFrame = (entry: LongAnimationFrameEntry): void => {
-  const duration = Math.max(0, finiteNumber(entry.duration) ?? 0);
-  const blocking = Math.max(0, finiteNumber(entry.blockingDuration) ?? 0);
-  if (duration < LOAF_DURATION_THRESHOLD_MS && blocking <= 0) return;
-
-  const startTime = finiteNumber(entry.startTime) ?? 0;
-  const renderStart = finiteNumber(entry.renderStart) ?? 0;
-  const styleStart = finiteNumber(entry.styleAndLayoutStart) ?? 0;
-  const scripts = Array.isArray(entry.scripts) ? entry.scripts : [];
-  let topScript: LongAnimationFrameScript | undefined;
-  let topScriptDuration = -1;
-  for (const script of scripts) {
-    const scriptDuration = Math.max(0, finiteNumber(script?.duration) ?? 0);
-    if (!topScript || scriptDuration > topScriptDuration) {
-      topScript = script;
-      topScriptDuration = scriptDuration;
-    }
-  }
-  const topPos = topScript ? finiteNumber(topScript.sourceCharPosition) : undefined;
-
-  recordDeepTraceEvent('performance.long_animation_frame', {
-    duration_ms: roundMetric(duration),
-    blocking_ms: roundMetric(blocking),
-    ...(renderStart > 0
-      ? { render_delay_ms: roundMetric(Math.max(0, renderStart - startTime)) }
-      : {}),
-    ...(styleStart > 0
-      ? { style_layout_ms: roundMetric(Math.max(0, startTime + duration - styleStart)) }
-      : {}),
-    script_count: scripts.length,
-    ...(topScript
-      ? {
-          top_script_ms: roundMetric(topScriptDuration),
-          top_script_invoker_type: sanitizeLoafInvokerType(topScript.invokerType),
-          top_script_file: sanitizeLoafScriptFile(topScript.sourceURL),
-          top_script_fn: sanitizeLoafScriptFn(topScript.sourceFunctionName),
-          top_script_pos:
-            topPos !== undefined && Number.isInteger(topPos) && topPos >= 0 ? topPos : null,
-        }
-      : {}),
-  });
-};
-
-const startLoafCapture = (target: Runtime): void => {
+  const fallback = `${route}.${hasThreadId ? 'thread' : 'overview'}`;
+  if (hasThreadId || route !== 'space') return fallback;
+  const segments = new URL(href, window.location.origin).pathname.split('/').filter(Boolean);
+  const [spaceSegment, subSegment, eventSegment] = segments;
+  if (!isSpaceOrRoomSegment(spaceSegment)) return fallback;
+  if (segments.length === 2 && subSegment?.toLowerCase() === 'threads') return 'space.threads';
   if (
-    typeof PerformanceObserver !== 'function' ||
-    !PerformanceObserver.supportedEntryTypes?.includes('long-animation-frame')
+    isSpaceOrRoomSegment(subSegment) &&
+    (segments.length === 2 ||
+      (segments.length === 3 && isEventId(decodeRouteSegment(eventSegment ?? ''))))
   ) {
-    return;
+    return 'space.room';
   }
-  try {
-    const observer = new PerformanceObserver((list) => {
-      if (runtime !== target || !target.enabled || target.disposed) return;
-      for (const entry of list.getEntries()) {
-        recordLongAnimationFrame(entry);
-      }
-    });
-    observer.observe({ type: 'long-animation-frame', buffered: false });
-    target.loafObserver = observer;
-  } catch {
-    // Unsupported observer options in this runtime.
-  }
+  return fallback;
 };
 
 const startPerformanceCapture = (target: Runtime): void => {
-  startLoafCapture(target);
+  target.loafObserver = startLongAnimationFrameCapture((data) => {
+    if (runtime !== target || !target.enabled || target.disposed) return;
+    recordDeepTraceEvent('performance.long_animation_frame', data);
+  });
   target.lastLoopTick = nowMonotonic();
   target.loopTimer = window.setInterval(() => {
     const tick = nowMonotonic();
