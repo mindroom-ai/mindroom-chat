@@ -157,6 +157,7 @@ export function CollapsibleMessage({
   const isExempt = collapseMode === 'always-expanded';
   const contentRef = useRef<HTMLDivElement>(null);
   const measurementKeyRef = useRef(measurementKey);
+  const previousMeasurementKeyRef = useRef(measurementKey);
   const contentId = useId();
   const initialExpandConsumedRef = useRef(onInitialExpandConsumed);
   const previousCollapseModeRef = useRef<CollapsibleMessageCollapseMode | undefined>(undefined);
@@ -176,9 +177,6 @@ export function CollapsibleMessage({
     }
     return true;
   });
-  useLayoutEffect(() => {
-    measurementKeyRef.current = measurementKey;
-  }, [measurementKey]);
   const applyOverflowVerdict = useCallback((verdict: boolean) => {
     countCacheProbe(verdict ? 'collapsibleVerdictOverflowing' : 'collapsibleVerdictNotOverflowing');
     rememberOverflowVerdict(measurementKeyRef.current, verdict);
@@ -200,6 +198,30 @@ export function CollapsibleMessage({
     }
     return collapseMode !== 'default';
   });
+  // Keep measurementKeyRef current and carry a measured verdict forward across
+  // same-height expanded edits (when ResizeObserver does not fire) without
+  // forcing a synchronous layout read. If height changes, ResizeObserver
+  // overwrites this entry.
+  useLayoutEffect(() => {
+    const previousKey = previousMeasurementKeyRef.current;
+    previousMeasurementKeyRef.current = measurementKey;
+    measurementKeyRef.current = measurementKey;
+    if (
+      expanded &&
+      typeof ResizeObserver !== 'undefined' &&
+      !isExempt &&
+      !forceOverflowing &&
+      previousKey !== undefined &&
+      previousKey !== measurementKey &&
+      measurementKey !== undefined &&
+      !overflowVerdictCache.has(measurementKey)
+    ) {
+      const previousVerdict = overflowVerdictCache.get(previousKey);
+      if (previousVerdict !== undefined) {
+        rememberOverflowVerdict(measurementKey, previousVerdict);
+      }
+    }
+  }, [expanded, forceOverflowing, isExempt, measurementKey]);
   const hasRenderFunctionChildren = typeof children === 'function';
   const effectiveExpanded = isExempt || expanded;
   const previousEffectiveExpandedRef = useRef(effectiveExpanded);

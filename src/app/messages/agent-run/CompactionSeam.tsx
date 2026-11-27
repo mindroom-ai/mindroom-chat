@@ -261,10 +261,11 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
   const seamRef = useRef<HTMLDivElement>(null);
   const state = seamState(compaction, interrupted);
   const place = seamPlace(compaction);
+  const isOpen = !!open;
   const running = state === 'running';
   usePauseAnimationWhenHidden(seamRef, running);
-  const ticking = useActiveWhenVisible(seamRef, running);
-  const seconds = useElapsedSeconds(compaction.startedAt, ticking);
+  const seamVisible = useActiveWhenVisible(seamRef, running);
+  const seconds = useElapsedSeconds(compaction.startedAt, running && (seamVisible || isOpen));
   // The running clock, on the row and in the card's head.
   const elapsed =
     state === 'running' && seconds !== undefined ? t(`${KEY}.elapsed`, { n: seconds }) : undefined;
@@ -282,8 +283,6 @@ export function CompactionSeam({ compaction, interrupted = false }: CompactionSe
     focusCard.current = false;
     cardElement.focus({ preventScroll: true });
   }, [open, cardRef]);
-  const isOpen = !!open;
-
   const unfinished = isUnfinished(state);
   const Icon = unfinished ? IconAlertTriangle : IconFold;
   const rest = restParts(compaction, state, place, t);

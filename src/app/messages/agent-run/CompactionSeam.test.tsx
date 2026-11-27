@@ -256,6 +256,46 @@ describe('CompactionSeam while running', () => {
     render(<CompactionSeam compaction={compaction()} />);
     expect(vi.getTimerCount()).toBe(0);
   });
+
+  it('keeps counting while the details card is pinned even if the seam scrolls off-screen', () => {
+    const OriginalIO = globalThis.IntersectionObserver;
+    let notify!: (intersecting: boolean) => void;
+    let observedTarget: Element | undefined;
+    class StubIO {
+      private readonly cb: IntersectionObserverCallback;
+      constructor(cb: IntersectionObserverCallback) {
+        this.cb = cb;
+      }
+      observe(target: Element) {
+        observedTarget = target;
+        notify = (isIntersecting) => {
+          this.cb(
+            [{ target, isIntersecting } as IntersectionObserverEntry],
+            this as unknown as IntersectionObserver
+          );
+        };
+      }
+      unobserve() {}
+      disconnect() {}
+    }
+    vi.stubGlobal('IntersectionObserver', StubIO);
+    try {
+      const view = renderDom(<CompactionSeam compaction={running()} />);
+      expect(observedTarget).toBeDefined();
+      act(() => notify(false));
+      expect(vi.getTimerCount()).toBe(0);
+
+      fireEvent.click(screen.getByRole('button'));
+      expect(screen.getByRole('tooltip').textContent).toContain('12 s');
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByRole('tooltip').textContent).toContain('13 s');
+      view.unmount();
+    } finally {
+      vi.stubGlobal('IntersectionObserver', OriginalIO);
+    }
+  });
 });
 
 describe('CompactionSeam end time', () => {
