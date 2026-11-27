@@ -1,5 +1,4 @@
 import {
-  memo,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -14,12 +13,7 @@ import { useTranslation } from 'react-i18next';
 import type { EventTimelineSet, MatrixEvent } from 'matrix-js-sdk';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import { Text, color, config } from 'folds';
-import {
-  getEditedEvent,
-  getEventReactions,
-  hasUndecryptedNewerEdit,
-  reactionOrEditEvent,
-} from '../matrix/room';
+import { reactionOrEditEvent } from '../matrix/room';
 import { today, timeDayMonthYear, yesterday } from '../lib/time';
 import { VirtualTile } from '../ui/VirtualTile';
 import { MessageRowBoundary } from '../messages/content/MessageRowBoundary';
@@ -370,140 +364,6 @@ export const isTimelineRowHidden = (
  * the room's membership events is one row (`RoomRowProjection`), which draws its break under the
  * unread divider; an open one draws its break above its first row.
  */
-type TimelineRowSnapshot = readonly unknown[];
-
-const readRowSnapshot = (
-  event: MatrixEvent,
-  eventId: string,
-  timelineSet: EventTimelineSet,
-  threadId: string | undefined,
-  messageData: TimelineMessageData
-): TimelineRowSnapshot => {
-  const eventContent: Record<string, unknown> | undefined = event.getContent?.();
-  const replacing = event.replacingEvent?.() ?? undefined;
-  const edited = getEditedEvent(eventId, event, timelineSet);
-  const editedContent: Record<string, unknown> | undefined = edited?.getContent?.();
-  const editedNewContent = editedContent?.['m.new_content'] as Record<string, unknown> | undefined;
-  const reactions = getEventReactions(timelineSet, eventId);
-  const voiceEcho = messageData.voiceTranscripts?.byVoiceId?.get(eventId);
-  const voiceEchoId = voiceEcho?.getId?.() ?? '';
-  return [
-    event.getType?.() ?? '',
-    event.status,
-    Boolean(event.isRedacted?.()),
-    Boolean(event.isDecryptionFailure?.()),
-    eventContent,
-    eventContent?.body,
-    eventContent?.formatted_body,
-    event.getOriginalContent?.(),
-    event.sender?.name,
-    event.sender?.events?.member?.getId?.(),
-    replacing,
-    replacing?.getId?.(),
-    replacing?.getType?.(),
-    replacing?.status,
-    replacing?.getContent?.(),
-    edited,
-    edited?.getId?.(),
-    edited?.status,
-    editedContent,
-    editedNewContent?.body,
-    editedNewContent?.formatted_body,
-    editedNewContent?.['io.mindroom.stream_status'],
-    editedNewContent?.['io.mindroom.tool_trace'],
-    editedNewContent ? Object.keys(editedNewContent).length : 0,
-    hasUndecryptedNewerEdit(eventId, event, timelineSet, edited),
-    reactions,
-    reactions?.getRelations().length ?? 0,
-    threadId ? undefined : messageData.threadRecordMap?.get(eventId),
-    messageData.approvalTimeline?.historyByResponseId?.get(eventId),
-    messageData.approvalTimeline?.fallbackGroupsByEventId?.get(eventId),
-    messageData.threadSummaryTimeline?.markersByEventId?.get(eventId),
-    voiceEcho,
-    voiceEcho?.getContent?.(),
-    voiceEcho ? getEditedEvent(voiceEchoId, voiceEcho, timelineSet)?.getContent?.() : undefined,
-    Boolean(messageData.voiceTranscripts?.pendingVoiceIds?.has(eventId)),
-    messageData.replyCards?.byReply?.get(eventId),
-    messageData.modelChanges?.byAckId?.get(eventId),
-    Boolean(messageData.forkPrefixEventIds?.has(eventId)),
-  ];
-};
-
-const snapshotsEqual = (a: TimelineRowSnapshot, b: TimelineRowSnapshot): boolean =>
-  a.length === b.length && a.every((value, index) => Object.is(value, b[index]));
-
-type MemoizedTimelineRowProps = {
-  row: TimelineMessageRow;
-  messageData: TimelineMessageData;
-  renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
-  unreadDivider: boolean;
-  unreadMarkerRef: Ref<HTMLDivElement> | null;
-  dayDivider: boolean;
-  forkDividerNode: ReactNode;
-  forkingDividerNode: ReactNode;
-  forkDraftPrefixClassName: string | undefined;
-  snapshot: TimelineRowSnapshot;
-};
-
-const areTimelineRowPropsEqual = (
-  prev: MemoizedTimelineRowProps,
-  next: MemoizedTimelineRowProps
-): boolean =>
-  prev.renderEvent === next.renderEvent &&
-  prev.row.event === next.row.event &&
-  prev.row.eventId === next.row.eventId &&
-  prev.row.index === next.row.index &&
-  prev.row.timelineSet === next.row.timelineSet &&
-  prev.row.collapse === next.row.collapse &&
-  prev.row.highlighted === next.row.highlighted &&
-  prev.row.previousEventId === next.row.previousEventId &&
-  prev.row.quietRun === undefined &&
-  next.row.quietRun === undefined &&
-  prev.unreadDivider === next.unreadDivider &&
-  prev.unreadMarkerRef === next.unreadMarkerRef &&
-  prev.dayDivider === next.dayDivider &&
-  prev.forkDividerNode === next.forkDividerNode &&
-  prev.forkingDividerNode === next.forkingDividerNode &&
-  prev.forkDraftPrefixClassName === next.forkDraftPrefixClassName &&
-  prev.messageData.handleOpenReply === next.messageData.handleOpenReply &&
-  snapshotsEqual(prev.snapshot, next.snapshot);
-
-const MemoizedTimelineRow = memo(function MemoizedTimelineRow({
-  row,
-  messageData,
-  renderEvent,
-  unreadDivider,
-  unreadMarkerRef,
-  dayDivider,
-  forkDividerNode,
-  forkingDividerNode,
-  forkDraftPrefixClassName,
-}: MemoizedTimelineRowProps) {
-  return (
-    <MessageRowBoundary
-      render={() => {
-        const rendered = renderEvent(row, messageData);
-        if (rendered === null) return null;
-        return (
-          <>
-            {forkDividerNode}
-            {unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
-            {dayDivider && <DayDivider ts={row.event.getTs()} />}
-            {forkDraftPrefixClassName ? (
-              <div className={forkDraftPrefixClassName} data-fork-draft-prefix="true">
-                {rendered}
-              </div>
-            ) : (
-              rendered
-            )}
-            {forkingDividerNode}
-          </>
-        );
-      }}
-    />
-  );
-}, areTimelineRowPropsEqual);
-
 export const renderTimelineTiles = (p: {
   virtualItems: VirtualItem[];
   threadId?: string;
@@ -526,8 +386,6 @@ export const renderTimelineTiles = (p: {
   /** The same, of a loaded event by its ID: no row quotes such a message. */
   isHiddenByPluginId?: (eventId: string) => boolean;
   renderEvent: (row: TimelineMessageRow, data: TimelineMessageData) => ReactNode | null;
-  /** Retains decryption subscriptions for rows whose memoized tile skips re-rendering. */
-  retainRenderedRow?: (rowKey: string) => void;
   /** Whether a row renders as a quiet marker line, which reply quotes look past. */
   isQuietMarkerRow: (
     event: MatrixEvent,
@@ -663,20 +521,27 @@ export const renderTimelineTiles = (p: {
         p.forkingDivider !== undefined &&
         (p.forkingDivider.index === eventIndex ||
           !!context.quietRunIndexes?.includes(p.forkingDivider.index));
-      p.retainRenderedRow?.(id || `__idx_${eventIndex}`);
-      const snapshot = readRowSnapshot(event, id, timelineSet, threadId, messageData);
       content = (
-        <MemoizedTimelineRow
-          row={row}
-          messageData={messageData}
-          renderEvent={p.renderEvent}
-          unreadDivider={context.unreadDivider}
-          unreadMarkerRef={context.unreadDivider ? unreadMarkerRef : null}
-          dayDivider={context.dayDivider}
-          forkDividerNode={p.forkDivider?.index === eventIndex ? p.forkDivider.node : undefined}
-          forkingDividerNode={forkingHere ? p.forkingDivider?.node : undefined}
-          forkDraftPrefixClassName={p.forkDraftPrefixClassName}
-          snapshot={snapshot}
+        <MessageRowBoundary
+          render={() => {
+            const rendered = p.renderEvent(row, messageData);
+            if (rendered === null) return null;
+            return (
+              <>
+                {p.forkDivider?.index === eventIndex && p.forkDivider.node}
+                {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
+                {context.dayDivider && <DayDivider ts={event.getTs()} />}
+                {p.forkDraftPrefixClassName ? (
+                  <div className={p.forkDraftPrefixClassName} data-fork-draft-prefix="true">
+                    {rendered}
+                  </div>
+                ) : (
+                  rendered
+                )}
+                {forkingHere && p.forkingDivider?.node}
+              </>
+            );
+          }}
         />
       );
     }

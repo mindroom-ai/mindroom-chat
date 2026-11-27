@@ -74,15 +74,21 @@ const ThinkingPlaceholderLabel = React.memo(function ThinkingPlaceholderLabel({
     () => resolveThinkingPlaceholderMessages(clientConfig.mindroom?.thinkingPlaceholderMessages),
     [clientConfig.mindroom?.thinkingPlaceholderMessages]
   );
+  const rotationStartRef = React.useRef(Date.now());
   const [messageIndex, setMessageIndex] = React.useState(0);
 
   React.useEffect(() => {
-    if (!active) return undefined;
-    const intervalId = globalThis.setInterval(() => {
-      setMessageIndex((current) => (current + 1) % messages.length);
-    }, ROTATION_INTERVAL_MS);
+    if (!active || messages.length <= 1) return undefined;
+    let timeoutId: ReturnType<typeof globalThis.setTimeout>;
+    const schedule = () => {
+      const elapsedMs = Math.max(0, Date.now() - rotationStartRef.current);
+      setMessageIndex(Math.floor(elapsedMs / ROTATION_INTERVAL_MS) % messages.length);
+      const remainderMs = ROTATION_INTERVAL_MS - (elapsedMs % ROTATION_INTERVAL_MS);
+      timeoutId = globalThis.setTimeout(schedule, remainderMs);
+    };
+    schedule();
 
-    return () => globalThis.clearInterval(intervalId);
+    return () => globalThis.clearTimeout(timeoutId);
   }, [active, messages.length]);
 
   const configuredMessage = messages[messageIndex % messages.length];

@@ -343,9 +343,11 @@ export const useCrossRoomThreadIndex = () => {
     };
 
     const enqueueTrackedEntriesContainingEventId = (room: Room, eventId: string | undefined) => {
-      getCrossRoomThreadRootsForEvent(store.get(crossRoomThreadIndexAtom), room.roomId, eventId).forEach(
-        (threadRootId) => enqueueThread(room.roomId, threadRootId)
-      );
+      getCrossRoomThreadRootsForEvent(
+        store.get(crossRoomThreadIndexAtom),
+        room.roomId,
+        eventId
+      ).forEach((threadRootId) => enqueueThread(room.roomId, threadRootId));
     };
 
     const enqueueTrackedEntriesContainingEvent = (room: Room, event: MatrixEvent) => {
@@ -459,9 +461,9 @@ export const useCrossRoomThreadIndex = () => {
             : undefined;
         if (editedThreadRootId) {
           if (
-            store.get(crossRoomThreadIndexAtom).entries.has(
-              getCrossRoomThreadIndexKey(room.roomId, editedThreadRootId)
-            )
+            store
+              .get(crossRoomThreadIndexAtom)
+              .entries.has(getCrossRoomThreadIndexKey(room.roomId, editedThreadRootId))
           ) {
             enqueueThread(room.roomId, editedThreadRootId);
             return;
@@ -721,7 +723,9 @@ export const useCrossRoomThreadIndex = () => {
       const editedThreadRootId = getReplaceRelationTargetId(event);
       if (
         editedThreadRootId &&
-        store.get(crossRoomThreadIndexAtom).entries.has(getCrossRoomThreadIndexKey(room.roomId, editedThreadRootId))
+        store
+          .get(crossRoomThreadIndexAtom)
+          .entries.has(getCrossRoomThreadIndexKey(room.roomId, editedThreadRootId))
       ) {
         enqueueThread(room.roomId, editedThreadRootId);
       } else if (editedThreadRootId) {

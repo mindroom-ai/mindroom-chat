@@ -56,7 +56,13 @@ export const startAppVersionMonitor = ({
   let stagedVersion: string | undefined;
 
   const check = async () => {
-    if (stopped || checking || !navigator.onLine || document.hidden || document.visibilityState === 'hidden') {
+    if (
+      stopped ||
+      checking ||
+      !navigator.onLine ||
+      document.hidden ||
+      document.visibilityState === 'hidden'
+    ) {
       return;
     }
     checking = true;

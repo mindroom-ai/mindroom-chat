@@ -2,7 +2,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { createStore, Provider } from 'jotai';
-import { MatrixEvent, type Room } from 'matrix-js-sdk';
+import { MatrixEvent, MatrixEventEvent, RoomEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { roomIdToTypingMembersAtom } from '../../matrix/state/typingMembers';
 import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
@@ -16,16 +16,40 @@ vi.mock('./RoomViewTyping.css', () => ({
   TypingDots: 'typing-dots',
   TypingDot: 'typing-dot',
 }));
+const createMockEmitter = () => {
+  const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+  return {
+    on: (event: string, listener: (...args: unknown[]) => void) => {
+      const set = listeners.get(event) ?? new Set();
+      set.add(listener);
+      listeners.set(event, set);
+    },
+    removeListener: (event: string, listener: (...args: unknown[]) => void) => {
+      listeners.get(event)?.delete(listener);
+    },
+    emit: (event: string, ...args: unknown[]) => {
+      listeners.get(event)?.forEach((listener) => listener(...args));
+    },
+    clear: () => listeners.clear(),
+  };
+};
+const mockMxEmitter = createMockEmitter();
+const mockMx = {
+  getUserId: () => '@me:example.org',
+  on: mockMxEmitter.on,
+  removeListener: mockMxEmitter.removeListener,
+};
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getUserId: () => '@me:example.org' }),
+  useMatrixClient: () => mockMx,
 }));
 // The helper's reply has no row on screen unless a test adds one.
 let streamingReplyId: string | undefined;
+let eventStreaming = true;
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
   getThreadStreamingEvents: () => [
     { getId: () => streamingReplyId, getSender: () => '@mindroom_helper:example.org' },
   ],
-  isEventStreaming: () => true,
+  isEventStreaming: () => eventStreaming,
 }));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -60,6 +84,7 @@ const activeRunsFor = (threads: string[], sender = HELPER, ttlMs = 180_000, ts =
       threads: threads.map((thread_id) => ({ thread_id })),
     },
   });
+const mockRoomEmitter = createMockEmitter();
 const room = {
   roomId: ROOM_ID,
   myUserId: '@me:example.org',
@@ -74,8 +99,10 @@ const room = {
   getThread: () => null,
   getUnfilteredTimelineSet: () => ({}),
   getLiveTimeline: () => ({ getEvents: () => [] }),
-  on: () => undefined,
-  removeListener: () => undefined,
+  on: (event: string, listener: (...args: unknown[]) => void) =>
+    mockRoomEmitter.on(event, listener),
+  removeListener: (event: string, listener: (...args: unknown[]) => void) =>
+    mockRoomEmitter.removeListener(event, listener),
 } as unknown as Room;
 
 let root: Root | undefined;
@@ -85,6 +112,9 @@ afterEach(() => {
   jobsState = [];
   activeRunsState = [];
   streamingReplyId = undefined;
+  eventStreaming = true;
+  mockMxEmitter.clear();
+  mockRoomEmitter.clear();
   document.querySelectorAll('[data-message-id]').forEach((row) => row.remove());
   vi.useRealTimers();
   act(() => root?.unmount());
@@ -349,12 +379,14 @@ it('tracks streaming reply visibility with scoped IntersectionObserver without s
   const unobserve = vi.fn();
   const disconnect = vi.fn();
   const notifyTarget = (target: Element, isIntersecting: boolean) => {
-    callbacksByTarget.get(target)?.forEach((callback) =>
-      callback(
-        [{ target, isIntersecting } as unknown as IntersectionObserverEntry],
-        {} as IntersectionObserver
-      )
-    );
+    callbacksByTarget
+      .get(target)
+      ?.forEach((callback) =>
+        callback(
+          [{ target, isIntersecting } as unknown as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      );
   };
   vi.stubGlobal(
     'IntersectionObserver',
@@ -471,4 +503,103 @@ it('pauses typing subscriptions and renders nothing while its pane is collapsed'
     );
   });
   expect(container.querySelector('[role="status"]')?.textContent).toBe('Avery is typing...');
+});
+
+it('updates the typing strip in place when an already-mounted tile transitions into and out of streaming', async () => {
+  const observe = vi.fn();
+  const unobserve = vi.fn();
+  const disconnect = vi.fn();
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      observe = observe;
+      unobserve = unobserve;
+      disconnect = disconnect;
+    }
+  );
+  try {
+    activeRunsState = [activeRunsFor(['$thread'])];
+    streamingReplyId = '$in-place';
+    eventStreaming = false;
+
+    const area = document.createElement('div');
+    const scroller = document.createElement('div');
+    scroller.style.overflowY = 'auto';
+    scroller.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 700, left: 0, right: 390, width: 390, height: 700 }) as DOMRect;
+    const rows = document.createElement('div');
+    rows.setAttribute('data-timeline-rows', '');
+    const row = document.createElement('div');
+    row.setAttribute('data-message-id', '$in-place');
+    row.getBoundingClientRect = () =>
+      ({ top: 100, bottom: 260, left: 0, right: 300, width: 300, height: 160 }) as DOMRect;
+    rows.append(row);
+    scroller.append(rows);
+    area.append(scroller);
+    document.body.append(area);
+
+    const store = createStore();
+    typing(store, HELPER);
+    container = document.createElement('div');
+    area.append(container);
+    act(() => {
+      root = createRoot(container!);
+      root.render(
+        <Provider store={store}>
+          <RoomViewTyping room={room} threadId="$thread" containerRef={{ current: area }} />
+        </Provider>
+      );
+    });
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+    expect(observe).not.toHaveBeenCalledWith(row);
+
+    // Events from another room are ignored.
+    const otherRoomEvent = { getRoomId: () => '!other:example.org', isRelation: () => false };
+    eventStreaming = true;
+    act(() => mockMxEmitter.emit(MatrixEventEvent.Decrypted, otherRoomEvent));
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+
+    // Decrypting in this room starts observing the already-mounted row and hides the strip.
+    const roomEvent = { getRoomId: () => ROOM_ID, isRelation: () => false };
+    act(() => mockMxEmitter.emit(MatrixEventEvent.Decrypted, roomEvent));
+    expect(observe).toHaveBeenCalledWith(row);
+    expect(container.querySelector('[role="status"]')).toBeNull();
+
+    // Finishing edit (Replaced) stops observing the tile and brings the typing strip back.
+    eventStreaming = false;
+    act(() => mockMxEmitter.emit(MatrixEventEvent.Replaced, roomEvent));
+    expect(unobserve).toHaveBeenCalledWith(row);
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+
+    // Relation events (such as a stop reaction) on RoomEvent.Timeline also resync in place.
+    const relationEvent = { getRoomId: () => ROOM_ID, isRelation: () => true };
+    eventStreaming = true;
+    act(() => mockRoomEmitter.emit(RoomEvent.Timeline, relationEvent, room));
+    expect(container.querySelector('[role="status"]')).toBeNull();
+
+    // Redacting the reaction via RoomEvent.Redaction resyncs back to typing.
+    eventStreaming = false;
+    act(() => mockRoomEmitter.emit(RoomEvent.Redaction, relationEvent, room));
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+
+    // Replacing the rows container rebinds the scoped MutationObserver to the new element.
+    const replacementRows = document.createElement('div');
+    replacementRows.setAttribute('data-timeline-rows', '');
+    rows.replaceWith(replacementRows);
+    eventStreaming = true;
+    act(() => mockRoomEmitter.emit(RoomEvent.Timeline, roomEvent, room));
+    const replacementRow = document.createElement('div');
+    replacementRow.setAttribute('data-message-id', '$in-place');
+    replacementRow.getBoundingClientRect = () =>
+      ({ top: 100, bottom: 260, left: 0, right: 300, width: 300, height: 160 }) as DOMRect;
+    await act(async () => {
+      replacementRows.append(replacementRow);
+    });
+    expect(observe).toHaveBeenCalledWith(replacementRow);
+    expect(container.querySelector('[role="status"]')).toBeNull();
+
+    area.remove();
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

@@ -358,29 +358,21 @@ const SCHEMES_OPTIONS_CACHE_LIMIT = 16;
 const SANITIZE_CACHE_LIMIT = 64;
 
 const optionsBySchemesKey = new Map<string, IOptions>();
-const optionsByRef = new WeakMap<SanitizeCustomHtmlOptions, IOptions>();
 const sanitizedCacheByOptions = new WeakMap<IOptions, Map<string, string>>();
 
-const resolveOptions = (options?: SanitizeCustomHtmlOptions): IOptions => {
+const resolveCacheableOptions = (options?: SanitizeCustomHtmlOptions): IOptions => {
   if (!options) return defaultOptions;
-  if (!options.policy && !options.imageSource) {
-    const schemes = normalizeAdditionalSchemes(options.additionalAllowedUriSchemes);
-    if (schemes.length === 0) return defaultOptions;
-    const key = schemes.join('\0');
-    const cached = optionsBySchemesKey.get(key);
-    if (cached) return cached;
-    const built = buildOptions({ additionalAllowedUriSchemes: schemes });
-    if (optionsBySchemesKey.size >= SCHEMES_OPTIONS_CACHE_LIMIT) {
-      const oldest = optionsBySchemesKey.keys().next().value;
-      if (oldest !== undefined) optionsBySchemesKey.delete(oldest);
-    }
-    optionsBySchemesKey.set(key, built);
-    return built;
-  }
-  const cached = optionsByRef.get(options);
+  const schemes = normalizeAdditionalSchemes(options.additionalAllowedUriSchemes);
+  if (schemes.length === 0) return defaultOptions;
+  const key = schemes.join('\0');
+  const cached = optionsBySchemesKey.get(key);
   if (cached) return cached;
-  const built = buildOptions(options);
-  optionsByRef.set(options, built);
+  const built = buildOptions({ additionalAllowedUriSchemes: schemes });
+  if (optionsBySchemesKey.size >= SCHEMES_OPTIONS_CACHE_LIMIT) {
+    const oldest = optionsBySchemesKey.keys().next().value;
+    if (oldest !== undefined) optionsBySchemesKey.delete(oldest);
+  }
+  optionsBySchemesKey.set(key, built);
   return built;
 };
 
@@ -389,10 +381,12 @@ export const sanitizeCustomHtml = (
   customHtml: string,
   options?: SanitizeCustomHtmlOptions
 ): string => {
-  const resolved = resolveOptions(options);
-  if (options?.imageSource) {
-    return sanitizeHtml(customHtml, resolved);
+  // Custom policies and imageSource mappers may be stateful or mutated in place;
+  // bypass both options caching and HTML result caching when either is present.
+  if (options?.policy || options?.imageSource) {
+    return sanitizeHtml(customHtml, buildOptions(options));
   }
+  const resolved = resolveCacheableOptions(options);
   let cache = sanitizedCacheByOptions.get(resolved);
   if (cache) {
     const cached = cache.get(customHtml);

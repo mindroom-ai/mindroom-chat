@@ -361,6 +361,43 @@ describe('customHtmlSanitizerPolicy', () => {
       expect(second).toContain('src="https://cdn.example.org/b.png"');
     });
 
+    it('bypasses options and result caches when custom policy decisions or imageSource change on the same options object', () => {
+      let allowClass = false;
+      const policyOptions: Parameters<typeof sanitizeCustomHtml>[1] = {
+        policy: {
+          allowedClasses: { span: ['dynamic'] },
+          transformTags: {
+            span: (tagName, attribs) => ({
+              tagName,
+              attribs: allowClass ? attribs : {},
+            }),
+          },
+        },
+      };
+      const spanHtml = '<span class="dynamic">hello</span>';
+
+      expect(sanitizeCustomHtml(spanHtml, policyOptions)).toBe('<span>hello</span>');
+      allowClass = true;
+      expect(sanitizeCustomHtml(spanHtml, policyOptions)).toBe(
+        '<span class="dynamic">hello</span>'
+      );
+
+      policyOptions.policy = { allowedClasses: { span: [] } };
+      expect(sanitizeCustomHtml(spanHtml, policyOptions)).toBe('<span>hello</span>');
+
+      const imgHtml = '<img src="relative/pic.png" alt="pic" />';
+      const imageOptions: Parameters<typeof sanitizeCustomHtml>[1] = {
+        imageSource: () => 'https://cdn.example.org/first.png',
+      };
+      expect(sanitizeCustomHtml(imgHtml, imageOptions)).toContain(
+        'src="https://cdn.example.org/first.png"'
+      );
+      imageOptions.imageSource = () => 'https://cdn.example.org/second.png';
+      expect(sanitizeCustomHtml(imgHtml, imageOptions)).toContain(
+        'src="https://cdn.example.org/second.png"'
+      );
+    });
+
     it('keeps results accurate beyond the bounded LRU cache capacity', () => {
       for (let i = 0; i < 80; i += 1) {
         expect(sanitizeCustomHtml(`<p>entry-${i}</p>`)).toBe(`<p>entry-${i}</p>`);

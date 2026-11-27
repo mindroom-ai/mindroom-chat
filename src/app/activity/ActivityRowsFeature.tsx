@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allInvitesAtom } from '../matrix/state/inviteList';
@@ -27,7 +27,7 @@ const QUIET: ThreadSignals = {
  * index or a room's unread counts change, every minute, and when a snooze ends; a thread's signals
  * come from the client's shared cache.
  */
-const useComputedActivityRows = (): ActivityRowsResult => {
+const useComputedActivityRows = (): { result: ActivityRowsResult; now: number } => {
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
   const index = useAtomValue(crossRoomThreadIndexAtom);
@@ -46,7 +46,7 @@ const useComputedActivityRows = (): ActivityRowsResult => {
   // read. The room counts move only when they do, not with every streamed edit.
   const roomUnreads = useAtomValue(roomToUnreadAtom);
 
-  return useMemo(() => {
+  const result = useMemo(() => {
     const reader = getThreadSignalsReader(mx);
     reader.prune(new Set(index.entries.keys()));
     const signals = (entry: CrossRoomThreadIndexEntry): ThreadSignals => {
@@ -65,6 +65,7 @@ const useComputedActivityRows = (): ActivityRowsResult => {
     // roomUnreads only triggers the rebuild; the signals read the counts themselves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, inviteIds, mx, now, roomUnreads, showAutomations, userId]);
+  return { result, now };
 };
 
 const sameActivityRow = (a: ActivityRow, b: ActivityRow): boolean => {
@@ -99,11 +100,18 @@ const sameActivityRows = (a: ActivityRowsResult, b: ActivityRowsResult): boolean
 
 /** Keeps Activity's rows current for the whole session; `ClientNonUIFeatures` mounts it once. */
 export function ActivityRowsFeature() {
-  const rows = useComputedActivityRows();
+  const { result, now } = useComputedActivityRows();
   const setRows = useSetAtom(activityRowsAtom);
-  useEffect(
-    () => setRows((previous) => (sameActivityRows(previous, rows) ? previous : rows)),
-    [rows, setRows]
-  );
+  const lastNowRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const previousNow = lastNowRef.current;
+    lastNowRef.current = now;
+    const sameCalendarDay =
+      previousNow === undefined ||
+      new Date(previousNow).toDateString() === new Date(now).toDateString();
+    setRows((previous) =>
+      sameCalendarDay && sameActivityRows(previous, result) ? previous : result
+    );
+  }, [now, result, setRows]);
   return null;
 }

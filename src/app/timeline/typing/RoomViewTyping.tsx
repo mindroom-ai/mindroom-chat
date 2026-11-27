@@ -4,7 +4,13 @@ import { type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useSta
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
-import { RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  MatrixEventEvent,
+  RoomEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
 import { usePauseAnimationWhenHidden } from '../../lib/hooks/usePauseWhenHidden';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -126,6 +132,7 @@ const ON_SCREEN_CHECK_MS = 250;
  * synchronous layout check before paint so an already-visible reply never flashes the strip.
  */
 const useStreamingRepliesOnScreen = (
+  mx: MatrixClient,
   room: Room,
   threadId: string | undefined,
   agentsTyping: string,
@@ -183,7 +190,8 @@ const useStreamingRepliesOnScreen = (
     let io: IntersectionObserver | undefined;
     let ioRoot: Element | null | undefined;
     let mo: MutationObserver | undefined;
-    let moKey = '';
+    let moTarget: Element | null = null;
+    let moSubtree = false;
 
     const publish = () => {
       const next = new Set(visible.values());
@@ -236,7 +244,6 @@ const useStreamingRepliesOnScreen = (
           visible.delete(el);
         }
       }
-      const trackedSenders = new Set<string>();
       for (const { eventId, sender } of replies) {
         for (const row of findRowsForEvent(timelineRows ?? scopeRoot, eventId)) {
           if (!observed.has(row)) {
@@ -244,37 +251,47 @@ const useStreamingRepliesOnScreen = (
             io.observe(row);
             if (elementOnScreen(row, cachedScrollRoot)) visible.set(row, sender);
           }
-          trackedSenders.add(sender);
         }
       }
       publish();
 
-      const target = timelineRows ?? scopeRoot;
-      const subtree = !timelineRows;
-      const needMo = timelineRows !== null || Array.from(typingSet).some((s) => !trackedSenders.has(s));
-      const nextKey = needMo ? `${subtree ? 's' : 'd'}:${timelineRows ? 't' : 'r'}` : '';
-      if (nextKey !== moKey) {
+      const nextMoTarget = timelineRows ?? containerRef?.current ?? null;
+      const nextMoSubtree = !timelineRows;
+      if (nextMoTarget !== moTarget || nextMoSubtree !== moSubtree) {
         mo?.disconnect();
         mo = undefined;
-        moKey = nextKey;
-        if (needMo) {
+        moTarget = nextMoTarget;
+        moSubtree = nextMoSubtree;
+        if (nextMoTarget) {
           mo = new MutationObserver(syncTargets);
-          mo.observe(target, subtree ? { childList: true, subtree: true } : { childList: true });
+          mo.observe(
+            nextMoTarget,
+            nextMoSubtree ? { childList: true, subtree: true } : { childList: true }
+          );
         }
       }
     };
 
     syncTargets();
-    const onTimeline = (event: MatrixEvent, eventRoom: Room | undefined) => {
-      if (eventRoom?.roomId === room.roomId && !event.isRelation()) syncTargets();
+    const onRoomTimeline = (_event: MatrixEvent, eventRoom: Room | undefined) => {
+      if (!eventRoom || eventRoom.roomId === room.roomId) syncTargets();
     };
-    room.on(RoomEvent.Timeline, onTimeline);
+    const onMatrixEvent = (event: MatrixEvent) => {
+      if (event.getRoomId() === room.roomId) syncTargets();
+    };
+    room.on(RoomEvent.Timeline, onRoomTimeline);
+    room.on(RoomEvent.Redaction, onRoomTimeline);
+    mx.on(MatrixEventEvent.Replaced, onMatrixEvent);
+    mx.on(MatrixEventEvent.Decrypted, onMatrixEvent);
     return () => {
-      room.removeListener(RoomEvent.Timeline, onTimeline);
+      room.removeListener(RoomEvent.Timeline, onRoomTimeline);
+      room.removeListener(RoomEvent.Redaction, onRoomTimeline);
+      mx.removeListener(MatrixEventEvent.Replaced, onMatrixEvent);
+      mx.removeListener(MatrixEventEvent.Decrypted, onMatrixEvent);
       mo?.disconnect();
       io?.disconnect();
     };
-  }, [agentsTyping, containerRef, readSync, room, threadId, watch]);
+  }, [agentsTyping, containerRef, mx, readSync, room, threadId, watch]);
 
   return onScreen;
 };
@@ -355,6 +372,7 @@ function RoomViewTypingActive({ room, threadId, containerRef }: RoomViewTypingPr
       (!streaming || streaming.has(receipt.userId))
   );
   const onScreen = useStreamingRepliesOnScreen(
+    mx,
     room,
     threadId,
     members

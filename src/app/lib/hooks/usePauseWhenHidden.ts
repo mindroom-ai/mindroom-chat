@@ -1,5 +1,6 @@
 import { useEffect, useState, type RefObject } from 'react';
 import { usePaneCollapsed } from './usePaneCollapsed';
+import './usePauseWhenHidden.css';
 
 type VisibilityListener = (visible: boolean) => void;
 

@@ -233,10 +233,7 @@ function ActiveThreadApprovalProvider({
         return true;
       }
       const id = event.getId();
-      if (
-        id &&
-        (historyRef.current.events.has(id) || historyRef.current.scopedEventIds.has(id))
-      ) {
+      if (id && (historyRef.current.events.has(id) || historyRef.current.scopedEventIds.has(id))) {
         return true;
       }
       const replacementType = event.replacingEvent()?.getType();
