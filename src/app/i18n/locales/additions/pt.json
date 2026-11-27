@@ -1375,7 +1375,11 @@
         "toolCallsAlsoFailed": "· sem conclusão: {{failed}}",
         "toolCallsRanFailed_one": "{{count}} chamada de ferramenta executada · sem conclusão: {{failed}}",
         "toolCallsRanFailed_many": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}",
-        "toolCallsRanFailed_other": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}"
+        "toolCallsRanFailed_other": "{{count}} chamadas de ferramentas executadas · sem conclusão: {{failed}}",
+        "stepCommand": "Comando",
+        "stepCopy": "Copiar",
+        "stepCopied": "Copiado",
+        "stepCopyFailed": "Falha ao copiar"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Definições de títulos…"

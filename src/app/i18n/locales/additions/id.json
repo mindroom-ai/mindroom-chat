@@ -1305,7 +1305,11 @@
         "toolRunningFor": "Berjalan selama {{duration}}",
         "toolCallFailed": "Tidak selesai",
         "toolCallsAlsoFailed": "· {{failed}} tidak selesai",
-        "toolCallsRanFailed_other": "{{count}} panggilan alat dijalankan · {{failed}} tidak selesai"
+        "toolCallsRanFailed_other": "{{count}} panggilan alat dijalankan · {{failed}} tidak selesai",
+        "stepCommand": "Perintah",
+        "stepCopy": "Salin",
+        "stepCopied": "Tersalin",
+        "stepCopyFailed": "Gagal menyalin"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Pengaturan judul…"

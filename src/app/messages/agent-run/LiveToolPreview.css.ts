@@ -175,13 +175,34 @@ export const StepName = styleVariants({
 
 export const StepArg = style({ ...mono, ...truncate, ...muted, flex: '1 1 0px' });
 
+export const StepTrail = style({
+  marginInlineStart: 'auto',
+  flexShrink: 0,
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: toRem(6),
+  selectors: { '&:empty': { display: 'none' } },
+});
+
 export const StepElapsed = style({
   ...muted,
-  marginInlineStart: 'auto',
   flexShrink: 0,
   fontSize: toRem(11.5),
   fontVariantNumeric: 'tabular-nums',
   whiteSpace: 'nowrap',
+});
+
+export const StepChevron = style({
+  flexShrink: 0,
+  color: color.Surface.OnContainer,
+  opacity: config.opacity.P400,
+  selectors: {
+    '[dir=rtl] &': { transform: 'rotate(180deg)' },
+    [`${StepRowButton}[aria-expanded="true"] &`]: { transform: 'rotate(90deg)' },
+  },
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': { transition: 'transform 150ms ease' },
+  },
 });
 
 const TERMINAL_LINE_HEIGHT = 1.45;
@@ -209,3 +230,72 @@ export const TerminalOutput = styleVariants(LIVE_OUTPUT_LINES, (lines) => [
   terminalOutputBase,
   { maxHeight: `${TERMINAL_LINE_HEIGHT * lines}em` },
 ]);
+
+export const Drawer = style([
+  TerminalWell,
+  { display: 'flex', flexDirection: 'column', gap: toRem(6) },
+]);
+
+export const DrawerHead = style({
+  display: 'flex',
+  alignItems: 'center',
+  gap: config.space.S200,
+  minWidth: 0,
+});
+
+export const DrawerLabel = style({
+  ...muted,
+  fontSize: toRem(11),
+  fontWeight: config.fontWeight.W600,
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+});
+
+export const CopyButton = style([
+  OpenButton,
+  { border: hairline, fontSize: toRem(11.5), lineHeight: 1.3 },
+]);
+
+export const DrawerCode = style([
+  DefaultReset,
+  mono,
+  {
+    margin: 0,
+    color: color.Surface.OnContainer,
+    lineHeight: TERMINAL_LINE_HEIGHT,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+    userSelect: 'text',
+  },
+]);
+
+export const DrawerDivider = style({
+  borderTop: `${config.borderWidth.B300} dashed ${color.SurfaceVariant.ContainerLine}`,
+});
+
+export const DrawerOutput = style([
+  terminalOutputBase,
+  {
+    display: 'block',
+    maxHeight: '16em',
+    overflowX: 'hidden',
+    overflowY: 'auto',
+    userSelect: 'text',
+  },
+]);
+
+// Warning.OnContainer on an 8% Warning.Main tint keeps >= 5.08:1 contrast across all 23 palettes.
+export const DrawerResult = styleVariants({
+  done: [DrawerOutput],
+  failed: [
+    DrawerOutput,
+    {
+      color: color.Warning.OnContainer,
+      opacity: 1,
+      paddingBlock: toRem(4),
+      paddingInline: toRem(6),
+      borderRadius: config.radii.R300,
+      backgroundColor: `color-mix(in srgb, ${color.Warning.Main} 8%, transparent)`,
+    },
+  ],
+});

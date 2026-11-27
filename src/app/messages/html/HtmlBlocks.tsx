@@ -57,11 +57,8 @@ import {
   withFailures,
 } from '../agent-run/toolCallStatus';
 import { CompactionSeamsAt, ReasoningSegmentsAt } from '../agent-run/ReasoningAnchors';
-import {
-  LiveToolPreview,
-  normalizeToolOutput,
-  type LiveToolItem,
-} from '../agent-run/LiveToolPreview';
+import { normalizeToolOutput } from '../agent-run/LiveStepRow';
+import { LiveToolPreview, type LiveToolItem } from '../agent-run/LiveToolPreview';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import {
   getEffectiveToolApprovalStatus,

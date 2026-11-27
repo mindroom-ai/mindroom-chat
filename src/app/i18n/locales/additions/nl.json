@@ -1340,7 +1340,11 @@
         "toolCallFailed": "Niet voltooid",
         "toolCallsAlsoFailed": "· {{failed}} niet voltooid",
         "toolCallsRanFailed_one": "{{count}} toolaanroep uitgevoerd · {{failed}} niet voltooid",
-        "toolCallsRanFailed_other": "{{count}} toolaanroepen uitgevoerd · {{failed}} niet voltooid"
+        "toolCallsRanFailed_other": "{{count}} toolaanroepen uitgevoerd · {{failed}} niet voltooid",
+        "stepCommand": "Opdracht",
+        "stepCopy": "Kopieer",
+        "stepCopied": "Gekopieerd",
+        "stepCopyFailed": "Kopiëren mislukt"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titelinstellingen…"

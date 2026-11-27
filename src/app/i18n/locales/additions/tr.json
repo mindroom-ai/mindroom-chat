@@ -1340,7 +1340,11 @@
         "toolCallFailed": "Tamamlanmadı",
         "toolCallsAlsoFailed": "· {{failed}} tamamlanmadı",
         "toolCallsRanFailed_one": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
-        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı"
+        "toolCallsRanFailed_other": "{{count}} araç çağrısı çalıştırıldı · {{failed}} tamamlanmadı",
+        "stepCommand": "Komut",
+        "stepCopy": "Kopyala",
+        "stepCopied": "Kopyalandı",
+        "stepCopyFailed": "Kopyalama başarısız"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Başlık ayarları…"

@@ -1305,7 +1305,11 @@
         "toolRunningFor": "{{duration}} 동안 실행 중",
         "toolCallFailed": "완료되지 않음",
         "toolCallsAlsoFailed": "· {{failed}}개 완료되지 않음",
-        "toolCallsRanFailed_other": "도구 호출 {{count}}개 실행됨 · {{failed}}개 완료되지 않음"
+        "toolCallsRanFailed_other": "도구 호출 {{count}}개 실행됨 · {{failed}}개 완료되지 않음",
+        "stepCommand": "명령",
+        "stepCopy": "복사",
+        "stepCopied": "복사됨",
+        "stepCopyFailed": "복사 실패"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "제목 설정…"

@@ -727,7 +727,7 @@ describe('SubagentsPanel', () => {
     ['paused' as const, 'Paused'],
     ['awaiting_approval' as const, 'Waiting for approval'],
   ])(
-    'announces %s shell rows as %s with collapsible stdout and no elapsed time',
+    'announces %s shell rows as %s with expandable stdout drawer and no elapsed time',
     (status, expectedLabel) => {
       ingest(
         'run',
@@ -742,11 +742,17 @@ describe('SubagentsPanel', () => {
       expect(step?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(expectedLabel);
       expect(step?.querySelector('[data-live-step-elapsed]')).toBeNull();
       const toggle = step?.querySelector<HTMLButtonElement>('button[aria-expanded]');
+      expect(toggle?.getAttribute('aria-expanded')).toBe('false');
+      expect(step?.querySelector('[data-live-output]')?.textContent).toBe('cmd output');
+      act(() => toggle?.click());
       expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+      expect(step?.querySelector('[data-live-step-drawer]')).not.toBeNull();
+      expect(step?.querySelectorAll('[data-live-output]')).toHaveLength(1);
       expect(step?.querySelector('[data-live-output]')?.textContent).toBe('cmd output');
       act(() => toggle?.click());
       expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-      expect(step?.querySelector('[data-live-output]')).toBeNull();
+      expect(step?.querySelector('[data-live-step-drawer]')).toBeNull();
+      expect(step?.querySelector('[data-live-output]')?.textContent).toBe('cmd output');
     }
   );
 

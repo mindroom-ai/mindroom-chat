@@ -1340,7 +1340,11 @@
         "toolCallFailed": "সম্পূর্ণ হয়নি",
         "toolCallsAlsoFailed": "· সম্পূর্ণ হয়নি: {{failed}}টি",
         "toolCallsRanFailed_one": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি",
-        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি"
+        "toolCallsRanFailed_other": "{{count}}টি টুল কল চালানো হয়েছে · সম্পূর্ণ হয়নি: {{failed}}টি",
+        "stepCommand": "কমান্ড",
+        "stepCopy": "কপি করুন",
+        "stepCopied": "কপি হয়েছে",
+        "stepCopyFailed": "কপি করা যায়নি"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "শিরোনামের সেটিংস…"
