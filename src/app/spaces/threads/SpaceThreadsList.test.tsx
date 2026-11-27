@@ -11,6 +11,8 @@ import { LONG_PRESS_MS } from '../../lib/hooks/useLongPress';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { StateEvent } from '../../matrix/types/room';
 import { stubCompactLayout, tickFrames } from '../../threads/overview/compactBlocks.test.shared';
+import type { DesktopBridge, DesktopShellEvent } from '../../lib/desktopBridge';
+import { installDesktopHistorySwipe } from '../../navigation/desktopHistorySwipe';
 import { SwipeList } from '../../threads/overview/CompactCardSwipe.css';
 import type { CompactThreadSection } from '../../threads/overview/compactThreadSections';
 import { resetPendingThreadTagsForTests } from '../../threads/tags/threadTagPending';
@@ -44,6 +46,7 @@ type MockMenuProps = {
   anchor: { x: number; y: number; width: number; height: number };
   onClose: () => void;
   onOpenThread?: () => void;
+  initialDialog?: 'snooze';
 };
 
 const { menuProps } = vi.hoisted(() => ({ menuProps: vi.fn<(props: MockMenuProps) => void>() }));
@@ -219,7 +222,7 @@ const renderScenario = ({
   return { ...view, mx, sendStateEvent, roomsById, onOpenThread, shellOf, rerenderProps };
 };
 
-const swipeCard = (shell: HTMLElement) => {
+const swipeCard = (shell: HTMLElement, toX = 70) => {
   const track = shell.querySelector<HTMLElement>('[data-compact-card-swipe="track"]')!;
   vi.spyOn(track, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 100));
   track.setPointerCapture = vi.fn();
@@ -230,8 +233,8 @@ const swipeCard = (shell: HTMLElement) => {
   };
   pointer('pointerdown', 280);
   pointer('pointermove', 265);
-  pointer('pointermove', 120);
-  pointer('pointerup', 120);
+  pointer('pointermove', toX);
+  pointer('pointerup', toX);
 };
 
 beforeEach(() => {
@@ -527,6 +530,71 @@ describe('SpaceThreadsList', () => {
     expect(sendStateEvent).not.toHaveBeenCalled();
   });
 
+  it('parks open on short swipe to open Snooze picker, Unsnooze directly, or Resolve in the right room', async () => {
+    const sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$ok' });
+    const roomA = makeRoom(ROOM_A, 'Engineering', {
+      knownRootIds: ['$a-open', '$a-snoozed'],
+    });
+    const { shellOf } = renderScenario({
+      rooms: [roomA],
+      entries: [
+        entry(ROOM_A, '$a-open', 'Open'),
+        entry(ROOM_A, '$a-snoozed', 'Snoozed', { snoozedUntilTs: Date.UTC(2099, 0, 1) }),
+      ],
+      sendStateEvent,
+    });
+
+    // Short swipe (100px) on open card parks open and Snooze opens SnoozePicker via ThreadActionsMenu.
+    const openShell = shellOf(ROOM_A, '$a-open');
+    swipeCard(openShell, 165);
+    const snoozeBtn = openShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="snooze"]'
+    )!;
+    expect(snoozeBtn.textContent).toBe('Snooze');
+    await act(async () => {
+      fireEvent.click(snoozeBtn);
+      await Promise.resolve();
+    });
+    expect(menuProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ room: roomA, rootId: '$a-open', initialDialog: 'snooze' })
+    );
+    act(() => menuProps.mock.lastCall![0].onClose());
+
+    // Short swipe on snoozed card shows Unsnooze and clears the snoozed tag directly.
+    const snoozedShell = shellOf(ROOM_A, '$a-snoozed');
+    swipeCard(snoozedShell, 165);
+    const unsnoozeBtn = snoozedShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="snooze"]'
+    )!;
+    expect(unsnoozeBtn.textContent).toBe('Unsnooze');
+    await act(async () => {
+      fireEvent.click(unsnoozeBtn);
+      await Promise.resolve();
+    });
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      ROOM_A,
+      MINDROOM_THREAD_TAGS_EVENT,
+      {},
+      buildPerTagStateKey('$a-snoozed', 'snoozed')
+    );
+
+    // Clicking Resolve in the parked tray resolves the thread.
+    swipeCard(openShell, 165);
+    const resolveBtn = openShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="resolve"]'
+    )!;
+    await act(async () => {
+      fireEvent.click(resolveBtn);
+      await Promise.resolve();
+    });
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      ROOM_A,
+      MINDROOM_THREAD_TAGS_EVENT,
+      expect.objectContaining({ set_by: ME }),
+      buildPerTagStateKey('$a-open', 'resolved')
+    );
+  });
+
   it('bounds mounted cards for 3,000 sectioned threads and clips phone slides', () => {
     vi.useFakeTimers();
     stubCompactLayout({ viewAttr: 'data-space-threads-list' });
@@ -638,4 +706,93 @@ describe('SpaceThreadsList', () => {
       48
     );
   }, 30_000);
+  it('arbitrates macOS Electron trackpad swipes with desktopHistorySwipe without blocking Back navigation', () => {
+    const shellListeners = new Set<(event: DesktopShellEvent) => void>();
+    const emitShell = (event: DesktopShellEvent) =>
+      act(() => shellListeners.forEach((listener) => listener(event)));
+    const bridge: Partial<DesktopBridge> = {
+      onShellEvent: (listener) => {
+        shellListeners.add(listener);
+        return () => void shellListeners.delete(listener);
+      },
+    };
+    const origPlatform = Object.getOwnPropertyDescriptor(navigator, 'platform');
+    const origUserAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+    Object.defineProperty(navigator, 'platform', { configurable: true, value: 'MacIntel' });
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Macintosh' });
+    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
+    Object.defineProperty(window, 'navigation', {
+      configurable: true,
+      value: { canGoBack: true, canGoForward: true },
+    });
+    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const forwardSpy = vi.spyOn(window.history, 'forward').mockImplementation(() => undefined);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+    const stopHistory = installDesktopHistorySwipe(window, {
+      isMac: () => true,
+      allowUntrusted: true,
+    });
+    emitShell({ type: 'swipe-tracking', enabled: true });
+
+    try {
+      const { shellOf } = renderScenario({
+        rooms: [makeRoom(ROOM_A, 'Engineering', { knownRootIds: ['$a1'] })],
+        entries: [entry(ROOM_A, '$a1', 'Alpha')],
+      });
+      const shell = shellOf(ROOM_A, '$a1');
+      const track = shell.querySelector<HTMLElement>('[data-compact-card-swipe="track"]')!;
+      vi.spyOn(track, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 100));
+
+      const wheel = (deltaX: number, target: HTMLElement = track) => {
+        const event = new WheelEvent('wheel', {
+          bubbles: true,
+          cancelable: true,
+          deltaMode: 0,
+          deltaX,
+          deltaY: 0,
+        });
+        act(() => {
+          target.dispatchEvent(event);
+        });
+        return event.defaultPrevented;
+      };
+
+      // 1. Swiping RIGHT on a closed card does NOT preventDefault and triggers Back navigation.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      expect(wheel(-30)).toBe(false);
+      expect(wheel(-30)).toBe(false);
+      expect(wheel(-30)).toBe(false);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).toHaveBeenCalledTimes(1);
+      expect(track.style.transform).toBe('');
+
+      // 2. Swiping LEFT on a closed card prevents default, parks open, and does NOT navigate Forward.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      expect(wheel(40)).toBe(true);
+      expect(wheel(50)).toBe(true);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(forwardSpy).not.toHaveBeenCalled();
+      expect(track.style.transform).toBe('translateX(-156px)');
+
+      // 3. Swiping RIGHT on the parked card prevents default, closes the card, and does NOT go Back.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      expect(wheel(-30)).toBe(true);
+      expect(wheel(-30)).toBe(true);
+      expect(wheel(-30)).toBe(true);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).toHaveBeenCalledTimes(1);
+      expect(track.style.transform).toBe('');
+    } finally {
+      stopHistory();
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+      Reflect.deleteProperty(window, 'navigation');
+      if (origPlatform) Object.defineProperty(navigator, 'platform', origPlatform);
+      else Reflect.deleteProperty(navigator, 'platform');
+      if (origUserAgent) Object.defineProperty(navigator, 'userAgent', origUserAgent);
+      else Reflect.deleteProperty(navigator, 'userAgent');
+    }
+  });
 });

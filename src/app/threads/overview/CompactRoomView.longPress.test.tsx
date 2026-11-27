@@ -138,16 +138,16 @@ describe('a long press on a compact thread card', () => {
     expect(fireEvent.touchStart(track, { touches: [finger(300, 60)] })).toBe(true);
     expect(fireEvent.touchMove(track, { touches: [finger(295, 60)] })).toBe(true);
     pointer('pointermove', 290);
-    pointer('pointermove', 170);
-    expect(track.style.transform).toBe('translateX(-120px)');
+    pointer('pointermove', 110);
+    expect(track.style.transform).toBe('translateX(-180px)');
     // Only an active sideways swipe makes the list's native listener prevent default.
     // That must not stop the row's bubbling handler from cancelling the long press.
-    expect(fireEvent.touchMove(track, { touches: [finger(170, 60)] })).toBe(false);
+    expect(fireEvent.touchMove(track, { touches: [finger(110, 60)] })).toBe(false);
     act(() => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
     });
     expect(menuProps).not.toHaveBeenCalled();
-    pointer('pointerup', 170);
+    pointer('pointerup', 110);
     expect(fireEvent.touchEnd(track, { touches: [] })).toBe(true);
     expect(setResolved).toHaveBeenCalledWith('$a', true);
     expect(track.style.transform).toBe('');
@@ -251,7 +251,7 @@ it('keeps another card swipeable while the pressed card menu is open', async () 
   };
   pointer('pointerdown', 300);
   pointer('pointermove', 290);
-  pointer('pointermove', 150);
-  pointer('pointerup', 150);
+  pointer('pointermove', 110);
+  pointer('pointerup', 110);
   expect(setResolved).toHaveBeenCalledWith('$b', true);
 });

@@ -548,6 +548,20 @@ describe("ThreadActionsMenu's snooze", () => {
     state.snoozedUntilTs = Date.now() + 60_000;
     expect(rowOf(renderMenu(), 'snooze')).toBeUndefined();
   });
+
+  it('opens SnoozePicker directly when initialDialog="snooze" is passed', async () => {
+    mutations.snooze.mockResolvedValue(true);
+    const onClose = vi.fn();
+    renderMenu({ initialDialog: 'snooze', onClose });
+
+    expect(host.querySelector('[role="menu"]')?.getAttribute('aria-label')).toBe('Snooze until');
+    const preset = host.querySelector<HTMLElement>('[role="menuitemradio"]');
+    expect(preset).not.toBeNull();
+    await act(async () => preset?.click());
+
+    expect(mutations.snooze).toHaveBeenCalledOnce();
+    expect(onClose).toHaveBeenCalledOnce();
+  });
 });
 
 describe("ThreadActionsMenu's tool calls switch", () => {

@@ -112,6 +112,10 @@ export async function setThreadResolved(
   }
 }
 
+/** Clears any `snoozed` tag on `threadRootId` in `room`. */
+export const unsnoozeThread = (mx: MatrixClient, room: Room, threadRootId: string): Promise<void> =>
+  writeThreadTag(mx, room, threadRootId, SNOOZED_TAG, false);
+
 export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   const mx = useMatrixClient();
   const [updatingThreadRootIds, setUpdatingThreadRootIds] = useState<ReadonlySet<string>>(
@@ -190,9 +194,9 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
 
   const unsnooze = useCallback(
     async (threadRootId: string) => {
-      await sendUpdate(threadRootId, SNOOZED_TAG, false);
+      await runPending(threadRootId, () => unsnoozeThread(mx, room, threadRootId));
     },
-    [sendUpdate]
+    [mx, room, runPending]
   );
 
   return {
