@@ -271,6 +271,25 @@ describe('interactiveSwipeMath', () => {
     expect(tracker.shouldCommit(400, 340)).toBe(false);
   });
 
+  it('cancels a pull-back reversal followed by a stationary lift below 50% extent', () => {
+    const tracker = createSwipeTracker({
+      startX: 8,
+      startY: 200,
+      startTimeMs: 0,
+      axisSign: 1,
+      discreteMinPx: EDGE_DISCRETE_MIN_PX,
+    });
+    const xs = [40, 72, 104, 136, 168, 200, 208, 198, 188, 178, 168];
+    xs.forEach((x, index) => {
+      tracker.move(x, 200, (index + 1) * 16, 390);
+    });
+    expect(tracker.offset).toBe(150); // 38.5% (>= 35%, < 50%)
+    expect(tracker.velocity).toBe(0); // cached at t=176 still includes {168, 80}
+
+    tracker.move(168, 200, 192, 390); // stationary lift prunes {168, 80} -> -0.40 px/ms
+    expect(tracker.shouldCommit(390, 192)).toBe(false);
+  });
+
   it('does not dilute initial flick velocity after resting stationary at the edge', () => {
     const tracker = createEdgeTracker();
     tracker.move(0, 201, 250, 390);

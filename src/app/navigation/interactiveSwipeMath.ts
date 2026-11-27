@@ -86,7 +86,14 @@ export function createSwipeTracker({
     if (!newest || endTimeMs - newest.t > SWIPE_VELOCITY_WINDOW_MS) {
       return 0;
     }
-    return velocity;
+    const cutoff = endTimeMs - SWIPE_VELOCITY_WINDOW_MS;
+    let oldestIndex = 0;
+    while (oldestIndex < samples.length - 2 && samples[oldestIndex]!.t < cutoff) {
+      oldestIndex += 1;
+    }
+    const oldest = samples[oldestIndex]!;
+    const dt = newest.t - oldest.t;
+    return dt > 0 ? ((newest.x - oldest.x) * axisSign) / dt : 0;
   };
 
   const updateOffset = (x: number, extent: number) => {

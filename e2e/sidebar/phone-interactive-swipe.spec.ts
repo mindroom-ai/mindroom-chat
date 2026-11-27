@@ -648,10 +648,10 @@ for (const engine of ENGINES) {
           'forward swipe commit triggers only its single settle animation (no double-slide)'
         ).toBe(1);
 
-        // 5. Short casual back flick (< 35% of 390px) commits back to the room via momentum.
+        // 5. Relaxed short back swipe (< 35% width, < 0.45 px/ms) commits via momentum projection.
         const shortFlickBack = await startTouchDrag(page, engine, 8, 420);
         try {
-          await shortFlickBack.moveTo(100, { steps: 4, stepMs: 10 });
+          await shortFlickBack.moveTo(108, { steps: 6, stepMs: 50 });
         } finally {
           await shortFlickBack.release();
         }
