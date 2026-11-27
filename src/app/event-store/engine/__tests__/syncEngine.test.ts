@@ -1,21 +1,37 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ClientEvent, RoomEvent, SyncState } from 'matrix-js-sdk';
-import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { ClientEvent, createClient, MatrixEvent, Room, RoomEvent, SyncState } from 'matrix-js-sdk';
+import type { MatrixClient } from 'matrix-js-sdk';
 
-const mockPersistRoomChunk = vi.hoisted(() => vi.fn());
+const persistChunkMock = vi.hoisted(() => ({
+  fn: vi.fn(),
+  real: undefined as
+    typeof import('../../cache/eventRepository').persistRoomChunkWithPreferLive | undefined,
+}));
+const mockPersistRoomChunk = persistChunkMock.fn;
 vi.mock('../../cache/eventRepository', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../cache/eventRepository')>();
+  persistChunkMock.real = actual.persistRoomChunkWithPreferLive;
   return {
     ...actual,
-    persistRoomChunkWithPreferLive: mockPersistRoomChunk,
+    persistRoomChunkWithPreferLive: persistChunkMock.fn,
   };
 });
 
+import { createSessionId } from '../../../matrix/session/sessions';
 import { createSyncEngine, stopSyncEngineForClient } from '../syncEngine';
 import type { EngineWriteThrough } from '../engineWriteThrough';
-import type { EngineGapTracker } from '../engineGapTracker';
+import { createEngineGapTracker, type EngineGapTracker } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
-import { revokeRoomCacheStoreWrites } from '../../cache/db';
+import { resetCacheHealthForTesting } from '../../cache/cacheHealth';
+import {
+  loadLatestCachedRoomEvents,
+  loadRoomTailDiscontinuity,
+  markRoomTailDiscontinuity,
+  resetCacheStoreForTesting,
+  revokeRoomCacheStoreWrites,
+} from '../../cache/db';
 
 /**
  * Compact SDK mock. The engine only calls `on`, `removeListener`,
@@ -94,8 +110,12 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     resetCacheProbe();
+    resetCacheStoreForTesting();
+    resetCacheHealthForTesting();
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('derives sessionId from client baseUrl + safe user id', () => {
@@ -500,56 +520,7 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
     engine.stop();
   });
 
-  it('drops pre-clear queued events on lease revocation and awaits pre-gap overlap capture', async () => {
-    const mx = createMockClient(SyncState.Syncing);
-    let resolveOverlap: (() => void) | undefined;
-    const gapTracker: EngineGapTracker = {
-      handleTimelineReset: vi.fn(),
-      handleSyncPrepared: vi.fn().mockResolvedValue(undefined),
-      whenOverlapCaptured: (roomId) =>
-        roomId === '!r-gap'
-          ? new Promise<void>((resolve) => {
-              resolveOverlap = resolve;
-            })
-          : undefined,
-      stop: vi.fn(),
-    };
-    const engine = createSyncEngine({ mx, gapTracker });
-    engine.start();
-
-    const makeLive = (id: string) =>
-      ({ ...makeEvent(), getId: () => id, event: { event_id: id } }) as unknown as MatrixEvent;
-    const rClear = { ...makeRoom('!r-clear'), threadsTimelineSets: [] } as unknown as Room;
-    const rGap = { ...makeRoom('!r-gap'), threadsTimelineSets: [] } as unknown as Room;
-
-    mx.__emit(RoomEvent.Timeline, makeLive('$stale'), rClear, false, false, { liveEvent: true });
-    revokeRoomCacheStoreWrites(engine.sessionId, '!r-clear');
-    mx.__emit(RoomEvent.Timeline, makeLive('$fresh'), rClear, false, false, { liveEvent: true });
-    mx.__emit(RoomEvent.Timeline, makeLive('$after-reset'), rGap, false, false, {
-      liveEvent: true,
-    });
-
-    await vi.waitFor(() => expect(mockPersistRoomChunk).toHaveBeenCalledTimes(1));
-    expect(
-      (mockPersistRoomChunk.mock.calls[0]![0] as { mappedEvents: MatrixEvent[] }).mappedEvents.map(
-        (event) => event.getId()
-      )
-    ).toEqual(['$fresh']);
-    // !r-gap must wait for whenOverlapCaptured before persisting.
-    expect(resolveOverlap).toBeDefined();
-    expect(mockPersistRoomChunk).toHaveBeenCalledTimes(1);
-
-    resolveOverlap?.();
-    await vi.waitFor(() => expect(mockPersistRoomChunk).toHaveBeenCalledTimes(2));
-    expect(
-      (mockPersistRoomChunk.mock.calls[1]![0] as { mappedEvents: MatrixEvent[] }).mappedEvents.map(
-        (event) => event.getId()
-      )
-    ).toEqual(['$after-reset']);
-    engine.stop();
-  });
-
-  it('drains queued writes immediately on pagehide and clears them on stop()', () => {
+  it('drops pre-clear events on lease revocation, drains immediately on pagehide, and clears on stop()', async () => {
     const windowListeners = new Map<string, () => void>();
     vi.stubGlobal('window', {
       addEventListener: (type: string, listener: () => void) => windowListeners.set(type, listener),
@@ -569,20 +540,101 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
     const makeLive = (id: string) =>
       ({ ...makeEvent(), getId: () => id, event: { event_id: id } }) as unknown as MatrixEvent;
     const r1 = { ...makeRoom('!r1'), threadsTimelineSets: [] } as unknown as Room;
-    mx.__emit(RoomEvent.Timeline, makeLive('$before-hide'), r1, false, false, { liveEvent: true });
+
+    mx.__emit(RoomEvent.Timeline, makeLive('$stale'), r1, false, false, { liveEvent: true });
+    revokeRoomCacheStoreWrites(engine.sessionId, '!r1');
+    mx.__emit(RoomEvent.Timeline, makeLive('$fresh'), r1, false, false, { liveEvent: true });
     expect(mockPersistRoomChunk).not.toHaveBeenCalled();
 
-    // pagehide drains synchronously without waiting for the microtask.
+    // pagehide drains synchronously with only the post-clear event.
     windowListeners.get('pagehide')?.();
     expect(mockPersistRoomChunk).toHaveBeenCalledTimes(1);
+    expect(
+      (mockPersistRoomChunk.mock.calls[0]![0] as { mappedEvents: MatrixEvent[] }).mappedEvents.map(
+        (event) => event.getId()
+      )
+    ).toEqual(['$fresh']);
 
-    // stop() drops newly queued events before any microtask can drain them.
+    // stop() drops queued events before any microtask can drain them.
     mockPersistRoomChunk.mockClear();
     mx.__emit(RoomEvent.Timeline, makeLive('$dropped'), r1, false, false, { liveEvent: true });
     engine.stop();
-    vi.unstubAllGlobals();
-    return Promise.resolve().then(() => {
-      expect(mockPersistRoomChunk).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(mockPersistRoomChunk).not.toHaveBeenCalled();
+  });
+
+  it('commits ready rooms to IndexedDB while another room gap marker retries', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    resetCacheStoreForTesting();
+    resetCacheHealthForTesting();
+    mockPersistRoomChunk.mockImplementation(persistChunkMock.real!);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    const mx = createClient({ baseUrl: 'https://example.test', userId: '@alice:example.test' });
+    vi.spyOn(mx, 'getSyncState').mockReturnValue(SyncState.Syncing);
+    const roomA = new Room('!roomA:example.test', mx, '@alice:example.test');
+    const roomB = new Room('!roomB:example.test', mx, '@alice:example.test');
+    mx.store.storeRoom(roomA);
+    mx.store.storeRoom(roomB);
+
+    let failRoomAOnce = true;
+    const gapTracker = createEngineGapTracker({
+      mx,
+      sessionId: createSessionId('https://example.test', '@alice:example.test'),
+      enqueueGapFill: () => undefined,
+      markDiscontinuity: async (sessionId, roomId, marker) => {
+        if (roomId === roomA.roomId && failRoomAOnce) {
+          failRoomAOnce = false;
+          throw new Error('transient meta write error');
+        }
+        return markRoomTailDiscontinuity(sessionId, roomId, marker);
+      },
     });
+    const engine = createSyncEngine({ mx, gapTracker });
+    engine.start();
+
+    try {
+      const msg = (roomId: string, eventId: string, ts: number) =>
+        new MatrixEvent({
+          event_id: eventId,
+          room_id: roomId,
+          sender: '@alice:example.test',
+          type: 'm.room.message',
+          origin_server_ts: ts,
+          content: { msgtype: 'm.text', body: eventId },
+        });
+
+      mx.emit(RoomEvent.TimelineReset, roomA, roomA.getUnfilteredTimelineSet(), false);
+      mx.emit(RoomEvent.Timeline, msg(roomA.roomId, '$a1', 100), roomA, false, false, {
+        liveEvent: true,
+        timeline: roomA.getLiveTimeline(),
+      });
+      mx.emit(RoomEvent.Timeline, msg(roomB.roomId, '$b1', 101), roomB, false, false, {
+        liveEvent: true,
+        timeline: roomB.getLiveTimeline(),
+      });
+
+      // Room A's marker failed onto backoff; Room B must still commit to IDB first.
+      await vi.waitFor(async () => {
+        const cachedB = await loadLatestCachedRoomEvents(engine.sessionId, roomB.roomId, 10);
+        expect(cachedB.events.map((event) => event.event_id)).toEqual(['$b1']);
+      });
+      expect(consoleError).toHaveBeenCalledTimes(1);
+      expect(await loadRoomTailDiscontinuity(engine.sessionId, roomA.roomId)).toBeUndefined();
+      expect((await loadLatestCachedRoomEvents(engine.sessionId, roomA.roomId, 10)).events).toEqual(
+        []
+      );
+
+      // Once Room A's retry succeeds, both its marker and its coalesced live message commit.
+      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.waitFor(async () => {
+        const cachedA = await loadLatestCachedRoomEvents(engine.sessionId, roomA.roomId, 10);
+        expect(cachedA.events.map((event) => event.event_id)).toEqual(['$a1']);
+      });
+      expect(await loadRoomTailDiscontinuity(engine.sessionId, roomA.roomId)).toBeDefined();
+    } finally {
+      engine.stop();
+    }
   });
 });

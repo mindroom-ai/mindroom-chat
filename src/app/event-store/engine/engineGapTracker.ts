@@ -26,9 +26,8 @@ import { Direction } from 'matrix-js-sdk';
 import { countCacheProbe } from '../cache/cacheProbe';
 import {
   getTailDiscontinuityGeneration,
-  loadAllRoomTailDiscontinuities,
   loadLatestCachedRoomEvents,
-  type loadRoomTailDiscontinuity,
+  loadRoomTailDiscontinuities,
   markRoomTailDiscontinuity,
   captureCacheStoreWriteLease,
   isCacheStoreWriteLeaseCurrent,
@@ -54,10 +53,8 @@ export type EngineGapTrackerOptions = {
   enqueueGapFill: (job: GapFillJob) => void;
   /** Test hook: swap the durable marker writer. */
   markDiscontinuity?: typeof markRoomTailDiscontinuity;
-  /** Test hook: swap the per-room durable marker reader. */
-  loadDiscontinuity?: typeof loadRoomTailDiscontinuity;
   /** Test hook: swap the bulk durable marker reader used by handleSyncPrepared. */
-  loadAllDiscontinuities?: typeof loadAllRoomTailDiscontinuities;
+  loadRoomDiscontinuities?: typeof loadRoomTailDiscontinuities;
   /** Test hook: control the pre-reset cache boundary snapshot. */
   loadCachedTail?: typeof loadLatestCachedRoomEvents;
   /** Test hook: override the wall-clock time. */
@@ -71,8 +68,6 @@ export type EngineGapTracker = {
     resetAllTimelines?: boolean
   ): void;
   handleSyncPrepared(): Promise<void>;
-  /** Resolves once a pending reset's pre-gap overlap snapshot has finished reading. */
-  whenOverlapCaptured?(roomId: string): Promise<void> | undefined;
   stop(): void;
 };
 
@@ -93,29 +88,6 @@ export const collectOverlapEventIds = (events: readonly { event_id?: unknown }[]
   ),
 ];
 
-type PendingOverlapCapture = {
-  done: Promise<void>;
-  settled: boolean;
-  resolve: () => void;
-  promise?: Promise<string[] | undefined>;
-};
-
-const createOverlapCapture = (): PendingOverlapCapture => {
-  let resolveDone!: () => void;
-  const capture: PendingOverlapCapture = {
-    done: new Promise<void>((resolve) => {
-      resolveDone = resolve;
-    }),
-    settled: false,
-    resolve: () => {
-      if (capture.settled) return;
-      capture.settled = true;
-      resolveDone();
-    },
-  };
-  return capture;
-};
-
 type PendingGapMark = {
   writeLease: CacheStoreWriteLease;
   marker: {
@@ -125,7 +97,7 @@ type PendingGapMark = {
     nextToken?: string | null;
     overlapEventIds?: string[];
   };
-  overlap: PendingOverlapCapture;
+  overlapPromise?: Promise<string[] | undefined>;
   failureCount: number;
   reported: boolean;
   retryTimer?: ReturnType<typeof globalThis.setTimeout>;
@@ -149,12 +121,11 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
     });
   };
   const markDiscontinuity = options.markDiscontinuity ?? markRoomTailDiscontinuity;
-  const loadAllDiscontinuities = options.loadAllDiscontinuities ?? loadAllRoomTailDiscontinuities;
+  const loadRoomDiscontinuities = options.loadRoomDiscontinuities ?? loadRoomTailDiscontinuities;
   const loadCachedTail = options.loadCachedTail ?? loadLatestCachedRoomEvents;
   const now = options.now ?? (() => Date.now());
   const pendingMarks = new Map<string, PendingGapMark>();
   const markQueue = new Set<string>();
-  const prioritizedRoomIds = new Set<string>();
   let drainingMarks = false;
   let stopped = false;
 
@@ -173,8 +144,6 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
     if (pending.retryTimer) globalThis.clearTimeout(pending.retryTimer);
     pendingMarks.delete(roomId);
     markQueue.delete(roomId);
-    prioritizedRoomIds.delete(roomId);
-    pending.overlap.resolve();
     pending.releaseUnsavedGap();
   };
 
@@ -191,29 +160,15 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
     roomId: string,
     pending: PendingGapMark
   ): Promise<string[] | undefined> => {
-    if (!pending.overlap.promise) {
-      pending.overlap.promise = loadCachedTail(
-        options.sessionId,
-        roomId,
-        GAP_FILL_OVERLAP_TAIL_LIMIT
-      )
-        .then((cachedTail) => collectOverlapEventIds(cachedTail.events))
-        // Leave failed boundary reads unset rather than committing an empty [] boundary.
-        .catch(() => undefined)
-        .finally(pending.overlap.resolve);
-    }
-    return pending.overlap.promise;
-  };
-
-  const takeNextRoomId = (): string | undefined => {
-    for (const roomId of prioritizedRoomIds) {
-      prioritizedRoomIds.delete(roomId);
-      if (markQueue.delete(roomId)) return roomId;
-    }
-    const next = markQueue.values().next();
-    if (next.done) return undefined;
-    markQueue.delete(next.value);
-    return next.value;
+    pending.overlapPromise ??= loadCachedTail(
+      options.sessionId,
+      roomId,
+      GAP_FILL_OVERLAP_TAIL_LIMIT
+    )
+      .then((cachedTail) => collectOverlapEventIds(cachedTail.events))
+      // Leave failed boundary reads unset rather than committing an empty [] boundary.
+      .catch(() => undefined);
+    return pending.overlapPromise;
   };
 
   const drainMarkQueue = async (): Promise<void> => {
@@ -221,8 +176,10 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
     drainingMarks = true;
     try {
       while (!stopped) {
-        const roomId = takeNextRoomId();
-        if (!roomId) break;
+        const next = markQueue.values().next();
+        if (next.done) break;
+        const roomId = next.value;
+        markQueue.delete(roomId);
         const pending = pendingMarks.get(roomId);
         if (!pending || pending.retryTimer || !isPendingActive(roomId, pending)) continue;
 
@@ -283,12 +240,10 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
 
     const previous = pendingMarks.get(room.roomId);
     if (previous?.retryTimer) globalThis.clearTimeout(previous.retryTimer);
-    const reusePreviousOverlap =
-      previous !== undefined && isCacheStoreWriteLeaseCurrent(previous.writeLease);
-    const overlap = reusePreviousOverlap ? previous.overlap : createOverlapCapture();
-    if (previous && !reusePreviousOverlap) {
-      previous.overlap.resolve();
-    }
+    const overlapPromise =
+      previous && isCacheStoreWriteLeaseCurrent(previous.writeLease)
+        ? previous.overlapPromise
+        : undefined;
     pendingMarks.set(room.roomId, {
       releaseUnsavedGap: holdUnsavedRoomCacheGap(options.sessionId, room.roomId),
       writeLease: captureCacheStoreWriteLease(options.sessionId, room.roomId),
@@ -297,7 +252,7 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
         generation,
         nextToken: prevBatch,
       },
-      overlap,
+      overlapPromise,
       failureCount: 0,
       reported: false,
     });
@@ -305,55 +260,30 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
     enqueueMarkWork(room.roomId);
   };
 
-  const whenOverlapCaptured = (roomId: string): Promise<void> | undefined => {
-    if (stopped) return undefined;
-    const pending = pendingMarks.get(roomId);
-    if (!pending || pending.overlap.settled) return undefined;
-    if (!isCacheStoreWriteLeaseCurrent(pending.writeLease)) {
-      dropClearedPendingMark(roomId, pending);
-      return undefined;
-    }
-    if (markQueue.has(roomId)) {
-      prioritizedRoomIds.add(roomId);
-    }
-    return pending.overlap.done;
-  };
-
   const handleSyncPrepared = async () => {
     if (stopped) return;
     const rooms = options.mx.getRooms?.() ?? [];
-    const joinedRooms = rooms.filter((room) => {
+    const joinedRoomIds = rooms.flatMap((room) => {
       // Membership filter: only joined rooms. Left rooms have no live
       // tail worth filling.
       const membership = room.getMyMembership?.();
-      return !membership || membership === 'join';
+      return !membership || membership === 'join' ? [room.roomId] : [];
     });
-    if (joinedRooms.length === 0) return;
+    if (joinedRoomIds.length === 0) return;
 
-    if (options.loadDiscontinuity && !options.loadAllDiscontinuities) {
-      for (const room of joinedRooms) {
-        const marker = await options.loadDiscontinuity(options.sessionId, room.roomId);
-        if (stopped) return;
-        if (marker) enqueueGapFill(room.roomId, 'startup', marker);
-      }
-      return;
-    }
-
-    const markers = await loadAllDiscontinuities(options.sessionId);
+    const markers = await loadRoomDiscontinuities(options.sessionId, joinedRoomIds);
     if (stopped) return;
-    for (const room of joinedRooms) {
-      const marker = markers.get(room.roomId);
-      if (marker) enqueueGapFill(room.roomId, 'startup', marker);
+    for (const roomId of joinedRoomIds) {
+      const marker = markers.get(roomId);
+      if (marker) enqueueGapFill(roomId, 'startup', marker);
     }
   };
 
   const stop = () => {
     stopped = true;
     markQueue.clear();
-    prioritizedRoomIds.clear();
-    pendingMarks.forEach(({ retryTimer, releaseUnsavedGap, overlap }) => {
+    pendingMarks.forEach(({ retryTimer, releaseUnsavedGap }) => {
       if (retryTimer) globalThis.clearTimeout(retryTimer);
-      overlap.resolve();
       releaseUnsavedGap();
     });
     pendingMarks.clear();
@@ -362,7 +292,6 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
   return {
     handleTimelineReset,
     handleSyncPrepared,
-    whenOverlapCaptured,
     stop,
   };
 };

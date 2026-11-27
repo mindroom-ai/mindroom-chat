@@ -42,8 +42,6 @@ import {
   setEvictionProtectedRoomIds,
   revokeCacheStoreWrites,
   captureCacheStoreWriteLease,
-  isCacheStoreWriteLeaseCurrent,
-  type CacheStoreWriteLease,
 } from '../cache/db';
 import { createEngineWriteThrough, type EngineWriteThrough } from './engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracker';
@@ -53,11 +51,8 @@ import { createGapFillExecutor } from './gapFillExecutor';
 import { DEFAULT_PREFETCH_SCOPE, type PrefetchConfig } from './prefetchPolicy';
 import type { EngineLiveEventMeta, SyncEngine } from './types';
 import { trackPendingThreadEvent } from '../cache/pendingThreadEvents';
-import {
-  persistRoomChunkWithPreferLive,
-  rememberEventCacheWriteLease,
-  canPersistDecryptedEvent,
-} from '../cache/eventRepository';
+import { rememberEventCacheWriteLease, canPersistDecryptedEvent } from '../cache/eventRepository';
+import { createLiveWriteQueue } from './liveWriteQueue';
 import { createRoomOfflineController } from './roomOffline';
 import { registerEncryptedRoomCheck } from '../cache/db/cacheStoreEncryptedRooms';
 import type { OfflineConnection } from './offlineConnection';
@@ -195,90 +190,15 @@ export const createSyncEngine = ({
       enqueueGapFill: gapFillExecutor.enqueue,
     });
 
-  type PendingLiveWrite = {
-    room: Room;
-    events: MatrixEvent[];
-    roomTailLoaded: boolean | undefined;
-    threadId?: string;
-    lease: CacheStoreWriteLease;
-  };
-  const pendingLiveWrites = new Map<string, PendingLiveWrite>();
-  let liveDrainScheduled = false;
-  let drainingLiveWrites = false;
-
-  const scheduleLiveWriteDrain = () => {
-    if (drainingLiveWrites || liveDrainScheduled || pendingLiveWrites.size === 0) return;
-    liveDrainScheduled = true;
-    queueMicrotask(() => {
-      liveDrainScheduled = false;
-      void drainLiveWrites();
-    });
-  };
-
-  const drainLiveWrites = async () => {
-    if (drainingLiveWrites) return;
-    drainingLiveWrites = true;
-    liveDrainScheduled = false;
-    try {
-      while (pendingLiveWrites.size > 0) {
-        const next = pendingLiveWrites.entries().next();
-        if (next.done) break;
-        const [key, entry] = next.value;
-        pendingLiveWrites.delete(key);
-        if (!isCacheStoreWriteLeaseCurrent(entry.lease)) continue;
-        const waitForOverlap = effectiveGapTracker.whenOverlapCaptured?.(entry.room.roomId);
-        if (waitForOverlap) {
-          await waitForOverlap;
-          if (!isCacheStoreWriteLeaseCurrent(entry.lease)) continue;
-        }
-        try {
-          const saved = await persistRoomChunkWithPreferLive({
-            mx,
-            sessionId,
-            room: entry.room,
-            chunk: entry.events.map((event) => event.event),
-            mappedEvents: entry.events,
-            roomTailLoaded: entry.roomTailLoaded ?? false,
-            threadId: entry.threadId,
-            writeLease: entry.lease,
-          });
-          if (saved) void offline.observe(saved.events, entry.room.roomId, entry.lease);
-        } catch {
-          // A failed batch must not stall subsequent rooms in the serial drain.
-        }
-      }
-    } finally {
-      drainingLiveWrites = false;
-      if (pendingLiveWrites.size > 0) scheduleLiveWriteDrain();
-    }
-  };
-
+  const liveWriteQueue = createLiveWriteQueue({
+    mx,
+    sessionId,
+    onSaved: (events, roomId, lease) => {
+      void offline.observe(events, roomId, lease);
+    },
+  });
   const effectiveWriteThrough =
-    writeThrough ??
-    createEngineWriteThrough({
-      sessionId,
-      persist: (room, events, roomTailLoaded, threadId) => {
-        if (events.length === 0) return;
-        const key = `${room.roomId}\0${threadId ?? ''}`;
-        const existing = pendingLiveWrites.get(key);
-        if (existing && isCacheStoreWriteLeaseCurrent(existing.lease)) {
-          existing.room = room;
-          existing.events.push(...events);
-          if (roomTailLoaded === true) existing.roomTailLoaded = true;
-          else if (existing.roomTailLoaded === undefined) existing.roomTailLoaded = roomTailLoaded;
-        } else {
-          if (existing) pendingLiveWrites.delete(key);
-          pendingLiveWrites.set(key, {
-            room,
-            events: [...events],
-            roomTailLoaded,
-            threadId,
-            lease: captureCacheStoreWriteLease(sessionId, room.roomId),
-          });
-        }
-        scheduleLiveWriteDrain();
-      },
-    });
+    writeThrough ?? createEngineWriteThrough({ sessionId, persist: liveWriteQueue.enqueue });
 
   let started = false;
   let liveMode = false;
@@ -290,7 +210,7 @@ export const createSyncEngine = ({
   // Drain edit compaction and queued live writes before the page freezes.
   const flushForVisibility = () => {
     effectiveWriteThrough.flush();
-    if (pendingLiveWrites.size > 0) void drainLiveWrites();
+    liveWriteQueue.drainNow();
   };
 
   const handlePageHide = () => flushForVisibility();
@@ -504,7 +424,7 @@ export const createSyncEngine = ({
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
       offline.stop();
       revokeCacheStoreWrites(sessionId);
-      pendingLiveWrites.clear();
+      liveWriteQueue.clear();
       forgetEncryptedRoomCheck?.();
 
       bindableWindow?.removeEventListener('pagehide', handlePageHide);

@@ -54,6 +54,10 @@ export const holdUnsavedRoomCacheGap = (sessionId: string, roomId: string): (() 
  * before that could outlive a page that closes before the marker is saved, and the next visit
  * would take the events around the hole as one run.
  */
+/** Whether the room currently has an unsaved limited-sync gap waiting for its durable marker. */
+export const hasUnsavedRoomCacheGap = (sessionId: string, roomId: string): boolean =>
+  unsavedGaps.has(gapKey(sessionId, roomId));
+
 export const whenRoomCacheGapsSaved = (sessionId: string, roomId: string): Promise<void> =>
   unsavedGaps.get(gapKey(sessionId, roomId))?.saved ?? Promise.resolve();
 

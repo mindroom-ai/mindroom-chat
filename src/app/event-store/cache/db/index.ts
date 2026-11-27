@@ -106,8 +106,10 @@ export { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStore
 
 export {
   cachedHistoryJoinsBefore,
+  hasUnsavedRoomCacheGap,
   holdUnsavedRoomCacheGap,
   loadRoomCacheGap,
+  whenRoomCacheGapsSaved,
   type RoomCacheGap,
 } from './cacheStoreGap';
 
@@ -116,7 +118,7 @@ export {
   checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,
   getTailDiscontinuityGeneration,
-  loadAllRoomTailDiscontinuities,
+  loadRoomTailDiscontinuities,
   loadRoomTailDiscontinuity,
 } from './cacheStoreDiscontinuity';
 

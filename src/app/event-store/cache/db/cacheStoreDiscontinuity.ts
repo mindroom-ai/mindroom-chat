@@ -15,7 +15,7 @@
  * version does not change and older readers ignore it.
  */
 
-import { readAllMetaRecords, readMetaRecord, updateMetaRecord } from './cacheStoreMeta';
+import { readMetaRecord, readMetaRecords, updateMetaRecord } from './cacheStoreMeta';
 import { buildMetaKey, ROOM_SCOPE, type CachedMetaRecord } from './cacheStoreSchema';
 
 export type TailDiscontinuityMarker = NonNullable<CachedMetaRecord['tailDiscontinuity']>;
@@ -132,18 +132,19 @@ export const loadRoomTailDiscontinuity = async (
 };
 
 /**
- * Read every room tail-discontinuity marker for the session in one
- * `readonly` meta transaction. Rejects with `CacheStoreMetaUnavailableError`
- * when IndexedDB is unavailable.
+ * Read room tail-discontinuity markers for `roomIds` in one `readonly` meta
+ * transaction. Rejects with `CacheStoreMetaUnavailableError` when IndexedDB is
+ * unavailable.
  */
-export const loadAllRoomTailDiscontinuities = async (
-  sessionId: string
+export const loadRoomTailDiscontinuities = async (
+  sessionId: string,
+  roomIds: readonly string[]
 ): Promise<Map<string, TailDiscontinuityMarker>> => {
-  const records = await readAllMetaRecords(sessionId);
+  const records = await readMetaRecords(sessionId, roomIds, ROOM_SCOPE);
   const markers = new Map<string, TailDiscontinuityMarker>();
-  for (const record of records) {
-    if (record.scope === ROOM_SCOPE && record.roomId && record.tailDiscontinuity) {
-      markers.set(record.roomId, record.tailDiscontinuity);
+  for (const [roomId, record] of records) {
+    if (record.tailDiscontinuity) {
+      markers.set(roomId, record.tailDiscontinuity);
     }
   }
   return markers;
