@@ -1459,8 +1459,9 @@ describe('SpaceThreadsPage', () => {
     ).toBe('Unpin thread');
   });
 
-  it('refreshes room names renamed while SpaceThreadsPage was hidden in Activity immediately on reveal', () => {
-    const eng = makeRoom(ROOM_ENG, 'Engineering');
+  it('refreshes room names, standalone messages, and remote pins updated while SpaceThreadsPage was hidden in Activity immediately on reveal', () => {
+    const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
+    eng.setPowerLevels({ users_default: 50, state_default: 50, events_default: 0 });
     const entries = [
       makeEntry(ROOM_ENG, 'Engineering', '$t-rename', 'Rename thread', NOW - 10_000),
     ];
@@ -1515,13 +1516,41 @@ describe('SpaceThreadsPage', () => {
 
     const { rerender, container } = render(renderTree('visible'));
     expect(container.textContent).toContain('Engineering');
+    expect(container.textContent).not.toContain('Standalone arrived while hidden');
+    expect(
+      container
+        .querySelector('[data-scroll-anchor="$t-rename"] [data-compact-thread-pin]')
+        ?.getAttribute('aria-label')
+    ).toBe('Pin thread');
 
-    // Hide inside Activity (detaching RoomEvent.Name listeners), then mutate room name while hidden.
+    // Hide inside Activity (detaching room metadata, timeline, and pin listeners), then apply:
+    // (1) room rename, (2) a standalone zero-reply message, and (3) a remote pin update.
     rerender(renderTree('hidden'));
     eng.setName('Platform Core');
+    eng.setTimelineEvents([
+      {
+        getId: () => '$standalone-hidden',
+        getRoomId: () => ROOM_ENG,
+        getType: () => 'm.room.message',
+        getContent: () => ({ msgtype: 'm.text', body: 'Standalone arrived while hidden' }),
+        getSender: () => '@bob:example.org',
+        getTs: () => NOW,
+        getRelation: () => undefined,
+        getUnsigned: () => ({}),
+        replacingEvent: () => null,
+        isRedacted: () => false,
+      },
+    ]);
+    eng.setPinnedEventIds(['$t-rename']);
 
-    // Reveal: metadata refreshes immediately without waiting for another RoomEvent.Name emission.
+    // Reveal: metadata, standalone timeline message, and remote pin all update immediately.
     rerender(renderTree('visible'));
     expect(container.textContent).toContain('Platform Core');
+    expect(container.textContent).toContain('Standalone arrived while hidden');
+    expect(
+      container
+        .querySelector('[data-scroll-anchor="$t-rename"] [data-compact-thread-pin]')
+        ?.getAttribute('aria-label')
+    ).toBe('Unpin thread');
   });
 });

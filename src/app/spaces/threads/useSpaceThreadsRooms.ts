@@ -84,11 +84,13 @@ export const useSpaceThreadsRooms = (spaceId: string, passive = false) => {
       return undefined;
     }
     const bumpMeta = () => setRoomMetaVersion((tick) => tick + 1);
-    // Refresh room metadata on `<Activity>` reveal or passive→active transition so rooms renamed
-    // while listeners were detached update immediately.
+    // Refresh room metadata and standalone timeline snapshot on `<Activity>` reveal or
+    // passive→active transition so rooms renamed or standalone messages received while parked
+    // appear immediately.
     if (metaSuspendedRef.current) {
       metaSuspendedRef.current = false;
       bumpMeta();
+      setTimelineTick((tick) => tick + 1);
     }
     const handleState = (event: MatrixEvent) => {
       const type = event.getType();

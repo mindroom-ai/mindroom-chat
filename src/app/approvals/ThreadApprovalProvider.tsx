@@ -326,6 +326,7 @@ function ActiveThreadApprovalProvider({
     };
   }, [mx, refresh]);
   useEffect(() => {
+    if (passive) return;
     const origins = [...events]
       .filter(
         ([id, event]) =>
@@ -338,7 +339,7 @@ function ActiveThreadApprovalProvider({
       .map(([, event]) => event);
     if (!fetching.current && !repairError && origins.length > 0)
       setRequest(({ revision }) => ({ revision: revision + 1, origins }));
-  }, [events, loading, threadId, repairError]);
+  }, [events, loading, threadId, repairError, passive]);
   useEffect(() => {
     const deadlines = records.flatMap(({ approval }) => {
       const expiry =

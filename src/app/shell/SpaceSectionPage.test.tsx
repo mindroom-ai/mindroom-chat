@@ -187,11 +187,64 @@ afterEach(() => {
 });
 
 describe('SpaceSectionPage live 2-layer stack', () => {
-  it('leaves desktop behavior completely unchanged (renders Outlet directly with no Activity wrapper)', () => {
+  it('renders one SpaceThreadsPage on desktop All threads and unmounts it cleanly when navigating away', async () => {
     const { router } = mountSpaceRouter(spacePath(SPACE_A, 'threads/'), ScreenSize.Desktop);
-    expect(screen.getByTestId('outlet-threads')).toBeDefined();
-    expect(screen.queryByTestId('space-threads-page')).toBeNull();
-    router.dispose();
+    try {
+      expect(screen.getAllByTestId('space-threads-page')).toHaveLength(1);
+      expect(screen.queryByTestId('outlet-threads')).toBeNull();
+      expect(probe.threadsMounts).toBe(1);
+
+      // Navigating away on desktop unmounts SpaceThreadsPage (never parked) and mounts Outlet.
+      await act(async () => {
+        await router.navigate(spacePath(SPACE_A, 'lobby/'));
+      });
+      expect(screen.queryByTestId('space-threads-page')).toBeNull();
+      expect(screen.getByTestId('space-lobby')).toBeTruthy();
+    } finally {
+      router.dispose();
+    }
+  });
+
+  it('keeps the exact same SpaceThreadsPage instance mounted across Mobile -> Desktop -> Mobile rotation', () => {
+    const { router, rendered } = mountSpaceRouter(
+      spacePath(SPACE_A, 'threads/'),
+      ScreenSize.Mobile
+    );
+    try {
+      expect(probe.threadsMounts).toBe(1);
+      const initialEl = screen.getByTestId('space-threads-page');
+      expect(initialEl.dataset.instance).toBe('1');
+      expect(screen.queryByTestId('outlet-threads')).toBeNull();
+
+      rendered.rerender(
+        <MatrixClientProvider value={mx}>
+          <ScreenSizeProvider value={ScreenSize.Desktop}>
+            <div>
+              <RouterProvider router={router} />
+            </div>
+          </ScreenSizeProvider>
+        </MatrixClientProvider>
+      );
+      expect(probe.threadsMounts).toBe(1);
+      expect(screen.getByTestId('space-threads-page')).toBe(initialEl);
+      expect(screen.getByTestId('space-threads-page').dataset.instance).toBe('1');
+      expect(screen.queryByTestId('outlet-threads')).toBeNull();
+
+      rendered.rerender(
+        <MatrixClientProvider value={mx}>
+          <ScreenSizeProvider value={ScreenSize.Mobile}>
+            <div data-phone-stage="">
+              <RouterProvider router={router} />
+            </div>
+          </ScreenSizeProvider>
+        </MatrixClientProvider>
+      );
+      expect(probe.threadsMounts).toBe(1);
+      expect(screen.getByTestId('space-threads-page')).toBe(initialEl);
+      expect(screen.getByTestId('space-threads-page').dataset.instance).toBe('1');
+    } finally {
+      router.dispose();
+    }
   });
 
   it('on phones mounts SpaceThreadsPage once, plays forward slide into Thread, preserves scrollTop across Activity hide/reveal, peeks passively, and commits continuously', async () => {

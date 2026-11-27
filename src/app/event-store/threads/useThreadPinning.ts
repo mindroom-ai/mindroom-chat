@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { RoomEvent, RoomStateEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../matrix/types/room';
 import { AsyncStatus, useAsyncCallback } from '../../lib/hooks/useAsyncCallback';
@@ -25,7 +25,12 @@ const readRoomPinnedEventIds = (room: Room): string[] =>
 
 export const usePinnedEventIds = (room: Room): string[] => {
   const [stateVersion, refresh] = useForceUpdate();
+  const suspendedRef = useRef(false);
   useEffect(() => {
+    if (suspendedRef.current) {
+      suspendedRef.current = false;
+      refresh();
+    }
     const handleState = (event: MatrixEvent) => {
       if (matchesEnum(event.getType(), StateEvent.RoomPinnedEvents) && event.getStateKey() === '')
         refresh();
@@ -33,6 +38,7 @@ export const usePinnedEventIds = (room: Room): string[] => {
     room.on(RoomStateEvent.Events, handleState);
     room.on(RoomEvent.CurrentStateUpdated, refresh);
     return () => {
+      suspendedRef.current = true;
       room.removeListener(RoomStateEvent.Events, handleState);
       room.removeListener(RoomEvent.CurrentStateUpdated, refresh);
     };
@@ -51,8 +57,16 @@ export const usePinnedEventIds = (room: Room): string[] => {
 
 export const usePinnedEventIdsByRoom = (rooms: readonly Room[]): ReadonlyMap<string, string[]> => {
   const [stateVersion, refresh] = useForceUpdate();
+  const suspendedRef = useRef(false);
   useEffect(() => {
-    if (rooms.length === 0) return undefined;
+    if (rooms.length === 0) {
+      suspendedRef.current = true;
+      return undefined;
+    }
+    if (suspendedRef.current) {
+      suspendedRef.current = false;
+      refresh();
+    }
     const handleState = (event: MatrixEvent) => {
       if (matchesEnum(event.getType(), StateEvent.RoomPinnedEvents) && event.getStateKey() === '')
         refresh();
@@ -62,6 +76,7 @@ export const usePinnedEventIdsByRoom = (rooms: readonly Room[]): ReadonlyMap<str
       room.on?.(RoomEvent.CurrentStateUpdated, refresh);
     });
     return () => {
+      suspendedRef.current = true;
       rooms.forEach((room) => {
         room.removeListener?.(RoomStateEvent.Events, handleState);
         room.removeListener?.(RoomEvent.CurrentStateUpdated, refresh);

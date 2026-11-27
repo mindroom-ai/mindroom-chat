@@ -217,8 +217,12 @@ export function useScrollAnchorMemory({
     const view = scrollRef.current;
     return () => {
       // A list without its rows, before they render or after they all went,
-      // keeps the position saved before it.
-      if (view && readyRef.current && view.getBoundingClientRect().height > 0) {
+      // keeps the position saved before it. Also skip a zero-height hidden
+      // element (`<Activity mode="hidden">` sets `display: none`) while still
+      // accepting partial test rects whose `height` is omitted.
+      const rect = view?.getBoundingClientRect();
+      const hidden = typeof rect?.height === 'number' && rect.height <= 0;
+      if (view && readyRef.current && !hidden) {
         memory.set(memoryKey, captureScrollAnchors(view, getRowId));
       }
       // Reset restore and placement progress so subsequent `<Activity>` reveals (which preserve

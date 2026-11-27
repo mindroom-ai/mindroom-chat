@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ClientEvent, createClient, MatrixEvent, Room, SyncState } from 'matrix-js-sdk';
-import React from 'react';
+import React, { Activity } from 'react';
 import { act, create } from 'react-test-renderer';
 import { StateEvent } from '../../matrix/types/room';
 import { canPinRoomEvents, isThreadPinned, setRoomEventPinned } from './threadPinning';
-import { usePinnedEventIds } from './useThreadPinning';
+import { usePinnedEventIds, usePinnedEventIdsByRoom } from './useThreadPinning';
 
 const admin = '@admin:example.org';
 const syncPins = (room: Room, id: string, pinned: string[]) =>
@@ -413,5 +413,44 @@ describe('room thread pins', () => {
     const send = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$pin' });
     await expect(setRoomEventPinned(mx, room, '~pending', true)).rejects.toThrow();
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('refreshes remote pins added while hidden inside Activity immediately on reveal', () => {
+    const { room } = makeRoom();
+    const rooms = [room];
+    let singlePins: string[] = [];
+    let mapPins: ReadonlyMap<string, string[]> = new Map();
+    function Probe() {
+      singlePins = usePinnedEventIds(room);
+      mapPins = usePinnedEventIdsByRoom(rooms);
+      return null;
+    }
+    const ActivityBoundary = Activity as React.ComponentType<{
+      mode: 'visible' | 'hidden';
+      children?: React.ReactNode;
+    }>;
+    const renderTree = (mode: 'visible' | 'hidden') =>
+      React.createElement(ActivityBoundary, { mode }, React.createElement(Probe));
+
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(renderTree('visible'));
+    });
+    expect(singlePins).toEqual(['$older', '$reply']);
+    expect(mapPins.get(room.roomId)).toEqual(['$older', '$reply']);
+
+    // Hide inside Activity (detaching room state listeners), then apply a remote pin update.
+    act(() => {
+      renderer?.update(renderTree('hidden'));
+    });
+    syncPins(room, '$remote-pin', ['$older', '$reply', '$remote']);
+
+    // Reveal: both hooks refresh immediately from current room state without waiting for another event.
+    act(() => {
+      renderer?.update(renderTree('visible'));
+    });
+    expect(singlePins).toEqual(['$older', '$reply', '$remote']);
+    expect(mapPins.get(room.roomId)).toEqual(['$older', '$reply', '$remote']);
+    act(() => renderer?.unmount());
   });
 });

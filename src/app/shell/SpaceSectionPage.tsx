@@ -105,7 +105,7 @@ export function SpaceSectionPage() {
 
   // Never eagerly mount SpaceThreadsPage on a cold reload directly inside a thread.
   const [mountedSpaceId, setMountedSpaceId] = useState<string | null>(() =>
-    phone && isOnSpaceThreads ? space.roomId : null
+    isOnSpaceThreads ? space.roomId : null
   );
   const [prevRoute, setPrevRoute] = useState({ spaceId: space.roomId, isOnSpaceThreads, phone });
   const [slidingForward, setSlidingForward] = useState(false);
@@ -119,9 +119,10 @@ export function SpaceSectionPage() {
     const wasOnThisSpaceThreads =
       prevRoute.phone && prevRoute.spaceId === space.roomId && prevRoute.isOnSpaceThreads;
     setPrevRoute({ spaceId: space.roomId, isOnSpaceThreads, phone });
-    if (phone && isOnSpaceThreads) {
+    if (isOnSpaceThreads) {
       setMountedSpaceId(space.roomId);
       setSlidingForward(false);
+      setPeekingThreads(false);
     } else if (phone && mountedSpaceId === space.roomId && isThreadReturningToThisSpace) {
       if (wasOnThisSpaceThreads && canPlayLiveSlide()) setSlidingForward(true);
     } else {
@@ -130,10 +131,9 @@ export function SpaceSectionPage() {
       setPeekingThreads(false);
     }
   } else if (
-    phone &&
     !isOnSpaceThreads &&
     mountedSpaceId !== null &&
-    (mountedSpaceId !== space.roomId || !isThreadReturningToThisSpace)
+    (!phone || mountedSpaceId !== space.roomId || !isThreadReturningToThisSpace)
   ) {
     setMountedSpaceId(null);
     setSlidingForward(false);
@@ -159,14 +159,14 @@ export function SpaceSectionPage() {
     slidingForward,
   });
 
-  const mountThreads = phone && mountedSpaceId === space.roomId;
-  const threadsVisible = isOnSpaceThreads || slidingForward || peekingThreads;
-  const hideOutlet = phone && isOnSpaceThreads;
+  const mountThreads = isOnSpaceThreads || (phone && mountedSpaceId === space.roomId);
+  const threadsVisible = isOnSpaceThreads || (phone && (slidingForward || peekingThreads));
+  const hideOutlet = isOnSpaceThreads;
   useInert(underRef, mountThreads && !isOnSpaceThreads);
 
   useLayoutEffect(() => {
-    if (phone && isOnSpaceThreads) completeLiveSlideHandoff();
-  }, [isOnSpaceThreads, phone]);
+    if (isOnSpaceThreads) completeLiveSlideHandoff();
+  }, [isOnSpaceThreads]);
 
   useLayoutEffect(() => {
     if (!phone || !slidingForward) return undefined;
@@ -258,11 +258,15 @@ export function SpaceSectionPage() {
           {mountThreads && (
             <div
               ref={underRef}
-              className={isOnSpaceThreads ? css.ActiveLayer : css.ParkedUnderLayer}
+              className={
+                !phone ? css.PassThrough : isOnSpaceThreads ? css.ActiveLayer : css.ParkedUnderLayer
+              }
               aria-hidden={!isOnSpaceThreads || undefined}
-              data-space-threads-layer=""
+              data-space-threads-layer={phone ? '' : undefined}
             >
-              <SpaceThreadsPassiveContext.Provider value={peekingThreads && !isOnSpaceThreads}>
+              <SpaceThreadsPassiveContext.Provider
+                value={phone && peekingThreads && !isOnSpaceThreads}
+              >
                 <Activity mode={threadsVisible ? 'visible' : 'hidden'}>
                   <SpaceThreadsPage />
                 </Activity>

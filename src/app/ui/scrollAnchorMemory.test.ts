@@ -493,4 +493,33 @@ describe('useScrollAnchorMemory', () => {
     expect(layout.view.scrollTop).toBe(360);
     expect(layout.offsetOf('row-8')).toBe(anchorOffset1);
   });
+
+  it('preserves a previously saved position when unmounting from a zero-height hidden element', () => {
+    const memory: ScrollAnchorMemory = new Map([
+      ['hidden-list', { scrollTop: 320, anchors: [{ key: 'row-8', offset: 0 }] }],
+    ]);
+    const layout = createLayout(rowKeys(20));
+    const scrollRef = { current: layout.view };
+    const contentRef = { current: layout.content };
+    act(() => {
+      renderer = create(
+        React.createElement(AnchoredList, {
+          memory,
+          memoryKey: 'hidden-list',
+          layout: { scrollRef, contentRef },
+          ready: true,
+        })
+      );
+    });
+    // Simulate display: none / hidden element resetting rect height and scrollTop to 0 before cleanup.
+    layout.view.scrollTop = 0;
+    layout.view.getBoundingClientRect = () => toRect(0, 0);
+    act(() => {
+      renderer?.unmount();
+    });
+    expect(memory.get('hidden-list')).toEqual({
+      scrollTop: 320,
+      anchors: [{ key: 'row-8', offset: 0 }],
+    });
+  });
 });
