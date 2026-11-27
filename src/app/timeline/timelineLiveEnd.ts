@@ -35,6 +35,20 @@ const AT_HELD_LIST_END_PX = 2;
 const distanceBelowView = (element: HTMLElement): number =>
   element.scrollHeight - element.scrollTop - element.clientHeight;
 
+/**
+ * Whether `element` already rests where a held list will end after pending row shrink renders.
+ * Scrolling to the held list's current end would open a one-frame blank band above the composer.
+ */
+const isAtHeldListEnd = (
+  element: HTMLElement | null,
+  listHeightHeld: boolean | undefined,
+  pendingListShrinkPx: (() => number) | undefined
+): boolean => {
+  if (!listHeightHeld || !element) return false;
+  const heldPx = pendingListShrinkPx?.() ?? 0;
+  return heldPx >= 1 && Math.abs(distanceBelowView(element) - heldPx) < AT_HELD_LIST_END_PX;
+};
+
 /** Net scroll growth to expose outside `contentRef` while `heldList` freezes its height. */
 export const computeHeldEndSpacer = (
   lastEnd: number | undefined,
@@ -169,6 +183,8 @@ export const useHeldRowsLayout = ({
 
 export type ThreadOpeningPinOptions = Pick<
   RoomFocusScrollControllerOptions,
+  | 'listHeightHeld'
+  | 'pendingListShrinkPx'
   | 'readMeasurementCorrectionPx'
   | 'isThreadOpenBottomPinSuppressed'
   | 'requestThreadOpenBottomPin'
@@ -183,12 +199,8 @@ export type ThreadOpeningPinOptions = Pick<
   | 'threadUserScrolled'
 >;
 
-/**
- * A thread opened at its newest row is held there while its rows arrive and measure, until the
- * reader's first gesture or a jump target suppresses the opening pin.
- */
-const tryPinThreadOpening = (o: ThreadOpeningPinOptions, scrollArea: HTMLElement): boolean => {
-  const pinned = shouldPinThreadToBottomOnOpen({
+const canPinThreadOpening = (o: ThreadOpeningPinOptions): boolean =>
+  shouldPinThreadToBottomOnOpen({
     suppressOpenBottomPin: o.isThreadOpenBottomPinSuppressed(),
     threadId: o.threadId,
     threadLatestOpenPending: o.threadLatestOpenPending,
@@ -197,7 +209,13 @@ const tryPinThreadOpening = (o: ThreadOpeningPinOptions, scrollArea: HTMLElement
     threadInitialRenderMode: o.threadInitialRenderMode,
     threadEventCount: o.threadEventsLength,
   });
-  if (!pinned || !o.requestThreadOpenBottomPin()) return false;
+
+/**
+ * A thread opened at its newest row is held there while its rows arrive and measure, until the
+ * reader's first gesture or a jump target suppresses the opening pin.
+ */
+const tryPinThreadOpening = (o: ThreadOpeningPinOptions, scrollArea: HTMLElement): boolean => {
+  if (!o.requestThreadOpenBottomPin()) return false;
   if (o.scrollThreadToEnd) o.scrollThreadToEnd(false);
   else scrollToBottom(scrollArea, 'instant');
   return true;
@@ -210,7 +228,13 @@ export const useThreadOpeningPin = (o: ThreadOpeningPinOptions): void => {
   useLayoutEffect(() => {
     const cur = optsRef.current;
     const scrollArea = cur.scrollRef.current;
-    if (!cur.threadId || !scrollArea || !tryPinThreadOpening(cur, scrollArea)) return;
+    if (!cur.threadId || !scrollArea || !canPinThreadOpening(cur)) return;
+    if (
+      !isAtHeldListEnd(scrollArea, cur.listHeightHeld, cur.pendingListShrinkPx) &&
+      !tryPinThreadOpening(cur, scrollArea)
+    ) {
+      return;
+    }
     cur.setAtBottom(true);
     pinnedInCommitRef.current = true;
     pinnedPositionRef.current = {
@@ -239,23 +263,12 @@ export const useThreadOpeningPin = (o: ThreadOpeningPinOptions): void => {
       return;
     }
     const scrollArea = o.scrollRef.current;
-    if (
-      !o.threadId ||
-      !scrollArea ||
-      !shouldPinThreadToBottomOnOpen({
-        suppressOpenBottomPin: o.isThreadOpenBottomPinSuppressed(),
-        threadId: o.threadId,
-        threadLatestOpenPending: o.threadLatestOpenPending,
-        threadOpenedAtLatest: o.threadOpenedAtLatest,
-        hasUserScrollIntent: o.threadUserScrolled,
-        threadInitialRenderMode: o.threadInitialRenderMode,
-        threadEventCount: o.threadEventsLength,
-      })
-    ) {
-      return;
-    }
+    if (!o.threadId || !scrollArea || !canPinThreadOpening(o)) return;
     const correction = o.readMeasurementCorrectionPx?.() ?? 0;
-    if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
+    if (
+      distanceBelowView(scrollArea) <= 1 ||
+      isAtHeldListEnd(scrollArea, o.listHeightHeld, o.pendingListShrinkPx)
+    ) {
       pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
       return;
     }
@@ -396,14 +409,7 @@ export const useTimelineLiveEnd = ({
     // row (`listShrinkNotRendered`). A reader the correction for those rows left where the list
     // will end is at the newest row: the end the list has now would show a blank band above the
     // composer for a frame. Any other reader is brought to the end the list has.
-    const heldPx = listHeightHeld ? (pendingListShrinkPx?.() ?? 0) : 0;
-    if (
-      heldPx >= 1 &&
-      scrollElement &&
-      Math.abs(distanceBelowView(scrollElement) - heldPx) < AT_HELD_LIST_END_PX
-    ) {
-      return;
-    }
+    if (isAtHeldListEnd(scrollElement, listHeightHeld, pendingListShrinkPx)) return;
     if (surface === 'room') virtualizer?.scrollToIndex(itemCount - 1, { align: 'end' });
     else if (scrollElement) scrollToBottom(scrollElement, 'instant');
   });

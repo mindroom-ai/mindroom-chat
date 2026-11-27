@@ -327,6 +327,8 @@ export const timelineFocusBase = (
   feature: Pick<ReturnType<typeof useTimelineMessageFeature>, 'editingEventId'>
 ) => ({
   readMeasurementCorrectionPx: list.ledger.readMeasurementCorrectionPx,
+  listHeightHeld: list.heldLayout.listHeightHeld,
+  pendingListShrinkPx: list.heldLayout.pendingListShrinkPx,
   alive: env.alive,
   atBottomAnchorRef: scroll.atBottomAnchorRef,
   editId: feature.editingEventId,

@@ -23,6 +23,7 @@ export const watchJobsBar = (page: Page) =>
     const read = () => {
       const label =
         [...document.querySelectorAll('[role="region"]')]
+          .filter((region) => !region.closest('[inert]'))
           .map((region) => region.getAttribute('aria-label') ?? '')
           .find((label) => label.includes(shown)) ?? null;
       if (label === last) return;
@@ -32,7 +33,7 @@ export const watchJobsBar = (page: Page) =>
     new MutationObserver(read).observe(document.body, {
       subtree: true,
       childList: true,
-      attributeFilter: ['aria-label'],
+      attributeFilter: ['aria-label', 'inert'],
     });
     read();
   }, SHELL_JOB);

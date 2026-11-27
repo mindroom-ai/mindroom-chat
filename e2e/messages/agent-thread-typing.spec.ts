@@ -87,10 +87,12 @@ const recordFrames = (page: Page, replyId: string, ms: number): Promise<Frame[]>
         const started = performance.now();
         let captured = false;
         const read = () => {
-          const row = document.querySelector(`[data-message-id="${id}"]`);
+          const row = [...document.querySelectorAll(`[data-message-id="${id}"]`)].find(
+            (element) => !element.closest('[inert]')
+          );
           const rowBox = row?.getBoundingClientRect();
-          const strip = [...document.querySelectorAll('[role="status"]')].find((element) =>
-            element.textContent?.includes('is typing')
+          const strip = [...document.querySelectorAll('[role="status"]')].find(
+            (element) => !element.closest('[inert]') && element.textContent?.includes('is typing')
           );
           const stop = row
             ? [...row.querySelectorAll('button')].find(

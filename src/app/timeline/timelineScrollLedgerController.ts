@@ -27,7 +27,6 @@ import {
 import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger';
 import { STATUS_BAR_SCROLL_TOP_EVENT } from '../native/statusBarTapScroll';
 import { isDesktopWebKit } from '../lib/user-agent';
-import { isIOSWebKitDevice } from './scrollQuiescence';
 import { listShrinkAfterResize, pastEndCorrection } from './timelineListShrink';
 
 type VirtualItemKey = string | number | bigint;
@@ -445,14 +444,10 @@ export const useTimelineScrollLedgerController = ({
       let endCorrection = 0;
       let shownPx: number | undefined;
       if (
-        !threadId &&
         delta < 0 &&
-        !isIOSWebKitDevice() &&
+        asInternals(instance)?._canWriteScroll?.() !== false &&
         readVirtualizerHoldOffset(instance) === 0
       ) {
-        const scrollElement = instance.scrollElement;
-        const liveOffset = scrollElement?.scrollTop ?? offset;
-        const rowMovesPx = unrenderedRowMovesPxRef.current;
         shownPx =
           item.index !== undefined
             ? listShrinkAfterResize(
@@ -462,14 +457,19 @@ export const useTimelineScrollLedgerController = ({
                 delta
               )
             : undefined;
-        endCorrection = pastEndCorrection(
-          delta,
-          liveOffset,
-          liveOffset - rowMovesPx,
-          scrollElement,
-          shownPx,
-          rowMovesPx
-        );
+        if (!threadId || shownPx !== undefined) {
+          const scrollElement = instance.scrollElement;
+          const liveOffset = scrollElement?.scrollTop ?? offset;
+          const rowMovesPx = unrenderedRowMovesPxRef.current;
+          endCorrection = pastEndCorrection(
+            delta,
+            liveOffset,
+            liveOffset - rowMovesPx,
+            scrollElement,
+            shownPx,
+            rowMovesPx
+          );
+        }
       }
       if (endCorrection < 0 && (instance.scrollElement?.scrollTop ?? offset) + endCorrection >= 0) {
         measurementCorrectionPxRef.current += endCorrection;
