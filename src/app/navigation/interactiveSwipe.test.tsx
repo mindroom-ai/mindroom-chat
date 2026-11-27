@@ -12,6 +12,7 @@ import {
   useInteractiveSwipe,
 } from './interactiveSwipe';
 import { completeLiveSlideHandoff, createLiveBackSwipeScene, PHONE_STAGE } from './phonePageSlide';
+import { dispatchTransitionCancel, dispatchTransitionEnd } from './__tests__/swipeTransitions';
 
 type Point = { clientX: number; clientY: number; identifier?: number };
 
@@ -947,16 +948,11 @@ describe('interactiveSwipe', () => {
       expect(mock.commit).toHaveBeenCalledOnce();
     });
 
-    it('cancels WAAPI animations on mid-settle resize abort and never re-applies finalFrame', async () => {
+    it('cancels CSS transitions on mid-settle resize abort and never re-applies finalFrame', async () => {
       const target = document.createElement('div');
-      const resolvers: Array<() => void> = [];
-      const cancelAnim = vi.fn();
-      target.animate = vi.fn().mockImplementation(() => ({
-        finished: new Promise<void>((resolve) => {
-          resolvers.push(resolve);
-        }),
-        cancel: cancelAnim,
-      }));
+      document.body.append(target);
+      const animateSpy = vi.fn();
+      target.animate = animateSpy;
 
       const commit = vi.fn();
       const cleanupScene = vi.fn(() => {
@@ -992,19 +988,20 @@ describe('interactiveSwipe', () => {
         window.dispatchEvent(createTouchEvent('touchend', [], 60));
       });
 
-      expect(target.animate).toHaveBeenCalledOnce();
-      expect(cancelAnim).not.toHaveBeenCalled();
+      expect(animateSpy).not.toHaveBeenCalled();
+      expect(target.style.transition).toContain('translate');
+      expect(target.style.transition).toContain('cubic-bezier(0.2, 0, 0, 1)');
 
-      // Abort mid-settle via resize: must cancel WAAPI immediately and clear inline styles
+      // Abort mid-settle via resize: must restore transition immediately and clear inline styles
       act(() => {
         window.dispatchEvent(new Event('resize'));
       });
-      expect(cancelAnim).toHaveBeenCalled();
+      expect(target.style.transition).toBe('');
       expect(cleanupScene).toHaveBeenCalledWith(false);
       expect(target.style.translate).toBe('');
 
-      // Even if the animation's finished promise later resolves, finalFrame must NOT be written
-      resolvers.forEach((resolve) => resolve());
+      // Even if a late transitionend fires, finalFrame must NOT be written and commit must not run
+      dispatchTransitionEnd(target, 'translate');
       await flushMicrotasks();
       expect(target.style.translate).toBe('');
       expect(commit).not.toHaveBeenCalled();
@@ -1061,60 +1058,186 @@ describe('interactiveSwipe', () => {
   });
 
   describe('animateSwipeElements', () => {
-    it('runs WAAPI with forwards fill, applies final styles, and cancels cleanly', async () => {
+    it('runs CSS transitions with !important priority, restores prior inline transition, and never calls element.animate', async () => {
       const el = document.createElement('div');
-      const cancel = vi.fn();
-      const animate = vi.fn().mockReturnValue({
-        finished: Promise.resolve(),
-        cancel,
+      const child = document.createElement('span');
+      el.append(child);
+      document.body.append(el);
+      el.style.transition = 'color 120ms linear';
+      const animateSpy = vi.fn();
+      el.animate = animateSpy;
+      let flushedState: { translate: string; transition: string } | undefined;
+      const originalGetComputedStyle = window.getComputedStyle.bind(window);
+      vi.spyOn(window, 'getComputedStyle').mockImplementation((target, pseudo) => {
+        if (target === el) {
+          flushedState = {
+            translate: el.style.translate,
+            transition: el.style.getPropertyValue('transition'),
+          };
+        }
+        return originalGetComputedStyle(target, pseudo);
       });
-      el.animate = animate;
 
+      let settled = false;
+      const done = animateSwipeElements(
+        [
+          {
+            element: el,
+            keyframes: [
+              { translate: '100px 0', backgroundColor: 'rgb(0, 0, 0)' },
+              { translate: '390px 0', backgroundColor: 'rgb(255, 255, 255)' },
+            ],
+          },
+        ],
+        180
+      ).then(() => {
+        settled = true;
+      });
+
+      expect(animateSpy).not.toHaveBeenCalled();
+      expect(flushedState).toEqual({ translate: '100px', transition: 'none' });
+      expect(el.style.getPropertyValue('transition')).toBe(
+        'translate 180ms cubic-bezier(0.2, 0, 0, 1), background-color 180ms cubic-bezier(0.2, 0, 0, 1)'
+      );
+      expect(el.style.getPropertyPriority('transition')).toBe('important');
+      expect(el.style.translate).toBe('390px');
+
+      // Bubbling child events and unrelated propertyName events must be ignored
+      child.dispatchEvent(
+        new TransitionEvent('transitionend', { propertyName: 'translate', bubbles: true })
+      );
+      dispatchTransitionEnd(el, 'opacity');
+      await flushMicrotasks();
+      expect(settled).toBe(false);
+
+      // Completing one of two properties keeps waiting until the second completes
+      dispatchTransitionEnd(el, 'translate');
+      await flushMicrotasks();
+      expect(settled).toBe(false);
+
+      dispatchTransitionEnd(el, 'background-color');
+      await done;
+
+      expect(settled).toBe(true);
+      expect(el.style.translate).toBe('390px');
+      expect(el.style.getPropertyValue('transition')).toBe('color 120ms linear');
+      expect(el.style.getPropertyPriority('transition')).toBe('');
+    });
+
+    it('resolves no-op transitions immediately without waiting for transitionend or fallback timeout', async () => {
+      vi.useFakeTimers();
+      const el = document.createElement('div');
+      document.body.append(el);
+      el.style.transition = 'opacity 50ms linear';
+
+      // Exact string match (e.g. user dragged 100% of extent and released)
       await animateSwipeElements(
-        [{ element: el, keyframes: [{ translate: '100px 0' }, { translate: '390px 0' }] }],
+        [{ element: el, keyframes: [{ translate: '390px 0' }, { translate: '390px 0' }] }],
         180
       );
-
-      expect(animate).toHaveBeenCalledWith([{ translate: '100px 0' }, { translate: '390px 0' }], {
-        duration: 180,
-        easing: 'cubic-bezier(0.2, 0, 0, 1)',
-        fill: 'forwards',
-      });
       expect(el.style.translate).toBe('390px');
-      expect(cancel).toHaveBeenCalledOnce();
+      expect(el.style.transition).toBe('opacity 50ms linear');
+
+      // Equivalent CSSOM-normalized values ('0px 0' === '0px')
+      await animateSwipeElements(
+        [{ element: el, keyframes: [{ translate: '0px 0' }, { translate: '0px' }] }],
+        180
+      );
+      expect(el.style.translate).toBe('0px');
+      expect(el.style.transition).toBe('opacity 50ms linear');
     });
 
-    it('handles aborted WAAPI animations without unhandled rejections', async () => {
-      const el = document.createElement('div');
-      const cancel = vi.fn();
-      el.animate = vi.fn().mockReturnValue({
-        finished: Promise.reject(new Error('aborted')),
-        cancel,
+    it('resolves cleanly on transitioncancel without clobbering inline style and on fallback timeout', async () => {
+      vi.useFakeTimers();
+      const elCancel = document.createElement('div');
+      const elTimeout = document.createElement('div');
+      document.body.append(elCancel, elTimeout);
+
+      const cancelDone = animateSwipeElements(
+        [{ element: elCancel, keyframes: [{ opacity: '0.5' }, { opacity: '0' }] }],
+        150
+      );
+      elCancel.style.opacity = '0.25';
+      dispatchTransitionCancel(elCancel, 'opacity');
+      await cancelDone;
+      expect(elCancel.style.transition).toBe('');
+      expect(elCancel.style.opacity).toBe('0.25');
+
+      let timedOut = false;
+      const timeoutDone = animateSwipeElements(
+        [{ element: elTimeout, keyframes: [{ translate: '0px 0' }, { translate: '200px 0' }] }],
+        150
+      ).then(() => {
+        timedOut = true;
       });
+      vi.advanceTimersByTime(349);
+      await flushMicrotasks();
+      expect(timedOut).toBe(false);
 
-      await expect(
-        animateSwipeElements(
-          [{ element: el, keyframes: [{ opacity: '0.5' }, { opacity: '0' }] }],
-          150
-        )
-      ).resolves.toBeUndefined();
-
-      // Aborted/rejected animations must not write finalFrame inline
-      expect(el.style.opacity).toBe('');
-      expect(cancel).toHaveBeenCalledOnce();
+      vi.advanceTimersByTime(1);
+      await timeoutDone;
+      expect(timedOut).toBe(true);
+      expect(elTimeout.style.transition).toBe('');
+      expect(elTimeout.style.translate).toBe('200px');
     });
 
-    it('skips WAAPI and applies final style immediately when duration is 0 or reduced motion', async () => {
+    it('aborts cleanly via AbortSignal, restoring prior transition and inline styles', async () => {
       const el = document.createElement('div');
-      const animate = vi.fn();
-      el.animate = animate;
+      document.body.append(el);
+      el.style.transition = 'transform 100ms linear';
+
+      const preAborted = new AbortController();
+      preAborted.abort();
+      await animateSwipeElements(
+        [{ element: el, keyframes: [{ opacity: '0.5' }, { opacity: '0' }] }],
+        150,
+        preAborted.signal
+      );
+      expect(el.style.opacity).toBe('');
+      expect(el.style.transition).toBe('transform 100ms linear');
+
+      const controller = new AbortController();
+      const done = animateSwipeElements(
+        [{ element: el, keyframes: [{ opacity: '0.5' }, { opacity: '0' }] }],
+        150,
+        controller.signal
+      );
+      expect(el.style.getPropertyPriority('transition')).toBe('important');
+
+      controller.abort();
+      await done;
+
+      // Aborted animations must restore prior transition and must not leave finalFrame inline
+      expect(el.style.transition).toBe('transform 100ms linear');
+      expect(el.style.getPropertyPriority('transition')).toBe('');
+      expect(el.style.opacity).toBe('');
+    });
+
+    it('applies final style immediately with no transition when duration is 0 or reduced motion', async () => {
+      const el = document.createElement('div');
+      document.body.append(el);
+      const animateSpy = vi.fn();
+      el.animate = animateSpy;
 
       await animateSwipeElements(
         [{ element: el, keyframes: [{ opacity: '1' }, { opacity: '0' }] }],
         0
       );
-      expect(animate).not.toHaveBeenCalled();
+      expect(animateSpy).not.toHaveBeenCalled();
+      expect(el.style.transition).toBe('');
       expect(el.style.opacity).toBe('0');
+
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: vi.fn().mockReturnValue({ matches: true }),
+      });
+      await animateSwipeElements(
+        [{ element: el, keyframes: [{ opacity: '0' }, { opacity: '1' }] }],
+        200
+      );
+      expect(animateSpy).not.toHaveBeenCalled();
+      expect(el.style.transition).toBe('');
+      expect(el.style.opacity).toBe('1');
     });
   });
 

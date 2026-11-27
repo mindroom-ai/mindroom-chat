@@ -11,6 +11,7 @@ import { getCallWindowSettingsAtom } from '../calls/window/callWindowState';
 import { subagentsPanelAtom } from '../navigation/subagentsPanel';
 import { RoomPanelEdgeSwipeContext } from '../navigation/roomPanelEdgeSwipeContext';
 import { SWIPE_PRIORITY } from '../navigation/interactiveSwipe';
+import { finishSwipeTransitions } from '../navigation/__tests__/swipeTransitions';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import type { RoomViewHeaderProps } from './RoomViewHeader';
 import { Room } from './Room';
@@ -198,6 +199,7 @@ const dispatchEdgeTouch = (
 
 const flushMicrotasks = async () => {
   await act(async () => {
+    finishSwipeTransitions();
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();

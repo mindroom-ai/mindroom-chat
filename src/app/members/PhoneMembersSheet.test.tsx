@@ -9,6 +9,7 @@ import {
   phoneSheetOpenAtom,
 } from '../navigation/phoneNavDrawer';
 import { usePanelSlot } from '../ui/panels/panelPresence';
+import { finishSwipeTransitions } from '../navigation/__tests__/swipeTransitions';
 import { PhoneMembersSheet } from './PhoneMembersSheet';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -195,6 +196,7 @@ describe('PhoneMembersSheet', () => {
 
   const flushMicrotasks = async () => {
     await act(async () => {
+      finishSwipeTransitions(slot);
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();

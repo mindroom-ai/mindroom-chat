@@ -183,20 +183,35 @@ export const isReducedMotion = (): boolean => {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches === true;
 };
 
-const applyKeyframeStyles = (element: HTMLElement, frame: Keyframe | undefined) => {
-  if (!frame) return;
-  for (const [key, value] of Object.entries(frame)) {
-    if (key === 'offset' || key === 'easing' || key === 'composite' || value == null) {
-      continue;
-    }
-    if (key.includes('-')) {
-      element.style.setProperty(key, String(value));
-    } else {
-      (element.style as unknown as Record<string, string>)[key] = String(value);
-    }
-  }
+const TRANSITION_FALLBACK_GRACE_MS = 200;
+
+type SavedStyleProp = { prop: string; value: string; priority: string };
+
+const toCssPropertyName = (key: string): string =>
+  key.startsWith('--') ? key : key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`);
+
+const getKeyframeEntries = (frame: Keyframe | undefined): Array<[string, string]> =>
+  frame
+    ? Object.entries(frame).flatMap(([key, value]) =>
+        key === 'offset' || key === 'easing' || key === 'composite' || value == null
+          ? []
+          : [[toCssPropertyName(key), String(value)] as [string, string]]
+      )
+    : [];
+
+const saveStyleProp = (element: HTMLElement, prop: string): SavedStyleProp => ({
+  prop,
+  value: element.style.getPropertyValue(prop),
+  priority: element.style.getPropertyPriority(prop),
+});
+
+const restoreStyleProp = (element: HTMLElement, { prop, value, priority }: SavedStyleProp) => {
+  if (value) element.style.setProperty(prop, value, priority);
+  else element.style.removeProperty(prop);
 };
 
+// Uses CSS transitions instead of WAAPI `element.animate(..., { fill: 'forwards' })` because
+// iOS WebKit permanently pins WAAPI targets and their detached subtrees after React unmount.
 export const animateSwipeElements = async (
   animations: ReadonlyArray<{ element: HTMLElement; keyframes: Keyframe[] }>,
   durationMs: number,
@@ -207,76 +222,131 @@ export const animateSwipeElements = async (
   const ownerSettle = activeSettle;
   if (signal?.aborted || ownerSettle?.aborted) return;
 
-  const reduced = isReducedMotion();
-  const started: Array<{
-    anim: Animation;
+  const immediate = !Number.isFinite(durationMs) || durationMs <= 0 || isReducedMotion();
+  const prepared: Array<{
     element: HTMLElement;
-    finalFrame: Keyframe | undefined;
+    finalEntries: Array<[string, string]>;
+    prevTransition: SavedStyleProp;
+    prevProps: SavedStyleProp[];
+    startValues: Map<string, string>;
   }> = [];
 
   for (const { element, keyframes } of animations) {
-    const finalFrame = keyframes[keyframes.length - 1];
-    if (
-      durationMs <= 0 ||
-      reduced ||
-      keyframes.length === 0 ||
-      typeof element.animate !== 'function'
-    ) {
-      applyKeyframeStyles(element, finalFrame);
+    const startEntries = getKeyframeEntries(keyframes[0]);
+    const finalEntries = getKeyframeEntries(keyframes[keyframes.length - 1]);
+    const startByProp = new Map(startEntries);
+    const sameFrame =
+      finalEntries.length === 0 ||
+      finalEntries.every(([prop, value]) => startByProp.get(prop) === value);
+    if (immediate || keyframes.length < 2 || !element.isConnected || sameFrame) {
+      for (const [prop, value] of finalEntries) element.style.setProperty(prop, value);
       continue;
     }
 
-    const anim = element.animate(keyframes, {
-      duration: durationMs,
-      easing: SWIPE_SETTLE_EASING,
-      fill: 'forwards',
-    });
-    started.push({ anim, element, finalFrame });
+    const prevTransition = saveStyleProp(element, 'transition');
+    const propNames = new Set([...startEntries, ...finalEntries].map(([prop]) => prop));
+    const prevProps = Array.from(propNames, (prop) => saveStyleProp(element, prop));
+
+    element.style.setProperty('transition', 'none', 'important');
+    for (const [prop, value] of startEntries) element.style.setProperty(prop, value);
+    const startValues = new Map(
+      finalEntries.map(([prop]) => [prop, element.style.getPropertyValue(prop)])
+    );
+    prepared.push({ element, finalEntries, prevTransition, prevProps, startValues });
   }
 
-  if (started.length === 0) return;
+  if (prepared.length === 0) return;
 
-  let aborted = false;
-  const cancelStarted = () => {
-    for (const { anim } of started) {
-      try {
-        anim.cancel?.();
-      } catch {
-        // Ignore cancellation errors on detached or mocked animations.
-      }
-    }
-  };
-
-  const onAbort = () => {
-    if (aborted) return;
-    aborted = true;
-    cancelStarted();
-  };
-
-  ownerSettle?.abortHandlers.add(onAbort);
-  signal?.addEventListener('abort', onAbort, { once: true });
-
-  let results: PromiseSettledResult<unknown>[] = [];
-  try {
-    results = await Promise.allSettled(started.map(({ anim }) => Promise.resolve(anim?.finished)));
-  } finally {
-    ownerSettle?.abortHandlers.delete(onAbort);
-    signal?.removeEventListener('abort', onAbort);
-
-    const wasAborted = aborted || signal?.aborted === true || ownerSettle?.aborted === true;
-    for (let i = 0; i < started.length; i += 1) {
-      const item = started[i]!;
-      const settled = results[i];
-      if (!wasAborted && settled?.status === 'fulfilled') {
-        applyKeyframeStyles(item.element, item.finalFrame);
-      }
-      try {
-        item.anim.cancel?.();
-      } catch {
-        // Ignore cancellation errors on detached or mocked animations.
-      }
-    }
+  // Commit start frames as the before-change style in a single batched style flush.
+  for (const { element, finalEntries } of prepared) {
+    const firstProp = finalEntries[0]?.[0];
+    if (firstProp) void getComputedStyle(element).getPropertyValue(firstProp);
   }
+
+  const active: Array<
+    (typeof prepared)[number] & { pendingProps: Set<string>; onEnd: (event: Event) => void }
+  > = [];
+  for (const item of prepared) {
+    // `!important` overrides `[data-swiping] { transition: none !important }` only for the
+    // settled properties; cleanup restores the prior inline transition.
+    const transitionValue = item.finalEntries
+      .map(([prop]) => `${prop} ${durationMs}ms ${SWIPE_SETTLE_EASING}`)
+      .join(', ');
+    item.element.style.setProperty('transition', transitionValue, 'important');
+    for (const [prop, value] of item.finalEntries) item.element.style.setProperty(prop, value);
+
+    const pendingProps = new Set(
+      item.finalEntries
+        .map(([prop]) => prop)
+        .filter((prop) => item.element.style.getPropertyValue(prop) !== item.startValues.get(prop))
+    );
+    if (pendingProps.size === 0) {
+      restoreStyleProp(item.element, item.prevTransition);
+      continue;
+    }
+    active.push({ ...item, pendingProps, onEnd: () => undefined });
+  }
+
+  if (active.length === 0) return;
+
+  await new Promise<void>((resolve) => {
+    let settled = false;
+    let remaining = active.length;
+
+    const detachItem = (item: (typeof active)[number], restoreAnimatedProps: boolean) => {
+      item.element.removeEventListener('transitionend', item.onEnd);
+      item.element.removeEventListener('transitioncancel', item.onEnd);
+      restoreStyleProp(item.element, item.prevTransition);
+      if (restoreAnimatedProps) {
+        for (const saved of item.prevProps) restoreStyleProp(item.element, saved);
+      }
+    };
+
+    const finish = (wasAborted: boolean) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      ownerSettle?.abortHandlers.delete(onAbort);
+      signal?.removeEventListener('abort', onAbort);
+      for (const item of active) {
+        if (item.pendingProps.size > 0 || wasAborted) {
+          item.pendingProps.clear();
+          detachItem(item, wasAborted);
+        }
+      }
+      resolve();
+    };
+
+    const onAbort = () => finish(true);
+
+    for (const item of active) {
+      item.onEnd = (event: Event) => {
+        if (settled || event.target !== item.element || item.pendingProps.size === 0) return;
+        const { propertyName } = event as TransitionEvent;
+        if (propertyName) {
+          if (!item.pendingProps.has(propertyName)) return;
+          item.pendingProps.delete(propertyName);
+        } else {
+          // Synthetic jsdom `new Event('transitionend')` omits `propertyName`.
+          item.pendingProps.clear();
+        }
+        if (item.pendingProps.size === 0) {
+          detachItem(item, false);
+          remaining -= 1;
+          if (remaining === 0) finish(false);
+        }
+      };
+      item.element.addEventListener('transitionend', item.onEnd);
+      item.element.addEventListener('transitioncancel', item.onEnd);
+    }
+
+    ownerSettle?.abortHandlers.add(onAbort);
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const timeoutId = setTimeout(
+      () => finish(false),
+      Math.ceil(durationMs) + TRANSITION_FALLBACK_GRACE_MS
+    );
+  });
 };
 
 const getEventTimeMs = (event: Event): number => {

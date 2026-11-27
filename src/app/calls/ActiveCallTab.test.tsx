@@ -179,12 +179,6 @@ describe("the rail's call button", () => {
       y: 0,
       toJSON: () => ({}),
     });
-    const pendingAnim = {
-      finished: new Promise<void>(() => undefined),
-      cancel: vi.fn(),
-    } as unknown as Animation;
-    over.animate = vi.fn(() => pendingAnim);
-    under.animate = vi.fn(() => pendingAnim);
 
     const onCommit = vi.fn();
     const exit = vi.fn();

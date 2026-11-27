@@ -28,6 +28,7 @@ import {
   runLiveHistoryBackSlide,
   skipActiveLiveSlide,
 } from '../navigation/phonePageSlide';
+import { finishSwipeTransitions } from '../navigation/__tests__/swipeTransitions';
 import {
   SpaceUnderLayerContext,
   type SpaceUnderLayerContextValue,
@@ -831,19 +832,6 @@ describe('useRoomViewThreadState interactive swipe & live slide wiring', () => {
   it('plays live back slide on handleExitThread with shield blocking double-tap and cancels on skipActiveLiveSlide', async () => {
     const { page } = mountPhoneStage('Thread');
     const { liveStage, under, over } = makeLiveLayers(page);
-    const finishers: Array<() => void> = [];
-    const originalAnimate = HTMLElement.prototype.animate;
-    Object.defineProperty(HTMLElement.prototype, 'animate', {
-      configurable: true,
-      value() {
-        let finish: () => void = () => undefined;
-        const finished = new Promise<void>((resolve) => {
-          finish = resolve;
-        });
-        finishers.push(finish);
-        return { finished, cancel: vi.fn() } as unknown as Animation;
-      },
-    });
     const exit = vi.fn();
     const enterLiveRoomPeek = vi.fn((): LiveThreadBackUnder => ({
       stage: liveStage,
@@ -852,45 +840,37 @@ describe('useRoomViewThreadState interactive swipe & live slide wiring', () => {
       exit,
     }));
 
-    try {
-      const { current } = mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
+    const { current } = mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
 
-      // First tap starts live back slide, mounts shield, and defers leaveThread.
-      act(() => current().handleExitThread());
-      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
-      expect(isLiveSlideActive()).toBe(true);
-      expect(liveStage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
-      expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
+    // First tap starts live back slide, mounts shield, and defers leaveThread.
+    act(() => current().handleExitThread());
+    expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
+    expect(isLiveSlideActive()).toBe(true);
+    expect(liveStage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
+    expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
 
-      // Rapid double-tap while slide plays is blocked.
-      act(() => current().handleExitThread());
-      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
+    // Rapid double-tap while slide plays is blocked.
+    act(() => current().handleExitThread());
+    expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
 
-      // External cancel (drawer open / Universal Link) aborts slide without firing leaveThread.
-      act(() => skipActiveLiveSlide());
-      expect(exit).toHaveBeenCalledWith(false);
-      expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
+    // External cancel (drawer open / Universal Link) aborts slide without firing leaveThread.
+    act(() => skipActiveLiveSlide());
+    expect(exit).toHaveBeenCalledWith(false);
+    expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
 
-      // Normal completion invokes leaveThread in onCommit once over is offscreen.
-      finishers.length = 0;
-      exit.mockClear();
-      act(() => current().handleExitThread());
-      await act(async () => {
-        finishers.splice(0).forEach((finish) => finish());
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(navigation.navigateRoomFocusEvent).toHaveBeenCalledWith(ROOM_ID, '$thread', {
-        replace: true,
-      });
-      completeLiveSlideHandoff();
-      expect(exit).toHaveBeenCalledWith(true);
-    } finally {
-      Object.defineProperty(HTMLElement.prototype, 'animate', {
-        configurable: true,
-        value: originalAnimate,
-      });
-    }
+    // Normal completion invokes leaveThread in onCommit once over is offscreen.
+    exit.mockClear();
+    act(() => current().handleExitThread());
+    await act(async () => {
+      finishSwipeTransitions(liveStage);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(navigation.navigateRoomFocusEvent).toHaveBeenCalledWith(ROOM_ID, '$thread', {
+      replace: true,
+    });
+    completeLiveSlideHandoff();
+    expect(exit).toHaveBeenCalledWith(true);
   });
 
   it('slides out a filling phone thread on Android hardware Back while preserving exact window.history.back(), and does not drop Back during a forward slide', async () => {
@@ -914,19 +894,6 @@ describe('useRoomViewThreadState interactive swipe & live slide wiring', () => {
       toJSON: () => ({}),
     });
 
-    const finishers: Array<() => void> = [];
-    const originalAnimate = HTMLElement.prototype.animate;
-    Object.defineProperty(HTMLElement.prototype, 'animate', {
-      configurable: true,
-      value() {
-        let finish: () => void = () => undefined;
-        const finished = new Promise<void>((resolve) => {
-          finish = resolve;
-        });
-        finishers.push(finish);
-        return { finished, cancel: vi.fn() } as unknown as Animation;
-      },
-    });
     const historyBackSpy = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
     const exit = vi.fn();
     const enterLiveRoomPeek = vi.fn((): LiveThreadBackUnder => ({
@@ -960,7 +927,7 @@ describe('useRoomViewThreadState interactive swipe & live slide wiring', () => {
       expect(historyBackSpy).not.toHaveBeenCalled();
 
       await act(async () => {
-        finishers.splice(0).forEach((finish) => finish());
+        finishSwipeTransitions(liveStage);
         await Promise.resolve();
         await Promise.resolve();
       });
@@ -992,10 +959,6 @@ describe('useRoomViewThreadState interactive swipe & live slide wiring', () => {
       expect(isLiveSlideActive()).toBe(true);
     } finally {
       historyBackSpy.mockRestore();
-      Object.defineProperty(HTMLElement.prototype, 'animate', {
-        configurable: true,
-        value: originalAnimate,
-      });
     }
   });
 });

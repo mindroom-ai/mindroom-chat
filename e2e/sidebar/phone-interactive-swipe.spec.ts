@@ -519,22 +519,30 @@ for (const engine of ENGINES) {
           thread: gardenRoot,
         });
 
-        // Count over-layer WAAPI animation starts to prove commit settles in 1 animation (no double-slide).
+        // Count over-layer translate transition starts to prove commit settles in 1 transition (no double-slide).
         const installOverAnimationCounter = () =>
           page.evaluate(() => {
             const win = window as unknown as {
               __overAnimCount?: number;
-              __origAnimate?: typeof Element.prototype.animate;
+              __overTransitionCounterInstalled?: boolean;
             };
             win.__overAnimCount = 0;
-            if (!win.__origAnimate) {
-              win.__origAnimate = Element.prototype.animate;
-              Element.prototype.animate = function countedAnimate(keyframes, options) {
-                if (this.hasAttribute('data-swipe-over-thread')) {
-                  win.__overAnimCount = (win.__overAnimCount ?? 0) + 1;
-                }
-                return win.__origAnimate!.call(this, keyframes, options);
-              };
+            if (!win.__overTransitionCounterInstalled) {
+              win.__overTransitionCounterInstalled = true;
+              document.addEventListener(
+                'transitionrun',
+                (event) => {
+                  const { target } = event;
+                  if (
+                    target instanceof Element &&
+                    target.hasAttribute('data-swipe-over-thread') &&
+                    event.propertyName === 'translate'
+                  ) {
+                    win.__overAnimCount = (win.__overAnimCount ?? 0) + 1;
+                  }
+                },
+                true
+              );
             }
           });
         const readOverAnimationCount = () =>
