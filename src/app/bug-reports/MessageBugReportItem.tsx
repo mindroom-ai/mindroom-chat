@@ -18,6 +18,13 @@ import { useSetting } from '../preferences/useSetting';
 /** `busy` while the report is on its way, `done` once the admins have it. */
 type Phase = 'ready' | 'busy' | 'error' | 'done';
 
+/** Whether the message menu offers bug reporting (to admins or as a dev-tools download). */
+export function useCanReportMessageBug(): boolean {
+  const admins = useBugReportAdmins();
+  const [developerTools] = useSetting(settingsAtom, 'developerTools');
+  return admins.length > 0 || developerTools;
+}
+
 /**
  * "Report a bug" in a message's menu. With bug report admins configured in the homeserver's
  * well-known, a dialog first says what the report holds; once the person sends it, the report

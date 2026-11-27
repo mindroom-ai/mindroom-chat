@@ -1,5 +1,6 @@
 import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, config, toRem } from 'folds';
+import { ScrollableMenuRows } from '../ui/ScrollableMenu.css';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import { touchTarget } from '../ui/styles/touchTarget';
 
@@ -162,14 +163,15 @@ export const MessageQuickReaction = style({
   fontSize: toRem(18),
 });
 
-/** A column of entries inside the message menu. */
 /**
- * The message menu's entries. The menu often opens under the finger of a long press, where iOS
- * would select the first entry's text and show its Copy bar; their text is never selectable.
+ * The message menu's scrollable rows. The menu often opens under the finger of a long press, where
+ * iOS would select the first entry's text and show its Copy bar; their text is never selectable.
  */
-export const MessageMenuGroup = style({
-  padding: config.space.S100,
-  userSelect: 'none',
-  WebkitUserSelect: 'none',
-  WebkitTouchCallout: 'none',
-});
+export const MessageMenuRows = style([
+  ScrollableMenuRows,
+  {
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
+  },
+]);

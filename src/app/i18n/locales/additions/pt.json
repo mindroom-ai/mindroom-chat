@@ -1148,6 +1148,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "Copiar",
+        "copyAndForkSection": "Copiar e bifurcar"
+      },
       "mindroomReasoning": {
         "hide": "Ocultar raciocínio",
         "thought": "Pensou"

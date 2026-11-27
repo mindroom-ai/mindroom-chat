@@ -1130,6 +1130,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "Copy",
+        "copyAndForkSection": "Copy & Fork"
+      },
       "mindroomReasoning": {
         "hide": "Hide thinking",
         "thought": "Thought"

@@ -1130,6 +1130,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "कॉपी करें",
+        "copyAndForkSection": "कॉपी करें और शाखा बनाएँ"
+      },
       "mindroomReasoning": {
         "hide": "सोच छिपाएँ",
         "thought": "सोचा"

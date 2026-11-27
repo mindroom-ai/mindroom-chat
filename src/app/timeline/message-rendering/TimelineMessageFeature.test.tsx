@@ -889,6 +889,19 @@ describe('timeline message feature', () => {
     expect(summaryMarkers(renderer)).toHaveLength(0);
     expect(renderedContent(renderer)).toHaveLength(1);
   });
+
+  it('sets canReplyInThread to true in the room timeline and false inside a thread', async () => {
+    const { Message } = await import('../../messages/Message');
+    const event = makeEvent('$msg', {
+      content: { msgtype: 'm.text', body: 'Hello' },
+    }) as unknown as MatrixEvent;
+
+    const inRoom = await mountFeature([rowFor(event)]);
+    expect(inRoom.renderer.root.findByType(Message).props.canReplyInThread).toBe(true);
+
+    const inThread = await mountFeature([rowFor(event)], '$thread');
+    expect(inThread.renderer.root.findByType(Message).props.canReplyInThread).toBe(false);
+  });
 });
 
 describe("a fork's rows of its parent thread", () => {

@@ -1112,6 +1112,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "复制",
+        "copyAndForkSection": "复制与分支"
+      },
       "mindroomReasoning": {
         "hide": "隐藏思考",
         "thought": "已思考"

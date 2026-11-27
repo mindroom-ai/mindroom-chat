@@ -86,3 +86,69 @@ it('offers a recent custom emoji as its image and reacts with its mxc URL', asyn
 
   expect(onReaction).toHaveBeenCalledWith('mxc://example.org/parrot', 'party-parrot');
 });
+
+it('appends an Add Reaction button to the quick-reaction strip when onAddReaction is provided', async () => {
+  mx.getAccountData.mockReturnValue(
+    new MatrixEvent({
+      type: 'io.element.recent_emoji',
+      content: {
+        recent_emoji: [
+          ['😀', 2],
+          ['🎉', 1],
+        ],
+      },
+    })
+  );
+  imagePacks.useRelevantImagePacks.mockReturnValue([]);
+  const onAddReaction = vi.fn();
+
+  act(() => {
+    renderer = create(
+      <MessageQuickReactions
+        imagePackRooms={[]}
+        onReaction={vi.fn()}
+        onAddReaction={onAddReaction}
+      />
+    );
+  });
+
+  const buttons = renderer!.root.findAllByType('button');
+  expect(buttons).toHaveLength(3);
+  const addButton = buttons[2]!;
+  expect(addButton.props.role).toBe('menuitem');
+  expect(addButton.props['aria-label']).toBe('Add Reaction');
+  expect(addButton.props.title).toBe('Add Reaction');
+
+  await act(() => addButton.props.onClick());
+  expect(onAddReaction).toHaveBeenCalledTimes(1);
+});
+
+it('falls back to a MenuEntry when recent emojis are empty and onAddReaction is provided', async () => {
+  mx.getAccountData.mockReturnValue(undefined);
+  imagePacks.useRelevantImagePacks.mockReturnValue([]);
+  const onAddReaction = vi.fn();
+
+  act(() => {
+    renderer = create(<MessageQuickReactions imagePackRooms={[]} onReaction={vi.fn()} />);
+  });
+  expect(renderer!.toJSON()).toBeNull();
+
+  act(() => {
+    renderer!.update(
+      <MessageQuickReactions
+        imagePackRooms={[]}
+        onReaction={vi.fn()}
+        onAddReaction={onAddReaction}
+      />
+    );
+  });
+
+  const buttons = renderer!.root.findAllByType('button');
+  expect(buttons).toHaveLength(1);
+  expect(
+    buttons[0]!.findAllByType('span').some((span) => span.children.join('') === 'Add Reaction')
+  ).toBe(true);
+
+  await act(() => buttons[0]!.props.onClick());
+  expect(onAddReaction).toHaveBeenCalledTimes(1);
+});

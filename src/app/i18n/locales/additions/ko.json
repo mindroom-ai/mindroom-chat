@@ -1112,6 +1112,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "복사",
+        "copyAndForkSection": "복사 및 분기"
+      },
       "mindroomReasoning": {
         "hide": "생각 숨기기",
         "thought": "생각함"

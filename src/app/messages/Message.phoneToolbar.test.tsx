@@ -23,7 +23,10 @@ vi.mock('../matrix/room', () => ({
 vi.mock('../event-store/threads/useThreadPinning', () => ({
   useThreadPinning: () => ({ canPin: false, setPinned: vi.fn(), updating: false }),
 }));
-vi.mock('../bug-reports/MessageBugReportItem', () => ({ MessageBugReportItem: () => null }));
+vi.mock('../bug-reports/MessageBugReportItem', () => ({
+  MessageBugReportItem: () => null,
+  useCanReportMessageBug: () => false,
+}));
 vi.mock('../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
 vi.mock('./Time', () => ({ Time: () => null }));
 
