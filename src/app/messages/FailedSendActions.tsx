@@ -2,6 +2,10 @@ import { useTranslation } from 'react-i18next';
 import { type CSSProperties, type ReactNode } from 'react';
 import { Box, Chip, color, Text } from 'folds';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import {
+  captureResolvedThreadBeforeReply,
+  reopenResolvedThreadAfterReply,
+} from '../event-store/threads/threadTagMutations';
 import { useForceUpdate } from '../lib/hooks/useForceUpdate';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import {
@@ -42,9 +46,17 @@ export function FailedSendActions({
       refresh();
       return;
     }
+    const resolvedBeforeSend = captureResolvedThreadBeforeReply(
+      room,
+      event.getContent()['m.relates_to']
+    );
     // The SDK reuses the transaction ID, so the server drops a copy that already arrived.
     // A failed retry marks the event unsent again, which brings these actions back.
-    mx.resendEvent(event, room).catch(() => undefined);
+    mx.resendEvent(event, room)
+      .then(() => {
+        void reopenResolvedThreadAfterReply(mx, room, resolvedBeforeSend);
+      })
+      .catch(() => undefined);
   };
 
   // Why the server did not take it (no connection, not allowed, too many requests and how long

@@ -11,7 +11,9 @@ import { getVisibleThreadEventBodyPreviewText } from '../event-store/threads/thr
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { threadActorName } from '../threads/cross-room/threadText';
+import { resetPendingThreadTagsForTests } from '../event-store/threads/threadTagPending';
 import { readCaptureThreads } from './captureThreads';
+import { sendCaptureReply } from './sendCapture';
 
 const mocks = vi.hoisted(() => ({ read: vi.fn() }));
 vi.mock('../threads/cross-room/threadSignalsReader', () => ({
@@ -435,5 +437,53 @@ describe('readCaptureThreads', () => {
       { threadId: '$pinned', pinned: true, resolved: false, resolvedTs: undefined },
       { threadId: '$open', pinned: false, resolved: false, resolvedTs: undefined },
     ]);
+  });
+
+  it('immediately treats resolved threads as open after sendCaptureReply while sendStateEvent is still pending', async () => {
+    const resolvedTag = (rootId: string) =>
+      stateEvent(
+        MINDROOM_THREAD_TAGS_EVENT,
+        buildPerTagStateKey(rootId, RESOLVED_TAG),
+        buildPerTagEventContent('@me:x')
+      );
+    const indexedRoot = message('$indexed', { msgtype: 'm.text', body: 'Indexed' }, 500, '@me:x');
+    Object.defineProperty(indexedRoot, 'isThreadRoot', { value: true, configurable: true });
+    const soloRoot = message('$solo', { msgtype: 'm.text', body: 'Solo' }, 600, '@me:x');
+    const room = makeRoom({
+      loaded: [indexedRoot, soloRoot],
+      timeline: [indexedRoot, soloRoot],
+      state: [resolvedTag('$indexed'), resolvedTag('$solo')],
+    });
+    let releaseTagWrites!: () => void;
+    const heldTagWrite = new Promise<void>((resolve) => {
+      releaseTagWrites = resolve;
+    });
+    let txns = 0;
+    const replyMx = {
+      ...mx,
+      getSafeUserId: () => '@me:x',
+      makeTxnId: () => `txn-${(txns += 1)}`,
+      sendMessage: vi.fn(async () => ({ event_id: `$reply-${txns}` })),
+      sendStateEvent: vi.fn(() => heldTagWrite),
+    } as unknown as MatrixClient;
+    const entries = [makeEntry('$indexed', { isResolved: true, resolvedTs: 900 })];
+
+    try {
+      await sendCaptureReply(replyMx, room, '$indexed', 'Reopen indexed', { markdown: true });
+      await sendCaptureReply(replyMx, room, '$solo', 'Reopen solo', { markdown: true });
+
+      // Before sendStateEvent resolves or sync echoes, both threads already read as open.
+      const threads = readCaptureThreads(replyMx, room, entries, t, NOW);
+      expect(
+        threads.map(({ threadId, resolved, resolvedTs }) => ({ threadId, resolved, resolvedTs }))
+      ).toEqual([
+        { threadId: '$indexed', resolved: false, resolvedTs: undefined },
+        { threadId: '$solo', resolved: false, resolvedTs: undefined },
+      ]);
+      releaseTagWrites();
+      await heldTagWrite;
+    } finally {
+      resetPendingThreadTagsForTests();
+    }
   });
 });

@@ -147,24 +147,28 @@ const sameResolvedTag = (left: TagMetadata, right: TagMetadata): boolean =>
 /**
  * Captures the resolved-tag snapshot of a thread reply target before send, or `undefined` when
  * the message is not an `m.thread` reply, the thread is not resolved, is pinned, or already has a
- * pending `resolved` write.
+ * pending `resolved` write. Never throws.
  */
 export const captureResolvedThreadBeforeReply = (
   room: Room,
   relation: unknown
 ): ResolvedThreadReplySnapshot | undefined => {
-  const threadRootId = getThreadReplyRootId(relation);
-  if (
-    !threadRootId ||
-    isThreadPinned(room, threadRootId) ||
-    hasPendingThreadTag(room.roomId, threadRootId, RESOLVED_TAG)
-  ) {
+  try {
+    const threadRootId = getThreadReplyRootId(relation);
+    if (
+      !threadRootId ||
+      isThreadPinned(room, threadRootId) ||
+      hasPendingThreadTag(room.roomId, threadRootId, RESOLVED_TAG)
+    ) {
+      return undefined;
+    }
+    const snapshot = getRoomThreadTagSnapshotMap(room).get(threadRootId);
+    const resolvedTag = snapshot?.isResolved ? snapshot.content.tags[RESOLVED_TAG] : undefined;
+    if (!snapshot || !resolvedTag) return undefined;
+    return { threadRootId, resolvedTs: snapshot.resolvedTs, resolvedTag };
+  } catch {
     return undefined;
   }
-  const snapshot = getRoomThreadTagSnapshotMap(room).get(threadRootId);
-  const resolvedTag = snapshot?.isResolved ? snapshot.content.tags[RESOLVED_TAG] : undefined;
-  if (!snapshot || !resolvedTag) return undefined;
-  return { threadRootId, resolvedTs: snapshot.resolvedTs, resolvedTag };
 };
 
 /**
@@ -178,29 +182,24 @@ export const reopenResolvedThreadAfterReply = async (
   beforeSend: ResolvedThreadReplySnapshot | undefined
 ): Promise<void> => {
   if (!beforeSend) return;
-  const { threadRootId, resolvedTs, resolvedTag } = beforeSend;
-  const current = getRoomThreadTagSnapshotMap(room).get(threadRootId);
-  const currentResolved = current?.isResolved ? current.content.tags[RESOLVED_TAG] : undefined;
-  if (
-    !current ||
-    !currentResolved ||
-    current.resolvedTs !== resolvedTs ||
-    !sameResolvedTag(resolvedTag, currentResolved)
-  ) {
-    return;
-  }
-  if (isThreadPinned(room, threadRootId)) return;
-  if (hasPendingThreadTag(room.roomId, threadRootId, RESOLVED_TAG)) return;
-  let userId: string | null | undefined;
   try {
-    userId = mx.getUserId?.() ?? mx.getSafeUserId?.();
-  } catch {
-    return;
-  }
-  if (!userId || !canWriteThreadTags(room, userId)) return;
-  try {
+    const { threadRootId, resolvedTs, resolvedTag } = beforeSend;
+    const current = getRoomThreadTagSnapshotMap(room).get(threadRootId);
+    const currentResolved = current?.isResolved ? current.content.tags[RESOLVED_TAG] : undefined;
+    if (
+      !current ||
+      !currentResolved ||
+      current.resolvedTs !== resolvedTs ||
+      !sameResolvedTag(resolvedTag, currentResolved)
+    ) {
+      return;
+    }
+    if (isThreadPinned(room, threadRootId)) return;
+    if (hasPendingThreadTag(room.roomId, threadRootId, RESOLVED_TAG)) return;
+    const userId = mx.getUserId?.() ?? mx.getSafeUserId?.();
+    if (!userId || !canWriteThreadTags(room, userId)) return;
     await setThreadResolved(mx, room, threadRootId, false);
   } catch {
-    // Best-effort: a tag write failure must never fail or retry message delivery.
+    // Best-effort: a tag lookup or write failure must never fail or retry message delivery.
   }
 };

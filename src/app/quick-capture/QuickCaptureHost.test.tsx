@@ -23,6 +23,11 @@ import {
 import type { CaptureChannel } from './captureChannel';
 import type { CaptureAction, CaptureMessage, CaptureResult } from './captureProtocol';
 import { QuickCaptureHost } from './QuickCaptureHost';
+import {
+  resetPendingThreadTagsForTests,
+  setPendingThreadTag,
+} from '../event-store/threads/threadTagPending';
+import { RESOLVED_TAG } from '../event-store/threads/threadTags';
 import { CaptureError, sendCapture, sendCaptureReply, setCaptureResolved } from './sendCapture';
 
 const mocks = vi.hoisted(() => ({
@@ -187,6 +192,7 @@ describe('QuickCaptureHost', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
     vi.clearAllMocks();
+    resetPendingThreadTagsForTests();
     clearQuickCaptureRoomStore(USER_ID);
     localStorage.clear();
   });
@@ -406,6 +412,27 @@ describe('QuickCaptureHost', () => {
     expect(
       await request({ kind: 'resolve', roomId: '!a', threadId: '$t1', resolved: false })
     ).toEqual({ ok: false, error: 'forbidden' });
+  });
+
+  it('pushes optimistic unresolved state immediately when a reply clears resolved before sync echoes', async () => {
+    const { hello, request, store, posted } = setup();
+    setIndex(store, [
+      { ...entry('!a', '$t1', 100), isResolved: true, resolvedTs: Date.now() - 1000 },
+    ]);
+    hello();
+    expect(statesIn(posted).at(-1)?.state.items).toMatchObject([
+      { threadId: '$t1', resolved: true },
+    ]);
+
+    vi.mocked(sendCaptureReply).mockImplementationOnce(async (_mx, room, threadId) => {
+      setPendingThreadTag(room.roomId, threadId, RESOLVED_TAG, null);
+    });
+    expect(await request({ kind: 'reply', roomId: '!a', threadId: '$t1', text: 'Open' })).toEqual({
+      ok: true,
+    });
+    expect(statesIn(posted).at(-1)?.state.items).toMatchObject([
+      { threadId: '$t1', resolved: false },
+    ]);
   });
 
   it('passes the current mediaCompression setting into sendCapture', async () => {

@@ -1,10 +1,20 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { EventStatus, MatrixError, MatrixEvent, type Room } from 'matrix-js-sdk';
+import { EventStatus, MatrixError, MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
+import { makeResolvedThreadRoom } from '../../test/utils/resolvedThreadRoom';
+import { resetPendingThreadTagsForTests } from '../event-store/threads/threadTagPending';
+import {
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+  RESOLVED_TAG,
+} from '../event-store/threads/threadTags';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FailedSendActions } from './FailedSendActions';
 
 const mx = vi.hoisted(() => ({
+  getUserId: () => '@alice:example.org',
+  getSafeUserId: () => '@alice:example.org',
   resendEvent: vi.fn(),
+  sendStateEvent: vi.fn(),
   cancelPendingEvent: vi.fn(),
 }));
 
@@ -18,6 +28,7 @@ let renderer: ReactTestRenderer | undefined;
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  resetPendingThreadTagsForTests();
   vi.clearAllMocks();
 });
 
@@ -98,5 +109,45 @@ describe('FailedSendActions', () => {
     const shown = JSON.stringify(renderer!.toJSON());
     expect(shown).toContain('Not sent');
     expect(shown).not.toContain('permission');
+  });
+
+  it('reopens a resolved thread when retrying a failed thread reply succeeds, and skips on failure or edit', async () => {
+    const { room: resolvedRoom } = makeResolvedThreadRoom();
+    const renderReply = (relation: Record<string, unknown>) => {
+      const event = new MatrixEvent({
+        event_id: '~!room:example.org:txn-retry',
+        room_id: resolvedRoom.roomId,
+        type: 'm.room.message',
+        content: { msgtype: 'm.text', body: 'retry', 'm.relates_to': relation },
+      });
+      event.setStatus(EventStatus.NOT_SENT);
+      act(() => {
+        renderer = create(<FailedSendActions room={resolvedRoom} event={event} />);
+      });
+      return renderer!.root.find(
+        (node) => node.type === 'button' && node.findAllByProps({ children: 'Retry' }).length > 0
+      );
+    };
+
+    mx.sendStateEvent.mockResolvedValue({ event_id: '$tag' });
+    mx.resendEvent.mockRejectedValueOnce(new Error('offline'));
+    const failedRetry = renderReply({ rel_type: RelationType.Thread, event_id: '$root' });
+    await act(async () => failedRetry.props.onClick());
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+
+    mx.resendEvent.mockResolvedValueOnce({ event_id: '$edit' });
+    const editRetry = renderReply({ rel_type: RelationType.Replace, event_id: '$root' });
+    await act(async () => editRetry.props.onClick());
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+
+    mx.resendEvent.mockResolvedValueOnce({ event_id: '$resent' });
+    const okRetry = renderReply({ rel_type: RelationType.Thread, event_id: '$root' });
+    await act(async () => okRetry.props.onClick());
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      resolvedRoom.roomId,
+      MINDROOM_THREAD_TAGS_EVENT,
+      {},
+      buildPerTagStateKey('$root', RESOLVED_TAG)
+    );
   });
 });

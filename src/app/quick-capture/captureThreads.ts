@@ -10,7 +10,12 @@ import {
 } from '../event-store/threads/threadMessagePreview';
 import { getBundledThreadPreviews } from '../event-store/threads/threadBundledPreviews';
 import { isThreadPinned } from '../event-store/threads/threadPinning';
-import { isThreadResolved } from '../event-store/threads/threadTags';
+import {
+  isThreadResolved,
+  RESOLVED_TAG,
+  type ThreadTagsContent,
+} from '../event-store/threads/threadTags';
+import { withPendingThreadTags } from '../event-store/threads/threadTagPending';
 import { isWaitingOnYou } from '../event-store/threads/threadWorkflow';
 import { getVisibleThreadEventBodyPreviewText } from '../event-store/threads/threadUtils';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
@@ -148,6 +153,29 @@ const readReply = (
  * hold: the entries posted there. In a chat room every other message would be one too. Their
  * resolved tags are read as the index reads them: a pinned thread is never resolved.
  */
+const EMPTY_TAGS: ThreadTagsContent = { tags: {} };
+const LIVE_RESOLVED_TAGS: ThreadTagsContent = {
+  tags: { [RESOLVED_TAG]: { set_by: '', set_at: '' } },
+};
+
+const readEffectiveResolution = (
+  roomId: string,
+  threadRootId: string,
+  liveContent: ThreadTagsContent,
+  liveResolvedTs: number | undefined,
+  pinned: boolean
+): { resolved: boolean; resolvedTs?: number } => {
+  const effective = withPendingThreadTags(roomId, threadRootId, liveContent);
+  const resolved = isThreadResolved(effective, pinned);
+  if (!resolved) return { resolved: false };
+  const setAt = effective.tags[RESOLVED_TAG]?.set_at;
+  const resolvedTs = liveResolvedTs ?? (setAt ? Date.parse(setAt) : undefined);
+  return {
+    resolved: true,
+    ...(resolvedTs !== undefined && Number.isFinite(resolvedTs) ? { resolvedTs } : {}),
+  };
+};
+
 const unansweredRoots = (
   room: Room,
   userId: string,
@@ -172,7 +200,13 @@ const unansweredRoots = (
       const body = getCompactThreadRootPreviewInfo(event, { eventId, room })?.previewText ?? '';
       const pinned = isThreadPinned(room, eventId);
       const tag = tags.get(eventId);
-      const resolved = !!tag && isThreadResolved(tag.content, pinned);
+      const resolution = readEffectiveResolution(
+        room.roomId,
+        eventId,
+        tag?.content ?? EMPTY_TAGS,
+        tag?.resolvedTs,
+        pinned
+      );
       return [
         {
           threadId: eventId,
@@ -182,8 +216,7 @@ const unansweredRoots = (
           streaming: false,
           needsYou: false,
           unread: false,
-          resolved,
-          ...(resolved && tag.resolvedTs !== undefined ? { resolvedTs: tag.resolvedTs } : {}),
+          ...resolution,
           ts: event.getTs(),
         },
       ];
@@ -209,16 +242,23 @@ export const readCaptureThreads = (
     if (entry.roomId === room.roomId) {
       known.add(entry.threadRootId);
       const signals = reader.read(room, entry, userId, now);
+      const pinned = isThreadPinned(room, entry.threadRootId);
+      const resolution = readEffectiveResolution(
+        room.roomId,
+        entry.threadRootId,
+        entry.isResolved ? LIVE_RESOLVED_TAGS : EMPTY_TAGS,
+        entry.resolvedTs,
+        pinned
+      );
       threads.push({
         threadId: entry.threadRootId,
         title: threadTitleText(entry),
         reply: () => readReply(mx, room, entry, signals, t),
-        pinned: isThreadPinned(room, entry.threadRootId),
+        pinned,
         streaming: entry.threadRecord.status.isStreaming,
         needsYou: isWaitingOnYou(signals, entry),
         unread: entry.isUnread,
-        resolved: entry.isResolved,
-        ...(entry.resolvedTs === undefined ? {} : { resolvedTs: entry.resolvedTs }),
+        ...resolution,
         ts: entry.lastActivityTs,
       });
     }

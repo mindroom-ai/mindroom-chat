@@ -33,7 +33,7 @@ import { buildLongTextPreview } from '../matrix/protocol/longText';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import { getImageMsgContent } from '../matrix/send/msgContent';
-import { makeResolvedThreadRoom } from '../../test/utils/resolvedThreadRoom';
+import { makeResolvedTagEvent, makeResolvedThreadRoom } from '../../test/utils/resolvedThreadRoom';
 import { resetPendingThreadTagsForTests } from '../event-store/threads/threadTagPending';
 import {
   buildPerTagEventContent,
@@ -564,6 +564,23 @@ describe('sendCaptureReply', () => {
     } finally {
       resetPendingThreadTagsForTests();
     }
+  });
+
+  it('does not clobber a resolve that lands during a long-text sidecar upload', async () => {
+    const { room: baseRoom, state } = makeResolvedThreadRoom({
+      roomId: ROOM_ID,
+      userId: USER_ID,
+      tagEvents: [],
+    });
+    const room = { ...plainRoom, ...baseRoom };
+    const mx = client();
+    vi.mocked(uploadLongTextSidecar).mockImplementationOnce(async (_mx, _room, content) => {
+      state.tagEvents = [makeResolvedTagEvent({ roomId: ROOM_ID, userId: USER_ID, ts: 2000 })];
+      return { msgtype: 'm.file', body: 'sidecar', 'm.relates_to': content['m.relates_to'] };
+    });
+
+    await sendCaptureReply(mx as never, room as never, '$root', 'x'.repeat(70_000), markdown);
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
   });
 });
 

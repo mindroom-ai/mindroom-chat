@@ -28,7 +28,8 @@ const clearPendingTimeout = (key: string) => {
   }
 };
 
-const subscribePending = (listener: () => void) => {
+/** Subscribes to changes in this client's pending thread tag writes. */
+export const subscribePendingThreadTags = (listener: () => void) => {
   pendingListeners.add(listener);
   return () => {
     pendingListeners.delete(listener);
@@ -38,7 +39,7 @@ const subscribePending = (listener: () => void) => {
 const getPendingVersion = () => pendingVersion;
 
 export const usePendingThreadTagsVersion = () =>
-  useSyncExternalStore(subscribePending, getPendingVersion, getPendingVersion);
+  useSyncExternalStore(subscribePendingThreadTags, getPendingVersion, getPendingVersion);
 
 const clearPendingThreadTags = (roomId: string, threadRootId: string) => {
   const key = pendingKey(roomId, threadRootId);

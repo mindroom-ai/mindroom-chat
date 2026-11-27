@@ -12,6 +12,7 @@ import {
 import {
   captureResolvedThreadBeforeReply,
   reopenResolvedThreadAfterReply,
+  type ResolvedThreadReplySnapshot,
 } from '../event-store/threads/threadTagMutations';
 import { ErrorCode } from '../matrix/cs-errorcode';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
@@ -144,12 +145,12 @@ const prepareImages = (
     );
   });
 
-/** Sends one message and returns its event ID. */
-const postMessage = async (
+/** Sends one prepared message and best-effort reopens a pre-captured resolved thread on success. */
+const postPreparedMessage = async (
   mx: MatrixClient,
   room: Room,
   content: IContent,
-  resolvedBeforeSend = captureResolvedThreadBeforeReply(room, content['m.relates_to'])
+  resolvedBeforeSend: ResolvedThreadReplySnapshot | undefined
 ): Promise<string> => {
   const txnId = mx.makeTxnId();
   try {
@@ -167,6 +168,15 @@ const postMessage = async (
   }
 };
 
+/** Sends one message and returns its event ID. */
+const postMessage = (mx: MatrixClient, room: Room, content: IContent): Promise<string> =>
+  postPreparedMessage(
+    mx,
+    room,
+    content,
+    captureResolvedThreadBeforeReply(room, content['m.relates_to'])
+  );
+
 /** Sends a text message, as a long-text sidecar when one event cannot hold it, as the composer does. */
 const postText = async (mx: MatrixClient, room: Room, content: IContent): Promise<string> => {
   const resolvedBeforeSend = captureResolvedThreadBeforeReply(room, content['m.relates_to']);
@@ -176,7 +186,7 @@ const postText = async (mx: MatrixClient, room: Room, content: IContent): Promis
       : await failingAs('send-failed', () =>
           uploadLongTextSidecar(mx, room, content, buildLongTextPreview(content))
         );
-  return postMessage(mx, room, eventContent, resolvedBeforeSend);
+  return postPreparedMessage(mx, room, eventContent, resolvedBeforeSend);
 };
 
 /**

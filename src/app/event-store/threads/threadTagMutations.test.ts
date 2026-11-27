@@ -147,5 +147,20 @@ describe('reopenResolvedThreadAfterReply', () => {
     ).resolves.toBeUndefined();
     expect(failing.sendStateEvent).toHaveBeenCalledTimes(1);
     expect(hasPendingThreadTag(ROOM_ID, ROOT_ID, RESOLVED_TAG)).toBe(false);
+
+    const brokenRoom = {
+      roomId: ROOM_ID,
+      getLiveTimeline: () => {
+        throw new Error('broken state');
+      },
+    } as never;
+    expect(captureResolvedThreadBeforeReply(brokenRoom, threadRelation)).toBeUndefined();
+    await expect(
+      reopenResolvedThreadAfterReply(failing.client, brokenRoom, {
+        threadRootId: ROOT_ID,
+        resolvedTs: 1000,
+        resolvedTag: { set_by: USER_ID, set_at: '2026-11-27T10:00:00.000Z' },
+      })
+    ).resolves.toBeUndefined();
   });
 });

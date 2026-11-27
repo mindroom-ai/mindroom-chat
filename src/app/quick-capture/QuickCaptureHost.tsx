@@ -4,6 +4,7 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { RoomEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { useOptionalClientConfig } from '../config/useClientConfig';
+import { subscribePendingThreadTags } from '../event-store/threads/threadTagPending';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { createSessionId } from '../matrix/session/sessions';
@@ -230,7 +231,10 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
         mDirectAtom,
         roomAtom,
       ];
-      const unsubscribes = watched.map((atom) => store.sub(atom, scheduleState));
+      const unsubscribes = [
+        ...watched.map((atom) => store.sub(atom, scheduleState)),
+        subscribePendingThreadTags(scheduleState),
+      ];
       // A root nobody answered is in the room's timeline, not in the index.
       const onRoomEvent = (_event: MatrixEvent, room: Room | undefined) => {
         if (room && room.roomId === store.get(roomAtom)) scheduleState();
@@ -260,7 +264,13 @@ export function QuickCaptureHost({ channel: givenChannel }: { channel?: CaptureC
     };
     const onRequest = async (id: string, action: CaptureAction) => {
       const result = await runAction(context.current, action).catch(failureOf);
-      if (action.kind === 'selectRoom' && result.ok) postState();
+      if (
+        result.ok &&
+        (action.kind === 'selectRoom' ||
+          ((action.kind === 'reply' || action.kind === 'send') && stateTimer !== undefined))
+      ) {
+        postState();
+      }
       if (open) channel.post({ v: 1, type: 'response', id, hostId, result });
     };
     const sayGone = () => channel.post({ v: 1, type: 'gone', hostId });
