@@ -1341,7 +1341,10 @@
         "toolCallsAlsoFailed": "· {{failed}} nicht abgeschlossen",
         "toolCallsRanFailed_one": "{{count}} Tool-Aufruf ausgeführt · {{failed}} nicht abgeschlossen",
         "toolCallsRanFailed_other": "{{count}} Tool-Aufrufe ausgeführt · {{failed}} nicht abgeschlossen",
-        "stepCommand": "Befehl"
+        "stepCommand": "Befehl",
+        "stepCopy": "Kopieren",
+        "stepCopied": "Kopiert",
+        "stepCopyFailed": "Kopieren fehlgeschlagen"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Titeleinstellungen…"

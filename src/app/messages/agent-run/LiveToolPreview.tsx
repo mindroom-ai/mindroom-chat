@@ -25,8 +25,6 @@ import {
 } from './LiveStepRow';
 import * as css from './LiveToolPreview.css';
 
-export { extractPrimaryArg, extractStepDetail, normalizeToolOutput } from './LiveStepRow';
-
 export type LiveToolItem = {
   index: number;
   toolName: string;

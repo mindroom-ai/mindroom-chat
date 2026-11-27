@@ -1376,7 +1376,10 @@
         "toolCallsRanFailed_one": "{{count}} chiamata a strumento eseguita · chiamate non completate: {{failed}}",
         "toolCallsRanFailed_many": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}",
         "toolCallsRanFailed_other": "{{count}} chiamate a strumenti eseguite · chiamate non completate: {{failed}}",
-        "stepCommand": "Comando"
+        "stepCommand": "Comando",
+        "stepCopy": "Copia",
+        "stepCopied": "Copiato",
+        "stepCopyFailed": "Copia non riuscita"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Impostazioni dei titoli…"

@@ -1376,7 +1376,10 @@
         "toolCallsRanFailed_one": "{{count}} appel d'outil exécuté · sans aboutir : {{failed}}",
         "toolCallsRanFailed_many": "{{count}} appels d'outils exécutés · sans aboutir : {{failed}}",
         "toolCallsRanFailed_other": "{{count}} appels d'outils exécutés · sans aboutir : {{failed}}",
-        "stepCommand": "Commande"
+        "stepCommand": "Commande",
+        "stepCopy": "Copier",
+        "stepCopied": "Copié",
+        "stepCopyFailed": "Échec de la copie"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "Paramètres des titres…"

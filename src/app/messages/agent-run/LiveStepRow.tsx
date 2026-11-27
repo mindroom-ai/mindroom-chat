@@ -110,7 +110,7 @@ const isJsonContainer = (text: string): boolean => {
   }
 };
 
-/** Returns lossless drawer/clipboard detail text for a live step without guessing or chopping. */
+/** Returns trimmed drawer/clipboard detail text for a live step without guessing or chopping. */
 export const extractStepDetail = (
   toolName: string,
   argsPreview: string | undefined
@@ -228,10 +228,10 @@ function StepCopyButton({ text }: { text: string }) {
 
   const label =
     copyState === 'copied'
-      ? t('messageCodeBlock.copied')
+      ? t('mindroomUi.messages.mindroomHtmlBlocks.stepCopied')
       : copyState === 'failed'
-        ? t('featureUi.desktopAccess.browser.copyFailed')
-        : t('featureUi.quickCapture.peek.copy');
+        ? t('mindroomUi.messages.mindroomHtmlBlocks.stepCopyFailed')
+        : t('mindroomUi.messages.mindroomHtmlBlocks.stepCopy');
 
   return (
     <button type="button" className={css.CopyButton} data-live-step-copy="" onClick={handleCopy}>

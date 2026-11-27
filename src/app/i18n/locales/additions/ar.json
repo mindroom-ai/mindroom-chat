@@ -1481,7 +1481,10 @@
         "toolCallsRanFailed_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
         "toolCallsRanFailed_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
         "toolCallsRanFailed_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة · عدد الاستدعاءات غير المكتملة: ⁨{{failed}}⁩",
-        "stepCommand": "الأمر"
+        "stepCommand": "الأمر",
+        "stepCopy": "نسخ",
+        "stepCopied": "تم النسخ",
+        "stepCopyFailed": "فشل النسخ"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "إعدادات العناوين…"

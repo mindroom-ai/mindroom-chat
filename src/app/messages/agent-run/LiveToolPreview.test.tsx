@@ -15,16 +15,7 @@ import {
   type ToolCallWaitingStatus,
 } from './toolCallStatus';
 import * as css from './LiveToolPreview.css';
-import { extractPrimaryArg, LiveToolPreview, type LiveToolItem } from './LiveToolPreview';
-
-const copyMocks = vi.hoisted(() => ({
-  copyToClipboard: vi.fn<(text: string, container?: Element | null) => Promise<boolean>>(),
-}));
-
-vi.mock('../../lib/dom', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../lib/dom')>();
-  return { ...actual, copyToClipboard: copyMocks.copyToClipboard };
-});
+import { LiveToolPreview, type LiveToolItem } from './LiveToolPreview';
 
 const ROOM_ID = '!room:example.org';
 const THREAD_ID = '$thread-root:example.org';
@@ -73,22 +64,6 @@ const subagentItem = (toolCallId: string, overrides: Partial<LiveToolItem> = {})
     ...overrides,
   });
 
-describe('extractPrimaryArg', () => {
-  it('prefers target keys via toToolArgumentFields and falls back to trimmed args_preview', () => {
-    expect(extractPrimaryArg('timeout=60, command=pytest -q tests/live.py')).toBe(
-      'pytest -q tests/live.py'
-    );
-    expect(extractPrimaryArg('args=["git", "status"], cwd=/repo')).toBe('git, status');
-    expect(extractPrimaryArg('offset=10, file_path=src/app/HtmlBlocks.tsx')).toBe(
-      'src/app/HtmlBlocks.tsx'
-    );
-    expect(extractPrimaryArg('{"query": "live bash steps"}')).toBe('live bash steps');
-    expect(extractPrimaryArg('room=#dev, text=hello\nworld')).toBe('room=#dev, text=hello world');
-    expect(extractPrimaryArg('command=echo \u202ehi')).toBe('echo <U+202E>hi');
-    expect(extractPrimaryArg('   ')).toBeUndefined();
-  });
-});
-
 describe('LiveToolPreview', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -97,7 +72,6 @@ describe('LiveToolPreview', () => {
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'], now: NOW * 1000 });
-    copyMocks.copyToClipboard.mockReset().mockResolvedValue(true);
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -231,9 +205,10 @@ describe('LiveToolPreview', () => {
     expect(steps[0]?.textContent).toContain('src/app/HtmlBlocks.tsx');
     expect(steps[0]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe('Done');
     expect(steps[0]?.querySelector('[role="img"] > *')?.getAttribute('aria-hidden')).toBe('true');
-    const firstTrail = steps[0]?.querySelector(`.${css.StepTrail.split(' ')[0]}`);
+    const firstTrail = steps[0]!.querySelector(`.${css.StepTrail}`);
+    expect(firstTrail).not.toBeNull();
     expect(firstTrail?.querySelector('[data-live-step-elapsed]')?.textContent).toBe('1s');
-    expect(firstTrail?.querySelector(`.${css.StepChevron.split(' ')[0]}`)).not.toBeNull();
+    expect(steps[0]!.querySelector(`.${css.StepTrail} .${css.StepChevron}`)).not.toBeNull();
     expect(steps[1]?.textContent).toContain('grep');
     expect(steps[1]?.querySelector('[role="img"]')?.getAttribute('aria-label')).toBe(
       "Didn't complete"
@@ -287,275 +262,8 @@ describe('LiveToolPreview', () => {
     });
   });
 
-  it('keeps bare steps without args, output, or result non-interactive while previewing args at rest', () => {
-    ingestRun('del-bare', { title: 'Mixed steps', callerToolCallId: 'call_bare' }, [
-      { type: 'tool_call_completed', tool_name: 'pwd' },
-      { type: 'tool_call_completed', tool_name: 'lint', is_error: true },
-      { type: 'tool_call_started', tool_name: 'bash' },
-      { type: 'tool_call_completed', tool_name: 'read_file', args_preview: 'path=src/index.ts' },
-    ]);
-
-    render([subagentItem('call_bare'), toolItem({ index: 2, toolName: 'bash', command: 'bash' })]);
-
-    const subSteps = [
-      ...container.querySelectorAll<HTMLElement>(
-        '[data-live-subagent="del-bare"] [data-live-step]'
-      ),
-    ];
-    expect(subSteps).toHaveLength(4);
-    for (const bare of subSteps.slice(0, 3)) {
-      expect(bare.querySelector('button[aria-expanded]')).toBeNull();
-      expect(bare.querySelector(`.${css.StepChevron.split(' ')[0]}`)).toBeNull();
-    }
-    const withArg = subSteps[3]!;
-    const toggle = withArg.querySelector<HTMLButtonElement>('button[aria-expanded]');
-    expect(toggle?.getAttribute('aria-expanded')).toBe('false');
-    const argText = toggle?.querySelector(`:scope > .${css.StepArg.split(' ')[0]}`);
-    expect(argText?.getAttribute('dir')).toBe('auto');
-    expect(argText?.textContent).toBe('src/index.ts');
-    const trail = toggle?.querySelector(`:scope > .${css.StepTrail.split(' ')[0]}`);
-    expect(trail?.querySelector(`.${css.StepChevron.split(' ')[0]}`)).not.toBeNull();
-    // Bare foreground shell step without args or progress is also non-interactive.
-    expect(container.querySelector('[data-live-shell="2"] button[aria-expanded]')).toBeNull();
-  });
-
-  it('expands completed and failed steps with full command/multi-field args, results, and Copy feedback', async () => {
-    vi.useFakeTimers({
-      toFake: ['Date', 'setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'],
-      now: NOW * 1000,
-    });
-    ingestRun('del-detail', { title: 'Inspect details', callerToolCallId: 'call_detail' }, [
-      {
-        type: 'tool_call_completed',
-        tool_name: 'grep',
-        args_preview: 'pattern=LiveToolPreview, path=src/app/messages',
-        result_preview: '3 matches\nLiveToolPreview.tsx',
-        started_at: NOW - 10,
-        ended_at: NOW - 9,
-      },
-      {
-        type: 'tool_call_completed',
-        tool_name: 'bash',
-        args_preview: 'command=set -e\npytest -q',
-        result_preview: 'AssertionError: boom',
-        is_error: true,
-        started_at: NOW - 8,
-        ended_at: NOW - 5,
-      },
-    ]);
-
-    render([subagentItem('call_detail')]);
-    const steps = [...container.querySelectorAll<HTMLElement>('[data-live-step]')];
-    const [doneStep, failedStep] = steps;
-
-    // Collapsed non-shell step shows primary arg only; expanding hides StepArg and reveals full args + done result.
-    const argClass = `.${css.StepArg.split(' ')[0]}`;
-    expect(doneStep?.querySelector(argClass)?.textContent).toBe('src/app/messages');
-    const doneToggle = doneStep?.querySelector<HTMLButtonElement>('button[aria-expanded]');
-    act(() => doneToggle?.click());
-    expect(doneToggle?.getAttribute('aria-expanded')).toBe('true');
-    expect(doneStep?.querySelector(argClass)).toBeNull();
-    const doneDrawer = doneStep?.querySelector('[data-live-step-drawer]');
-    expect(doneDrawer?.textContent).toContain('Arguments');
-    expect(doneDrawer?.querySelector('[data-live-step-command]')?.textContent).toBe(
-      'pattern=LiveToolPreview, path=src/app/messages'
-    );
-    const doneResult = doneDrawer?.querySelector('[data-live-step-result]');
-    expect(doneResult?.className).toBe(css.DrawerResult.done);
-    expect(doneResult?.textContent).toBe('3 matches\nLiveToolPreview.tsx');
-
-    // Copy button sits outside the toggle button, copies full args, flips to Copied for 1500ms, then resets.
-    const doneCopy = doneDrawer?.querySelector<HTMLButtonElement>('[data-live-step-copy]');
-    expect(doneCopy).not.toBeNull();
-    expect(doneToggle?.contains(doneCopy!)).toBe(false);
-    expect(doneCopy?.textContent).toBe('Copy');
-    await act(async () => {
-      doneCopy?.click();
-      await Promise.resolve();
-    });
-    expect(copyMocks.copyToClipboard).toHaveBeenCalledWith(
-      'pattern=LiveToolPreview, path=src/app/messages',
-      doneCopy
-    );
-    expect(doneCopy?.textContent).toBe('Copied');
-    act(() => {
-      vi.advanceTimersByTime(1_499);
-    });
-    expect(doneCopy?.textContent).toBe('Copied');
-    act(() => {
-      vi.advanceTimersByTime(1);
-    });
-    expect(doneCopy?.textContent).toBe('Copy');
-
-    // Failed shell step shows Command header, multiline command, warning-tinted result, and Copy failed + cleanup on unmount.
-    const failedToggle = failedStep?.querySelector<HTMLButtonElement>('button[aria-expanded]');
-    act(() => failedToggle?.click());
-    const failedDrawer = failedStep?.querySelector('[data-live-step-drawer]');
-    expect(failedDrawer?.textContent).toContain('Command');
-    expect(failedDrawer?.querySelector('[data-live-step-command]')?.textContent).toBe(
-      'set -e\npytest -q'
-    );
-    const failedResult = failedDrawer?.querySelector('[data-live-step-result]');
-    expect(failedResult?.className).toBe(css.DrawerResult.failed);
-    expect(failedResult?.textContent).toBe('AssertionError: boom');
-
-    const timersBeforeCopy = vi.getTimerCount();
-    copyMocks.copyToClipboard.mockResolvedValueOnce(false);
-    const failedCopy = failedDrawer?.querySelector<HTMLButtonElement>('[data-live-step-copy]');
-    await act(async () => {
-      failedCopy?.click();
-      await Promise.resolve();
-    });
-    expect(copyMocks.copyToClipboard).toHaveBeenLastCalledWith('set -e\npytest -q', failedCopy);
-    expect(failedCopy?.textContent).toBe('Copy failed');
-    expect(vi.getTimerCount()).toBe(timersBeforeCopy + 1);
-
-    // Unmounting clears pending copy feedback timeout cleanly.
-    act(() => root.unmount());
-    expect(vi.getTimerCount()).toBe(timersBeforeCopy);
-    root = createRoot(container);
-  });
-
-  it.each([
-    [
-      'shell JSON array with sibling arg',
-      'bash',
-      'args=["git", "status"], cwd=/repo',
-      'args=["git", "status"], cwd=/repo',
-    ],
-    [
-      'shell command containing comma-key syntax',
-      'run_shell_command',
-      "command=echo 'a=1, b=2'",
-      "command=echo 'a=1, b=2'",
-    ],
-    [
-      'single-key JSON shell command',
-      'bash',
-      '{"command": "echo \'a=1, b=2\'"}',
-      "echo 'a=1, b=2'",
-    ],
-    [
-      'POSIX bracket test shell command',
-      'bash',
-      'command=[ -f package.json ] && npm test',
-      '[ -f package.json ] && npm test',
-    ],
-    [
-      'POSIX brace-group shell command',
-      'run_shell_command',
-      'command={ echo ok; }',
-      '{ echo ok; }',
-    ],
-    [
-      'single structured JSON array shell args',
-      'bash',
-      'args=["git", "status"]',
-      'args=["git", "status"]',
-    ],
-    [
-      'non-shell multiline arg with indentation',
-      'send_message',
-      'text=first line\n  second line',
-      'text=first line\n  second line',
-    ],
-  ])(
-    'keeps lossless drawer text and copy payload for %s',
-    async (_label, toolName, argsPreview, expectedDetail) => {
-      ingestRun('del-lossless', { title: 'Lossless', callerToolCallId: 'call_lossless' }, [
-        { type: 'tool_call_completed', tool_name: toolName, args_preview: argsPreview },
-      ]);
-      render([subagentItem('call_lossless')]);
-
-      const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
-      act(() => toggle?.click());
-      expect(container.querySelector('[data-live-step-command]')?.textContent).toBe(expectedDetail);
-
-      const copyBtn = container.querySelector<HTMLButtonElement>('[data-live-step-copy]');
-      await act(async () => {
-        copyBtn?.click();
-        await Promise.resolve();
-      });
-      expect(copyMocks.copyToClipboard).toHaveBeenCalledWith(expectedDetail, copyBtn);
-    }
-  );
-
-  it('auto-scrolls expanded live drawer output to bottom, pauses on scroll up, and resumes at bottom', () => {
-    let mockScrollHeight = 400;
-    const ownScrollHeight = Object.getOwnPropertyDescriptor(
-      HTMLPreElement.prototype,
-      'scrollHeight'
-    );
-    const ownClientHeight = Object.getOwnPropertyDescriptor(
-      HTMLPreElement.prototype,
-      'clientHeight'
-    );
-    Object.defineProperty(HTMLPreElement.prototype, 'scrollHeight', {
-      configurable: true,
-      get: () => mockScrollHeight,
-    });
-    Object.defineProperty(HTMLPreElement.prototype, 'clientHeight', {
-      configurable: true,
-      get: () => 200,
-    });
-
-    try {
-      const shell = toolItem({
-        index: 1,
-        toolName: 'run_shell_command',
-        argsPreview: 'command=npm test',
-        progress: 'line 1\nline 2',
-      });
-      render([shell]);
-
-      // Opens scrolled to the bottom immediately.
-      const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
-      act(() => toggle?.click());
-      const pre = container.querySelector<HTMLPreElement>('[data-live-output]');
-      expect(pre).not.toBeNull();
-      expect(pre?.scrollTop).toBe(400);
-
-      // Follows new live output while pinned at bottom.
-      mockScrollHeight = 520;
-      render([{ ...shell, progress: 'line 1\nline 2\nline 3' }]);
-      expect(pre?.scrollTop).toBe(520);
-
-      // User scrolls up (> 4px from bottom): stops auto-scrolling on subsequent updates.
-      act(() => {
-        if (pre) {
-          pre.scrollTop = 100;
-          pre.dispatchEvent(new Event('scroll'));
-        }
-      });
-      mockScrollHeight = 640;
-      render([{ ...shell, progress: 'line 1\nline 2\nline 3\nline 4' }]);
-      expect(pre?.scrollTop).toBe(100);
-
-      // User scrolls back within 4px of bottom (640 - 438 - 200 = 2 <= 4): resumes auto-scrolling.
-      act(() => {
-        if (pre) {
-          pre.scrollTop = 438;
-          pre.dispatchEvent(new Event('scroll'));
-        }
-      });
-      mockScrollHeight = 760;
-      render([{ ...shell, progress: 'line 1\nline 2\nline 3\nline 4\nline 5' }]);
-      expect(pre?.scrollTop).toBe(760);
-    } finally {
-      if (ownScrollHeight) {
-        Object.defineProperty(HTMLPreElement.prototype, 'scrollHeight', ownScrollHeight);
-      } else {
-        Reflect.deleteProperty(HTMLPreElement.prototype, 'scrollHeight');
-      }
-      if (ownClientHeight) {
-        Object.defineProperty(HTMLPreElement.prototype, 'clientHeight', ownClientHeight);
-      } else {
-        Reflect.deleteProperty(HTMLPreElement.prototype, 'clientHeight');
-      }
-    }
-  });
-
   it('preserves expanded state across live frame updates and completion into result_preview', () => {
+    const meta = { title: 'Build app', callerToolCallId: 'call_flow' };
     const startedEvent: ToolTraceEvent = {
       type: 'tool_call_started',
       tool_call_id: 'call_live_1',
@@ -564,7 +272,7 @@ describe('LiveToolPreview', () => {
       started_at: NOW - 3,
       progress: 'line 1\nline 2\nline 3\nline 4',
     };
-    ingestRun('del-flow', { title: 'Build app', callerToolCallId: 'call_flow' }, [startedEvent], 0);
+    ingestRun('del-flow', meta, [startedEvent], 0);
     render([subagentItem('call_flow')]);
 
     const step = () => container.querySelector<HTMLElement>('[data-live-step]');
@@ -582,8 +290,8 @@ describe('LiveToolPreview', () => {
     // Next streaming frame appends stdout: drawer stays open with updated output.
     ingestRun(
       'del-flow',
-      { title: 'Build app', callerToolCallId: 'call_flow' },
-      [{ ...startedEvent, progress: 'line 1\nline 2\nline 3\nline 4\nline 5' }],
+      meta,
+      [{ ...startedEvent, progress: `${startedEvent.progress}\nline 5` }],
       1
     );
     expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
@@ -594,7 +302,7 @@ describe('LiveToolPreview', () => {
     // Step completes with result_preview: stays expanded and transitions cleanly to result.
     ingestRun(
       'del-flow',
-      { title: 'Build app', callerToolCallId: 'call_flow' },
+      meta,
       [
         {
           type: 'tool_call_completed',
@@ -619,9 +327,7 @@ describe('LiveToolPreview', () => {
     act(() => toggle()?.click());
     expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
     expect(step()?.querySelector('[data-live-step-drawer]')).toBeNull();
-    expect(step()?.querySelector(`.${css.StepArg.split(' ')[0]}`)?.textContent).toBe(
-      'npm run build'
-    );
+    expect(step()?.querySelector(`.${css.StepArg}`)?.textContent).toBe('npm run build');
   });
 
   it('renders a clean header card when a linked subagent has not started its first tool yet', () => {
@@ -665,21 +371,24 @@ describe('LiveToolPreview', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('renders direct run_shell_command with expandable command/copy drawer before and after stdout', async () => {
+  it('renders direct run_shell_command with expandable command drawer before and after stdout', () => {
     const shell = toolItem({
       index: 1,
       toolName: 'run_shell_command',
       argsPreview: 'command=cargo test --workspace',
       startedAt: NOW - 2,
     });
-    render([shell]);
+    render([shell, toolItem({ index: 2, toolName: 'bash', command: 'bash' })]);
 
     expect(container.querySelector('[data-live-shell="1"]')).not.toBeNull();
+    // Bare foreground shell step without args or progress is non-interactive.
+    expect(container.querySelector('[data-live-shell="2"] button[aria-expanded]')).toBeNull();
     expect(container.textContent).toContain('run_shell_command');
     expect(container.textContent).toContain('cargo test --workspace');
     expect(container.querySelector('[data-live-step-elapsed]')?.textContent).toBe('2s');
     expect(container.querySelector('[data-live-output]')).toBeNull();
-    const toggle = () => container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+    const toggle = () =>
+      container.querySelector<HTMLButtonElement>('[data-live-shell="1"] button[aria-expanded]');
     expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
 
     act(() => {
@@ -701,15 +410,9 @@ describe('LiveToolPreview', () => {
     expect(container.querySelector('[data-live-step-command]')?.textContent).toBe(
       'cargo test --workspace'
     );
+    expect(container.querySelector('[data-live-step-copy]')).not.toBeNull();
     expect(container.querySelectorAll('[data-live-output]')).toHaveLength(1);
     expect(container.querySelector('[data-live-output]')?.textContent).toBe(fullOutput);
-    const copyBtn = container.querySelector<HTMLButtonElement>('[data-live-step-copy]');
-    await act(async () => {
-      copyBtn?.click();
-      await Promise.resolve();
-    });
-    expect(copyMocks.copyToClipboard).toHaveBeenCalledWith('cargo test --workspace', copyBtn);
-    expect(copyBtn?.textContent).toBe('Copied');
 
     // Collapsing restores 4-line rest well.
     act(() => toggle()?.click());

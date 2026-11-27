@@ -1306,7 +1306,10 @@
         "toolCallFailed": "未完成",
         "toolCallsAlsoFailed": "· {{failed}} 個未完成",
         "toolCallsRanFailed_other": "已執行 {{count}} 次工具呼叫 · {{failed}} 個未完成",
-        "stepCommand": "指令"
+        "stepCommand": "指令",
+        "stepCopy": "拷貝",
+        "stepCopied": "已拷貝",
+        "stepCopyFailed": "複製失敗"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "標題設定…"

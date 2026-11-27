@@ -1341,7 +1341,10 @@
         "toolCallsAlsoFailed": "· अधूरी टूल कॉल की संख्या: {{failed}}",
         "toolCallsRanFailed_one": "{{count}} टूल कॉल चलाया गया · अधूरी टूल कॉल की संख्या: {{failed}}",
         "toolCallsRanFailed_other": "{{count}} टूल कॉल चलाए गए · अधूरी टूल कॉल की संख्या: {{failed}}",
-        "stepCommand": "कमांड"
+        "stepCommand": "कमांड",
+        "stepCopy": "कॉपी करें",
+        "stepCopied": "कॉपी हो गया",
+        "stepCopyFailed": "कॉपी विफल रहा"
       },
       "mindroomThreadSummaryMarker": {
         "titleSettings": "शीर्षक सेटिंग…"
