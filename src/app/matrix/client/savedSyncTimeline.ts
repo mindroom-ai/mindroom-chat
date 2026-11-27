@@ -1,5 +1,6 @@
 import { isRecord } from '../../lib/isRecord';
 import { STARTUP_SYNC_TIMELINE_LIMIT, SYNC_ARCHIVE_TIMELINE_LIMIT } from './clientSyncPolicy';
+import { preserveReceiptEventTimestamps } from './savedSyncReceipts';
 
 // Legacy `web-sync-store` databases saved up to 500 timeline events per room. Because `getJSON(true)`
 // flattens intermediate pagination tokens to a single `prev_batch` at index 0, lowering
@@ -39,6 +40,7 @@ export const trimSavedSyncTimelines = (
     // flatten intermediate tokens to index 0 and fall through to the `nextBatch` anchor below.
     for (let i = startIndex; i < timeline.length; i += 1) {
       if (hasToken(timeline[i])) {
+        preserveReceiptEventTimestamps(room._receipts, timeline);
         room._timeline = timeline.slice(i);
         return;
       }
@@ -49,6 +51,7 @@ export const trimSavedSyncTimelines = (
     const kept = timeline.slice(startIndex);
     const first = kept[0];
     if (!isRecord(first)) return;
+    preserveReceiptEventTimestamps(room._receipts, timeline);
     kept[0] = { ...first, token: nextBatch };
     room._timeline = kept;
   });

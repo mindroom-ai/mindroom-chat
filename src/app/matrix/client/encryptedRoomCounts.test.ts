@@ -15,6 +15,7 @@ import type { ISyncResponse } from 'matrix-js-sdk/lib/sync-accumulator';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 import { keepUnthreadedReceiptEvents } from '../receiptReadTs';
+import { markMainTimelineAsRead } from '../../notifications/readReceipts';
 import { keepSyncedEdits } from './syncedEdits';
 import { trimSavedSyncTimelines, type SavedTimelineSync } from './savedSyncTimeline';
 
@@ -950,13 +951,13 @@ describe('unread counts of an encrypted room', () => {
   });
 
   // Regression: when a legacy saved-sync timeline is trimmed past an older read receipt whose
-  // `takenTs` is newer than the kept messages, falling back to `takenTs` must not bypass the
-  // server's unread count and report 0 for the 30 unread messages.
+  // `takenTs` is newer than the kept messages, preserving the target's `origin_server_ts` keeps
+  // unread counts, mention highlights, suppressed notices, and `markMainTimelineAsRead` intact.
   it.each([
     ['main', 'main'],
     ['unthreaded', undefined],
   ] as const)(
-    'keeps server unread count after trimming past an older %s receipt taken after newer messages',
+    'preserves unread counts, highlights, suppressed notices, and main-timeline read after trimming past an older %s receipt',
     async (_label, threadId) => {
       const messages = Array.from({ length: 60 }, (_, index) =>
         encrypted(`$msg-${index + 1}`, OTHER, 101 + index)
@@ -1015,30 +1016,47 @@ describe('unread counts of an encrypted room', () => {
           counts: { room: saved.unread_notifications?.notification_count ?? 0 },
         });
         for (const event of saved.timeline.events) {
-          await f.decrypt(f.find(event.event_id), {
-            msgtype: 'm.text',
-            body: `message ${event.event_id}`,
-          });
+          const content =
+            event.event_id === '$msg-55'
+              ? { msgtype: 'm.text', body: 'ping @me', 'm.mentions': { user_ids: [ME] } }
+              : event.event_id === '$msg-58'
+                ? titleNotice
+                : { msgtype: 'm.text', body: `message ${event.event_id}` };
+          await f.decrypt(f.find(event.event_id), content);
         }
-        expect(f.totalCount()).toBe(30);
+        // Server counted 30 unread (including the encrypted notice); client suppresses `$msg-58`
+        // to 29 and detects the encrypted mention in `$msg-55` as 1 highlight.
+        expect(f.totalCount()).toBe(29);
+        expect(f.room().getUnreadNotificationCount(NotificationCountType.Highlight)).toBe(1);
 
-        // Once the reader reads a held message in the trimmed window, the resolved read point
-        // bounds the unread count immediately even before the server updates its unread count.
         if (trim) {
+          // Reading the main timeline must still advance past the trimmed `$msg-30` receipt.
+          const sendReceipt = vi.spyOn(f.mx, 'sendReceipt');
+          await markMainTimelineAsRead(f.mx, ROOM, false);
+          expect(sendReceipt).toHaveBeenCalledTimes(1);
+          expect(sendReceipt.mock.calls[0]?.[0]?.getId()).toBe('$msg-60');
+
           await f.deliver([], [readMain('$msg-50', 205)]);
-          expect(f.totalCount()).toBe(10);
+          expect(f.totalCount()).toBe(9);
+          expect(f.room().getUnreadNotificationCount(NotificationCountType.Highlight)).toBe(1);
           await f.deliver([], [readMain('$msg-60', 210)]);
           expect(f.totalCount()).toBe(0);
+          expect(f.room().getUnreadNotificationCount(NotificationCountType.Highlight)).toBe(0);
         }
         clients.splice(0).forEach((mx) => mx.stopClient());
       }
     }
   );
 
-  it('keeps an unheld terminal-edit receipt read when the server reports 0 unread', async () => {
+  it('keeps an unheld terminal-edit receipt read even when followed by an encrypted title notice', async () => {
     const f = await fixture(true);
     await f.deliver(
-      [encrypted(ROOT, ME, 10), streamedReply(REPLY, 11), finishingEdit('$done', REPLY, 15)],
+      [
+        encrypted(ROOT, ME, 10),
+        streamedReply(REPLY, 11),
+        finishingEdit('$done', REPLY, 15),
+        encrypted('$title', AGENT, 16, inThread),
+      ],
       [
         {
           type: 'm.receipt',
@@ -1048,11 +1066,12 @@ describe('unread counts of an encrypted room', () => {
           },
         },
       ],
-      { counts: { room: 0, threads: { [ROOT]: 0 } } }
+      { counts: { room: 0, threads: { [ROOT]: 1 } } }
     );
     await f.decrypt(f.find(ROOT), clear[ROOT]);
     await f.decrypt(f.find(REPLY), clear[REPLY]);
     await f.decrypt(f.find('$done'), finishedContent(REPLY));
+    await f.decrypt(f.find('$title'), titleNotice);
     expect([f.threadCount(), f.totalCount()]).toEqual([0, 0]);
   });
 });

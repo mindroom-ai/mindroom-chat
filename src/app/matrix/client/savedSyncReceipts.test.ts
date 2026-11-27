@@ -3,7 +3,11 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { SyncAccumulator } from 'matrix-js-sdk/lib/sync-accumulator';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getThreadUnread } from '../../event-store/threads/roomThreadList';
-import { keepEveryReceiptInSavedSync } from './savedSyncReceipts';
+import {
+  keepEveryReceiptInSavedSync,
+  readSavedReceiptEventTs,
+  SAVED_RECEIPT_EVENT_TS_KEY,
+} from './savedSyncReceipts';
 
 const ROOM_ID = '!saved-receipts:example.org';
 const READER = '@reader:example.org';
@@ -144,5 +148,184 @@ describe('keepEveryReceiptInSavedSync', () => {
 
   it('saves no receipt event for a room without receipts', () => {
     expect(savedAndLoaded([[]])).toEqual([]);
+  });
+
+  const rawMsg = (id: string, ts: number) => ({
+    event_id: id,
+    room_id: ROOM_ID,
+    sender: WRITER,
+    type: 'm.room.message',
+    origin_server_ts: ts,
+    content: { msgtype: 'm.text', body: id },
+  });
+
+  const syncBatch = (
+    nextBatch: string,
+    timelineEvents: ReturnType<typeof rawMsg>[],
+    ephemeralEvents: unknown[],
+    { prevBatch = `p-${nextBatch}`, limited = false } = {}
+  ) =>
+    ({
+      next_batch: nextBatch,
+      rooms: {
+        join: {
+          [ROOM_ID]: {
+            ephemeral: { events: ephemeralEvents },
+            timeline: { events: timelineEvents, prev_batch: prevBatch, limited },
+            state: { events: [] },
+            account_data: { events: [] },
+          },
+        },
+        invite: {},
+        leave: {},
+        knock: {},
+      },
+    }) as unknown as Parameters<SyncAccumulator['accumulate']>[0];
+
+  const receiptFrom = (accumulator: SyncAccumulator, eventId: string, type = ReceiptType.Read) => {
+    const ephemeral = accumulator.getJSON().roomsData.join[ROOM_ID]?.ephemeral.events ?? [];
+    const content: Record<string, Record<string, Record<string, unknown>>> | undefined =
+      ephemeral[0]?.content;
+    return content?.[eventId]?.[type]?.[READER];
+  };
+
+  it('preserves receipt target origin_server_ts across maxTimelineEntries=40 pruning, server repeats, and multiple reloads', () => {
+    const live = new SyncAccumulator({ maxTimelineEntries: 40 });
+    live.accumulate(
+      syncBatch(
+        's1',
+        Array.from({ length: 20 }, (_, i) => rawMsg(`$msg-${i + 1}`, 101 + i)),
+        [receiptEvent('$msg-10', ReceiptType.Read, { ts: 200, thread_id: 'main' })]
+      )
+    );
+    live.accumulate(
+      syncBatch(
+        's2',
+        Array.from({ length: 20 }, (_, i) => rawMsg(`$msg-${i + 21}`, 121 + i)),
+        []
+      )
+    );
+    live.accumulate(
+      syncBatch(
+        's3',
+        Array.from({ length: 5 }, (_, i) => rawMsg(`$msg-${i + 41}`, 141 + i)),
+        []
+      )
+    );
+
+    // `$msg-1..20` (including `$msg-10`) were pruned by SyncAccumulator.
+    const saved1 = live.getJSON(true);
+    expect(saved1.roomsData.join[ROOM_ID]?.timeline.events.map((e) => e.event_id)).not.toContain(
+      '$msg-10'
+    );
+    expect(readSavedReceiptEventTs(receiptFrom(live, '$msg-10'))).toBe(110);
+
+    // Reload #1 from IndexedDB, receive an unstamped server repeat for `$msg-10`, save, reload #2.
+    const reload1 = new SyncAccumulator({ maxTimelineEntries: 40 });
+    reload1.accumulate(
+      { next_batch: saved1.nextBatch, rooms: saved1.roomsData } as unknown as Parameters<
+        SyncAccumulator['accumulate']
+      >[0],
+      true
+    );
+    const repeatPayload = { ts: 210, thread_id: 'main' };
+    reload1.accumulate(
+      syncBatch(
+        's4',
+        [rawMsg('$msg-46', 146)],
+        [receiptEvent('$msg-10', ReceiptType.Read, repeatPayload)]
+      )
+    );
+    // Input payload must never be mutated.
+    expect(SAVED_RECEIPT_EVENT_TS_KEY in repeatPayload).toBe(false);
+    expect(readSavedReceiptEventTs(receiptFrom(reload1, '$msg-10'))).toBe(110);
+
+    const saved2 = reload1.getJSON(true);
+    const reload2 = new SyncAccumulator({ maxTimelineEntries: 40 });
+    reload2.accumulate(
+      { next_batch: saved2.nextBatch, rooms: saved2.roomsData } as unknown as Parameters<
+        SyncAccumulator['accumulate']
+      >[0],
+      true
+    );
+    expect(readSavedReceiptEventTs(receiptFrom(reload2, '$msg-10'))).toBe(110);
+  });
+
+  it('preserves receipt target origin_server_ts when a limited sync wipes the prior timeline', () => {
+    const live = new SyncAccumulator({ maxTimelineEntries: 40 });
+    live.accumulate(syncBatch('s1', [rawMsg('$old', 130)], []));
+    // Receipt for `$old` arrives in the same limited sync that clears `_timeline`.
+    live.accumulate(
+      syncBatch(
+        's2',
+        [rawMsg('$after-gap', 300)],
+        [receiptEvent('$old', ReceiptType.Read, { ts: 350 })],
+        { limited: true }
+      )
+    );
+
+    const saved = live.getJSON(true);
+    expect(saved.roomsData.join[ROOM_ID]?.timeline.events.map((e) => e.event_id)).toEqual([
+      '$after-gap',
+    ]);
+    expect(readSavedReceiptEventTs(receiptFrom(live, '$old'))).toBe(130);
+  });
+
+  it('strips untrusted saved_event_ts from live network receipts without mutating caller data', () => {
+    const live = new SyncAccumulator({ maxTimelineEntries: 40 });
+    const forgedUnknown = {
+      ts: 500,
+      thread_id: 'main',
+      [SAVED_RECEIPT_EVENT_TS_KEY]: 999999,
+    } as RawReceipt;
+    live.accumulate(
+      syncBatch(
+        's1',
+        [rawMsg('$known', 120)],
+        [receiptEvent('$unknown', ReceiptType.Read, forgedUnknown)]
+      )
+    );
+
+    expect(forgedUnknown[SAVED_RECEIPT_EVENT_TS_KEY as keyof RawReceipt]).toBe(999999);
+    expect(readSavedReceiptEventTs(receiptFrom(live, '$unknown'))).toBeUndefined();
+
+    // Forged value on a known event is replaced by the real origin_server_ts.
+    const forgedKnown = {
+      ts: 500,
+      thread_id: 'main',
+      [SAVED_RECEIPT_EVENT_TS_KEY]: 999999,
+    } as RawReceipt;
+    live.accumulate(syncBatch('s2', [], [receiptEvent('$known', ReceiptType.Read, forgedKnown)]));
+    expect(forgedKnown[SAVED_RECEIPT_EVENT_TS_KEY as keyof RawReceipt]).toBe(999999);
+    expect(readSavedReceiptEventTs(receiptFrom(live, '$known'))).toBe(120);
+  });
+
+  it('resets saved-timestamp trust even if a database accumulate throws', () => {
+    const broken = new SyncAccumulator({ maxTimelineEntries: 40 });
+    expect(() =>
+      broken.accumulate(
+        {
+          next_batch: 'bad',
+          rooms: { join: { [ROOM_ID]: null }, invite: {}, leave: {}, knock: {} },
+        } as unknown as Parameters<SyncAccumulator['accumulate']>[0],
+        true
+      )
+    ).toThrow();
+
+    const live = new SyncAccumulator({ maxTimelineEntries: 40 });
+    live.accumulate(
+      syncBatch(
+        's1',
+        [],
+        [
+          receiptEvent('$unknown', ReceiptType.Read, {
+            ts: 500,
+            thread_id: 'main',
+            [SAVED_RECEIPT_EVENT_TS_KEY]: 999999,
+          } as RawReceipt),
+        ]
+      )
+    );
+    expect(readSavedReceiptEventTs(receiptFrom(live, '$unknown'))).toBeUndefined();
   });
 });
