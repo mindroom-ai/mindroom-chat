@@ -1,9 +1,16 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { useStore } from 'jotai';
 import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { startAgentCall } from './agent/agentCaller';
-import { activeCallAtom, dropActiveCall, leaveCallNow, useCallActions } from './callStore';
+import {
+  activeCallAtom,
+  dropActiveCall,
+  isLiveCallPhase,
+  leaveCallNow,
+  useActiveCall,
+  useCallActions,
+} from './callStore';
 import {
   forgetCallResume,
   rememberCallForResume,
@@ -19,6 +26,11 @@ import { AgentCallTranscript } from './transcription/AgentCallTranscript';
 import { CallTranscription } from './transcription/CallTranscription';
 import * as css from './IncomingCalls.css';
 import { CallWindowHost } from './window/CallWindowHost';
+import {
+  isAndroidCallServiceAvailable,
+  startAndroidCallService,
+  stopAndroidCallService,
+} from '../native/androidCallService';
 
 /**
  * Ends the call with the signed-in session: when the account signs out or switches (the shell
@@ -123,10 +135,85 @@ function CallResume() {
  * reload, the call's lifetime, transcribing this device's speech in it (reading an agent call's
  * transcript), and the floating call window.
  */
+const noCallSubscription = () => () => undefined;
+
+function AndroidCallServiceSync() {
+  const mx = useMatrixClient();
+  const active = useActiveCall();
+  const call = active?.call;
+  const phase = useSyncExternalStore(
+    call?.subscribe ?? noCallSubscription,
+    () => call?.getState().phase
+  );
+  const live = phase !== undefined && isLiveCallPhase(phase);
+  const roomName = active
+    ? (active.origin?.roomId ? mx.getRoom(active.origin.roomId)?.name : undefined) ||
+      active.call.room.name ||
+      undefined
+    : undefined;
+  const startedRef = useRef(false);
+  const activeOnNativeRef = useRef(false);
+  const lastRoomNameRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!live) {
+      if (startedRef.current) {
+        startedRef.current = false;
+        activeOnNativeRef.current = false;
+        lastRoomNameRef.current = undefined;
+        void stopAndroidCallService();
+      }
+      return undefined;
+    }
+
+    if (activeOnNativeRef.current && lastRoomNameRef.current === roomName) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    startedRef.current = true;
+    lastRoomNameRef.current = roomName;
+    void startAndroidCallService(roomName).then((started) => {
+      if (cancelled) {
+        if (started && !startedRef.current) void stopAndroidCallService();
+        return;
+      }
+      activeOnNativeRef.current = started;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [live, phase, roomName]);
+
+  useEffect(
+    () => () => {
+      if (startedRef.current) {
+        startedRef.current = false;
+        activeOnNativeRef.current = false;
+        lastRoomNameRef.current = undefined;
+        void stopAndroidCallService();
+      }
+    },
+    []
+  );
+
+  return null;
+}
+
+/**
+ * On native Android, holds a microphone foreground service while a call is live so WebRTC audio
+ * stays alive when the user switches apps or locks the screen.
+ */
+export function AndroidCallServiceFeature() {
+  if (!isAndroidCallServiceAvailable()) return null;
+  return <AndroidCallServiceSync />;
+}
+
 export function CallFeatures() {
   return (
     <>
       <CallLifetime />
+      <AndroidCallServiceFeature />
       <CallResume />
       <CallTranscription />
       <AgentCallTranscript />

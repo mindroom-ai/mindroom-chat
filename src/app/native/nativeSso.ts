@@ -249,7 +249,7 @@ export const openNativeSsoBrowser = async (
     return;
   }
 
-  if (isNativeIOS() && Capacitor.isPluginAvailable('MindRoomAuth')) {
+  if (isNativeApp() && Capacitor.isPluginAvailable('MindRoomAuth')) {
     const callbackUrl = await authenticateInNativeBrowser(url, NATIVE_SSO_SCHEME, ephemeral);
 
     if (callbackUrl) {

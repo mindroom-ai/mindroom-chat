@@ -7,11 +7,12 @@ import {
   discoverCloudflareAccess,
   getCloudflareAccessToken,
   hasCloudflareAccess,
+  isCloudflareAccessSupported,
   parseCloudflareAccessCallback,
   renewExpiredCloudflareAccess,
   signInToCloudflareAccess,
 } from './cloudflareAccess';
-import { authenticateInNativeBrowser, isNativeIOS } from './nativeSso';
+import { authenticateInNativeBrowser, isNativeApp } from './nativeSso';
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: { isPluginAvailable: vi.fn() },
@@ -19,7 +20,7 @@ vi.mock('@capacitor/core', () => ({
 
 vi.mock('./nativeSso', () => ({
   authenticateInNativeBrowser: vi.fn(),
-  isNativeIOS: vi.fn(),
+  isNativeApp: vi.fn(),
 }));
 
 const NOW = 1_800_000_000_000;
@@ -44,7 +45,7 @@ const callback = (token: string, origin = BASE_URL): string =>
 
 describe('cloudflareAccess', () => {
   beforeEach(() => {
-    vi.mocked(isNativeIOS).mockReturnValue(true);
+    vi.mocked(isNativeApp).mockReturnValue(true);
     vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
     vi.spyOn(Date, 'now').mockReturnValue(NOW);
   });
@@ -67,12 +68,18 @@ describe('cloudflareAccess', () => {
     expect(hasCloudflareAccess(BASE_URL)).toBe(true);
   });
 
-  it('does not look for an advert outside the iOS app', async () => {
-    vi.mocked(isNativeIOS).mockReturnValue(false);
+  it('supports native apps with MindRoomAuth (iOS and Android) and stays off otherwise', async () => {
+    expect(isCloudflareAccessSupported()).toBe(true);
+
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(false);
+    expect(isCloudflareAccessSupported()).toBe(false);
+
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    vi.mocked(isNativeApp).mockReturnValue(false);
+    expect(isCloudflareAccessSupported()).toBe(false);
+
     const request = advert(HANDOFF_URL);
-
     await expect(discoverCloudflareAccess(BASE_URL, request)).resolves.toBe(false);
-
     expect(request).not.toHaveBeenCalled();
   });
 

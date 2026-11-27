@@ -1,6 +1,6 @@
 import { useEffect, useReducer } from 'react';
 import { Capacitor } from '@capacitor/core';
-import { authenticateInNativeBrowser, isNativeIOS } from './nativeSso';
+import { authenticateInNativeBrowser, isNativeApp } from './nativeSso';
 
 /**
  * Homeservers behind Cloudflare Access reject requests without an Access session, and the
@@ -69,7 +69,7 @@ const isUsable = (token: string, now: number): boolean => {
 };
 
 export const isCloudflareAccessSupported = (): boolean =>
-  isNativeIOS() && Capacitor.isPluginAvailable('MindRoomAuth');
+  isNativeApp() && Capacitor.isPluginAvailable('MindRoomAuth');
 
 export const hasCloudflareAccess = (baseUrl: string): boolean => Boolean(readRecord(baseUrl));
 

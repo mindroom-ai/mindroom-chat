@@ -447,9 +447,13 @@ describe('nativeSso', () => {
     ).rejects.toThrow('login token');
   });
 
-  it('registers the Android native SSO callback intent filter', () => {
+  it('registers the Android mindroom:// SSO and Cloudflare Access callback intent filter', () => {
     const manifestSource = readFileSync(
       new URL('../../../android/app/src/main/AndroidManifest.xml', import.meta.url),
+      'utf8'
+    );
+    const stringsSource = readFileSync(
+      new URL('../../../android/app/src/main/res/values/strings.xml', import.meta.url),
       'utf8'
     );
 
@@ -460,7 +464,50 @@ describe('nativeSso', () => {
     );
     expect(manifestSource).toContain('android:scheme="mindroom"');
     expect(manifestSource).toContain('android:host="auth"');
-    expect(manifestSource).toContain('android:pathPrefix="/login"');
+    expect(manifestSource).toContain('android:host="cloudflare-access"');
+    expect(stringsSource).toContain('<string name="custom_url_scheme">mindroom</string>');
+  });
+
+  it('uses MindRoomAuth on native Android for SSO while keeping native Apple sign-in iOS-only', async () => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+    authenticate.mockResolvedValue({
+      url: 'mindroom://auth/login/mindroom.chat?loginToken=android-token',
+    });
+    const replaceState = vi.fn();
+    const dispatchEvent = vi.fn();
+    Object.defineProperty(globalThis, 'window', {
+      configurable: true,
+      value: {
+        dispatchEvent,
+        history: { replaceState },
+        location: { replace: vi.fn() },
+      },
+    });
+
+    await openNativeSsoBrowser('https://mindroom.chat/_matrix/client/v3/login/sso/redirect', true);
+
+    expect(authenticate).toHaveBeenCalledWith({
+      url: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+      callbackScheme: 'mindroom',
+      ephemeral: true,
+    });
+    expect(Browser.open).not.toHaveBeenCalled();
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      '',
+      '/login/mindroom.chat?loginToken=android-token'
+    );
+
+    await expect(
+      signInWithNativeApple({
+        ssoUrl: 'https://mindroom.chat/_matrix/client/v3/login/sso/redirect',
+        baseUrl: 'https://mindroom.chat',
+        redirectUrl: 'mindroom://auth/login/mindroom.chat',
+      })
+    ).rejects.toThrow('Native Apple sign-in is unavailable');
+    expect(signInWithApple).not.toHaveBeenCalled();
   });
 
   it('starts and opens a loopback sign-in through the desktop bridge', async () => {
