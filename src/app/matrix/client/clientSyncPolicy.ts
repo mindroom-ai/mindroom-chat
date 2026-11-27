@@ -26,10 +26,13 @@ import { recordRecentLiveEvents } from './recentLiveEvents';
 export const STARTUP_SYNC_TIMELINE_LIMIT = 20;
 
 /**
- * Timeline events per room the IndexedDB sync store keeps between sessions, so a reload shows
- * recent history without asking the server.
+ * Timeline events per room the IndexedDB sync store (`web-sync-store`) keeps between sessions.
+ * Deep room and thread history is persisted on disk in `mindroom-cache`, so `web-sync-store` only
+ * needs recent startup events. Keeping `2 * STARTUP_SYNC_TIMELINE_LIMIT` (40) gives a full
+ * 20-event sync page of headroom above a loaded 20-event room so `SyncAccumulator` does not
+ * collapse 20 events down to 1 on the first incremental event.
  */
-export const LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT = 500;
+export const SYNC_ARCHIVE_TIMELINE_LIMIT = STARTUP_SYNC_TIMELINE_LIMIT * 2;
 
 /** Room ephemeral events to receive: typing, receipts, MindRoom's reply, sub-agent and workflow frames. */
 export const SYNC_EPHEMERAL_TYPES = [

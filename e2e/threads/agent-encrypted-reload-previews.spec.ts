@@ -24,8 +24,8 @@ test.describe.configure({ timeout: 900_000 });
 const THREADS = Number(process.env.ENCRYPTED_RELOAD_THREADS ?? '24');
 /**
  * Room events sent after the threads, so that they are older than what a reload restores without
- * the threads: the saved sync keeps a room's latest 500 events (LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT),
- * about 40 of the finding's threads.
+ * the threads: the saved sync keeps at most SYNC_ARCHIVE_TIMELINE_LIMIT (40) events (down from an
+ * earlier 500-event limit), and 600 pushes the threads far past that window.
  */
 const LATER_EVENTS = Number(process.env.ENCRYPTED_RELOAD_LATER_EVENTS ?? '600');
 // Set ENCRYPTED_RELOAD_SHOTS=<directory> to save each device's room.
