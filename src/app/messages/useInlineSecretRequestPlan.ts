@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { MatrixEventEvent, RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
+import { MINDROOM_SECRET_REQUEST_KEY } from '../matrix/protocol/secretRequest';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import {
   NO_INLINE_SECRET_REQUESTS,
@@ -46,8 +47,18 @@ export const useInlineSecretRequestPlan = ({
     if (!threadId) return undefined;
     const inThread = (event: MatrixEvent | undefined, rootId = event?.threadRootId) =>
       event?.getRoomId() === room.roomId && (rootId === threadId || event?.getId() === threadId);
+    const isSecretRequestCandidate = (event: MatrixEvent): boolean => {
+      if (
+        MINDROOM_SECRET_REQUEST_KEY in event.getOriginalContent() ||
+        MINDROOM_SECRET_REQUEST_KEY in event.getContent()
+      ) {
+        return true;
+      }
+      const replacement = event.replacingEvent();
+      return !!replacement && MINDROOM_SECRET_REQUEST_KEY in replacement.getContent();
+    };
     const changed = (event: MatrixEvent) => {
-      if (inThread(event)) countChange();
+      if (inThread(event) && isSecretRequestCandidate(event)) countChange();
     };
     const redacted = (_redaction: MatrixEvent, _room: Room, rootId?: string) => {
       if (rootId === threadId) countChange();

@@ -496,3 +496,32 @@ it('retains pressed, menu-protected, and dragged cards outside the window', () =
   layout.scroll(view, 4300);
   expect(dragged.isConnected).toBe(false);
 });
+
+it('caches getComputedStyle and reads view.scrollTop once per scroll pass when font and gap are unchanged', () => {
+  const { view } = mount();
+  tick(12);
+  const computedSpy = vi.spyOn(window, 'getComputedStyle');
+  const rectSpy = vi.mocked(HTMLElement.prototype.getBoundingClientRect);
+  let scrollTopReads = 0;
+  let currentTop = view.scrollTop;
+  Object.defineProperty(view, 'scrollTop', {
+    configurable: true,
+    get() {
+      scrollTopReads += 1;
+      return currentTop;
+    },
+    set(value: number) {
+      currentTop = value;
+    },
+  });
+
+  computedSpy.mockClear();
+  const rectsBefore = rectSpy.mock.calls.length;
+  scrollTopReads = 0;
+  layout.scroll(view, 240);
+  const rectsDuringScroll = rectSpy.mock.calls.length - rectsBefore;
+  expect(computedSpy).not.toHaveBeenCalled();
+  // stubCompactLayout reads scrollTop once per row rect; layout() itself reads scrollTop once.
+  expect(scrollTopReads - rectsDuringScroll).toBeLessThanOrEqual(2);
+  computedSpy.mockRestore();
+});

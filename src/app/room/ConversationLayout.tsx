@@ -9,6 +9,7 @@ import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
+import { PaneCollapsedContext, usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { RoomViewFollowing } from '../timeline/RoomViewFollowing';
@@ -184,6 +185,8 @@ export function ConversationLayout({
   const footerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const parentCollapsed = usePaneCollapsed();
+  const paneCollapsed = collapsed || parentCollapsed;
   const shownHeader = !collapsed && header;
   useOverlayInsets(
     areaRef,
@@ -194,78 +197,80 @@ export function ConversationLayout({
   );
 
   return (
-    <div ref={areaRef} className={css.RoomArea} style={collapsed ? COLLAPSED_STYLE : AREA_STYLE}>
-      {shownHeader && (
-        // The element draws the header's surface; the row inside shows it and paints none.
-        <div
-          ref={headerRef}
-          data-room-header="true"
-          data-glass-flat="true"
-          className={classNames(
-            overlay.Header,
-            css.HeaderInShortArea,
-            threadId && overlay.HeaderInThread
-          )}
-        >
-          <SurfaceProvider value>{shownHeader(headerRef)}</SurfaceProvider>
-        </div>
-      )}
-      {/* The element stays as the conversation goes: a plugin's cover keeps holding it. */}
-      <div ref={conversationRef} style={CONVERSATION_STYLE}>
-        {!collapsed && (
-          <>
-            <ThreadApprovalProvider
-              room={room}
-              // A message not yet on the server has no approvals, and no relations to ask for.
-              threadId={!readOnly && isConfirmedMatrixEventId(threadId) ? threadId : undefined}
-              focusConversation={focusConversation}
-            >
-              <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
-                {timeline}
-              </Box>
-              <div ref={dockRef} style={DOCK_STYLE}>
-                <div className={overlay.DockRow}>
-                  <div className={overlay.DockBars}>
-                    <RoomViewTyping room={room} threadId={threadId} />
-                    {/* A bar that throws hides itself, not the room; it tries again in the next conversation. */}
-                    <ErrorBoundary
-                      fallback={null}
-                      resetKeys={[room.roomId, threadId]}
-                      onError={(thrown: unknown, info) => {
-                        // eslint-disable-next-line no-console
-                        console.error('[background-jobs] the jobs bar failed', thrown);
-                        reportBoundaryError(thrown, info.componentStack);
-                      }}
-                    >
-                      <BackgroundJobsBar
-                        room={room}
-                        threadId={threadId ?? null}
-                        canCancel={canCancelJobs && !readOnly}
-                        readOnly={readOnly}
-                        focusConversation={focusConversation}
-                      />
-                    </ErrorBoundary>
-                  </div>
-                  <RoomViewFollowing room={room} threadId={threadId} />
-                </div>
-                {threadId && !readOnly && <ThreadApprovalQueue />}
-              </div>
-            </ThreadApprovalProvider>
-            {/* Outside the approval provider: opening a thread must not remount the composer. */}
-            <div
-              ref={footerRef}
-              className={classNames(overlay.Footer, phone && overlay.FooterOnPhone)}
-              data-room-footer="true"
-              data-footer-of={threadId ? 'thread' : 'room'}
-            >
-              <div aria-hidden style={SELECTION_STOP_STYLE} />
-              {notice}
-              {composer}
-            </div>
-          </>
+    <PaneCollapsedContext.Provider value={paneCollapsed}>
+      <div ref={areaRef} className={css.RoomArea} style={collapsed ? COLLAPSED_STYLE : AREA_STYLE}>
+        {shownHeader && (
+          // The element draws the header's surface; the row inside shows it and paints none.
+          <div
+            ref={headerRef}
+            data-room-header="true"
+            data-glass-flat="true"
+            className={classNames(
+              overlay.Header,
+              css.HeaderInShortArea,
+              threadId && overlay.HeaderInThread
+            )}
+          >
+            <SurfaceProvider value>{shownHeader(headerRef)}</SurfaceProvider>
+          </div>
         )}
+        {/* The element stays as the conversation goes: a plugin's cover keeps holding it. */}
+        <div ref={conversationRef} style={CONVERSATION_STYLE}>
+          {!collapsed && (
+            <>
+              <ThreadApprovalProvider
+                room={room}
+                // A message not yet on the server has no approvals, and no relations to ask for.
+                threadId={!readOnly && isConfirmedMatrixEventId(threadId) ? threadId : undefined}
+                focusConversation={focusConversation}
+              >
+                <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
+                  {timeline}
+                </Box>
+                <div ref={dockRef} style={DOCK_STYLE}>
+                  <div className={overlay.DockRow}>
+                    <div className={overlay.DockBars}>
+                      <RoomViewTyping room={room} threadId={threadId} containerRef={areaRef} />
+                      {/* A bar that throws hides itself, not the room; it tries again in the next conversation. */}
+                      <ErrorBoundary
+                        fallback={null}
+                        resetKeys={[room.roomId, threadId]}
+                        onError={(thrown: unknown, info) => {
+                          // eslint-disable-next-line no-console
+                          console.error('[background-jobs] the jobs bar failed', thrown);
+                          reportBoundaryError(thrown, info.componentStack);
+                        }}
+                      >
+                        <BackgroundJobsBar
+                          room={room}
+                          threadId={threadId ?? null}
+                          canCancel={canCancelJobs && !readOnly}
+                          readOnly={readOnly}
+                          focusConversation={focusConversation}
+                        />
+                      </ErrorBoundary>
+                    </div>
+                    <RoomViewFollowing room={room} threadId={threadId} />
+                  </div>
+                  {threadId && !readOnly && <ThreadApprovalQueue />}
+                </div>
+              </ThreadApprovalProvider>
+              {/* Outside the approval provider: opening a thread must not remount the composer. */}
+              <div
+                ref={footerRef}
+                className={classNames(overlay.Footer, phone && overlay.FooterOnPhone)}
+                data-room-footer="true"
+                data-footer-of={threadId ? 'thread' : 'room'}
+              >
+                <div aria-hidden style={SELECTION_STOP_STYLE} />
+                {notice}
+                {composer}
+              </div>
+            </>
+          )}
+        </div>
+        {children}
       </div>
-      {children}
-    </div>
+    </PaneCollapsedContext.Provider>
   );
 }

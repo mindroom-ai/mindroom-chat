@@ -205,7 +205,7 @@ describe('CollapsibleMessage', () => {
     });
 
     expect(measured.getScrollHeightReads()).toBe(initialReads);
-    expect(resizeObserverConstructed).toHaveBeenCalledTimes(2);
+    expect(resizeObserverConstructed).toHaveBeenCalledTimes(1);
     act(() => {
       lastResizeCallback!([], {} as ResizeObserver);
     });
@@ -240,7 +240,7 @@ describe('CollapsibleMessage', () => {
     act(() => renderer.unmount());
   });
 
-  it('warms the remount cache after an expanded edit that keeps the same height', () => {
+  it('reuses a single persistent ResizeObserver across measurementKey changes and warms the remount cache on same-height edits', () => {
     const renderer = renderCollapsibleMessage(
       { collapseMode: 'initially-expanded', measurementKey: 'same-height-before' },
       { clientHeight: 40, scrollHeight: 40 }
@@ -255,10 +255,8 @@ describe('CollapsibleMessage', () => {
         )
       );
     });
-    // With unchanged height, only a fresh observation will deliver an entry.
-    expect(lastResizeCallback).not.toBe(previousCallback);
+    expect(lastResizeCallback).toBe(previousCallback);
     act(() => {
-      lastResizeCallback!([], {} as ResizeObserver);
       renderer.unmount();
     });
     const remounted = renderCollapsibleMessage(

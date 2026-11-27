@@ -15,6 +15,7 @@ export const Text = style({
   fontVariantNumeric: 'tabular-nums',
   position: 'relative',
   overflow: 'hidden',
+  contain: 'layout style',
   minWidth: 0,
   maxWidth: '100%',
 });

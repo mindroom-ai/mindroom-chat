@@ -11,6 +11,7 @@ export const FLIGHT_RECORDER_SCHEMA_VERSION = 1;
 export const FLIGHT_RECORDER_MAX_EVENTS = 32;
 export const FLIGHT_RECORDER_MAX_JSON_CHARS = 8192;
 const HEARTBEAT_MS = 2000;
+const PERSIST_HEARTBEAT_MS = 15_000;
 const GAP_MS = 5000;
 const routes = ['home', 'direct', 'threads', 'space', 'auth', 'other'] as const;
 const voices = ['inactive', 'requesting', 'recording', 'paused', 'processing'] as const;
@@ -80,6 +81,8 @@ type Runtime = {
   established: boolean;
   timer?: number;
   lastTick: number;
+  lastHref: string;
+  lastPersistAt: number;
   removeListeners: () => void;
   dispose: () => void;
 };
@@ -213,6 +216,7 @@ const flush = (runtime: Runtime): boolean => {
     disable(runtime);
     return false;
   }
+  runtime.lastPersistAt = Date.now();
   return true;
 };
 const createRuntime = (storage: Storage | undefined): Runtime => {
@@ -222,6 +226,8 @@ const createRuntime = (storage: Storage | undefined): Runtime => {
     disposed: false,
     established: false,
     lastTick: 0,
+    lastHref: '',
+    lastPersistAt: 0,
     removeListeners: () => undefined,
     dispose: () => undefined,
   };
@@ -319,6 +325,7 @@ export const installFlightRecorder = (
     const now = Date.now();
     const prior = parse(priorRead.value);
     const initiallyVisible = document.visibilityState === 'visible';
+    runtime.lastHref = window.location.href;
     runtime.session = {
       schemaVersion: FLIGHT_RECORDER_SCHEMA_VERSION,
       buildVersion: FLIGHT_RECORDER_BUILD_VERSION,
@@ -351,7 +358,7 @@ export const installFlightRecorder = (
       copiedPrior = true;
       runtime.copiedPriorSessionId = prior.sessionId;
     }
-    const checkpoint = (detectGap: boolean) => {
+    const checkpoint = (detectGap: boolean, forceFlush = false) => {
       if (runtime.disabled || !runtime.session) return;
       if (document.visibilityState !== 'visible') {
         stopTimer(runtime);
@@ -361,20 +368,29 @@ export const installFlightRecorder = (
       const tick = performance.now();
       const delayMs = Math.max(0, tick - runtime.lastTick);
       runtime.lastTick = tick;
-      const route = classifyFlightRecorderRoute();
-      if (
-        route.route !== runtime.session.route ||
-        route.hasThreadId !== runtime.session.hasThreadId
-      ) {
-        Object.assign(runtime.session, route);
-        add(runtime, { at, type: 'route', ...route });
+      let dirty = forceFlush;
+      const href = window.location.href;
+      if (href !== runtime.lastHref) {
+        runtime.lastHref = href;
+        const route = classifyFlightRecorderRoute(href);
+        if (
+          route.route !== runtime.session.route ||
+          route.hasThreadId !== runtime.session.hasThreadId
+        ) {
+          Object.assign(runtime.session, route);
+          add(runtime, { at, type: 'route', ...route });
+          dirty = true;
+        }
       }
       runtime.session.lastBeatAt = at;
-      runtime.session.visibility = document.visibilityState === 'visible' ? 'visible' : 'hidden';
+      runtime.session.visibility = 'visible';
       if (detectGap && delayMs >= GAP_MS) {
         add(runtime, { at, type: 'heartbeat_gap', delayMs });
+        dirty = true;
       }
-      flush(runtime);
+      if (dirty || at - runtime.lastPersistAt >= PERSIST_HEARTBEAT_MS) {
+        flush(runtime);
+      }
     };
     const start = () => {
       stopTimer(runtime);
@@ -401,7 +417,7 @@ export const installFlightRecorder = (
       if (runtime.session.endReason !== null) {
         Object.assign(runtime.session, { expectedEndAt: null, endReason: null });
         add(runtime, { at: Date.now(), type: 'lifecycle', state });
-        checkpoint(false);
+        checkpoint(false, true);
       } else if (runtime.timer !== undefined) {
         return;
       }

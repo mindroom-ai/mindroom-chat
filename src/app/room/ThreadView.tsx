@@ -43,6 +43,7 @@ import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { MessageLinkCards } from './MessageLinkCards';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { PaneCollapsedContext, usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBanner';
@@ -140,7 +141,9 @@ export function ThreadView({
   // side panel it is in is folded to its tab, which keeps it mounted out of sight, nor while hidden.
   // A cross-room fork draft still registers its view so its composer and menus stay active,
   // without claiming that `threadId` belongs to `roomId`.
-  const outOfSight = usePanelFrame()?.layout === 'folded' || hidden;
+  const folded = usePanelFrame()?.layout === 'folded';
+  const outOfSight = folded || hidden;
+  const parentCollapsed = usePaneCollapsed();
   const { roomId } = room;
   useShownConversationView(
     !outOfSight,
@@ -231,62 +234,64 @@ export function ThreadView({
     ) : undefined);
 
   return (
-    <ConversationViewContext value={view}>
-      <PowerLevelsContextProvider value={targetPowerLevels}>
-        <MessageLinkCards roomId={readRoom.roomId}>
-          <ConversationLayout
-            room={room}
-            threadId={isCrossRoomDraft ? undefined : threadId}
-            areaRef={viewRef}
-            header={roomHeader}
-            timeline={
-              <PowerLevelsContextProvider value={readPowerLevels}>
-                <RoomTimeline
-                  room={readRoom}
-                  threadId={threadId}
-                  eventId={isCrossRoomDraft ? draftForkAt : eventId}
-                  forkAt={draftForkAt}
-                  forkTargetRoom={isCrossRoomDraft ? room : undefined}
-                  canCompose={composerShown}
-                  threadHeader={resolvedHeader}
-                  threadHeaderGapAbove={!roomHeader}
-                  onThreadLoadError={onThreadLoadError}
-                  viewMode="threaded"
-                  hasMindroomAgents={hasMindroomAgents}
-                  editor={editor}
-                  summaryMap={isCrossRoomDraft ? NO_SUMMARIES : summaryMap}
-                  onStoreThreadSummary={isCrossRoomDraft ? ignore : onStoreThreadSummary}
-                  threadFilterState={DIRECT_ROOM_TIMELINE_FILTER_STATE}
-                />
-              </PowerLevelsContextProvider>
-            }
-            focusConversation={focusConversation}
-            canCancelJobs={canCancelJobs}
-            readOnly={!!forkFrom}
-            notice={
-              <ComposerNotice
-                room={room}
-                failedRoot={failedRoot}
-                tombstone={tombstone}
-                canMessage={canMessage}
-              />
-            }
-            composer={
-              composerShown && (
-                <RoomInput
+    <PaneCollapsedContext.Provider value={folded || parentCollapsed}>
+      <ConversationViewContext value={view}>
+        <PowerLevelsContextProvider value={targetPowerLevels}>
+          <MessageLinkCards roomId={readRoom.roomId}>
+            <ConversationLayout
+              room={room}
+              threadId={isCrossRoomDraft ? undefined : threadId}
+              areaRef={viewRef}
+              header={roomHeader}
+              timeline={
+                <PowerLevelsContextProvider value={readPowerLevels}>
+                  <RoomTimeline
+                    room={readRoom}
+                    threadId={threadId}
+                    eventId={isCrossRoomDraft ? draftForkAt : eventId}
+                    forkAt={draftForkAt}
+                    forkTargetRoom={isCrossRoomDraft ? room : undefined}
+                    canCompose={composerShown}
+                    threadHeader={resolvedHeader}
+                    threadHeaderGapAbove={!roomHeader}
+                    onThreadLoadError={onThreadLoadError}
+                    viewMode="threaded"
+                    hasMindroomAgents={hasMindroomAgents}
+                    editor={editor}
+                    summaryMap={isCrossRoomDraft ? NO_SUMMARIES : summaryMap}
+                    onStoreThreadSummary={isCrossRoomDraft ? ignore : onStoreThreadSummary}
+                    threadFilterState={DIRECT_ROOM_TIMELINE_FILTER_STATE}
+                  />
+                </PowerLevelsContextProvider>
+              }
+              focusConversation={focusConversation}
+              canCancelJobs={canCancelJobs}
+              readOnly={!!forkFrom}
+              notice={
+                <ComposerNotice
                   room={room}
-                  roomId={roomId}
-                  threadId={forkFrom ? undefined : threadId}
-                  forkFrom={forkFrom}
-                  onRoomMessageSent={forkFrom ? openFork : undefined}
-                  editor={editor}
-                  fileDropContainerRef={fileDropContainerRef ?? viewRef}
+                  failedRoot={failedRoot}
+                  tombstone={tombstone}
+                  canMessage={canMessage}
                 />
-              )
-            }
-          />
-        </MessageLinkCards>
-      </PowerLevelsContextProvider>
-    </ConversationViewContext>
+              }
+              composer={
+                composerShown && (
+                  <RoomInput
+                    room={room}
+                    roomId={roomId}
+                    threadId={forkFrom ? undefined : threadId}
+                    forkFrom={forkFrom}
+                    onRoomMessageSent={forkFrom ? openFork : undefined}
+                    editor={editor}
+                    fileDropContainerRef={fileDropContainerRef ?? viewRef}
+                  />
+                )
+              }
+            />
+          </MessageLinkCards>
+        </PowerLevelsContextProvider>
+      </ConversationViewContext>
+    </PaneCollapsedContext.Provider>
   );
 }

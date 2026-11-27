@@ -222,7 +222,28 @@ function ActiveThreadApprovalProvider({
         scan();
       }, 0);
     };
+    const isRelevantApprovalEvent = (event: MatrixEvent): boolean => {
+      if (event.getRoomId() !== room.roomId) return false;
+      const type = event.getType();
+      if (
+        type === MINDROOM_TOOL_APPROVAL_EVENT ||
+        type === MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT ||
+        isUndecryptedApprovalCandidate(event)
+      ) {
+        return true;
+      }
+      const id = event.getId();
+      if (id && (historyRef.current.events.has(id) || historyRef.current.scopedEventIds.has(id))) {
+        return true;
+      }
+      const replacementType = event.replacingEvent()?.getType();
+      return (
+        replacementType === MINDROOM_TOOL_APPROVAL_EVENT ||
+        replacementType === MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT
+      );
+    };
     const changed = (event: MatrixEvent) => {
+      if (!isRelevantApprovalEvent(event)) return;
       ingest([event]);
       queueScan();
     };

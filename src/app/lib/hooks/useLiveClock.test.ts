@@ -2,7 +2,7 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useLiveClock } from './useLiveClock';
+import { subscribeRelativeTimeClock, useLiveClock } from './useLiveClock';
 
 describe('useLiveClock', () => {
   beforeEach(() => {
@@ -46,5 +46,32 @@ describe('useLiveClock', () => {
     });
     expect(vi.getTimerCount()).toBe(0);
     act(() => renderer?.unmount());
+  });
+
+  it('pauses shared clock intervals while document.hidden and syncs immediately when visible', () => {
+    let hidden = false;
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+    const listener = vi.fn();
+    const unsubscribe = subscribeRelativeTimeClock(1_000, listener);
+    try {
+      vi.advanceTimersByTime(2_000);
+      expect(listener).toHaveBeenCalledTimes(2);
+
+      hidden = true;
+      document.dispatchEvent(new Event('visibilitychange'));
+      expect(vi.getTimerCount()).toBe(0);
+      vi.advanceTimersByTime(5_000);
+      expect(listener).toHaveBeenCalledTimes(2);
+
+      hidden = false;
+      document.dispatchEvent(new Event('visibilitychange'));
+      // Immediate sync tick on return to visible, then interval resumes.
+      expect(listener).toHaveBeenCalledTimes(3);
+      vi.advanceTimersByTime(1_000);
+      expect(listener).toHaveBeenCalledTimes(4);
+    } finally {
+      unsubscribe();
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    }
   });
 });

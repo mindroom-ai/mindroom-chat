@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import {
   ClientEvent,
@@ -24,6 +24,7 @@ import {
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
+import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
 import { isRecord } from '../../lib/isRecord';
 import { MINDROOM_ACTIVE_RUNS_EVENT } from '../../matrix/protocol/activeRunsContract';
 import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
@@ -120,6 +121,10 @@ const useThreadOverviewRefresh = (
   threadId: string | undefined,
   starts: 'afterPaint' | 'inCommit' | 'never'
 ): ThreadOverviewRefresh => {
+  const collapsed = usePaneCollapsed();
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
+  const dirtyRef = useRef(false);
   const [overviewRefreshCounter, setCounter] = useState(0);
   const [overviewChanges] = useState(createThreadRecordChanges);
   const setOverviewRefreshCounter = useCallback<Dispatch<SetStateAction<number>>>(
@@ -134,7 +139,13 @@ const useThreadOverviewRefresh = (
     if (threadId) return undefined;
 
     overviewChanges.listened = true;
-    const bump = () => setCounter((count) => count + 1);
+    const bump = () => {
+      if (collapsedRef.current) {
+        dirtyRef.current = true;
+        return;
+      }
+      setCounter((count) => count + 1);
+    };
     // Every mark counts: a mark no count follows is a record kept as it was, in a room where
     // nothing more happens.
     const mark = (threadRootId?: string) => {
@@ -278,6 +289,12 @@ const useThreadOverviewRefresh = (
   }, [room, threadId, overviewChanges]);
   useLayoutEffect(() => (starts === 'inCommit' ? listen() : undefined), [starts, listen]);
   useEffect(() => (starts === 'afterPaint' ? listen() : undefined), [starts, listen]);
+  useLayoutEffect(() => {
+    if (!collapsed && dirtyRef.current) {
+      dirtyRef.current = false;
+      setCounter((count) => count + 1);
+    }
+  }, [collapsed]);
 
   return { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges };
 };

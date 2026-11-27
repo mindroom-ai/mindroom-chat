@@ -107,9 +107,13 @@ export const RenderBody = memo(function RenderBody({
     );
   }, [customBody, highlightRegex, htmlReactParserOptions, sanitizeOptions]);
 
+  const plainContent = useMemo(() => {
+    if (customContent !== undefined || body === '') return undefined;
+    return renderTextWithLatex(body, { linkify: true, linkifyOpts, highlightRegex });
+  }, [body, customContent, highlightRegex, linkifyOpts]);
+
   if (body === '' && customContent === undefined) return <MessageEmptyContent />;
-  const content =
-    customContent ?? renderTextWithLatex(body, { linkify: true, linkifyOpts, highlightRegex });
+  const content = customContent ?? plainContent;
   return (
     <FootnoteScopeProvider>
       <LinkFaviconContext value={linkFavicons}>

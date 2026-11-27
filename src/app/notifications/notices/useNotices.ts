@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DISMISSED_NOTICES_STORAGE_KEY,
   Notice,
@@ -16,6 +16,8 @@ import {
  */
 export const useNotices = (url: string | undefined) => {
   const [notices, setNotices] = useState<Notice[]>([]);
+  const noticesRef = useRef(notices);
+  noticesRef.current = notices;
   const [now, setNow] = useState(() => Date.now());
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(
     () => new Set(readDismissedNoticeIds())
@@ -26,8 +28,9 @@ export const useNotices = (url: string | undefined) => {
     let disposed = false;
     let request: AbortController | undefined;
     const refresh = () => {
+      if (document.hidden) return;
       // Time windows advance on every tick, even while a request is still pending.
-      setNow(Date.now());
+      if (noticesRef.current.length > 0) setNow(Date.now());
       if (request) return;
       const current = new AbortController();
       request = current;
@@ -36,19 +39,27 @@ export const useNotices = (url: string | undefined) => {
         window.clearTimeout(timeout);
         request = undefined;
         if (disposed) return;
-        if (next) setNotices(next);
-        setNow(Date.now());
+        if (next) {
+          noticesRef.current = next;
+          setNotices(next);
+        }
+        if (noticesRef.current.length > 0) setNow(Date.now());
       });
+    };
+    const onVisibilityChange = () => {
+      if (!document.hidden) refresh();
     };
 
     refresh();
     const interval = window.setInterval(refresh, NOTICE_REFRESH_INTERVAL_MS);
     window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       disposed = true;
       request?.abort();
       window.clearInterval(interval);
       window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [url]);
 

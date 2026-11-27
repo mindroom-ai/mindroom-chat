@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allInvitesAtom } from '../matrix/state/inviteList';
@@ -11,7 +11,7 @@ import {
 } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
-import { buildActivityRows, type ActivityRowsResult } from './activityRows';
+import { buildActivityRows, type ActivityRow, type ActivityRowsResult } from './activityRows';
 import { readActivityInvites } from './activityInvites';
 import { activityRowsAtom, activityShowAutomationsAtom } from './activityState';
 
@@ -27,7 +27,7 @@ const QUIET: ThreadSignals = {
  * index or a room's unread counts change, every minute, and when a snooze ends; a thread's signals
  * come from the client's shared cache.
  */
-const useComputedActivityRows = (): ActivityRowsResult => {
+const useComputedActivityRows = (): { result: ActivityRowsResult; now: number } => {
   const mx = useMatrixClient();
   const userId = mx.getSafeUserId();
   const index = useAtomValue(crossRoomThreadIndexAtom);
@@ -46,7 +46,7 @@ const useComputedActivityRows = (): ActivityRowsResult => {
   // read. The room counts move only when they do, not with every streamed edit.
   const roomUnreads = useAtomValue(roomToUnreadAtom);
 
-  return useMemo(() => {
+  const result = useMemo(() => {
     const reader = getThreadSignalsReader(mx);
     reader.prune(new Set(index.entries.keys()));
     const signals = (entry: CrossRoomThreadIndexEntry): ThreadSignals => {
@@ -65,12 +65,53 @@ const useComputedActivityRows = (): ActivityRowsResult => {
     // roomUnreads only triggers the rebuild; the signals read the counts themselves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, inviteIds, mx, now, roomUnreads, showAutomations, userId]);
+  return { result, now };
 };
+
+const sameActivityRow = (a: ActivityRow, b: ActivityRow): boolean => {
+  if (
+    a.type !== b.type ||
+    a.key !== b.key ||
+    a.kind !== b.kind ||
+    a.unread !== b.unread ||
+    a.ts !== b.ts
+  ) {
+    return false;
+  }
+  if (a.type === 'invite' && b.type === 'invite') {
+    return a.roomId === b.roomId && a.inviterId === b.inviterId;
+  }
+  return (
+    a.type === 'thread' &&
+    b.type === 'thread' &&
+    a.entry === b.entry &&
+    a.signals === b.signals &&
+    a.actorIds.length === b.actorIds.length &&
+    a.actorIds.every((id, index) => id === b.actorIds[index])
+  );
+};
+
+const sameActivityRows = (a: ActivityRowsResult, b: ActivityRowsResult): boolean =>
+  a.loading === b.loading &&
+  a.showAutomations === b.showAutomations &&
+  a.hiddenAutomations === b.hiddenAutomations &&
+  a.rows.length === b.rows.length &&
+  a.rows.every((row, index) => sameActivityRow(row, b.rows[index]!));
 
 /** Keeps Activity's rows current for the whole session; `ClientNonUIFeatures` mounts it once. */
 export function ActivityRowsFeature() {
-  const rows = useComputedActivityRows();
+  const { result, now } = useComputedActivityRows();
   const setRows = useSetAtom(activityRowsAtom);
-  useEffect(() => setRows(rows), [rows, setRows]);
+  const lastNowRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    const previousNow = lastNowRef.current;
+    lastNowRef.current = now;
+    const sameCalendarDay =
+      previousNow === undefined ||
+      new Date(previousNow).toDateString() === new Date(now).toDateString();
+    setRows((previous) =>
+      sameCalendarDay && sameActivityRows(previous, result) ? previous : result
+    );
+  }, [now, result, setRows]);
   return null;
 }

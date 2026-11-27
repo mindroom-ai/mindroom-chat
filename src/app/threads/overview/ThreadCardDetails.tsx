@@ -65,9 +65,11 @@ export function ThreadCardDetails({
     const win = doc?.defaultView;
     if (!contributes || !list || !doc || !win) return undefined;
     const hoverPointer = globalThis.matchMedia?.(HOVER_POINTER_QUERY);
+    if (!hoverPointer) return undefined;
     let card: Element | undefined;
     let point = { x: 0, y: 0 };
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let attached = false;
 
     const close = () => {
       clearTimeout(timer);
@@ -94,10 +96,11 @@ export function ThreadCardDetails({
     };
     const dismiss = (event: Event) => {
       close();
+      if ((event as Partial<PointerEvent>).pointerType === 'touch') return;
       card = cardAt(event.target);
     };
     const move = (event: PointerEvent) => {
-      if (event.pointerType === 'touch' || !hoverPointer?.matches) return;
+      if (event.pointerType === 'touch' || !hoverPointer.matches) return;
       point = { x: event.clientX, y: event.clientY };
       const next = cardAt(event.target);
       // A dismissal or empty result keeps this card, so only leaving it arms another wait.
@@ -127,29 +130,46 @@ export function ThreadCardDetails({
       close();
     };
 
-    // A card can leave or move without a scroll, such as a thread resolved on another device.
-    const mutations = new win.MutationObserver(() => {
-      if (card && !underPointer(card)) reset();
-    });
-    mutations.observe(list, { childList: true, subtree: true });
-
-    list.addEventListener('pointermove', move);
-    list.addEventListener('pointerleave', reset);
-    list.addEventListener('pointerdown', dismiss, true);
-    list.addEventListener('click', dismiss, true);
-    list.addEventListener('wheel', close, { passive: true });
-    win.addEventListener('scroll', scroll, { capture: true, passive: true });
-    return () => {
-      close();
-      mutations.disconnect();
-      resetRef.current = undefined;
-      closeRef.current = undefined;
+    let mutations: MutationObserver | undefined;
+    const attach = () => {
+      if (attached) return;
+      attached = true;
+      // A card can leave or move without a scroll, such as a thread resolved on another device.
+      mutations = new win.MutationObserver(() => {
+        if (card && !underPointer(card)) reset();
+      });
+      mutations.observe(list, { childList: true, subtree: true });
+      list.addEventListener('pointermove', move);
+      list.addEventListener('pointerleave', reset);
+      list.addEventListener('pointerdown', dismiss, true);
+      list.addEventListener('click', dismiss, true);
+      list.addEventListener('wheel', close, { passive: true });
+      win.addEventListener('scroll', scroll, { capture: true, passive: true });
+    };
+    const detach = () => {
+      if (!attached) return;
+      attached = false;
+      reset();
+      mutations?.disconnect();
+      mutations = undefined;
       list.removeEventListener('pointermove', move);
       list.removeEventListener('pointerleave', reset);
       list.removeEventListener('pointerdown', dismiss, true);
       list.removeEventListener('click', dismiss, true);
       list.removeEventListener('wheel', close);
       win.removeEventListener('scroll', scroll, true);
+    };
+    const onPointerMediaChange = () => {
+      if (hoverPointer.matches) attach();
+      else detach();
+    };
+    if (hoverPointer.matches) attach();
+    hoverPointer.addEventListener?.('change', onPointerMediaChange);
+    return () => {
+      hoverPointer.removeEventListener?.('change', onPointerMediaChange);
+      detach();
+      resetRef.current = undefined;
+      closeRef.current = undefined;
     };
   }, [listRef, latest, contributes]);
 

@@ -13,12 +13,19 @@ const cardId = (element: Element | null | undefined, getRowId = defaultRowId) =>
   return shell ? getRowId(shell) : undefined;
 };
 export type CompactBlockRow = string | { key: string; height: number; ids: string[] };
+type StyleCache = {
+  key: string;
+  gap: number;
+  fontFamily: string;
+  fontSize: string;
+};
 type Geometry = {
   heights: Map<string, number>;
   fresh: Set<string>;
   visible: string[];
   gap: number;
   metrics?: string;
+  styleCache?: StyleCache;
 };
 const rooms = new WeakMap<ScrollAnchorMemory, Map<string, Geometry>>();
 
@@ -231,6 +238,7 @@ export function useCompactBlocks(options: Options) {
     const fontsChanged = () => {
       clearResizeTimer();
       geometry.metrics = undefined;
+      geometry.styleCache = undefined;
       schedule();
     };
     document.fonts?.addEventListener('loadingdone', fontsChanged);
@@ -274,21 +282,35 @@ export function useCompactBlocks(options: Options) {
     let hole = false;
     // Undefined while the list has no size (hidden): nothing can be measured there.
     const layout = () => {
-      const style = getComputedStyle(content);
-      const measuredGap = Number.parseFloat(style.rowGap) || 0;
       const width = content.getBoundingClientRect().width;
-      if (width <= 0 || view.clientHeight <= 0) return undefined;
-      const metrics = `${width}|${style.fontFamily}|${style.fontSize}|${measuredGap}`;
+      const clientHeight = view.clientHeight;
+      if (width <= 0 || clientHeight <= 0) return undefined;
+      const root = document.documentElement;
+      const styleKey = `${root.style.fontSize}|${root.className}|${content.style.fontSize}|${content.style.fontFamily}|${content.style.rowGap}`;
+      let styleCache = geometry.styleCache;
+      if (!styleCache || geometry.metrics === undefined || styleCache.key !== styleKey) {
+        const style = getComputedStyle(content);
+        styleCache = {
+          key: styleKey,
+          gap: Number.parseFloat(style.rowGap) || 0,
+          fontFamily: style.fontFamily,
+          fontSize: style.fontSize,
+        };
+        geometry.styleCache = styleCache;
+      }
+      const measuredGap = styleCache.gap;
+      const metrics = `${width}|${styleCache.fontFamily}|${styleCache.fontSize}|${measuredGap}`;
       let changed = metrics !== geometry.metrics;
       if (changed) fresh.clear();
       Object.assign(geometry, { metrics, gap: measuredGap });
       const { top } = view.getBoundingClientRect();
-      const bottom = top + view.clientHeight;
+      const scrollTop = view.scrollTop;
+      const bottom = top + clientHeight;
       const visible: string[] = [];
       // The saved place and how far the list reaches, in scroll pixels: to the native end for a
       // saved card, else to a screen above the first card that is still to be discovered.
       let goal = saved?.scrollTop ?? 0;
-      let reach = known(backSlot) ? view.scrollHeight - view.clientHeight + 1 : -Infinity;
+      let reach = known(backSlot) ? view.scrollHeight - clientHeight + 1 : -Infinity;
       for (const id of liveIds) fresh.add(id);
       // An inert copy animates a card's leave: it is not the card.
       const rowsNow = `${SHELL}:not([inert]), [data-compact-spacer]`;
@@ -299,9 +321,9 @@ export function useCompactBlocks(options: Options) {
           // A mounted card's height is in no spacer: only a discovered one changes the rows.
           if (!heights.has(id)) changed = true;
           heights.set(id, height);
-          const at = view.scrollTop + y - top;
+          const at = scrollTop + y - top;
           if (id === savedKeys[0]) goal = at - (saved?.anchors[0]?.offset ?? 0);
-          if (id === first && backSlot === undefined) reach = at - view.clientHeight;
+          if (id === first && backSlot === undefined) reach = at - clientHeight;
         }
         if (y >= bottom || end <= top) continue;
         let edge = y;

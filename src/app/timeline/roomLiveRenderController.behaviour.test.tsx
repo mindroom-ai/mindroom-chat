@@ -15,6 +15,7 @@ import { createDefaultThreadFilterState } from '../event-store/threads/roomThrea
 import type { RoomUnreadInfo, Timeline } from '../event-store/timeline/timelinePagination';
 import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { PaneCollapsedContext } from '../lib/hooks/usePaneCollapsed';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
 import {
   finishesStreamedThreadReply,
@@ -768,5 +769,78 @@ describe('useRoomLiveRenderController, a streamed thread reply finishes', () => 
     });
     expect(markThreadAsRead).toHaveBeenCalledTimes(1);
     expect(markThreadAsRead).toHaveBeenCalledWith(view.mx, ROOM_ID, THREAD_ID, false, edit);
+  });
+
+  it('defers room repaints while collapsed and flushes once when uncollapsed', () => {
+    const listeners = new Map<string, Set<Listener>>();
+    const room = {
+      roomId: ROOM_ID,
+      myUserId: ME,
+      findEventById: () => undefined,
+      getThread: () => null,
+      getEventReadUpTo: () => READ_UP_TO,
+      getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => ({ getEvents: () => [] }) }),
+      on: (name: string, listener: Listener) => {
+        const named = listeners.get(name) ?? new Set<Listener>();
+        named.add(listener);
+        listeners.set(name, named);
+      },
+      removeListener: (name: string, listener: Listener) => {
+        listeners.get(name)?.delete(listener);
+      },
+    } as unknown as Room;
+    const mx = { getUserId: () => ME } as unknown as MatrixClient;
+    const setTimeline = vi.fn<(update: SetStateAction<Timeline>) => void>();
+    const scrollArea = { clientHeight: 400, scrollHeight: 1_000, scrollTop: 600 } as HTMLDivElement;
+
+    const Harness = ({ collapsed }: { collapsed: boolean }) => (
+      <PaneCollapsedContext.Provider value={collapsed}>
+        <Inner />
+      </PaneCollapsedContext.Provider>
+    );
+    const Inner = () => {
+      useRoomLiveRenderController({
+        atBottomRef: { current: true },
+        atLiveEndRef: { current: true },
+        effectiveThreadFilterState: createDefaultThreadFilterState(),
+        hideActivity: false,
+        hideMembershipEvents: false,
+        hideNickAvatarEvents: false,
+        ignoredUsersSet: new Set(),
+        markLiveExpansionCandidate: vi.fn(),
+        mx,
+        normalThreadRecordMap: new Map(),
+        onStoreThreadSummary: vi.fn(),
+        room,
+        roomThreadFilterActive: false,
+        scrollRef: { current: scrollArea },
+        scrollToBottomRef: { current: { count: 0, smooth: false } },
+        setTimeline,
+        showHiddenEvents: false,
+        threadResolutionMap: new Map(),
+        timelineAtLiveEnd: true,
+      });
+      return null;
+    };
+
+    let renderer: ReactTestRenderer;
+    act(() => {
+      renderer = create(<Harness collapsed />);
+      renderers.push(renderer);
+    });
+    act(() => {
+      listeners
+        .get(RoomEvent.Timeline)
+        ?.forEach((fn) => fn(threadReply('$r1'), room, false, false, { liveEvent: true }));
+      listeners
+        .get(RoomEvent.Timeline)
+        ?.forEach((fn) => fn(threadReply('$r2'), room, false, false, { liveEvent: true }));
+    });
+    expect(setTimeline).not.toHaveBeenCalled();
+
+    act(() => {
+      renderer.update(<Harness collapsed={false} />);
+    });
+    expect(setTimeline).toHaveBeenCalledTimes(1);
   });
 });
