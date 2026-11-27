@@ -69,6 +69,7 @@ import {
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
 import { buildThreadIndexRecordMaps, type ThreadIndexRecordMaps } from './threadIndexRecords';
+import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
 
 type ThreadResolutionLike = {
@@ -605,26 +606,28 @@ export const useThreadIndex = ({
   const baseRecordMaps = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    const built = buildThreadIndexRecordMaps({
-      threadId,
-      compactViewRequested,
-      room,
-      visibleThreadRootData,
-      compactThreadRootData,
-      visibleThreadRootEventMap,
-      compactThreadRootEventMap,
-      compactThreadRootBodyMap,
-      summaryMap,
-      fallbackSummaryMap: threadSummaryInfoMap,
-      fallbackReplyCountMap: threadReplyCountMap,
-      cachedMetadata,
-      fallbackParticipantMap: threadParticipantMap,
-      threadResolutionMap,
-      currentUserId,
-      scheduledStatusMap,
-      previous: builtRecordMapsRef.current,
-      changes: overviewChanges,
-    });
+    const built = measureDeepTracePhase('roomOverview.threadIndex', () =>
+      buildThreadIndexRecordMaps({
+        threadId,
+        compactViewRequested,
+        room,
+        visibleThreadRootData,
+        compactThreadRootData,
+        visibleThreadRootEventMap,
+        compactThreadRootEventMap,
+        compactThreadRootBodyMap,
+        summaryMap,
+        fallbackSummaryMap: threadSummaryInfoMap,
+        fallbackReplyCountMap: threadReplyCountMap,
+        cachedMetadata,
+        fallbackParticipantMap: threadParticipantMap,
+        threadResolutionMap,
+        currentUserId,
+        scheduledStatusMap,
+        previous: builtRecordMapsRef.current,
+        changes: overviewChanges,
+      })
+    );
     // An open thread has no records, so nothing is kept from before it.
     builtRecordMapsRef.current = built;
     return built;

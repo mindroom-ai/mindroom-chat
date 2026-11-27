@@ -10,6 +10,7 @@ import {
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import { useSyncEngine } from '../../event-store/engine/engineContext';
 import {
   createPreferLiveEventMapper,
@@ -188,7 +189,7 @@ export const useRoomThreadList = (
         try {
           if (pages > 1) {
             checked.clear();
-            saveRoots();
+            measureDeepTracePhase('roomOverview.saveRoots', saveRoots);
           }
         } catch (err) {
           // The list loaded; a root that cannot be saved must not turn it into an error.
@@ -203,7 +204,7 @@ export const useRoomThreadList = (
         () => {
           if (signal.aborted) return;
           pages += 1;
-          saveRoots();
+          measureDeepTracePhase('roomOverview.saveRoots', saveRoots);
           handleThreadListProgress();
         },
         signal

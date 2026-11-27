@@ -11,7 +11,7 @@ import {
 } from './desktopAccess';
 import { resolveDesktopHelperBinary } from './desktopBridgeProcess';
 import { createScreenshotHelper, resolveHelperPath, type ScreenshotTarget } from './helper';
-import { handle } from './ipc';
+import { handle, registerDebugModeHandler } from './ipc';
 import {
   configureMainWindow,
   flushMainWindowState,
@@ -21,7 +21,7 @@ import {
   showMainWindow,
 } from './mainWindow';
 import { installMediaAuth } from './mediaAuth';
-import { buildMenuTemplate } from './menu';
+import { buildMenuTemplate, toggleWindowDevTools } from './menu';
 import { createQuickCapture, type QuickCaptureHandle } from './quickCapture';
 import {
   guardSession,
@@ -324,12 +324,15 @@ const initializeApp = (): void => {
     })().catch(() => undefined);
   };
 
+  let debugModeEnabled = false;
+
   const rebuildMenu = (): void => {
     const menuTemplate = buildMenuTemplate(
       {
         updateReady: Boolean(updater?.readyVersion()),
         canCheck: Boolean(updater),
         quickCapture: true,
+        debugMode: debugModeEnabled,
       },
       {
         onZoom: (action) => {
@@ -341,6 +344,10 @@ const initializeApp = (): void => {
         onCheckForUpdates,
         onRestartToUpdate: () => updater?.install(),
         onQuickCapture: () => activeQuickCapture.toggle(),
+        onToggleDevTools: () => {
+          if (!debugModeEnabled) return;
+          toggleWindowDevTools(BrowserWindow.getFocusedWindow() ?? getMainWindow());
+        },
       },
       process.platform
     );
@@ -416,6 +423,11 @@ const initializeApp = (): void => {
       return { ok: true, value: undefined };
     }
   );
+  registerDebugModeHandler(mainOwners, (enabled) => {
+    if (debugModeEnabled === enabled) return;
+    debugModeEnabled = enabled;
+    rebuildMenu();
+  });
   handle(
     'desktop:quick-capture-hide',
     quickCaptureOwners,

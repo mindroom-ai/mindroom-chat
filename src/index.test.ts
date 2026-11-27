@@ -459,4 +459,28 @@ describe('application bootstrap', () => {
       }
     }
   );
+
+  it('syncs Electron debug mode on startup in the main window only', async () => {
+    const setDebugMode = vi.fn();
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { onShellEvent: vi.fn(() => vi.fn()), setDebugMode },
+    });
+    const originalUrl = window.location.href;
+    try {
+      window.localStorage.setItem(DEBUG_MODE_KEY, '1');
+      await import('./index');
+      expect(setDebugMode).toHaveBeenCalledExactlyOnceWith(true);
+
+      setDebugMode.mockClear();
+      vi.resetModules();
+      window.history.replaceState(null, '', '/quick-capture/');
+      await import('./index');
+      expect(setDebugMode).not.toHaveBeenCalled();
+    } finally {
+      window.history.replaceState(null, '', originalUrl);
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+      delete document.documentElement.dataset.shell;
+    }
+  });
 });

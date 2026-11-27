@@ -2,6 +2,8 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { hasOpenOverlay } from '../lib/openOverlay';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { APP_BUILD_VERSION } from '../config/appVersion';
+import { isEventId, isRoomAlias, isRoomId } from '../lib/matrixIds';
+import { LOAF_INVOKER_TYPES, startLongAnimationFrameCapture } from './deepTraceLoaf';
 import { SCHEDULER_WAKEUP_REPLACED_EVENT } from './schedulerWakeup';
 import { THREAD_TRACE_PHASES } from './threadTraceSchema';
 import {
@@ -42,6 +44,17 @@ const FLUSH_RETRY_DELAY_MS = 1_000;
 const MAX_FLUSH_RETRIES = 3;
 const LOOP_INTERVAL_MS = 1_000;
 const LOOP_STALL_THRESHOLD_MS = 250;
+const SLOW_PHASE_THRESHOLD_MS = 16;
+
+const DEEP_TRACE_PHASE_EVENTS = {
+  'spaceThreads.collect': 'performance.phase.space_threads_collect',
+  'spaceThreads.filterSort': 'performance.phase.space_threads_filter_sort',
+  'roomOverview.threadIndex': 'performance.phase.room_overview_thread_index',
+  'roomOverview.saveRoots': 'performance.phase.room_overview_save_roots',
+  'compactBlocks.layout': 'performance.phase.compact_blocks_layout',
+} as const;
+
+export type DeepTracePhaseName = keyof typeof DEEP_TRACE_PHASE_EVENTS;
 
 export type DeepTraceData = Record<string, number | boolean | string | null>;
 
@@ -128,6 +141,7 @@ type Runtime = {
   activationSequence: number;
   starting: boolean;
   loopTimer?: number;
+  loafObserver?: PerformanceObserver;
   lastLoopTick: number;
   lastRoute?: string;
   lastFailure: DeepTraceFailure | null;
@@ -243,7 +257,9 @@ const STATIC_EVENT_NAMES = new Set([
   'memory.sample',
   'network.offline',
   'network.online',
+  ...Object.values(DEEP_TRACE_PHASE_EVENTS),
   'performance.event_loop_stall',
+  'performance.long_animation_frame',
   'performance.scheduler_wakeup_replaced',
   'storage.cache.close',
   'storage.cache.eviction',
@@ -294,6 +310,7 @@ const SAFE_EVENT_PATTERNS = [
   /^navigation\.phone_slide\.(forward|back)\.(start|end)$/,
   /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|timeline)$/,
   /^navigation\.(auth|direct|home|other|space|threads)\.(overview|thread)$/,
+  /^navigation\.space\.(threads|room)$/,
   /^network\.(app|external|matrix\.(client|media|messages|relations|sync))\.(delete|get|head|other|patch|post|put)\.(complete|error|start)$/,
 ];
 
@@ -315,10 +332,16 @@ const safeData = (name: string, value: DeepTraceData | undefined): DeepTraceData
     .filter(([key, item]) => {
       if (!/^[a-z][a-z0-9_]{0,39}$/.test(key)) return false;
       if (typeof item === 'string') {
+        if (name.startsWith('interaction.pointer.surface.')) {
+          return (
+            (key === 'hit_tag' && SURFACE_HIT_TAG.test(item)) ||
+            (key === 'hit_test_id' && SURFACE_HIT_TEST_IDS.has(item))
+          );
+        }
         return (
-          name.startsWith('interaction.pointer.surface.') &&
-          ((key === 'hit_tag' && SURFACE_HIT_TAG.test(item)) ||
-            (key === 'hit_test_id' && SURFACE_HIT_TEST_IDS.has(item)))
+          name === 'performance.long_animation_frame' &&
+          key === 'top_script_invoker_type' &&
+          LOAF_INVOKER_TYPES.has(item)
         );
       }
       if (item === null || typeof item === 'boolean') return true;
@@ -563,6 +586,22 @@ export const recordDeepTraceEvent = (
 /** Cheap check for callers that would otherwise prepare events nobody records. */
 export const isDeepTraceRecording = (): boolean =>
   !!runtime && runtime.enabled && !runtime.disposed;
+
+/** Measures a synchronous hot path when deep trace is active, recording passes >= 16 ms. */
+export const measureDeepTracePhase = <T>(phase: DeepTracePhaseName, fn: () => T): T => {
+  if (!isDeepTraceRecording()) return fn();
+  const startedAt = nowMonotonic();
+  try {
+    return fn();
+  } finally {
+    const durationMs = nowMonotonic() - startedAt;
+    if (durationMs >= SLOW_PHASE_THRESHOLD_MS) {
+      recordDeepTraceEvent(DEEP_TRACE_PHASE_EVENTS[phase], {
+        duration_ms: roundMetric(durationMs),
+      });
+    }
+  }
+};
 
 export const getDeepTraceEnabled = (
   storage: Storage | undefined = getSafeLocalStorage()
@@ -862,7 +901,43 @@ const installGlobalFetchCapture = (): void => {
   window.fetch = tracedFetch;
 };
 
+const decodeRouteSegment = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+const isSpaceOrRoomSegment = (segment: string | undefined): boolean => {
+  if (!segment) return false;
+  const decoded = decodeRouteSegment(segment);
+  return isRoomId(decoded) || isRoomAlias(decoded);
+};
+
+export const classifyDeepTraceRoute = (href: string = window.location.href): string => {
+  const { route, hasThreadId } = classifyFlightRecorderRoute(href);
+  const fallback = `${route}.${hasThreadId ? 'thread' : 'overview'}`;
+  if (hasThreadId || route !== 'space') return fallback;
+  const segments = new URL(href, window.location.origin).pathname.split('/').filter(Boolean);
+  const [spaceSegment, subSegment, eventSegment] = segments;
+  if (!isSpaceOrRoomSegment(spaceSegment)) return fallback;
+  if (segments.length === 2 && subSegment?.toLowerCase() === 'threads') return 'space.threads';
+  if (
+    isSpaceOrRoomSegment(subSegment) &&
+    (segments.length === 2 ||
+      (segments.length === 3 && isEventId(decodeRouteSegment(eventSegment ?? ''))))
+  ) {
+    return 'space.room';
+  }
+  return fallback;
+};
+
 const startPerformanceCapture = (target: Runtime): void => {
+  target.loafObserver = startLongAnimationFrameCapture((data) => {
+    if (runtime !== target || !target.enabled || target.disposed) return;
+    recordDeepTraceEvent('performance.long_animation_frame', data);
+  });
   target.lastLoopTick = nowMonotonic();
   target.loopTimer = window.setInterval(() => {
     const tick = nowMonotonic();
@@ -877,8 +952,7 @@ const startPerformanceCapture = (target: Runtime): void => {
           { flush: true }
         );
       }
-      const route = classifyFlightRecorderRoute();
-      const routeKey = `${route.route}.${route.hasThreadId ? 'thread' : 'overview'}`;
+      const routeKey = classifyDeepTraceRoute();
       if (routeKey !== target.lastRoute) {
         target.lastRoute = routeKey;
         recordDeepTraceEvent(`navigation.${routeKey}`, undefined, { flush: true });
@@ -949,6 +1023,8 @@ const stopCapture = (target: Runtime): void => {
   target.removeListeners = () => undefined;
   if (target.loopTimer !== undefined) window.clearInterval(target.loopTimer);
   target.loopTimer = undefined;
+  target.loafObserver?.disconnect();
+  target.loafObserver = undefined;
 };
 
 const releaseDatabase = (): void => {
