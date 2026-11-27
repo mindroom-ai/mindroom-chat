@@ -14,7 +14,11 @@ import { deletePluginStorageOfRemovedAccounts } from './app/plugins/pluginStorag
 import App from './app/shell/App';
 import { isNativeApp, registerNativeAppUrlCallbacks } from './app/native/nativeSso';
 import { initializeDeepTraceRecorder, recordDeepTraceEvent } from './app/diagnostics/deepTrace';
-import { getDebugModeEnabled, startFlightRecorder } from './app/diagnostics/debugMode';
+import {
+  getDebugModeEnabled,
+  startFlightRecorder,
+  syncDesktopDebugMode,
+} from './app/diagnostics/debugMode';
 import { startMemorySampler } from './app/diagnostics/memorySampler';
 import {
   installIndexedDbLossRecovery,
@@ -67,6 +71,11 @@ const runSafely = (label: string, step: () => void): void => {
 };
 
 const startDiagnostics = (): void => {
+  runSafely('desktop debug mode', () => {
+    if (isDesktopApp() && !isAuxiliaryWindowPath(window.location.pathname)) {
+      syncDesktopDebugMode();
+    }
+  });
   // The flight recorder and deep tracing exist for the native and desktop apps, where crashes leave
   // no console, and for a browser that has debug mode on. They record the main web view: the quick
   // capture widget's, beside it on the Mac, shares their storage and would take its live session

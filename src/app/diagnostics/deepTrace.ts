@@ -42,6 +42,33 @@ const FLUSH_RETRY_DELAY_MS = 1_000;
 const MAX_FLUSH_RETRIES = 3;
 const LOOP_INTERVAL_MS = 1_000;
 const LOOP_STALL_THRESHOLD_MS = 250;
+const LOAF_DURATION_THRESHOLD_MS = 50;
+const SLOW_PHASE_THRESHOLD_MS = 16;
+
+const DEEP_TRACE_PHASE_EVENTS = {
+  'spaceThreads.collect': 'performance.phase.space_threads_collect',
+  'spaceThreads.filterSort': 'performance.phase.space_threads_filter_sort',
+  'roomOverview.threadIndex': 'performance.phase.room_overview_thread_index',
+  'roomOverview.saveRoots': 'performance.phase.room_overview_save_roots',
+  'compactBlocks.layout': 'performance.phase.compact_blocks_layout',
+} as const;
+
+export type DeepTracePhaseName = keyof typeof DEEP_TRACE_PHASE_EVENTS;
+
+type LongAnimationFrameScript = {
+  duration?: number;
+  invokerType?: string;
+  sourceURL?: string;
+  sourceFunctionName?: string;
+  sourceCharPosition?: number;
+};
+
+type LongAnimationFrameEntry = PerformanceEntry & {
+  blockingDuration?: number;
+  renderStart?: number;
+  styleAndLayoutStart?: number;
+  scripts?: ReadonlyArray<LongAnimationFrameScript>;
+};
 
 export type DeepTraceData = Record<string, number | boolean | string | null>;
 
@@ -128,6 +155,7 @@ type Runtime = {
   activationSequence: number;
   starting: boolean;
   loopTimer?: number;
+  loafObserver?: PerformanceObserver;
   lastLoopTick: number;
   lastRoute?: string;
   lastFailure: DeepTraceFailure | null;
@@ -243,7 +271,9 @@ const STATIC_EVENT_NAMES = new Set([
   'memory.sample',
   'network.offline',
   'network.online',
+  ...Object.values(DEEP_TRACE_PHASE_EVENTS),
   'performance.event_loop_stall',
+  'performance.long_animation_frame',
   'performance.scheduler_wakeup_replaced',
   'storage.cache.close',
   'storage.cache.eviction',
@@ -286,6 +316,20 @@ const SURFACE_HIT_TEST_SELECTOR = Array.from(
 ).join(',');
 const liveElement = (selector: string): Element | null => document.querySelector(selector);
 
+const LOAF_INVOKER_TYPES = new Set([
+  'classic-script',
+  'module-script',
+  'event-listener',
+  'user-callback',
+  'resolve-promise',
+  'reject-promise',
+  'other',
+]);
+const LOAF_ALLOWED_PROTOCOLS = new Set(['http:', 'https:', 'capacitor:', 'file:']);
+const LOAF_SCRIPT_FILE =
+  /^(?=.{1,64}$)[A-Za-z0-9_-][A-Za-z0-9._-]*\.(?:[cm]?js|[jt]sx?|wasm|html)$/;
+const LOAF_SCRIPT_FN = /^[A-Za-z0-9_$.-]{1,64}$/;
+
 const SAFE_EVENT_PATTERNS = [
   /^calls\.ring\.join\.(none|ring|notification)$/,
   /^calls\.ring\.local_echo\.(encrypting|queued|sending|sent|not_sent|cancelled|unknown)$/,
@@ -294,6 +338,7 @@ const SAFE_EVENT_PATTERNS = [
   /^navigation\.phone_slide\.(forward|back)\.(start|end)$/,
   /^interaction\.pointer\.(button|checkbox|control|input|link|menuitem|other|radio|range|select|surface|switch|tab|textarea)\.(app|dialog|document|form|navigation|timeline)$/,
   /^navigation\.(auth|direct|home|other|space|threads)\.(overview|thread)$/,
+  /^navigation\.space\.(threads|room)$/,
   /^network\.(app|external|matrix\.(client|media|messages|relations|sync))\.(delete|get|head|other|patch|post|put)\.(complete|error|start)$/,
 ];
 
@@ -315,11 +360,20 @@ const safeData = (name: string, value: DeepTraceData | undefined): DeepTraceData
     .filter(([key, item]) => {
       if (!/^[a-z][a-z0-9_]{0,39}$/.test(key)) return false;
       if (typeof item === 'string') {
-        return (
-          name.startsWith('interaction.pointer.surface.') &&
-          ((key === 'hit_tag' && SURFACE_HIT_TAG.test(item)) ||
-            (key === 'hit_test_id' && SURFACE_HIT_TEST_IDS.has(item)))
-        );
+        if (name.startsWith('interaction.pointer.surface.')) {
+          return (
+            (key === 'hit_tag' && SURFACE_HIT_TAG.test(item)) ||
+            (key === 'hit_test_id' && SURFACE_HIT_TEST_IDS.has(item))
+          );
+        }
+        if (name === 'performance.long_animation_frame') {
+          return (
+            (key === 'top_script_invoker_type' && LOAF_INVOKER_TYPES.has(item)) ||
+            (key === 'top_script_file' && LOAF_SCRIPT_FILE.test(item)) ||
+            (key === 'top_script_fn' && LOAF_SCRIPT_FN.test(item))
+          );
+        }
+        return false;
       }
       if (item === null || typeof item === 'boolean') return true;
       return typeof item === 'number' && Number.isFinite(item);
@@ -563,6 +617,22 @@ export const recordDeepTraceEvent = (
 /** Cheap check for callers that would otherwise prepare events nobody records. */
 export const isDeepTraceRecording = (): boolean =>
   !!runtime && runtime.enabled && !runtime.disposed;
+
+/** Measures a synchronous hot path when deep trace is active, recording passes >= 16 ms. */
+export const measureDeepTracePhase = <T>(phase: DeepTracePhaseName, fn: () => T): T => {
+  if (!isDeepTraceRecording()) return fn();
+  const startedAt = nowMonotonic();
+  try {
+    return fn();
+  } finally {
+    const durationMs = nowMonotonic() - startedAt;
+    if (durationMs >= SLOW_PHASE_THRESHOLD_MS) {
+      recordDeepTraceEvent(DEEP_TRACE_PHASE_EVENTS[phase], {
+        duration_ms: roundMetric(durationMs),
+      });
+    }
+  }
+};
 
 export const getDeepTraceEnabled = (
   storage: Storage | undefined = getSafeLocalStorage()
@@ -862,7 +932,109 @@ const installGlobalFetchCapture = (): void => {
   window.fetch = tracedFetch;
 };
 
+export const classifyDeepTraceRoute = (href: string = window.location.href): string => {
+  const { route, hasThreadId } = classifyFlightRecorderRoute(href);
+  if (hasThreadId) return `${route}.thread`;
+  if (route !== 'space') return `${route}.overview`;
+  const subSegment = new URL(href, window.location.origin).pathname.split('/').filter(Boolean)[1];
+  if (subSegment === 'threads') return 'space.threads';
+  if (!subSegment || subSegment === 'lobby' || subSegment === 'search') return 'space.overview';
+  return 'space.room';
+};
+
+const sanitizeLoafInvokerType = (value: unknown): string =>
+  typeof value === 'string' && LOAF_INVOKER_TYPES.has(value) ? value : 'other';
+
+const sanitizeLoafScriptFile = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    const baseOrigin =
+      typeof window !== 'undefined' && window.location?.origin && window.location.origin !== 'null'
+        ? window.location.origin
+        : 'https://localhost';
+    const url = new URL(trimmed, baseOrigin);
+    if (!LOAF_ALLOWED_PROTOCOLS.has(url.protocol)) return null;
+    const base = url.pathname.split(/[\\/]/).pop() ?? '';
+    return LOAF_SCRIPT_FILE.test(base) ? base : null;
+  } catch {
+    return null;
+  }
+};
+
+const finiteNumber = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+
+const sanitizeLoafScriptFn = (value: unknown): string | null =>
+  typeof value === 'string' && LOAF_SCRIPT_FN.test(value.trim()) ? value.trim() : null;
+
+const recordLongAnimationFrame = (entry: LongAnimationFrameEntry): void => {
+  const duration = Math.max(0, finiteNumber(entry.duration) ?? 0);
+  const blocking = Math.max(0, finiteNumber(entry.blockingDuration) ?? 0);
+  if (duration < LOAF_DURATION_THRESHOLD_MS && blocking <= 0) return;
+
+  const startTime = finiteNumber(entry.startTime) ?? 0;
+  const renderStart = finiteNumber(entry.renderStart) ?? 0;
+  const styleStart = finiteNumber(entry.styleAndLayoutStart) ?? 0;
+  const scripts = Array.isArray(entry.scripts) ? entry.scripts : [];
+  let topScript: LongAnimationFrameScript | undefined;
+  let topScriptDuration = -1;
+  for (const script of scripts) {
+    const scriptDuration = Math.max(0, finiteNumber(script?.duration) ?? 0);
+    if (!topScript || scriptDuration > topScriptDuration) {
+      topScript = script;
+      topScriptDuration = scriptDuration;
+    }
+  }
+  const topPos = topScript ? finiteNumber(topScript.sourceCharPosition) : undefined;
+
+  recordDeepTraceEvent('performance.long_animation_frame', {
+    duration_ms: roundMetric(duration),
+    blocking_ms: roundMetric(blocking),
+    ...(renderStart > 0
+      ? { render_delay_ms: roundMetric(Math.max(0, renderStart - startTime)) }
+      : {}),
+    ...(styleStart > 0
+      ? { style_layout_ms: roundMetric(Math.max(0, startTime + duration - styleStart)) }
+      : {}),
+    script_count: scripts.length,
+    ...(topScript
+      ? {
+          top_script_ms: roundMetric(topScriptDuration),
+          top_script_invoker_type: sanitizeLoafInvokerType(topScript.invokerType),
+          top_script_file: sanitizeLoafScriptFile(topScript.sourceURL),
+          top_script_fn: sanitizeLoafScriptFn(topScript.sourceFunctionName),
+          top_script_pos:
+            topPos !== undefined && Number.isInteger(topPos) && topPos >= 0 ? topPos : null,
+        }
+      : {}),
+  });
+};
+
+const startLoafCapture = (target: Runtime): void => {
+  if (
+    typeof PerformanceObserver !== 'function' ||
+    !PerformanceObserver.supportedEntryTypes?.includes('long-animation-frame')
+  ) {
+    return;
+  }
+  try {
+    const observer = new PerformanceObserver((list) => {
+      if (runtime !== target || !target.enabled || target.disposed) return;
+      for (const entry of list.getEntries()) {
+        recordLongAnimationFrame(entry);
+      }
+    });
+    observer.observe({ type: 'long-animation-frame', buffered: false });
+    target.loafObserver = observer;
+  } catch {
+    // Unsupported observer options in this runtime.
+  }
+};
+
 const startPerformanceCapture = (target: Runtime): void => {
+  startLoafCapture(target);
   target.lastLoopTick = nowMonotonic();
   target.loopTimer = window.setInterval(() => {
     const tick = nowMonotonic();
@@ -877,8 +1049,7 @@ const startPerformanceCapture = (target: Runtime): void => {
           { flush: true }
         );
       }
-      const route = classifyFlightRecorderRoute();
-      const routeKey = `${route.route}.${route.hasThreadId ? 'thread' : 'overview'}`;
+      const routeKey = classifyDeepTraceRoute();
       if (routeKey !== target.lastRoute) {
         target.lastRoute = routeKey;
         recordDeepTraceEvent(`navigation.${routeKey}`, undefined, { flush: true });
@@ -949,6 +1120,8 @@ const stopCapture = (target: Runtime): void => {
   target.removeListeners = () => undefined;
   if (target.loopTimer !== undefined) window.clearInterval(target.loopTimer);
   target.loopTimer = undefined;
+  target.loafObserver?.disconnect();
+  target.loafObserver = undefined;
 };
 
 const releaseDatabase = (): void => {

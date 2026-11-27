@@ -47,3 +47,19 @@ export const handle = <A, T>(
     }
   });
 };
+
+export const registerDebugModeHandler = (
+  owners: () => readonly Electron.WebContents[],
+  onChange: (enabled: boolean) => void
+): void => {
+  handle(
+    'desktop:set-debug-mode',
+    owners,
+    (args): boolean | undefined =>
+      args.length === 1 && typeof args[0] === 'boolean' ? args[0] : undefined,
+    async (enabled) => {
+      onChange(enabled);
+      return { ok: true, value: undefined };
+    }
+  );
+};

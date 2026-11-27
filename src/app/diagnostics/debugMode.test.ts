@@ -6,6 +6,7 @@ import {
   getDebugModeEnabled,
   setDebugModeEnabled,
   subscribeDebugMode,
+  syncDesktopDebugMode,
 } from './debugMode';
 import { FLIGHT_RECORDER_ABNORMAL_KEY, FLIGHT_RECORDER_CURRENT_KEY } from './flightRecorder';
 
@@ -131,5 +132,30 @@ describe('debug mode', () => {
 
     expect(mocks.installFlightRecorder).not.toHaveBeenCalled();
     expect(mocks.initializeDeepTraceRecorder).not.toHaveBeenCalled();
+  });
+
+  it('syncs debug mode changes to Electron without coupling deep trace', async () => {
+    const setDebugMode = vi.fn();
+    Object.defineProperty(window, 'mindroomDesktop', {
+      configurable: true,
+      value: { setDebugMode },
+    });
+    try {
+      syncDesktopDebugMode();
+      expect(setDebugMode).toHaveBeenLastCalledWith(false);
+
+      await setDebugModeEnabled(true, { keepRecorders: true });
+      expect(setDebugMode).toHaveBeenLastCalledWith(true);
+      expect(mocks.setDeepTraceEnabled).not.toHaveBeenCalled();
+
+      syncDesktopDebugMode();
+      expect(setDebugMode).toHaveBeenLastCalledWith(true);
+
+      await setDebugModeEnabled(false, { keepRecorders: true });
+      expect(setDebugMode).toHaveBeenLastCalledWith(false);
+      expect(mocks.setDeepTraceEnabled).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+    }
   });
 });

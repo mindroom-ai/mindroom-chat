@@ -9,7 +9,7 @@ vi.mock('electron', () => ({
 }));
 
 import { APP_ORIGIN } from './bundleProtocol';
-import { handle, isAuthorized } from './ipc';
+import { handle, isAuthorized, registerDebugModeHandler } from './ipc';
 
 const makeOwner = (frame: { url: string; origin: string }, destroyed = false) =>
   ({
@@ -153,6 +153,49 @@ describe('ipc', () => {
       });
       expect(parse).not.toHaveBeenCalled();
       expect(run).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('registerDebugModeHandler', () => {
+    it('accepts booleans from authorized owners and rejects bad args or other windows', async () => {
+      const frame = { url: `${APP_ORIGIN}/home`, origin: APP_ORIGIN };
+      const owner = makeOwner(frame);
+      const other = makeOwner({ url: `${APP_ORIGIN}/quick-capture/`, origin: APP_ORIGIN });
+      const onChange = vi.fn();
+
+      registerDebugModeHandler(() => [owner], onChange);
+      expect(ipcMainMock.handle).toHaveBeenCalledWith(
+        'desktop:set-debug-mode',
+        expect.any(Function)
+      );
+      const listener = ipcMainMock.handle.mock.calls[0]?.[1] as (
+        event: { sender: unknown; senderFrame: { url: string; origin: string } | null },
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      expect(await listener({ sender: other, senderFrame: other.mainFrame }, true)).toEqual({
+        ok: false,
+        code: 'FORBIDDEN',
+      });
+      expect(await listener({ sender: owner, senderFrame: frame }, 'yes')).toEqual({
+        ok: false,
+        code: 'BAD_ARGUMENTS',
+      });
+      expect(await listener({ sender: owner, senderFrame: frame }, true, false)).toEqual({
+        ok: false,
+        code: 'BAD_ARGUMENTS',
+      });
+      expect(onChange).not.toHaveBeenCalled();
+
+      expect(await listener({ sender: owner, senderFrame: frame }, true)).toEqual({
+        ok: true,
+        value: undefined,
+      });
+      expect(await listener({ sender: owner, senderFrame: frame }, false)).toEqual({
+        ok: true,
+        value: undefined,
+      });
+      expect(onChange.mock.calls).toEqual([[true], [false]]);
     });
   });
 });

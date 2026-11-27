@@ -10,6 +10,7 @@ import {
   installFlightRecorder,
 } from './flightRecorder';
 import { clearDeepTrace, initializeDeepTraceRecorder, setDeepTraceEnabled } from './deepTrace';
+import { desktopBridge } from '../lib/nativeShell';
 import { startMemorySampler } from './memorySampler';
 
 /**
@@ -37,6 +38,13 @@ const notifyListeners = (): void => {
 export const getDebugModeEnabled = (
   storage: Storage | undefined = getSafeLocalStorage()
 ): boolean => getStorageItemSafe(storage, DEBUG_MODE_KEY) === '1';
+
+/** Syncs the saved debug mode choice to the Electron desktop shell menu, if present. */
+export const syncDesktopDebugMode = (
+  storage: Storage | undefined = getSafeLocalStorage()
+): void => {
+  desktopBridge()?.setDebugMode?.(getDebugModeEnabled(storage));
+};
 
 /**
  * Calls the listener after each change of debug mode, in this page or another tab of the app, so
@@ -80,6 +88,7 @@ export const setDebugModeEnabled = async (
     // Unsaved, the choice would be off again on the next start, the recorder's session with it.
     if (!setStorageItemSafe(storage, DEBUG_MODE_KEY, '1')) return false;
     notifyListeners();
+    desktopBridge()?.setDebugMode?.(true);
     if (keepRecorders) return true;
     startFlightRecorder();
     // Deep tracing records only once its own switch is on.
@@ -89,6 +98,7 @@ export const setDebugModeEnabled = async (
   }
   const saved = removeStorageItemSafe(storage, DEBUG_MODE_KEY);
   notifyListeners();
+  desktopBridge()?.setDebugMode?.(false);
   if (keepRecorders) return saved;
   stopFlightRecorder?.();
   stopFlightRecorder = undefined;

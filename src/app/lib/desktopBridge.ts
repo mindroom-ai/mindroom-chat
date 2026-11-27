@@ -270,6 +270,7 @@ export type DesktopBridge = {
   openSignIn: (url: string) => Promise<DesktopResult<void>>;
   showMainWindow: () => Promise<DesktopResult<void>>;
   setBadge: (count: number) => void;
+  setDebugMode?: (enabled: boolean) => void;
   isWindowFocused: () => boolean;
   screenShare: boolean;
   customTitlebar?: boolean;
