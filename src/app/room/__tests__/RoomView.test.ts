@@ -278,10 +278,15 @@ vi.mock('../../threads/overview/CompactRoomView.css', () => ({
 }));
 
 vi.mock('../../threads/overview/CompactCardSwipe.css', () => ({
+  ResolveButton: 'ResolveButton',
+  SnoozeButton: 'SnoozeButton',
   SwipeAction: 'SwipeAction',
   SwipeList: 'SwipeList',
   SwipeTrack: 'SwipeTrack',
   SwipeTrackSettling: 'SwipeTrackSettling',
+  SwipeTray: 'SwipeTray',
+  TrayButton: 'TrayButton',
+  TrayLabel: 'TrayLabel',
 }));
 
 vi.mock('../../timeline/RoomTimeline', async () => {

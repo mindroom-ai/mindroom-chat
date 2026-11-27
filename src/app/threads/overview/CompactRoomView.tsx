@@ -240,7 +240,8 @@ export function CompactRoomView({
     threadRootIds: blocks.liveIds,
     threadRecordMap,
   });
-  const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
+  const { canToggle, setResolved, unsnooze, updatingThreadRootIds, error } =
+    useToggleThreadResolution(room);
   const menuRef = useRef<ThreadActionsMenuState>(undefined);
   const openMenu = useCallback((nextMenu: ThreadActionsMenuState) => {
     menuRef.current = nextMenu;
@@ -282,6 +283,7 @@ export function CompactRoomView({
   const viewModelByRootRef = useRef<ReadonlyMap<string, CompactThreadCardViewModel>>(new Map());
   const onThreadClickRef = useRef(onThreadClick);
   const setResolvedRef = useRef(setResolved);
+  const unsnoozeRef = useRef(unsnooze);
   const setPinnedRef = useRef(pinning.setPinned);
   // Synced after commit (not during render) so a discarded concurrent render
   // cannot leave uncommitted view models behind the stable click handler.
@@ -289,6 +291,7 @@ export function CompactRoomView({
     viewModelByRootRef.current = modelByRootId;
     onThreadClickRef.current = onThreadClick;
     setResolvedRef.current = setResolved;
+    unsnoozeRef.current = unsnooze;
     setPinnedRef.current = pinning.setPinned;
   });
   const handleCardClick = useCallback((clickedThreadRootId: string) => {
@@ -297,6 +300,9 @@ export function CompactRoomView({
   }, []);
   const handleSetResolved = useCallback((threadRootId: string, resolved: boolean) => {
     void setResolvedRef.current(threadRootId, resolved);
+  }, []);
+  const handleUnsnooze = useCallback((threadRootId: string) => {
+    void unsnoozeRef.current?.(threadRootId);
   }, []);
   const handlePin = useCallback((threadRootId: string, pinned: boolean) => {
     void setPinnedRef.current(threadRootId, !pinned);
@@ -365,6 +371,8 @@ export function CompactRoomView({
 
   const resolveLabel = t('thread.resolve');
   const reopenLabel = t('threadActions.reopen');
+  const snoozeLabel = t('thread.snooze');
+  const unsnoozeLabel = t('thread.unsnooze');
   const renderCard = (viewModel: CompactThreadCardViewModel) => {
     const rootId = viewModel.id.threadRootId;
     const pinned = pinning.pinnedEventIds.includes(rootId);
@@ -389,8 +397,11 @@ export function CompactRoomView({
         menuOpen={menu?.rootId === rootId && !!menuModel}
         resolveLabel={resolveLabel}
         reopenLabel={reopenLabel}
+        snoozeLabel={snoozeLabel}
+        unsnoozeLabel={unsnoozeLabel}
         onThreadClick={handleCardClick}
         onSetResolved={handleSetResolved}
+        onUnsnooze={handleUnsnooze}
         onPin={handlePin}
         onOpenMenu={openMenu}
       />
@@ -493,11 +504,12 @@ export function CompactRoomView({
       {menu && menuModel && (
         <Suspense fallback={null}>
           <ThreadActionsMenu
-            key={`${room.roomId}:${menu.rootId}`}
+            key={`${room.roomId}:${menu.rootId}:${menu.initialDialog ?? ''}`}
             room={room}
             rootId={menu.rootId}
             summaryText={menuModel.primarySummaryText}
             anchor={menu.anchor}
+            initialDialog={menu.initialDialog}
             onClose={() => closeMenu(menu)}
             onOpenThread={() => {
               if (menuRef.current !== menu) return;

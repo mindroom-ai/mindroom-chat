@@ -11,6 +11,8 @@ import { LONG_PRESS_MS } from '../../lib/hooks/useLongPress';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { StateEvent } from '../../matrix/types/room';
 import { stubCompactLayout, tickFrames } from '../../threads/overview/compactBlocks.test.shared';
+import type { DesktopBridge, DesktopShellEvent } from '../../lib/desktopBridge';
+import { installDesktopHistorySwipe } from '../../navigation/desktopHistorySwipe';
 import { SwipeList } from '../../threads/overview/CompactCardSwipe.css';
 import type { CompactThreadSection } from '../../threads/overview/compactThreadSections';
 import { resetPendingThreadTagsForTests } from '../../threads/tags/threadTagPending';
@@ -44,6 +46,7 @@ type MockMenuProps = {
   anchor: { x: number; y: number; width: number; height: number };
   onClose: () => void;
   onOpenThread?: () => void;
+  initialDialog?: 'snooze';
 };
 
 const { menuProps } = vi.hoisted(() => ({ menuProps: vi.fn<(props: MockMenuProps) => void>() }));
@@ -219,7 +222,7 @@ const renderScenario = ({
   return { ...view, mx, sendStateEvent, roomsById, onOpenThread, shellOf, rerenderProps };
 };
 
-const swipeCard = (shell: HTMLElement) => {
+const swipeCard = (shell: HTMLElement, toX = 70) => {
   const track = shell.querySelector<HTMLElement>('[data-compact-card-swipe="track"]')!;
   vi.spyOn(track, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 100));
   track.setPointerCapture = vi.fn();
@@ -230,8 +233,8 @@ const swipeCard = (shell: HTMLElement) => {
   };
   pointer('pointerdown', 280);
   pointer('pointermove', 265);
-  pointer('pointermove', 120);
-  pointer('pointerup', 120);
+  pointer('pointermove', toX);
+  pointer('pointerup', toX);
 };
 
 beforeEach(() => {
@@ -527,6 +530,115 @@ describe('SpaceThreadsList', () => {
     expect(sendStateEvent).not.toHaveBeenCalled();
   });
 
+  it('parks open on short swipe to open Snooze picker, Unsnooze directly, or Resolve in the right room', async () => {
+    const sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$ok' });
+    const roomA = makeRoom(ROOM_A, 'Engineering', {
+      knownRootIds: ['$a-open', '$a-snoozed'],
+    });
+    const { shellOf } = renderScenario({
+      rooms: [roomA],
+      entries: [
+        entry(ROOM_A, '$a-open', 'Open'),
+        entry(ROOM_A, '$a-snoozed', 'Snoozed', { snoozedUntilTs: Date.UTC(2099, 0, 1) }),
+      ],
+      sendStateEvent,
+    });
+
+    // Short swipe (100px) on open card parks open and Snooze opens SnoozePicker via ThreadActionsMenu.
+    const openShell = shellOf(ROOM_A, '$a-open');
+    swipeCard(openShell, 165);
+    const snoozeBtn = openShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="snooze"]'
+    )!;
+    expect(snoozeBtn.textContent).toBe('Snooze');
+    await act(async () => {
+      fireEvent.click(snoozeBtn);
+      await Promise.resolve();
+    });
+    expect(menuProps).toHaveBeenLastCalledWith(
+      expect.objectContaining({ room: roomA, rootId: '$a-open', initialDialog: 'snooze' })
+    );
+    act(() => menuProps.mock.lastCall![0].onClose());
+
+    // Short swipe on snoozed card shows Unsnooze and clears the snoozed tag directly.
+    const snoozedShell = shellOf(ROOM_A, '$a-snoozed');
+    swipeCard(snoozedShell, 165);
+    const unsnoozeBtn = snoozedShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="snooze"]'
+    )!;
+    expect(unsnoozeBtn.textContent).toBe('Unsnooze');
+    await act(async () => {
+      fireEvent.click(unsnoozeBtn);
+      await Promise.resolve();
+    });
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      ROOM_A,
+      MINDROOM_THREAD_TAGS_EVENT,
+      {},
+      buildPerTagStateKey('$a-snoozed', 'snoozed')
+    );
+
+    // Activating keyboard-focused Unsnooze restores focus to [data-thread-root-id].
+    const snoozedCardBtn = snoozedShell.querySelector<HTMLButtonElement>(
+      '[data-thread-root-id="$a-snoozed"]'
+    )!;
+    const snoozedFocusSpy = vi.spyOn(snoozedCardBtn, 'focus');
+    swipeCard(snoozedShell, 165);
+    const focusedUnsnoozeBtn = snoozedShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="snooze"]'
+    )!;
+    focusedUnsnoozeBtn.focus();
+    await act(async () => {
+      fireEvent.click(focusedUnsnoozeBtn);
+      await Promise.resolve();
+    });
+    expect(snoozedFocusSpy).toHaveBeenCalledWith({ preventScroll: true });
+
+    // Touch return-swipe starting directly on the exposed Snooze button closes the tray cleanly.
+    swipeCard(openShell, 165);
+    const openTrack = openShell.querySelector<HTMLElement>('[data-compact-card-swipe="track"]')!;
+    const exposedSnoozeBtn = openShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="snooze"]'
+    )!;
+    expect(openTrack.style.transform).toBe('translateX(-156px)');
+    const trayTouch = (type: string, clientX: number) => {
+      const ev = new MouseEvent(type, { bubbles: true, clientX, clientY: 60 });
+      Object.assign(ev, { pointerId: 2, pointerType: 'touch', isPrimary: true });
+      fireEvent(exposedSnoozeBtn, ev);
+    };
+    sendStateEvent.mockClear();
+    menuProps.mockClear();
+    trayTouch('pointerdown', 220);
+    trayTouch('pointermove', 235);
+    trayTouch('pointermove', 300);
+    trayTouch('pointerup', 300);
+    expect(openTrack.style.transform).toBe('');
+    expect(menuProps).not.toHaveBeenCalled();
+    expect(sendStateEvent).not.toHaveBeenCalled();
+
+    // Activating keyboard-focused Resolve restores focus to [data-thread-root-id] and resolves.
+    const openCardBtn = openShell.querySelector<HTMLButtonElement>(
+      '[data-thread-root-id="$a-open"]'
+    )!;
+    const openFocusSpy = vi.spyOn(openCardBtn, 'focus');
+    swipeCard(openShell, 165);
+    const resolveBtn = openShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="resolve"]'
+    )!;
+    resolveBtn.focus();
+    await act(async () => {
+      fireEvent.click(resolveBtn);
+      await Promise.resolve();
+    });
+    expect(openFocusSpy).toHaveBeenCalledWith({ preventScroll: true });
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      ROOM_A,
+      MINDROOM_THREAD_TAGS_EVENT,
+      expect.objectContaining({ set_by: ME }),
+      buildPerTagStateKey('$a-open', 'resolved')
+    );
+  });
+
   it('bounds mounted cards for 3,000 sectioned threads and clips phone slides', () => {
     vi.useFakeTimers();
     stubCompactLayout({ viewAttr: 'data-space-threads-list' });
@@ -638,4 +750,227 @@ describe('SpaceThreadsList', () => {
       48
     );
   }, 30_000);
+  it('arbitrates macOS Electron trackpad swipes with desktopHistorySwipe across non-cancelable wheels, horizontal scrollers, and swipe-tracking=false', async () => {
+    const shellListeners = new Set<(event: DesktopShellEvent) => void>();
+    const emitShell = (event: DesktopShellEvent) =>
+      act(() => shellListeners.forEach((listener) => listener(event)));
+    const bridge: Partial<DesktopBridge> = {
+      onShellEvent: (listener) => {
+        shellListeners.add(listener);
+        return () => void shellListeners.delete(listener);
+      },
+    };
+    const origPlatform = Object.getOwnPropertyDescriptor(navigator, 'platform');
+    const origUserAgent = Object.getOwnPropertyDescriptor(navigator, 'userAgent');
+    Object.defineProperty(navigator, 'platform', { configurable: true, value: 'MacIntel' });
+    Object.defineProperty(navigator, 'userAgent', { configurable: true, value: 'Macintosh' });
+    Object.defineProperty(window, 'mindroomDesktop', { configurable: true, value: bridge });
+    Object.defineProperty(window, 'navigation', {
+      configurable: true,
+      value: { canGoBack: true, canGoForward: true },
+    });
+    const backSpy = vi.spyOn(window.history, 'back').mockImplementation(() => undefined);
+    const forwardSpy = vi.spyOn(window.history, 'forward').mockImplementation(() => undefined);
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 1;
+    });
+    const stopHistory = installDesktopHistorySwipe(window, {
+      isMac: () => true,
+      allowUntrusted: true,
+    });
+    emitShell({ type: 'swipe-tracking', enabled: true });
+
+    try {
+      const sendStateEvent = vi.fn().mockResolvedValue({ event_id: '$ok' });
+      const { shellOf } = renderScenario({
+        rooms: [makeRoom(ROOM_A, 'Engineering', { knownRootIds: ['$a1'] })],
+        entries: [entry(ROOM_A, '$a1', 'Alpha')],
+        sendStateEvent,
+      });
+      const shell = shellOf(ROOM_A, '$a1');
+      const track = shell.querySelector<HTMLElement>('[data-compact-card-swipe="track"]')!;
+      vi.spyOn(track, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 300, 100));
+
+      const wheel = (
+        deltaX: number,
+        opts: { deltaY?: number; cancelable?: boolean; target?: HTMLElement } = {}
+      ) => {
+        const event = new WheelEvent('wheel', {
+          bubbles: true,
+          cancelable: opts.cancelable ?? true,
+          deltaMode: 0,
+          deltaX,
+          deltaY: opts.deltaY ?? 0,
+        });
+        act(() => {
+          (opts.target ?? track).dispatchEvent(event);
+        });
+      };
+
+      // 1. Small initial wheel + cancelable:false follow-ups swiping LEFT on a closed card
+      //    parks open and NEVER navigates Forward.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(4, { cancelable: true });
+      wheel(50, { cancelable: false });
+      wheel(60, { cancelable: false });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(forwardSpy).not.toHaveBeenCalled();
+      expect(track.style.transform).toBe('translateX(-156px)');
+
+      // 2. Pressing Escape while focus is on the parked Snooze button closes the tray AND
+      //    restores focus to the card button with preventScroll:true.
+      const snoozeBtn = shell.querySelector<HTMLButtonElement>(
+        '[data-compact-card-swipe-action="snooze"]'
+      )!;
+      const cardBtn = shell.querySelector<HTMLButtonElement>('[data-thread-root-id="$a1"]')!;
+      const focusSpy = vi.spyOn(cardBtn, 'focus');
+      snoozeBtn.focus();
+      expect(document.activeElement).toBe(snoozeBtn);
+      fireEvent.keyDown(document, { key: 'Escape' });
+      expect(track.style.transform).toBe('');
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+      expect(document.activeElement).toBe(cardBtn);
+
+      // 3. Re-park, then swipe RIGHT with cancelable:false follow-ups -> closes card and NEVER navigates Back.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(4, { cancelable: true });
+      wheel(90, { cancelable: false });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(-4, { cancelable: true });
+      wheel(-40, { cancelable: false });
+      wheel(-40, { cancelable: false });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).not.toHaveBeenCalled();
+      expect(track.style.transform).toBe('');
+
+      // 4. Swiping RIGHT on a closed card STILL triggers Back navigation.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(-30);
+      wheel(-30);
+      wheel(-30);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).toHaveBeenCalledTimes(1);
+      expect(track.style.transform).toBe('');
+
+      // 5. Horizontally scrollable ancestor (e.g. narrow board): closed card yields to horizontal scroll.
+      const listEl = shell.parentElement!;
+      Object.defineProperty(listEl, 'scrollWidth', { configurable: true, value: 800 });
+      Object.defineProperty(listEl, 'clientWidth', { configurable: true, value: 300 });
+      const origOverflowX = listEl.style.overflowX;
+      listEl.style.overflowX = 'auto';
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(80);
+      wheel(120);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('');
+      expect(sendStateEvent).not.toHaveBeenCalled();
+      listEl.style.overflowX = origOverflowX;
+      Object.defineProperty(listEl, 'scrollWidth', { configurable: true, value: 300 });
+
+      // 6. With macOS "Swipe between pages" off (swipe-tracking=false), card swipe STILL parks
+      //    and deep-resolves, while Back/Forward stays disabled.
+      emitShell({ type: 'swipe-tracking', enabled: false });
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(-30);
+      wheel(-30);
+      wheel(-30);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(backSpy).toHaveBeenCalledTimes(1); // still 1 (Back disabled)
+
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(90);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+
+      // Tiny <= 8px scrollTop drift right after parking does not dismiss the parked card,
+      // while real > 8px vertical scrolling closes it immediately.
+      const scrollEl = shell.closest<HTMLElement>('[data-space-threads-list="true"]')!;
+      Object.defineProperty(scrollEl, 'scrollTop', {
+        configurable: true,
+        writable: true,
+        value: 0,
+      });
+      scrollEl.scrollTop = 8;
+      fireEvent.scroll(scrollEl);
+      expect(track.style.transform).toBe('translateX(-156px)');
+      scrollEl.scrollTop = 9;
+      fireEvent.scroll(scrollEl);
+      expect(track.style.transform).toBe('');
+
+      // Sloppy diagonal scroll (|x| < 1.5 * |y|) does not claim or wiggle a closed card.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(12, { deltaY: 10 });
+      wheel(30, { deltaY: 10 });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('');
+
+      // Re-park, then send a mostly-vertical scroll starting (14, 8) -> (0, 80) + end:
+      // even though +14px crosses the deep threshold from parked, cumulative diagonal drift cancels
+      // the claim so vertical scrolling never resolves the thread.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(90);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(14, { deltaY: 8 });
+      wheel(0, { deltaY: 80 });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('');
+      expect(sendStateEvent).not.toHaveBeenCalled();
+
+      // Clicking the explicit More button on a parked card closes the tray AND opens the menu,
+      // while clicking the card body closes the tray and swallows the click.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(90);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+      menuProps.mockClear();
+      const moreBtn = shell.querySelector<HTMLButtonElement>('[data-compact-thread-more="true"]')!;
+      await act(async () => {
+        fireEvent.click(moreBtn, { detail: 1 });
+        await Promise.resolve();
+      });
+      expect(track.style.transform).toBe('');
+      expect(menuProps).toHaveBeenLastCalledWith(expect.objectContaining({ rootId: '$a1' }));
+      act(() => menuProps.mock.lastCall![0].onClose());
+
+      // Re-park and confirm trackpad vertical scroll gesture closes the parked card cleanly.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(90);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(0, { deltaY: 30 });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('');
+
+      // Deep left swipe commits Resolve even with swipe-tracking=false.
+      await act(async () => {
+        emitShell({ type: 'scroll-gesture', phase: 'begin' });
+        wheel(100);
+        wheel(100);
+        emitShell({ type: 'scroll-gesture', phase: 'end' });
+        await Promise.resolve();
+      });
+      expect(sendStateEvent).toHaveBeenCalledWith(
+        ROOM_A,
+        MINDROOM_THREAD_TAGS_EVENT,
+        expect.objectContaining({ set_by: ME }),
+        buildPerTagStateKey('$a1', 'resolved')
+      );
+      expect(forwardSpy).not.toHaveBeenCalled();
+    } finally {
+      stopHistory();
+      Reflect.deleteProperty(window, 'mindroomDesktop');
+      Reflect.deleteProperty(window, 'navigation');
+      if (origPlatform) Object.defineProperty(navigator, 'platform', origPlatform);
+      else Reflect.deleteProperty(navigator, 'platform');
+      if (origUserAgent) Object.defineProperty(navigator, 'userAgent', origUserAgent);
+      else Reflect.deleteProperty(navigator, 'userAgent');
+    }
+  });
 });

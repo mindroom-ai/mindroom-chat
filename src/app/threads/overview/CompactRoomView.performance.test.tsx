@@ -70,10 +70,15 @@ vi.mock('./CompactRoomView.css', () => ({
 }));
 
 vi.mock('./CompactCardSwipe.css', () => ({
+  ResolveButton: 'ResolveButton',
+  SnoozeButton: 'SnoozeButton',
   SwipeAction: 'SwipeAction',
   SwipeList: 'SwipeList',
   SwipeTrack: 'SwipeTrack',
   SwipeTrackSettling: 'SwipeTrackSettling',
+  SwipeTray: 'SwipeTray',
+  TrayButton: 'TrayButton',
+  TrayLabel: 'TrayLabel',
 }));
 
 vi.mock('./compactThreadCardViewModel', () => ({

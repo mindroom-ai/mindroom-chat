@@ -80,6 +80,8 @@ export type ThreadActionsMenuProps = {
    * picker for an editor, in place of Edit tags.
    */
   tagsAtTop?: boolean;
+  /** Opens directly on this dialog instead of the actions menu. */
+  initialDialog?: 'snooze';
 };
 
 type OpenDialog = 'tags' | 'editSummary' | 'regenerate' | 'snooze' | 'forkToRoom';
@@ -112,6 +114,7 @@ export function ThreadActionsMenu({
   onShowFull,
   shortcutless = false,
   tagsAtTop = false,
+  initialDialog,
   plugins = registeredPlugins,
 }: ThreadActionsMenuProps) {
   const { t } = useTranslation();
@@ -133,7 +136,7 @@ export function ThreadActionsMenu({
     if (closing) onCloseRef.current();
   }, [closing]);
   const closeFromDetail = useCallback(() => setClosing(true), []);
-  const [dialog, setDialog] = useState<OpenDialog>();
+  const [dialog, setDialog] = useState<OpenDialog | undefined>(initialDialog);
   const [draft, setDraft] = useState(summaryText ?? '');
   const [busy, setBusy] = useState(false);
   const [requestError, setRequestError] = useState<{ error: unknown }>();
