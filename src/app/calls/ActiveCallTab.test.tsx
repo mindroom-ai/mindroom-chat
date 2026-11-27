@@ -5,8 +5,8 @@ import { useRef } from 'react';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
-import { setImperativeJotaiStore } from '../lib/state/jotaiStore';
 import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { playLiveSlide, skipActiveLiveSlide } from '../navigation/phonePageSlide';
 import { ActiveCallTab } from './ActiveCallTab';
 import {
   activeCallAtom,
@@ -103,6 +103,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  skipActiveLiveSlide();
   cleanup();
   clearCallWindowStore(USER);
   vi.clearAllMocks();
@@ -158,32 +159,45 @@ describe("the rail's call button", () => {
     expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
   });
 
-  it.each(['cleared', 'failed'] as const)(
-    'abandons a queued return if the call is %s',
-    (reason) => {
-      vi.useFakeTimers();
-      const clearImperativeStore = setImperativeJotaiStore(store);
-      const { container } = renderTab('Mobile');
-      container.setAttribute('data-phone-stage', '');
-      store.set(phoneNavDrawerOpenAtom, true);
-      try {
-        openCall();
-        expect(store.get(callPanelRoomAtom)).toBeUndefined();
-        act(() => {
-          if (reason === 'cleared') store.set(activeCallAtom, undefined);
-          else state.phase = 'failed';
-          vi.runOnlyPendingTimers();
-        });
-        expect(store.get(callPanelRoomAtom)).toBeUndefined();
-        expect(store.get(focusHandOffAtom)).toBeUndefined();
-        expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
-        expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
-        expect(navigation.navigateRoom).not.toHaveBeenCalled();
-      } finally {
-        clearImperativeStore();
-      }
-    }
-  );
+  it('cancels an active phone live slide and opens the call immediately on mobile', () => {
+    const { container } = renderTab('Mobile');
+    store.set(phoneNavDrawerOpenAtom, true);
+
+    const stage = document.createElement('div');
+    const under = document.createElement('div');
+    const over = document.createElement('div');
+    stage.append(under, over);
+    container.append(stage);
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
+      width: 390,
+      height: 800,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const pendingAnim = {
+      finished: new Promise<void>(() => undefined),
+      cancel: vi.fn(),
+    } as unknown as Animation;
+    over.animate = vi.fn(() => pendingAnim);
+    under.animate = vi.fn(() => pendingAnim);
+
+    const onCommit = vi.fn();
+    const exit = vi.fn();
+    playLiveSlide({ direction: 'back', stage, over, under, exit, onCommit });
+
+    openCall();
+
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(exit).toHaveBeenCalledWith(false);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    expect(store.get(callPanelRoomAtom)).toBe(ORIGIN);
+    expect(navigation.navigateRoomThread).toHaveBeenCalledWith(ORIGIN, '$plan');
+  });
 
   it.each([
     'waits',
