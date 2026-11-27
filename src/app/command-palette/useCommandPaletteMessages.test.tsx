@@ -1,10 +1,15 @@
 // @vitest-environment jsdom
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ISearchResponse } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  clearThreadSummarySharedState,
+  forgetRedactedThreadSummaries,
+  storeThreadSummaryInState,
+} from '../event-store/threads/threadSummaryState';
 import {
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
@@ -21,10 +26,12 @@ type PendingSearch = {
   reject: (error: Error) => void;
 };
 
-const { client, navigate, openResult, pending } = vi.hoisted(() => {
+const { client, navigate, openResult, pending, roomEvents } = vi.hoisted(() => {
   const searches: PendingSearch[] = [];
+  const loaded = new Map<string, unknown>();
   return {
     pending: searches,
+    roomEvents: loaded,
     navigate: vi.fn(),
     openResult: vi.fn(),
     client: {
@@ -35,7 +42,10 @@ const { client, navigate, openResult, pending } = vi.hoisted(() => {
         getMember: () => null,
         hasEncryptionStateEvent: () => false,
         membersLoaded: () => true,
+        findEventById: (id: string) => loaded.get(`${roomId}:${id}`),
+        getThread: () => undefined,
       }),
+      fetchRoomEvent: vi.fn(),
       search: vi.fn(
         (
           { body }: { body: { search_categories: { room_events: { search_term: string } } } },
@@ -55,37 +65,63 @@ const { client, navigate, openResult, pending } = vi.hoisted(() => {
 });
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
+vi.mock('../matrix/session/useSessionStore', () => ({
+  useActiveSession: () => ({ sessionId: 'test-session' }),
+}));
+vi.mock('../event-store/cache/db', () => ({
+  loadCachedThreadSummaries: vi.fn().mockResolvedValue(new Map()),
+  saveCachedThreadSummary: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock('../search/useOpenSearchResult', () => ({ useOpenSearchResult: () => openResult }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
 
-const responseWith = (eventId: string, body: string): ISearchResponse =>
+const ROOM = '!ops:example.org';
+const hitOf = (
+  eventId: string,
+  body: string,
+  extra?: Record<string, unknown>,
+  unsigned?: Record<string, unknown>
+) => ({
+  rank: 1,
+  context: {},
+  result: {
+    event_id: eventId,
+    room_id: ROOM,
+    sender: '@alice:example.org',
+    origin_server_ts: 1_700_000_000_000,
+    type: 'm.room.message',
+    content: { msgtype: 'm.text', body, ...extra },
+    ...(unsigned ? { unsigned } : {}),
+  },
+});
+const responseOf = (...results: ReturnType<typeof hitOf>[]) =>
   ({
-    search_categories: {
-      room_events: {
-        highlights: ['walrus'],
-        count: 1,
-        results: [
-          {
-            rank: 1,
-            context: {},
-            result: {
-              event_id: eventId,
-              room_id: '!ops:example.org',
-              sender: '@alice:example.org',
-              origin_server_ts: 1_700_000_000_000,
-              type: 'm.room.message',
-              content: { msgtype: 'm.text', body },
-            },
-          },
-        ],
-      },
-    },
+    search_categories: { room_events: { highlights: ['walrus'], count: results.length, results } },
   }) as unknown as ISearchResponse;
+const responseWith = (eventId: string, body: string) => responseOf(hitOf(eventId, body));
 
 const store = createStore();
+const makeEntry = (rootId: string, title?: string, rootPreviewText = '') =>
+  ({
+    key: getCrossRoomThreadIndexKey(ROOM, rootId),
+    summaryText: title ?? rootPreviewText,
+    rootPreviewText,
+    threadRecord: { presentation: { summaryInfo: title ? { summaryText: title } : undefined } },
+  }) as unknown as CrossRoomThreadIndexEntry;
+const setIndex = (entries: CrossRoomThreadIndexEntry[], rev?: [string, string][]) =>
+  store.set(crossRoomThreadIndexAtom, {
+    ...emptyCrossRoomThreadIndexSnapshot(),
+    entries: new Map(entries.map((e) => [e.key, e])),
+    ...(rev && {
+      eventIdToThreadRoots: new Map([[ROOM, new Map(rev.map(([i, r]) => [i, new Set([r])]))]]),
+    }),
+  });
 
-const renderMessages = (text: string, enabled = true) => {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+const renderMessages = (
+  text: string,
+  enabled = true,
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+) => {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
@@ -98,10 +134,23 @@ const renderMessages = (text: string, enabled = true) => {
   );
 };
 
+const searchHits = async (res: ISearchResponse, qc?: QueryClient) => {
+  const hook = renderMessages('walrus', true, qc);
+  await waitFor(() => expect(pending).toHaveLength(1));
+  await act(async () => pending.shift()?.resolve(res));
+  return hook;
+};
+
 afterEach(() => {
+  cleanup();
   pending.length = 0;
+  roomEvents.clear();
+  clearThreadSummarySharedState();
+  store.set(crossRoomThreadIndexAtom, emptyCrossRoomThreadIndexSnapshot());
   client.search.mockClear();
+  client.fetchRoomEvent.mockReset();
   navigate.mockClear();
+  openResult.mockClear();
 });
 
 describe('useCommandPaletteMessages', () => {
@@ -225,12 +274,8 @@ describe('useCommandPaletteMessages', () => {
   });
 
   it('lists a retitled thread once, by its current title, beside what was said in it', async () => {
-    const key = getCrossRoomThreadIndexKey('!ops:example.org', '$root');
-    const entry = { key, summaryText: 'Walrus launch plan', rootPreviewText: '' };
-    store.set(crossRoomThreadIndexAtom, {
-      ...emptyCrossRoomThreadIndexSnapshot(),
-      entries: new Map([[key, entry as CrossRoomThreadIndexEntry]]),
-    });
+    const entry = makeEntry('$root', 'Walrus launch plan');
+    setIndex([entry]);
     const { result } = renderMessages('walrus');
     await waitFor(() => expect(pending).toHaveLength(1));
     const response = responseWith('$said', 'walrus sighting');
@@ -263,9 +308,109 @@ describe('useCommandPaletteMessages', () => {
       { id: 'message:!ops:example.org:$new', snippet: 'Walrus launch plan', threadName: undefined },
       { id: 'message:!ops:example.org:$said', threadName: 'Walrus launch plan' },
     ]);
-    expect(result.current.items[0]?.titleOfThreadId).toBe(`thread:${key}`);
+    expect(result.current.items[0]?.titleOfThreadId).toBe(`thread:${entry.key}`);
     expect(result.current.items[1]?.titleOfThreadId).toBeUndefined();
-    store.set(crossRoomThreadIndexAtom, emptyCrossRoomThreadIndexSnapshot());
+  });
+
+  it('resolves sync/async m.replace replies, negative-caches standalone edits, and retries 503s', async () => {
+    setIndex(
+      [makeEntry('$rA', 'Loaded'), makeEntry('$rB', 'Indexed'), makeEntry('$rC', 'Fetched')],
+      [['$repB', '$rB']]
+    );
+    roomEvents.set(`${ROOM}:$repA`, {
+      getWireContent: () => ({ 'm.relates_to': { rel_type: 'm.thread', event_id: '$rA' } }),
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.fetchRoomEvent.mockImplementation(async (_r: string, id: string) => {
+      if (id === '$repC') throw new Error('503');
+      return { event_id: id, content: { msgtype: 'm.text', body: 'Solo' } };
+    });
+    const rep = (e: string, t: string) =>
+      hitOf(e, '* walrus', { 'm.relates_to': { rel_type: 'm.replace', event_id: t } });
+    const page = responseOf(
+      rep('$eA', '$repA'),
+      rep('$eB', '$repB'),
+      rep('$eC', '$repC'),
+      rep('$eS', '$solo')
+    );
+    const first = await searchHits(page, qc);
+    await waitFor(() => expect(client.fetchRoomEvent).toHaveBeenCalledTimes(2));
+    const names = (h: typeof first) => h.result.current.items.map((i) => i.threadName);
+    expect(names(first)).toEqual(['Loaded', 'Indexed', undefined, undefined]);
+    first.result.current.items[0]?.onSelect?.();
+    expect(openResult).toHaveBeenCalledWith(ROOM, { mainEventId: '$repA', threadRootId: '$rA' });
+    first.unmount();
+
+    client.fetchRoomEvent.mockResolvedValueOnce({
+      event_id: '$repC',
+      content: { 'm.relates_to': { rel_type: 'm.thread', event_id: '$rC' } },
+    });
+    const second = renderMessages('walrus', true, qc);
+    await waitFor(() => expect(names(second)).toEqual(['Loaded', 'Indexed', 'Fetched', undefined]));
+    expect(client.fetchRoomEvent).toHaveBeenCalledTimes(3);
+  });
+
+  it('shows titles on titled roots and empty string (never root preview) on untitled roots', async () => {
+    setIndex([makeEntry('$rT', 'Harbor roadmap', 'Root T'), makeEntry('$rU', undefined, 'Root U')]);
+    const { result } = await searchHits(
+      responseOf(hitOf('$rT', 'walrus T'), hitOf('$rU', 'walrus U'))
+    );
+    await waitFor(() => expect(result.current.items).toHaveLength(2));
+    expect(result.current.items.map((i) => i.threadName)).toEqual(['Harbor roadmap', '']);
+    result.current.items[1]?.onSelect?.();
+    expect(openResult).toHaveBeenCalledWith(ROOM, { mainEventId: '$rU', threadRootId: '$rU' });
+  });
+
+  it('resolves titles from threadSummaryState and drops them cleanly on redaction', async () => {
+    setIndex([makeEntry('$rS', undefined, 'Plain root fallback')]);
+    const reply = hitOf('$repS', 'walrus', {
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$rS' },
+    });
+    const { result } = await searchHits(responseOf(reply));
+    await waitFor(() => expect(result.current.items[0]?.threadName).toBe('Plain root fallback'));
+    const info = { summaryText: 'Live title', eventId: '$sum1', eventTs: 2000 };
+    act(() => {
+      storeThreadSummaryInState('test-session', ROOM, '$rS', info);
+    });
+    await waitFor(() => expect(result.current.items[0]?.threadName).toBe('Live title'));
+    act(() => forgetRedactedThreadSummaries('test-session', ROOM, new Set(['$sum1'])));
+    await waitFor(() => expect(result.current.items[0]?.threadName).toBe('Plain root fallback'));
+  });
+
+  it('shares a newer bundled root title with replies listed before the root on the same page', async () => {
+    storeThreadSummaryInState('test-session', ROOM, '$rB', {
+      summaryText: 'Stale cached title',
+      eventId: '$oldSum',
+      eventTs: 1000,
+    });
+    const reply = hitOf('$repB', 'walrus reply', {
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$rB' },
+    });
+    const root = hitOf('$rB', 'walrus root', undefined, {
+      'm.relations': {
+        'm.thread': {
+          'io.mindroom.title': {
+            event_id: '$newSum',
+            sender: '@mindroom_helper:example.org',
+            type: 'm.room.message',
+            origin_server_ts: 5000,
+            content: {
+              msgtype: 'm.notice',
+              body: 'Fresh bundled title',
+              'io.mindroom.thread_summary': { version: 1, summary: 'Fresh bundled title' },
+              'm.relates_to': { rel_type: 'm.thread', event_id: '$rB' },
+            },
+          },
+        },
+      },
+    });
+    const { result } = await searchHits(responseOf(reply, root));
+    await waitFor(() =>
+      expect(result.current.items.map((i) => i.threadName)).toEqual([
+        'Fresh bundled title',
+        'Fresh bundled title',
+      ])
+    );
   });
 
   it('reports a failed search as an error', async () => {

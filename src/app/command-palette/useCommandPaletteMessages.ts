@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -6,16 +7,31 @@ import { type IEventWithRoomId, MsgType, type Room } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
+import { useActiveSession } from '../matrix/session/useSessionStore';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { getMemberDisplayName, trimReplyFromBody } from '../matrix/room';
 import { stripPreviewMarkdown } from '../event-store/threads/threadMessagePreview';
 import {
+  ensureThreadSummaryStateLoaded,
+  getThreadSummaryStateSnapshot,
+  subscribeToThreadSummaryState,
+} from '../event-store/threads/threadSummaryState';
+import { getVisibleThreadEventBodyPreviewText } from '../event-store/threads/threadUtils';
+import {
   crossRoomThreadIndexAtom,
   getCrossRoomThreadIndexKey,
+  getCrossRoomThreadRootsForEvent,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { findFirstHighlight } from '../search/highlightRegex';
-import { getSearchResultOpenTarget } from '../search/searchResultOpenTarget';
+import {
+  fetchSearchHitThread,
+  getSearchResultOpenTarget,
+  hasBundledThread,
+  resolveSearchThreadTitle,
+  resolveSyncSearchHitThread,
+  type SearchResultOpenTarget,
+} from '../search/searchResultOpenTarget';
 import {
   getSearchResultBodySnippet,
   getSearchResultEffectiveContent,
@@ -36,6 +52,13 @@ const PLAIN_SOURCE_CHARS = 2000;
 const PLAIN_TEXT_TYPES: readonly unknown[] = [MsgType.Text, MsgType.Notice, MsgType.Emote];
 // A phone's row shows about 40 characters of a snippet before its ellipsis.
 const MATCH_LEAD_CHARS = 20;
+
+const collectQueryData = <T>(results: UseQueryResult<T>[]) => results.map((r) => r.data);
+
+const getRootPreview = (room: Room | null | undefined, rootId: string, fallback?: string) => {
+  const root = room?.getThread?.(rootId)?.rootEvent ?? room?.findEventById?.(rootId);
+  return root?.isRedacted?.() ? '' : getVisibleThreadEventBodyPreviewText(root) || fallback || '';
+};
 
 /**
  * The snippet from a few words before its first match, after an ellipsis, when the match comes
@@ -121,6 +144,8 @@ export const hasEncryptedRooms = (
  */
 export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabled) => {
   const client = useMatrixClient();
+  const userId = client.getUserId();
+  const sessionId = useActiveSession()?.sessionId;
   const { t } = useTranslation();
   const navigate = useNavigate();
   const open = useOpenSearchResult();
@@ -137,48 +162,109 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
   else if (search.isError) status = 'error';
 
   const page = status === 'done' ? search.data?.pages[0] : undefined;
+  const pageRoomIds = useMemo(() => page?.groups.map((g) => g.roomId) ?? [], [page]);
+  const pageRoomIdsKey = [...new Set(pageRoomIds)].sort().join('\u0000');
   // Senders are named from their rooms' members, loaded here for rooms the user has not opened.
-  const membersLoaded = useLoadedRoomMembers(
-    client,
-    page?.groups.map((group) => group.roomId) ?? []
-  );
-  const items = useMemo<CommandPaletteMessages['items']>(() => {
-    void membersLoaded;
-    if (!page) return [];
-    const { highlights } = page;
-    return page.groups.flatMap(({ roomId, items: hits }) => {
+  const membersLoaded = useLoadedRoomMembers(client, pageRoomIds);
+
+  const [summaryVersion, setSummaryVersion] = useState(0);
+  useEffect(() => {
+    if (!sessionId || !pageRoomIdsKey) return undefined;
+    const rooms = pageRoomIdsKey.split('\u0000');
+    const bump = () => setSummaryVersion((n) => n + 1);
+    const unsubs = rooms.map((id) => subscribeToThreadSummaryState(sessionId, id, bump));
+    rooms.forEach((id) => void ensureThreadSummaryStateLoaded(sessionId, id));
+    return () => unsubs.forEach((u) => u());
+  }, [pageRoomIdsKey, sessionId]);
+
+  const { syncHits, editFetches } = useMemo(() => {
+    void summaryVersion;
+    const seen = new Map<string, number>();
+    const fetches: [string, string][] = [];
+    if (!page) return { syncHits: [], editFetches: fetches };
+    const hits = page.groups.flatMap(({ roomId, items: groupHits }) => {
       const room = client.getRoom(roomId);
-      return hits.map(({ event }) => {
+      const summaries = getThreadSummaryStateSnapshot(sessionId, roomId);
+      return groupHits.map(({ event }) => {
         const target = getSearchResultOpenTarget(event);
-        const threadKey =
-          target.threadRootId && getCrossRoomThreadIndexKey(roomId, target.threadRootId);
-        const thread = threadKey ? threadIndex.entries.get(threadKey) : undefined;
-        return {
-          id: `message:${roomId}:${event.event_id}`,
-          kind: 'message',
-          senderName:
-            (room && getMemberDisplayName(room, event.sender)) ??
-            getMxIdLocalPart(event.sender) ??
-            event.sender,
-          roomName: room?.name ?? roomId,
-          threadName:
-            target.threadRootId && !target.threadTitle
-              ? thread?.summaryText || thread?.rootPreviewText || ''
-              : undefined,
-          // A thread's titles list once (`collapseThreadTitleHits`), as the one it has now.
-          // Its thread's row has this id (`useCommandPaletteSource`).
-          ...(target.threadTitle && threadKey ? { titleOfThreadId: `thread:${threadKey}` } : {}),
-          snippet:
-            (target.threadTitle && thread?.summaryText) || getPlainSnippet(event, highlights, t),
-          highlights,
-          timestamp: event.origin_server_ts,
-          onSelect: () => {
-            void open(roomId, target);
-          },
-        };
+        const { mainEventId: id } = target;
+        const editKey = getCrossRoomThreadIndexKey(roomId, id);
+        const isRoot = threadIndex.entries.has(editKey) || summaries.has(id);
+        let sync = resolveSyncSearchHitThread(event, target, room, isRoot);
+        let fetchIdx: number | undefined;
+        if (sync.needsFetch) {
+          const [rev] = getCrossRoomThreadRootsForEvent(threadIndex, roomId, id);
+          if (rev) sync = { threadRootId: rev, isThreadTitle: summaries.get(rev)?.eventId === id };
+          else {
+            fetchIdx = seen.get(editKey) ?? fetches.push([roomId, id]) - 1;
+            seen.set(editKey, fetchIdx);
+          }
+        }
+        return { roomId, room, summaries, event, target, sync, fetchIdx };
       });
     });
-  }, [client, membersLoaded, open, page, t, threadIndex.entries]);
+    return { syncHits: hits, editFetches: fetches };
+  }, [client, page, sessionId, summaryVersion, threadIndex]);
+
+  const editData = useQueries({
+    queries: editFetches.map(([roomId, eventId]) => ({
+      queryKey: ['search-edit-thread', userId, roomId, eventId] as const,
+      enabled: typeof client.fetchRoomEvent === 'function',
+      staleTime: Infinity,
+      retry: false,
+      queryFn: () => fetchSearchHitThread(client, roomId, eventId, sessionId),
+    })),
+    combine: collectQueryData,
+  });
+
+  const items = useMemo<CommandPaletteMessages['items']>(() => {
+    void membersLoaded;
+    const highlights = page?.highlights ?? [];
+    const rootHits = new Map<string, IEventWithRoomId>();
+    syncHits.forEach(({ roomId, event }) => {
+      if (hasBundledThread(event.unsigned)) {
+        rootHits.set(getCrossRoomThreadIndexKey(roomId, event.event_id), event);
+      }
+    });
+    return syncHits.map(({ roomId, room, summaries, event, target, sync, fetchIdx }) => {
+      const edit = fetchIdx !== undefined ? editData[fetchIdx] : undefined;
+      const rootId = sync.threadRootId ?? edit?.threadRootId;
+      const isTitle = Boolean(sync.isThreadTitle || edit?.threadTitle);
+      const key = rootId && getCrossRoomThreadIndexKey(roomId, rootId);
+      const entry = key ? threadIndex.entries.get(key) : undefined;
+      const info = entry?.threadRecord.presentation.summaryInfo;
+      const title =
+        rootId && key
+          ? resolveSearchThreadTitle(room, rootHits.get(key), rootId, summaries, info)
+          : '';
+      const { mainEventId: id } = target;
+      const openTarget: SearchResultOpenTarget = rootId
+        ? { mainEventId: id, threadRootId: rootId, ...(isTitle ? { threadTitle: true } : {}) }
+        : target;
+      return {
+        id: `message:${roomId}:${event.event_id}`,
+        kind: 'message',
+        senderName:
+          (room && getMemberDisplayName(room, event.sender)) ??
+          getMxIdLocalPart(event.sender) ??
+          event.sender,
+        roomName: room?.name ?? roomId,
+        threadName:
+          rootId && !isTitle
+            ? title || (rootId === id ? '' : getRootPreview(room, rootId, entry?.rootPreviewText))
+            : undefined,
+        // A thread's titles list once (`collapseThreadTitleHits`), as the one it has now.
+        // Its thread's row has this id (`useCommandPaletteSource`).
+        ...(isTitle && key ? { titleOfThreadId: `thread:${key}` } : {}),
+        snippet: (isTitle && title) || getPlainSnippet(event, highlights, t),
+        highlights,
+        timestamp: event.origin_server_ts,
+        onSelect: () => {
+          void open(roomId, openTarget);
+        },
+      };
+    });
+  }, [editData, membersLoaded, open, page, syncHits, t, threadIndex.entries]);
 
   const encryptedRooms = useMemo(
     () => hasEncryptedRooms(roomIds.map((roomId) => client.getRoom(roomId))),
