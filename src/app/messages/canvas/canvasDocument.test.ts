@@ -14,6 +14,7 @@ import {
   CANVAS_ESCAPE_MESSAGE,
   CANVAS_LIBRARY_SOURCE,
   CANVAS_STATE_MESSAGE,
+  CANVAS_SUBMIT_MESSAGE,
   CANVAS_PERMISSIONS,
   CANVAS_SANDBOX,
   CANVAS_WRAPPER_SANDBOX,
@@ -126,7 +127,7 @@ describe('buildCanvasPage', () => {
     expect(CANVAS_WRAPPER_SANDBOX).toBe(CANVAS_SANDBOX);
   });
 
-  it('sends answers past the wrapper to Chat', () => {
+  it('sends non-submission bridge messages past the wrapper to Chat', () => {
     expect(buildCanvasPage('', 'light')).toContain('parent.parent.postMessage');
   });
 
@@ -775,6 +776,84 @@ describe('kept inputs', () => {
     await settle();
     expect(page.$('#rate').value).toBe('7');
     expect((page.window as unknown as { tracked: string[] }).tracked).toEqual([]);
+  });
+});
+
+describe('submission relay', () => {
+  const pro = {
+    type: CANVAS_SUBMIT_MESSAGE,
+    version: 1,
+    data: { plan: 'pro' },
+    label: 'Pro',
+  };
+
+  it('sends inner-frame submissions to the wrapper (parent) and not directly to Chat (parent.parent)', () => {
+    const toWrapper: Array<Record<string, unknown>> = [];
+    const toChat: Array<Record<string, unknown>> = [];
+    const { window } = new JSDOM(
+      buildCanvasPage(
+        '<script>mindroom.submit({ plan: "pro" }, { label: "Pro" });</script>',
+        'light'
+      ),
+      {
+        runScripts: 'dangerously',
+        beforeParse(win) {
+          Object.defineProperty(win, 'parent', {
+            value: {
+              postMessage(data: Record<string, unknown>) {
+                toWrapper.push(data);
+              },
+              parent: {
+                postMessage(data: Record<string, unknown>) {
+                  toChat.push(data);
+                },
+              },
+            },
+          });
+        },
+      }
+    );
+    window.close();
+    expect(toWrapper).toEqual([pro]);
+    expect(toChat.filter((message) => message.type === CANVAS_SUBMIT_MESSAGE)).toEqual([]);
+  });
+
+  it('attests userGesture from wrapper active activation only and ignores untrusted sources', () => {
+    // The host-owned wrapper relays only opaque-origin messages from its own child frame,
+    // overwriting userGesture from the wrapper's own navigator.userActivation.isActive.
+    const runWrapper = (isActive: boolean) => {
+      const relayed: Array<Record<string, unknown>> = [];
+      const { window } = new JSDOM(buildCanvasDocument('<p>Hi</p>', 'light'), {
+        runScripts: 'dangerously',
+        beforeParse(win) {
+          Object.defineProperty(win.navigator, 'userActivation', {
+            configurable: true,
+            value: { isActive, hasBeenActive: true },
+          });
+          Object.defineProperty(win, 'parent', {
+            value: {
+              postMessage(data: Record<string, unknown>) {
+                relayed.push(data);
+              },
+            },
+          });
+        },
+      });
+      const child = window.document.querySelector('iframe')!.contentWindow!;
+      const relay = (data: unknown, origin = 'null', source: Window = child) =>
+        window.dispatchEvent(new window.MessageEvent('message', { data, origin, source }));
+      // Spoofed userGesture from the inner frame must be overwritten by wrapper activation.
+      relay({ ...pro, userGesture: true });
+      // Messages from other windows or non-opaque origins are ignored.
+      relay({ type: CANVAS_SUBMIT_MESSAGE, version: 1, data: { evil: 1 } }, 'https://evil.example');
+      relay({ type: CANVAS_SUBMIT_MESSAGE, version: 1, data: { evil: 2 } }, 'null', {} as Window);
+      window.close();
+      return relayed;
+    };
+
+    for (const isActive of [false, true]) {
+      expect(runWrapper(isActive)).toEqual([{ ...pro, userGesture: isActive }]);
+    }
   });
 });
 

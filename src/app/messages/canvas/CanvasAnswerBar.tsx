@@ -1,13 +1,15 @@
+import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Text } from 'folds';
+import { Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { FailedSendActions } from '../FailedSendActions';
-import type { CanvasHost } from './useCanvasHost';
+import { summarizeCanvasData, type CanvasSubmission } from './canvasMessages';
+import { CANVAS_UNDO_DELAY_MS, inUndoFlow, type CanvasHost } from './useCanvasHost';
 import * as css from './canvasHost.css';
 
 const formatData = (data: unknown): string => JSON.stringify(data, null, 2) ?? 'null';
 
-/** The answer the page offers, to send or discard, and what became of the last one sent. */
+/** The answer the page offers, to undo/send or confirm, and what became of the last one sent. */
 export function CanvasAnswerBar({
   host,
   room,
@@ -22,61 +24,144 @@ export function CanvasAnswerBar({
   shared: boolean;
   /**
    * In the thread, under the page: the answer stays in view while the page scrolls past, and the
-   * page's disclosure shows only with an answer to send, not under every chart.
+   * page's disclosure sits behind the header info tip instead of under every chart.
    */
   inline?: boolean;
 }) {
   const { t } = useTranslation();
-  const { staged, busy, lastAnswer, answer, footer, sendError } = host;
+  const { staged, busy, countingDown, lastAnswer, answer, footer } = host;
+  const barRef = useRef<HTMLDivElement>(null);
+  const [inspectingSubmission, setInspectingSubmission] = useState<CanvasSubmission>();
+  const inspecting = !!staged && inspectingSubmission === staged.submission;
+  const isCountdown = staged?.phase === 'countdown';
+  const isUndoFlow = inUndoFlow(staged);
+  const chips = staged ? summarizeCanvasData(staged.submission.data) : [];
+  const label = staged?.submission.label ?? t('mindroomUi.canvas.unlabeled');
+
+  // Move focus onto the Undo bar only for verified countdowns so keyboard users can Tab to Undo
+  // or press Escape immediately, and so stale iframe focus does not block the agent's next step.
+  const countdownSubmission = isCountdown ? staged.submission : undefined;
+  useEffect(() => {
+    if (!countdownSubmission) return;
+    barRef.current?.focus({ preventScroll: true });
+  }, [countdownSubmission]);
+
+  const handleToggleInspect = () => {
+    if (!staged) return;
+    if (inspecting) {
+      setInspectingSubmission(undefined);
+      return;
+    }
+    if (isCountdown) host.pause();
+    setInspectingSubmission(staged.submission);
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape' || !isUndoFlow) return;
+    event.preventDefault();
+    event.stopPropagation();
+    host.discard();
+  };
+
+  const headline = t(isCountdown ? 'mindroomUi.canvas.sendingTo' : 'mindroomUi.canvas.sendTo', {
+    agent: agentName,
+  });
+  const stagedAnnouncement = staged
+    ? isCountdown
+      ? t('mindroomUi.canvas.sendingAnnouncement', { agent: agentName, label })
+      : `${headline} ${label}`
+    : '';
+
   return (
     <>
+      <span
+        className={css.SrOnly}
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        data-canvas-staged-live
+      >
+        {stagedAnnouncement}
+      </span>
       {staged && (
-        <div className={inline ? `${css.Staged} ${css.StickyAnswer}` : css.Staged}>
-          <Text size="T300">
-            {t('mindroomUi.canvas.sendTo', { agent: agentName })}{' '}
-            <b>{staged.submission.label ?? t('mindroomUi.canvas.unlabeled')}</b>
-          </Text>
+        <div
+          ref={barRef}
+          tabIndex={-1}
+          onKeyDown={handleKeyDown}
+          className={inline ? `${css.AnswerCard} ${css.StickyAnswer}` : css.AnswerCard}
+          data-auto-send={isCountdown ? '' : undefined}
+        >
+          {countingDown && (
+            <div
+              className={css.CountdownTrack}
+              style={{ animationDuration: `${CANVAS_UNDO_DELAY_MS}ms` }}
+              aria-hidden="true"
+            />
+          )}
+          <div className={css.StagedRow}>
+            <div className={css.StagedInfo}>
+              <span className={css.IconLine} data-canvas-staged-headline>
+                <span className={css.StatusDot} aria-hidden="true" />
+                <Text as="span" size="T300">
+                  {headline} <b>{label}</b>
+                </Text>
+              </span>
+              {chips.length > 0 && (
+                <span className={css.Chips} data-canvas-summary>
+                  {chips.map((chip, index) => (
+                    <span key={`${index}:${chip}`} className={css.Chip}>
+                      {chip}
+                    </span>
+                  ))}
+                </span>
+              )}
+            </div>
+            <div className={css.StagedActions}>
+              <Button
+                size="300"
+                variant="Secondary"
+                fill={inspecting ? 'Soft' : 'None'}
+                radii="300"
+                aria-expanded={inspecting}
+                onClick={handleToggleInspect}
+                data-canvas-inspect
+              >
+                <Text size="B300">{t('mindroomUi.canvas.data')}</Text>
+              </Button>
+              <Button
+                size="300"
+                variant="Secondary"
+                fill={isCountdown ? 'Soft' : 'None'}
+                outlined={isCountdown}
+                radii="300"
+                onClick={host.discard}
+                data-canvas-discard
+              >
+                <Text size="B300">
+                  {t(isUndoFlow ? 'mindroomUi.canvas.undo' : 'mindroomUi.canvas.discard')}
+                </Text>
+              </Button>
+              <Button
+                size="300"
+                variant={isCountdown ? 'Secondary' : 'Primary'}
+                fill={isCountdown ? 'None' : 'Solid'}
+                disabled={staged.phase === 'arming' || busy}
+                onClick={host.send}
+                data-canvas-send
+                radii="300"
+              >
+                <Text size="B300">
+                  {t(isUndoFlow ? 'mindroomUi.canvas.sendNow' : 'mindroomUi.canvas.send')}
+                </Text>
+              </Button>
+            </div>
+          </div>
           {staged.resubmitted && (
             <Text size="T200" priority="300">
               {t('mindroomUi.canvas.changeAnswer')}
             </Text>
           )}
-          <details>
-            <summary>
-              <Text as="span" size="T200">
-                {t('mindroomUi.canvas.data')}
-              </Text>
-            </summary>
-            <pre className={css.Data}>{formatData(staged.submission.data)}</pre>
-          </details>
-          {inline && (
-            <Text size="T200" priority="300">
-              {t('mindroomUi.canvas.inlineDisclosure', { agent: agentName })}
-            </Text>
-          )}
-          <Box gap="200">
-            <Button
-              size="300"
-              variant="Primary"
-              disabled={!staged.armed || busy}
-              onClick={host.send}
-              data-canvas-send
-              fill="Soft"
-              outlined
-              radii="300"
-            >
-              <Text size="B300">{t('mindroomUi.canvas.send')}</Text>
-            </Button>
-            <Button
-              size="300"
-              variant="Secondary"
-              fill="None"
-              onClick={host.discard}
-              data-canvas-discard
-            >
-              <Text size="B300">{t('mindroomUi.canvas.discard')}</Text>
-            </Button>
-          </Box>
+          {inspecting && <pre className={css.Data}>{formatData(staged.submission.data)}</pre>}
         </div>
       )}
       {shared && (
@@ -94,13 +179,17 @@ export function CanvasAnswerBar({
               label: lastAnswer.label,
             })}
           />
+        ) : footer === 'sent' && lastAnswer ? (
+          <span className={css.IconLine}>
+            <Icon size="50" src={Icons.Check} aria-hidden="true" className={css.SentIcon} />
+            <Text as="span" size="T200" priority="300">
+              {t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
+            </Text>
+          </span>
         ) : (
-          <Text size="T200" priority="300" className={sendError ? css.Error : undefined}>
+          <Text size="T200" priority="300" className={footer === 'refused' ? css.Error : undefined}>
             {footer === 'refused' && t('mindroomUi.canvas.sendFailed')}
             {footer === 'sending' && t('mindroomUi.canvas.sending', { agent: agentName })}
-            {footer === 'sent' &&
-              lastAnswer &&
-              t('mindroomUi.canvas.sent', { agent: agentName, label: lastAnswer.label })}
             {!inline &&
               (footer === 'idle' || footer === 'cancelled') &&
               t('mindroomUi.canvas.disclosure', { agent: agentName })}

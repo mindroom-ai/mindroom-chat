@@ -220,7 +220,8 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   // The panel's frame holds a wrapper; the agent's page runs in the frame inside it.
   const wrapper = page.frameLocator('aside[aria-label="Canvas panel"] iframe');
   const frame = wrapper.frameLocator('iframe');
-  const send = panel.getByRole('button', { name: 'Send', exact: true });
+  const send = panel.locator('[data-canvas-send]');
+  const headline = panel.locator('[data-canvas-staged-headline]');
   const canvasId = await showCanvas(STEP_ONE);
   await expect(panel).toBeVisible();
   await expect(panel.getByText('Interactive panel from')).toBeVisible();
@@ -233,15 +234,18 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await expect(wrapper.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts allow-forms');
 
   await frame.getByRole('button', { name: 'Pro' }).click();
-  await expect(panel.getByText('Send to')).toContainText('Pro plan');
+  await expect(headline).toHaveText(/Sending to .+: Pro plan/);
+  await expect(panel.locator('[data-canvas-discard]')).toHaveText('Undo');
+  await expect(send).toHaveText('Send now');
   await page.screenshot({ path: testInfo.outputPath('canvas-staged.png') });
-  // The canvas's own follow-up submission cannot swap what the user is reviewing.
+  // The canvas's 1000 ms delayed follow-up submission cannot swap the pending answer and pauses the countdown.
   await page.waitForTimeout(1_500);
-  await expect(panel.getByText('Send to')).toContainText('Pro plan');
-  await expect(send).toBeEnabled();
+  await expect(headline).toHaveText(/Send to .+: Pro plan/);
+  await expect(panel.getByText('To change your answer, discard this one first.')).toBeVisible();
   expect(
     (await viewerMessages()).some((event) => event.content['io.mindroom.canvas_response'])
   ).toBe(false);
+  await expect(send).toBeEnabled();
   await send.click();
   await expect(panel.getByText(/Sent to .*Pro plan/)).toBeVisible();
 
@@ -298,7 +302,10 @@ test('agent canvases run sandboxed, send only confirmed answers, and update in p
   await expect(frame.getByRole('button', { name: 'Continue' })).toBeVisible();
   await expect(panel.getByText('This is an earlier version.')).toHaveCount(0);
   await frame.getByRole('button', { name: 'Continue' }).click();
-  await expect(panel.getByText('Send to')).toContainText('Seats chosen');
+  await expect(headline).toHaveText(/Sending to .+: Seats chosen/);
+  // Pause via Inspect so clicking Send now never races the 2.5 s auto-send timer.
+  await panel.locator('[data-canvas-inspect]').click();
+  await expect(headline).toHaveText(/Send to .+: Seats chosen/);
   await expect(send).toBeEnabled();
   await send.click();
   await expect
@@ -414,9 +421,8 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
 <button onclick="mindroom.submit({text: document.getElementById('draft').value}, {label: 'Edited draft'})">Send edits</button>
 <script>document.getElementById('draft').value = '${paragraph}'.repeat(2500);</script>`);
   await frame.getByRole('button', { name: 'Send edits' }).click();
-  await expect(panel.getByText('Send to')).toContainText('Edited draft');
-  await send.click();
-  await expect(panel.getByText(/Sent to .*Edited draft/)).toBeVisible();
+  await expect(headline).toHaveText(/Sending to .+: Edited draft/);
+  await expect(panel.getByText(/Sent to .*Edited draft/)).toBeVisible({ timeout: 30_000 });
   type AnswerEvent = { content: Record<string, unknown> };
   const isLargeAnswer = (event: AnswerEvent) =>
     !!event.content['io.mindroom.long_text'] &&

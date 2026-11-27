@@ -1789,7 +1789,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} heeft deze pagina bijgewerkt.",
       "shownInPanel": "Getoond in het paneel",
-      "inlineDisclosure": "Gemaakt door {{agent}}. De pagina heeft geen toegang tot je account, maar wat je hier invoert kan deze pagina verlaten."
+      "inlineDisclosure": "Gemaakt door {{agent}}. De pagina heeft geen toegang tot je account, maar wat je hier invoert kan deze pagina verlaten.",
+      "sendingTo": "Wordt verstuurd naar {{agent}}:",
+      "undo": "Ongedaan maken",
+      "sendNow": "Nu versturen",
+      "sendingAnnouncement": "Wordt verstuurd naar {{agent}}: {{label}}. Gebruik Ongedaan maken om te annuleren."
     },
     "invites": {
       "invalid": "Deze uitnodigingslink is onvolledig. Open de link uit de e-mail opnieuw.",

@@ -23,6 +23,7 @@ import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../../preferences/settings';
 import { useSetting } from '../../preferences/useSetting';
 import { ThemeKind, useTheme } from '../../theme/useTheme';
 import { ownDirectionLine } from '../../ui/directional';
+import { TipButton } from '../../ui/TipButton';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { ChatUiActionContext } from '../../ui-actions/ChatUiActionProvider';
 import { useCanvasPage } from './useCanvasPage';
@@ -286,7 +287,14 @@ function PassiveInlineCanvas({ mx, room, action, libraries, remote }: InlineCanv
  * state come back whenever it starts again (every time its row scrolls back into view), its errors
  * can go to the agent, and an update waits while the user works in it.
  */
-function InteractiveInlineCanvas({ mx, room, action, libraries, remote }: InlineCanvasProps) {
+function InteractiveInlineCanvas({
+  mx,
+  room,
+  action,
+  agentName,
+  libraries,
+  remote,
+}: InlineCanvasProps & { agentName: string }) {
   const { colorScheme, theme } = useInlineCanvasTheme();
   const { t } = useTranslation();
   const [attempt, setAttempt] = useState(0);
@@ -299,10 +307,6 @@ function InteractiveInlineCanvas({ mx, room, action, libraries, remote }: Inline
   const share = useCanvasStateShare(mx, room, action.eventId, shared);
   // The page waits until its saved state is read, so it starts from it.
   const loaded = page.status === 'ready' && saved.ready ? page : undefined;
-  const agentName =
-    getMemberDisplayName(room, action.agentUserId) ??
-    getMxIdLocalPart(action.agentUserId) ??
-    action.agentUserId;
   const host = useCanvasHost({
     mx,
     room,
@@ -421,6 +425,10 @@ export function InlineCanvasFrame({
     remote: config.mindroom?.canvas?.remoteAssets === true,
   };
   const actions = readOnly ? undefined : use(ChatUiActionContext);
+  const agentName =
+    getMemberDisplayName(room, action.agentUserId) ??
+    getMxIdLocalPart(action.agentUserId) ??
+    action.agentUserId;
   const body = readOnly ? (
     <PassiveInlineCanvas key={action.eventId} {...props} />
   ) : actions?.openCanvasId === action.eventId ? (
@@ -429,7 +437,7 @@ export function InlineCanvasFrame({
     </Text>
   ) : (
     // One host per canvas: its saved and shared state hooks rely on the canvas never changing under them.
-    <InteractiveInlineCanvas key={action.eventId} {...props} />
+    <InteractiveInlineCanvas key={action.eventId} {...props} agentName={agentName} />
   );
   const headerAction = actions && !actions.textRequest ? actions.read(event) : undefined;
   const unavailableReason = headerAction ? actions?.unavailable(headerAction) : undefined;
@@ -443,9 +451,21 @@ export function InlineCanvasFrame({
             {action.canvas.title}
           </Text>
         </div>
-        {headerAction && (
-          <div className={css.InlineCardAction} data-canvas-actions="">
-            <ChatUiActionButton event={event} compact />
+        {!readOnly && (
+          <div className={css.InlineCardControls}>
+            <TipButton
+              align="End"
+              className={css.InlineCardInfo}
+              tip={t('mindroomUi.canvas.inlineDisclosure', { agent: agentName })}
+              aria-label={t('mindroomUi.canvas.fromAgent', { agent: agentName })}
+            >
+              <Icon size="50" src={Icons.Info} />
+            </TipButton>
+            {headerAction && (
+              <div className={css.InlineCardAction} data-canvas-actions="">
+                <ChatUiActionButton event={event} compact />
+              </div>
+            )}
           </div>
         )}
       </div>

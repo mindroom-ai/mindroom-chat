@@ -1852,7 +1852,11 @@
     "canvas": {
       "pageUpdated": "{{agent}} ha aggiornato questa pagina.",
       "shownInPanel": "Mostrata nel pannello",
-      "inlineDisclosure": "Creata da {{agent}}. Non può accedere al tuo account; ciò che inserisci qui può uscire da questa pagina."
+      "inlineDisclosure": "Creata da {{agent}}. Non può accedere al tuo account; ciò che inserisci qui può uscire da questa pagina.",
+      "sendingTo": "Invio a {{agent}}:",
+      "undo": "Annulla",
+      "sendNow": "Invia ora",
+      "sendingAnnouncement": "Invio a {{agent}}: {{label}}. Usa Annulla per annullare."
     },
     "invites": {
       "invalid": "Questo link di invito è incompleto. Apri di nuovo il link dall'email.",

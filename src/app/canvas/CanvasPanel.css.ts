@@ -2,7 +2,7 @@ import { createContainer, globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
-export { Data, Error, Notice, Staged } from '../messages/canvas/canvasHost.css';
+export { Error, Notice } from '../messages/canvas/canvasHost.css';
 
 const canvasPanel = createContainer();
 // Wrap the version row before SidePanel.Header would push PanelHeaderControls onto row 2 (which
@@ -57,7 +57,7 @@ export const Footer = style({
   flex: '0 0 auto',
   gap: config.space.S200,
   minHeight: '2.5rem',
-  alignItems: 'flex-start',
+  alignItems: 'stretch',
   padding: `${config.space.S200} ${config.space.S300}`,
   paddingBottom: `calc(${config.space.S200} + env(safe-area-inset-bottom, 0px))`,
 });
