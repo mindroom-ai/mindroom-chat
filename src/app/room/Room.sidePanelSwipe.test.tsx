@@ -305,7 +305,7 @@ describe('Room covering side panel interactive swipes on phones', () => {
 
     expect(conversation.dataset.conversationBehindPanel).toBe('true');
 
-    // Start in edge band (x = 12), lock at x = 22 (slop = 10), drag slowly to x = 102 (offset = 80, progress = 0.2, velocity = 0.3 px/ms < 0.45).
+    // Start in edge band (x = 12), lock at x = 22 (slop = 10), drag to x = 102 (offset = 80, progress = 0.2).
     act(() => {
       dispatchEdgeTouch('touchstart', [{ clientX: 12, clientY: 200 }], 100);
       dispatchEdgeTouch('touchmove', [{ clientX: 102, clientY: 200 }], 400);

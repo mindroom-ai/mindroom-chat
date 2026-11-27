@@ -260,6 +260,24 @@ describe('interactiveSwipeMath', () => {
     expect(tracker.shouldCommit(390, 170)).toBe(false);
   });
 
+  it('resets sample baseline after a >100ms hold so a resumed flick commits', () => {
+    const tracker = createSwipeTracker({
+      startX: 8,
+      startY: 200,
+      startTimeMs: 0,
+      axisSign: 1,
+      discreteMinPx: EDGE_DISCRETE_MIN_PX,
+    });
+    tracker.move(20, 200, 20, 390);
+    tracker.move(20, 202, 250, 390); // held >100ms with slight vertical drift
+    expect(tracker.velocity).toBe(0);
+    tracker.move(65, 202, 280, 390); // resumed flick: 45px in 30ms -> 1.5 px/ms, offset 47
+    tracker.move(65, 202, 296, 390); // stationary lift 16ms later
+    expect(tracker.offset).toBe(47);
+    expect(tracker.velocity).toBeCloseTo(1.5);
+    expect(tracker.shouldCommit(390, 296)).toBe(true);
+  });
+
   it('updates offset and cancels when lift coordinates reverse backward', () => {
     const tracker = createEdgeTracker();
     tracker.move(10, 200, 20, 400);

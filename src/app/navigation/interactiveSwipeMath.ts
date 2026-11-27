@@ -65,6 +65,8 @@ export function createSwipeTracker({
       if (samples.length === 1 && timeMs > last.t) {
         last.t = timeMs;
       } else if (samples.length > 1 && timeMs - last.t > SWIPE_VELOCITY_WINDOW_MS) {
+        samples.length = 0;
+        samples.push({ x, t: timeMs });
         velocity = 0;
       }
       return;
