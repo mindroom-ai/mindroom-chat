@@ -53,7 +53,7 @@ import {
   getForkedFrom,
 } from '../../threads/overview/compactThreadCardViewModel';
 import { useVirtualCompactList } from '../../threads/overview/useVirtualCompactList';
-import { setThreadResolved, unsnoozeThread } from '../../threads/tags/useMutateThreadTags';
+import { setThreadResolved, unsnoozeThread } from '../../event-store/threads/threadTagMutations';
 import { ownDirectionLine } from '../../ui/directional';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { RoomDot } from './RoomDot';

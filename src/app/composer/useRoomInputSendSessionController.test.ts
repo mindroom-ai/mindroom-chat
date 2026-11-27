@@ -6,6 +6,13 @@ import {
 } from '../matrix/protocol/threadModel';
 import { act, create } from 'react-test-renderer';
 import { EventStatus, IContent, MatrixError } from 'matrix-js-sdk';
+import { makeResolvedThreadRoom } from '../../test/utils/resolvedThreadRoom';
+import { resetPendingThreadTagsForTests } from '../event-store/threads/threadTagPending';
+import {
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+  RESOLVED_TAG,
+} from '../event-store/threads/threadTags';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { getDefaultStore } from 'jotai';
@@ -290,6 +297,9 @@ const renderHarness = (
       sentEvents += 1;
       return { event_id: eventId };
     }),
+    getUserId: vi.fn(() => '@alice:example.org'),
+    getSafeUserId: vi.fn(() => '@alice:example.org'),
+    sendStateEvent: vi.fn(async () => ({ event_id: '$tag' })),
     uploadContent: vi.fn(async (_file: Blob) => ({ content_uri: 'mxc://mindroom/sidecar' })),
   };
   const editor = {
@@ -2942,6 +2952,58 @@ describe('useRoomInputSendSessionController detached handoff invariants', () => 
     } else {
       expect(api.clearEnrollment).not.toHaveBeenCalledWith([file]);
       expect(api.sendSessionFilesRef.current).toEqual([file]);
+    }
+  });
+
+  it('reopens a resolved thread on text or upload reply, deduplicates upload+caption, and skips failed sends', async () => {
+    const { api, mx } = renderHarness({ threadId: '$root' });
+    const { room: baseRoom } = makeResolvedThreadRoom();
+    const room = {
+      ...baseRoom,
+      getEventForTxnId: mx.getEventForTxnId,
+      getMembers: () => [],
+      hasEncryptionStateEvent: () => false,
+    };
+    const ctx = {
+      roomId: room.roomId,
+      room: room as never,
+      threadId: '$root',
+      replyDraft: undefined,
+      threadingEnabled: true,
+      signalBridgedRoom: false,
+    };
+    try {
+      mx.sendMessage.mockRejectedValueOnce(new Error('offline'));
+      await act(async () =>
+        api.startSendSession({ textContent: { msgtype: 'm.text', body: 'fail' }, context: ctx })
+      );
+      expect(mx.sendStateEvent).not.toHaveBeenCalled();
+
+      const file = createFile('shot.png');
+      api.selectedFilesRef.current = [createUploadItem(file)];
+      api.uploadsRef.current = [successUpload(file)];
+      await act(async () =>
+        api.startSendSession({ textContent: { msgtype: 'm.text', body: 'caption' }, context: ctx })
+      );
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+      expect(mx.sendStateEvent).toHaveBeenCalledWith(
+        room.roomId,
+        MINDROOM_THREAD_TAGS_EVENT,
+        {},
+        buildPerTagStateKey('$root', RESOLVED_TAG)
+      );
+
+      resetPendingThreadTagsForTests();
+      mx.sendStateEvent.mockClear();
+      await act(async () =>
+        api.startSendSession({
+          textContent: { msgtype: 'm.text', body: 'follow-up' },
+          context: ctx,
+        })
+      );
+      expect(mx.sendStateEvent).toHaveBeenCalledTimes(1);
+    } finally {
+      resetPendingThreadTagsForTests();
     }
   });
 });

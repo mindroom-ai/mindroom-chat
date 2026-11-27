@@ -8,7 +8,7 @@ import {
   getPendingThreadTagRootIds,
   resetPendingThreadTagsForTests,
   setPendingThreadTag,
-} from './threadTagPending';
+} from '../../event-store/threads/threadTagPending';
 import {
   buildPerTagStateKey,
   MINDROOM_THREAD_TAGS_EVENT,

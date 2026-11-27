@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import type { TagMetadata, ThreadTagsContent } from '../../event-store/threads/threadTags';
+import type { TagMetadata, ThreadTagsContent } from './threadTags';
 
 const PENDING_TIMEOUT_MS = 15000;
 
@@ -126,6 +126,13 @@ export const settlePendingThreadTags = (
   }
   emitPendingChange();
 };
+
+/** Whether this client currently has an unsettled pending write for `tagName` on the thread. */
+export const hasPendingThreadTag = (
+  roomId: string,
+  threadRootId: string,
+  tagName: string
+): boolean => pendingTags.get(pendingKey(roomId, threadRootId))?.has(tagName) ?? false;
 
 /** The threads of the room with pending tag writes. */
 export const getPendingThreadTagRootIds = (roomId: string): string[] => {

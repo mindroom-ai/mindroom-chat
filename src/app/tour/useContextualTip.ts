@@ -24,7 +24,7 @@ import {
   sanitizeAccountSettings,
 } from '../preferences/accountSettings';
 import { crossRoomThreadIndexAtom } from '../threads/cross-room/crossRoomThreadIndex';
-import { getRoomThreadTagSnapshotMap } from '../threads/tags/threadTagSnapshots';
+import { getRoomThreadTagSnapshotMap } from '../event-store/threads/threadTagSnapshots';
 import {
   evaluateContextualTip,
   RESOLVE_TIP_ID,

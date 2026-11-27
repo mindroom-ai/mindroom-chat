@@ -9,6 +9,10 @@ import {
   MINDROOM_THREAD_TAGS_EVENT,
   RESOLVED_TAG,
 } from '../event-store/threads/threadTags';
+import {
+  captureResolvedThreadBeforeReply,
+  reopenResolvedThreadAfterReply,
+} from '../event-store/threads/threadTagMutations';
 import { ErrorCode } from '../matrix/cs-errorcode';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
@@ -141,7 +145,12 @@ const prepareImages = (
   });
 
 /** Sends one message and returns its event ID. */
-const postMessage = async (mx: MatrixClient, room: Room, content: IContent): Promise<string> => {
+const postMessage = async (
+  mx: MatrixClient,
+  room: Room,
+  content: IContent,
+  resolvedBeforeSend = captureResolvedThreadBeforeReply(room, content['m.relates_to'])
+): Promise<string> => {
   const txnId = mx.makeTxnId();
   try {
     const { event_id: eventId } = await mx.sendMessage(
@@ -149,6 +158,7 @@ const postMessage = async (mx: MatrixClient, room: Room, content: IContent): Pro
       content as RoomMessageEventContent,
       txnId
     );
+    void reopenResolvedThreadAfterReply(mx, room, resolvedBeforeSend);
     return eventId;
   } catch (error) {
     // The widget keeps the entry to send again, so the room keeps no "Not sent" copy of it.
@@ -159,13 +169,14 @@ const postMessage = async (mx: MatrixClient, room: Room, content: IContent): Pro
 
 /** Sends a text message, as a long-text sidecar when one event cannot hold it, as the composer does. */
 const postText = async (mx: MatrixClient, room: Room, content: IContent): Promise<string> => {
+  const resolvedBeforeSend = captureResolvedThreadBeforeReply(room, content['m.relates_to']);
   const eventContent =
     contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
       ? content
       : await failingAs('send-failed', () =>
           uploadLongTextSidecar(mx, room, content, buildLongTextPreview(content))
         );
-  return postMessage(mx, room, eventContent);
+  return postMessage(mx, room, eventContent, resolvedBeforeSend);
 };
 
 /**

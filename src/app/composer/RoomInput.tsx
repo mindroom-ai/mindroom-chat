@@ -1034,7 +1034,7 @@ export function RoomInput({
   const sendSticker = useCallback(
     (mxc: string, label: string) => {
       if (holdForRoot({ kind: 'sticker', mxc, label })) return;
-      const target = { roomId, threadId, replyDraft, threadingEnabled };
+      const target = { room, roomId, threadId, replyDraft, threadingEnabled };
       sendComposerSticker(mx, target, { mxc, label }, imagePackRooms).catch((error: unknown) => {
         // eslint-disable-next-line no-console
         console.warn('[room-input] could not send the sticker', error);
@@ -1046,6 +1046,7 @@ export function RoomInput({
       imagePackRooms,
       mx,
       replyDraft,
+      room,
       roomId,
       holdForRoot,
       threadId,

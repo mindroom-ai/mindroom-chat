@@ -16,7 +16,7 @@ import type { DesktopBridge, DesktopShellEvent } from '../../lib/desktopBridge';
 import { installDesktopHistorySwipe } from '../../navigation/desktopHistorySwipe';
 import { SwipeList } from '../../threads/overview/CompactCardSwipe.css';
 import type { CompactThreadSection } from '../../threads/overview/compactThreadSections';
-import { resetPendingThreadTagsForTests } from '../../threads/tags/threadTagPending';
+import { resetPendingThreadTagsForTests } from '../../event-store/threads/threadTagPending';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
 import type { SpaceRoomItem } from './spaceThreadsModel';

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk';
 import { buildThreadTagSnapshotMap, getRoomThreadTagSnapshotMap } from './threadTagSnapshots';
-import { MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
+import { MINDROOM_THREAD_TAGS_EVENT } from './threadTags';
 
 const ISO_1 = '2026-04-04T18:00:00.000Z';
 const ISO_2 = '2026-04-04T18:05:00.000Z';

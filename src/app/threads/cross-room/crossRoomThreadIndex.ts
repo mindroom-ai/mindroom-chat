@@ -11,7 +11,10 @@ import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { resolveThreadInvolvement } from '../../event-store/threads/threadInvolvement';
 import { getBundledThreadPreviews } from '../../event-store/threads/threadBundledPreviews';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
-import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
+import {
+  getRoomThreadTagSnapshotMap,
+  type ThreadTagSnapshot,
+} from '../../event-store/threads/threadTagSnapshots';
 import { getPreferredVisibleThreadReplyEvents } from '../../event-store/threads/threadUtils';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import { isThreadPinned } from '../../event-store/threads/threadPinning';

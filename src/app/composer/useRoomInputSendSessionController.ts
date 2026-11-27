@@ -18,6 +18,10 @@ import {
   voiceComposerKey,
 } from './roomInputDrafts';
 import { resolveCanonicalThreadRootId } from '../event-store/threads/threadRouteUtils';
+import {
+  captureResolvedThreadBeforeReply,
+  reopenResolvedThreadAfterReply,
+} from '../event-store/threads/threadTagMutations';
 import { useInConversationView } from '../navigation/conversationView';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { isUploadItemReady, TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
@@ -570,6 +574,10 @@ export const useRoomInputSendSessionController = ({
         textContent,
         getTextRelationForSendSession(session)
       );
+      const resolvedBeforeSend = captureResolvedThreadBeforeReply(
+        session.room,
+        content['m.relates_to']
+      );
       const markedContent = withSubmissionMarker(session, content, undefined);
       // Content too large for one event goes as a long-text sidecar, as MindRoom's long replies do.
       // A failed upload throws before anything is sent, so the text returns to the composer.
@@ -624,7 +632,10 @@ export const useRoomInputSendSessionController = ({
         notifyRoomMessageSent(localEventId);
       }
 
-      const sent = sendPromise.then((response) => notifyRoomMessageSent(response.event_id));
+      const sent = sendPromise.then((response) => {
+        void reopenResolvedThreadAfterReply(mx, session.room, resolvedBeforeSend);
+        notifyRoomMessageSent(response.event_id);
+      });
       if (localEvent) {
         // The message has its own row from here on: pending, then sent, or "Not sent" with Retry
         // and Delete. So the session does not wait for the server, and the client's queue sends
@@ -677,6 +688,10 @@ export const useRoomInputSendSessionController = ({
         throw new BeforeSendRefusedError();
       }
       if (!relation) session.rootModel = undefined;
+      const resolvedBeforeSend = captureResolvedThreadBeforeReply(
+        session.room,
+        contentWithRelation['m.relates_to']
+      );
       const txnId = mx.makeTxnId();
       const response = await mx
         .sendMessage(
@@ -691,6 +706,7 @@ export const useRoomInputSendSessionController = ({
           throw error;
         });
       settleFork?.(response.event_id);
+      void reopenResolvedThreadAfterReply(mx, session.room, resolvedBeforeSend);
       const sentEventIdToNotify = getRoomMessageSentNotificationEventId({
         eventId: response.event_id,
         relation,

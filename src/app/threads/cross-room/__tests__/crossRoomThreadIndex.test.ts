@@ -17,7 +17,7 @@ import {
   type CrossRoomThreadIndexEntry,
   type CrossRoomThreadIndexSnapshot,
 } from '../crossRoomThreadIndex';
-import type { ThreadTagSnapshot } from '../../tags/threadTagSnapshots';
+import type { ThreadTagSnapshot } from '../../../event-store/threads/threadTagSnapshots';
 import { matchesEnum } from '../../../lib/matchesEnum';
 import { MINDROOM_BACKGROUND_JOB_CANCEL_EVENT } from '../../../matrix/protocol/backgroundJobsContract';
 import { ORIGINAL_SENDER_KEY } from '../../../matrix/protocol/originalSender';

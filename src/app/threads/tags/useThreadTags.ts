@@ -19,7 +19,7 @@ import {
   settlePendingThreadTags,
   usePendingThreadTagsVersion,
   withPendingThreadTags,
-} from './threadTagPending';
+} from '../../event-store/threads/threadTagPending';
 import { usePinnedEventIds } from '../../event-store/threads/useThreadPinning';
 import { parseThreadSnooze } from '../../event-store/threads/threadSnooze';
 

@@ -9,7 +9,7 @@ import {
   getPendingThreadTagRootIds,
   resetPendingThreadTagsForTests,
   withPendingThreadTags,
-} from './threadTagPending';
+} from '../../event-store/threads/threadTagPending';
 import {
   aggregateThreadTagEvents,
   buildPerTagStateKey,

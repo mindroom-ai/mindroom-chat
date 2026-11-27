@@ -1,14 +1,25 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createStore } from 'jotai';
-import { EventStatus } from 'matrix-js-sdk';
+import { EventStatus, RelationType } from 'matrix-js-sdk';
+import { makeResolvedThreadRoom } from '../../test/utils/resolvedThreadRoom';
+import { resetPendingThreadTagsForTests } from '../event-store/threads/threadTagPending';
+import {
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+  RESOLVED_TAG,
+} from '../event-store/threads/threadTags';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MID_TURN_MODE_KEY } from '../matrix/protocol/midTurn';
 import { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 
 // The composer extensions pull in editor styles; a room-level voice message has no relation.
+const voiceRelationMock = vi.hoisted(() =>
+  vi.fn<() => Record<string, unknown> | undefined>(() => undefined)
+);
+
 vi.mock('./RoomInputExtensions', () => ({
-  getRoomInputVoiceUploadRelation: () => undefined,
+  getRoomInputVoiceUploadRelation: voiceRelationMock,
 }));
 
 let renderer: ReactTestRenderer | undefined;
@@ -16,6 +27,9 @@ let renderer: ReactTestRenderer | undefined;
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  voiceRelationMock.mockReset();
+  voiceRelationMock.mockReturnValue(undefined);
+  resetPendingThreadTagsForTests();
 });
 
 describe('useRoomInputUploadTransport voice sends', () => {
@@ -165,6 +179,65 @@ describe('useRoomInputUploadTransport voice sends', () => {
         includeFilename: true,
         name: 'report.pdf',
       })
+    );
+  });
+
+  it('reopens a resolved thread after a voice reply succeeds, and skips failed sends', async () => {
+    const { room: baseRoom } = makeResolvedThreadRoom();
+    const room = { ...baseRoom, getEventForTxnId: () => undefined };
+    const mx = {
+      getUserId: () => '@alice:example.org',
+      getSafeUserId: () => '@alice:example.org',
+      makeTxnId: () => 'txn-voice-reopen',
+      sendMessage: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({ event_id: '$voice-2' }),
+      sendStateEvent: vi.fn(async () => ({ event_id: '$tag' })),
+      cancelPendingEvent: vi.fn(),
+    };
+    voiceRelationMock.mockReturnValue({ rel_type: RelationType.Thread, event_id: '$root' });
+    let transport!: ReturnType<typeof useRoomInputUploadTransport>;
+    act(() => {
+      renderer = create(
+        React.createElement(
+          () => (
+            (transport = useRoomInputUploadTransport(mx as never, createStore(), room as never)),
+            null
+          )
+        )
+      );
+    });
+    const file = new File(['voice'], 'voice.ogg', { type: 'audio/ogg' });
+    const ctx = {
+      ownerSessionId: '@alice:example.org',
+      roomId: room.roomId,
+      room: room as never,
+      threadId: '$root',
+      replyDraft: undefined,
+      threadingEnabled: true,
+      signalBridgedRoom: false,
+    };
+    const item = {
+      file,
+      originalFile: file,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false },
+    };
+
+    await expect(transport.sendVoiceItem(ctx, item, 'mxc://example.org/v1')).rejects.toThrow(
+      'offline'
+    );
+    expect(mx.sendStateEvent).not.toHaveBeenCalled();
+
+    await expect(transport.sendVoiceItem(ctx, item, 'mxc://example.org/v2')).resolves.toBe(
+      '$voice-2'
+    );
+    expect(mx.sendStateEvent).toHaveBeenCalledWith(
+      room.roomId,
+      MINDROOM_THREAD_TAGS_EVENT,
+      {},
+      buildPerTagStateKey('$root', RESOLVED_TAG)
     );
   });
 });

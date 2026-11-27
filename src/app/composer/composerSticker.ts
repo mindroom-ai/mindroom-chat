@@ -5,10 +5,15 @@ import { ImagePack } from '../emoji/custom/ImagePack';
 import { getGlobalImagePacks, getRoomImagePacks, getUserImagePack } from '../emoji/custom/utils';
 import type { IReplyDraft } from './roomInputDrafts';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
+import {
+  captureResolvedThreadBeforeReply,
+  reopenResolvedThreadAfterReply,
+} from '../event-store/threads/threadTagMutations';
 
 type ImageInfo = StickerEventContent['info'];
 
 type StickerTarget = {
+  room?: Room;
   roomId: string;
   /** The open thread, if any. */
   threadId?: string;
@@ -55,7 +60,7 @@ export const composeSticker = (
  * Sends the picked sticker where the composer writes, with the size its pack lists: the user's
  * own pack, the packs enabled everywhere, then those of `packRooms`.
  */
-export const sendComposerSticker = (
+export const sendComposerSticker = async (
   mx: MatrixClient,
   target: StickerTarget,
   sticker: { mxc: string; label: string },
@@ -69,5 +74,14 @@ export const sendComposerSticker = (
   ];
   const info = findStickerInfo(packs, sticker.mxc);
   const { threadRootId, content } = composeSticker(target, { ...sticker, info });
-  return mx.sendEvent(target.roomId, threadRootId, EventType.Sticker, content);
+  const room = target.room ?? mx.getRoom?.(target.roomId) ?? undefined;
+  const resolvedBeforeSend = room
+    ? captureResolvedThreadBeforeReply(
+        room,
+        (content as { 'm.relates_to'?: unknown })['m.relates_to']
+      )
+    : undefined;
+  const response = await mx.sendEvent(target.roomId, threadRootId, EventType.Sticker, content);
+  if (room) void reopenResolvedThreadAfterReply(mx, room, resolvedBeforeSend);
+  return response;
 };

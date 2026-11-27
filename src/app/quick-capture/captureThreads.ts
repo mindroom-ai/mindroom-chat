@@ -23,7 +23,7 @@ import {
 import type { CrossRoomThreadIndexEntry } from '../threads/cross-room/crossRoomThreadIndex';
 import type { ThreadSignals } from '../threads/cross-room/threadSignals';
 import { getThreadSignalsReader } from '../threads/cross-room/threadSignalsReader';
-import { getRoomThreadTagSnapshotMap } from '../threads/tags/threadTagSnapshots';
+import { getRoomThreadTagSnapshotMap } from '../event-store/threads/threadTagSnapshots';
 import {
   threadActorName,
   threadIndexReplyPreview,

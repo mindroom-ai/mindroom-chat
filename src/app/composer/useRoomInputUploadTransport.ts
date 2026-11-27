@@ -14,6 +14,10 @@ import { isUploadItemReady, type TUploadItem, UploadStatus } from '../matrix/sta
 import { toMatrixUploadError, uploadContent } from '../matrix/matrix';
 import { getRoomInputVoiceUploadRelation } from './RoomInputExtensions';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+import {
+  captureResolvedThreadBeforeReply,
+  reopenResolvedThreadAfterReply,
+} from '../event-store/threads/threadTagMutations';
 
 type Store = ReturnType<typeof createStore>;
 
@@ -150,9 +154,14 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       const relation = getRoomInputVoiceUploadRelation(context);
       if (relation) content['m.relates_to'] = relation;
       else if (rootModel) Object.assign(content, rootModel);
+      const resolvedBeforeSend = captureResolvedThreadBeforeReply(
+        context.room,
+        content['m.relates_to']
+      );
       const txnId = mx.makeTxnId();
       try {
         const { event_id: eventId } = await mx.sendMessage(context.roomId, content as never, txnId);
+        void reopenResolvedThreadAfterReply(mx, context.room, resolvedBeforeSend);
         return eventId;
       } catch (error) {
         // The recorder keeps the recording for a retry; its failed echo must not stay behind.

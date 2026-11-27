@@ -8,7 +8,7 @@ import {
   parsePerTagStateKey,
   RESOLVED_TAG,
   type ThreadTagsContent,
-} from '../../event-store/threads/threadTags';
+} from './threadTags';
 
 export type ThreadTagSnapshot = {
   content: ThreadTagsContent;
@@ -87,8 +87,8 @@ const slotMatches = (slot: RoomTagSnapshotSlot, events: MatrixEvent[]): boolean 
 
 /** Shared across calls while the room's tag state is unchanged; callers must not mutate it. */
 export const getRoomThreadTagSnapshotMap = (room: Room): ReadonlyMap<string, ThreadTagSnapshot> => {
-  const roomState = room.getLiveTimeline().getState(EventTimeline.FORWARDS);
-  const stateEvents = roomState?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT);
+  const roomState = room.getLiveTimeline?.()?.getState?.(EventTimeline.FORWARDS);
+  const stateEvents = roomState?.getStateEvents?.(MINDROOM_THREAD_TAGS_EVENT);
   if (!roomState || !Array.isArray(stateEvents) || stateEvents.length === 0) {
     return EMPTY_TAG_SNAPSHOTS;
   }

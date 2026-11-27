@@ -33,7 +33,14 @@ import { buildLongTextPreview } from '../matrix/protocol/longText';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import { getImageMsgContent } from '../matrix/send/msgContent';
-import { buildPerTagEventContent, buildPerTagStateKey } from '../event-store/threads/threadTags';
+import { makeResolvedThreadRoom } from '../../test/utils/resolvedThreadRoom';
+import { resetPendingThreadTagsForTests } from '../event-store/threads/threadTagPending';
+import {
+  buildPerTagEventContent,
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+  RESOLVED_TAG,
+} from '../event-store/threads/threadTags';
 import { CaptureError, sendCapture, sendCaptureReply, setCaptureResolved } from './sendCapture';
 
 const ROOM_ID = '!notes:example.org';
@@ -530,6 +537,33 @@ describe('sendCaptureReply', () => {
       'send-failed'
     );
     expectUnsentCopyDropped(mx, 0);
+  });
+
+  it('reopens a resolved thread after reply succeeds, skips failed sends, and ignores tag-write errors', async () => {
+    const { room: baseRoom } = makeResolvedThreadRoom({ roomId: ROOM_ID, userId: USER_ID });
+    const resolvedRoom = { ...plainRoom, ...baseRoom };
+    try {
+      const mx = client();
+      mx.sendMessage.mockRejectedValueOnce(new Error('offline'));
+      await expectCaptureError(
+        sendCaptureReply(mx as never, resolvedRoom as never, '$root', 'On it', markdown),
+        'send-failed'
+      );
+      expect(mx.sendStateEvent).not.toHaveBeenCalled();
+
+      mx.sendStateEvent.mockRejectedValueOnce(new Error('tag write failed'));
+      await expect(
+        sendCaptureReply(mx as never, resolvedRoom as never, '$root', 'On it', markdown)
+      ).resolves.toBeUndefined();
+      expect(mx.sendStateEvent).toHaveBeenCalledWith(
+        ROOM_ID,
+        MINDROOM_THREAD_TAGS_EVENT,
+        {},
+        buildPerTagStateKey('$root', RESOLVED_TAG)
+      );
+    } finally {
+      resetPendingThreadTagsForTests();
+    }
   });
 });
 

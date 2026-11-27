@@ -13,7 +13,10 @@ import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { ownDirectionLine } from '../../ui/directional';
 import { motionAllowed } from '../../ui/listMotion';
-import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
+import {
+  getRoomThreadTagSnapshotMap,
+  type ThreadTagSnapshot,
+} from '../../event-store/threads/threadTagSnapshots';
 import * as css from './CompactRoomEmptyState.css';
 import {
   COMPACT_THREAD_TITLE_LIMIT,

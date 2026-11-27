@@ -12,13 +12,16 @@ import {
   MINDROOM_THREAD_TAGS_EVENT,
   type ThreadTagsContent,
 } from '../../event-store/threads/threadTags';
-import { buildThreadTagSnapshotMap, type ThreadTagSnapshot } from './threadTagSnapshots';
+import {
+  buildThreadTagSnapshotMap,
+  type ThreadTagSnapshot,
+} from '../../event-store/threads/threadTagSnapshots';
 import {
   getPendingThreadTagRootIds,
   settlePendingThreadTags,
   usePendingThreadTagsVersion,
   withPendingThreadTags,
-} from './threadTagPending';
+} from '../../event-store/threads/threadTagPending';
 import { useMutateThreadTags } from './useMutateThreadTags';
 import { usePinnedEventIds } from '../../event-store/threads/useThreadPinning';
 
