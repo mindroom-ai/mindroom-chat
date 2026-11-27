@@ -12,6 +12,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Direction, type EventTimelineSet, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { createEngineGapTracker, type GapFillJob } from '../engineGapTracker';
+import { resetCacheHealthForTesting } from '../../cache/cacheHealth';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
 import { loadRoomCacheGap, revokeCacheStoreWrites, type CachedRoomEventPage } from '../../cache/db';
 
@@ -54,6 +55,8 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
 
   beforeEach(() => {
     resetCacheProbe();
+    resetCacheHealthForTesting();
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     markDiscontinuity.mockReset();
     markDiscontinuity.mockImplementation(defaultMarkDiscontinuity);
     loadCachedTail.mockReset();
@@ -63,6 +66,7 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    resetCacheHealthForTesting();
     resetCacheProbe();
   });
 

@@ -24,8 +24,16 @@ import { createSyncEngine, stopSyncEngineForClient } from '../syncEngine';
 import type { EngineWriteThrough } from '../engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
-import { resetCacheHealthForTesting } from '../../cache/cacheHealth';
 import {
+  getCacheHealth,
+  isCacheWritable,
+  resetCacheHealthForTesting,
+} from '../../cache/cacheHealth';
+import {
+  CACHE_STORE_DB_VERSION,
+  getCacheStoreDbName,
+  hasUnsavedRoomCacheGap,
+  holdUnsavedRoomCacheGap,
   loadLatestCachedRoomEvents,
   loadRoomTailDiscontinuity,
   markRoomTailDiscontinuity,
@@ -570,6 +578,7 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
     resetCacheHealthForTesting();
     mockPersistRoomChunk.mockImplementation(persistChunkMock.real!);
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
     const mx = createClient({ baseUrl: 'https://example.test', userId: '@alice:example.test' });
     vi.spyOn(mx, 'getSyncState').mockReturnValue(SyncState.Syncing);
@@ -610,6 +619,10 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
         liveEvent: true,
         timeline: roomA.getLiveTimeline(),
       });
+      mx.emit(RoomEvent.Timeline, msg(roomA.roomId, '$a2', 102), roomA, false, false, {
+        liveEvent: true,
+        timeline: roomA.getLiveTimeline(),
+      });
       mx.emit(RoomEvent.Timeline, msg(roomB.roomId, '$b1', 101), roomB, false, false, {
         liveEvent: true,
         timeline: roomB.getLiveTimeline(),
@@ -630,10 +643,93 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
       await vi.advanceTimersByTimeAsync(1_000);
       await vi.waitFor(async () => {
         const cachedA = await loadLatestCachedRoomEvents(engine.sessionId, roomA.roomId, 10);
-        expect(cachedA.events.map((event) => event.event_id)).toEqual(['$a1']);
+        expect(cachedA.events.map((event) => event.event_id)).toEqual(['$a1', '$a2']);
       });
       expect(await loadRoomTailDiscontinuity(engine.sessionId, roomA.roomId)).toBeDefined();
     } finally {
+      engine.stop();
+    }
+  });
+
+  it('drops queued live writes and stops retrying on VersionError while keeping the gap hold intact', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    resetCacheStoreForTesting();
+    resetCacheHealthForTesting();
+    mockPersistRoomChunk.mockImplementation(persistChunkMock.real!);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    const mx = createClient({ baseUrl: 'https://example.test', userId: '@alice:example.test' });
+    vi.spyOn(mx, 'getSyncState').mockReturnValue(SyncState.Syncing);
+    const roomA = new Room('!roomA:example.test', mx, '@alice:example.test');
+    const roomB = new Room('!roomB:example.test', mx, '@alice:example.test');
+    mx.store.storeRoom(roomA);
+    mx.store.storeRoom(roomB);
+
+    const sessionId = createSessionId('https://example.test', '@alice:example.test');
+    // Seed a newer schema version so openCacheStore rejects with VersionError.
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open(getCacheStoreDbName(sessionId), CACHE_STORE_DB_VERSION + 1);
+      request.onsuccess = () => {
+        request.result.close();
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    const engine = createSyncEngine({ mx });
+    engine.start();
+    const releaseB = holdUnsavedRoomCacheGap(engine.sessionId, roomB.roomId);
+
+    try {
+      const msg = (roomId: string, eventId: string, ts: number) =>
+        new MatrixEvent({
+          event_id: eventId,
+          room_id: roomId,
+          sender: '@alice:example.test',
+          type: 'm.room.message',
+          origin_server_ts: ts,
+          content: { msgtype: 'm.text', body: eventId },
+        });
+
+      mx.emit(RoomEvent.TimelineReset, roomA, roomA.getUnfilteredTimelineSet(), false);
+      mx.emit(RoomEvent.Timeline, msg(roomA.roomId, '$a-pre', 100), roomA, false, false, {
+        liveEvent: true,
+        timeline: roomA.getLiveTimeline(),
+      });
+      mx.emit(RoomEvent.Timeline, msg(roomB.roomId, '$b-pre', 101), roomB, false, false, {
+        liveEvent: true,
+        timeline: roomB.getLiveTimeline(),
+      });
+
+      await vi.waitFor(() => expect(isCacheWritable()).toBe(false));
+      expect(getCacheHealth()).toEqual({ state: 'read-only', reason: 'VersionError in gap.mark' });
+      expect(hasUnsavedRoomCacheGap(engine.sessionId, roomA.roomId)).toBe(true);
+
+      // No retry timer loop runs after read-only degradation.
+      const errorsAfterDegrade = getCacheProbeSnapshot().writeErrors;
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(getCacheProbeSnapshot().writeErrors).toBe(errorsAfterDegrade);
+
+      // Post-degradation events are dropped immediately rather than retained in memory.
+      mx.emit(RoomEvent.Timeline, msg(roomA.roomId, '$a-post', 102), roomA, false, false, {
+        liveEvent: true,
+        timeline: roomA.getLiveTimeline(),
+      });
+      mx.emit(RoomEvent.Timeline, msg(roomB.roomId, '$b-post', 103), roomB, false, false, {
+        liveEvent: true,
+        timeline: roomB.getLiveTimeline(),
+      });
+
+      // Re-enabling health and releasing roomB's gap must drain nothing (both $b-pre and $b-post were dropped).
+      resetCacheHealthForTesting();
+      releaseB();
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(mockPersistRoomChunk).not.toHaveBeenCalled();
+    } finally {
+      releaseB();
       engine.stop();
     }
   });

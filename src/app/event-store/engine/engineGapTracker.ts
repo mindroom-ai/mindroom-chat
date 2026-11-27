@@ -23,6 +23,7 @@
 
 import type { EventTimelineSet, MatrixClient, Room } from 'matrix-js-sdk';
 import { Direction } from 'matrix-js-sdk';
+import { isCacheWritable, reportCacheWriteError } from '../cache/cacheHealth';
 import { countCacheProbe } from '../cache/cacheProbe';
 import {
   getTailDiscontinuityGeneration,
@@ -181,7 +182,13 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
         const roomId = next.value;
         markQueue.delete(roomId);
         const pending = pendingMarks.get(roomId);
-        if (!pending || pending.retryTimer || !isPendingActive(roomId, pending)) continue;
+        if (
+          !pending ||
+          pending.retryTimer ||
+          !isPendingActive(roomId, pending) ||
+          !isCacheWritable()
+        )
+          continue;
 
         const overlapEventIds = await captureOverlap(roomId, pending);
         if (!isPendingActive(roomId, pending)) continue;
@@ -197,8 +204,11 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
           enqueueGapFill(roomId, 'limited-sync', durableMarker);
         } catch (error: unknown) {
           if (!isPendingActive(roomId, pending)) continue;
+          reportCacheWriteError('gap.mark', error);
           pending.failureCount += 1;
           reportPersistenceError(error, pending);
+          // Keep the unsaved gap hold active for reader safety, but stop retrying once read-only.
+          if (!isCacheWritable()) continue;
           const retryDelay = Math.min(
             GAP_MARK_RETRY_BASE_MS * 2 ** (pending.failureCount - 1),
             GAP_MARK_RETRY_MAX_MS

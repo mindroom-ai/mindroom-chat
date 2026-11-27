@@ -1,4 +1,5 @@
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { isCacheWritable, subscribeCacheReadOnly } from '../cache/cacheHealth';
 import {
   captureCacheStoreWriteLease,
   hasUnsavedRoomCacheGap,
@@ -36,6 +37,19 @@ export const createLiveWriteQueue = ({
   let generation = 0;
   let drainScheduled = false;
   let draining = false;
+  let unsubscribeReadOnly: (() => void) | undefined;
+
+  const releaseReadOnlySubscription = () => {
+    unsubscribeReadOnly?.();
+    unsubscribeReadOnly = undefined;
+  };
+
+  const dropPending = () => {
+    generation += 1;
+    pending.clear();
+    waitingGapRooms.clear();
+    releaseReadOnlySubscription();
+  };
 
   const scheduleDrain = () => {
     if (draining || drainScheduled || pending.size === 0) return;
@@ -55,23 +69,11 @@ export const createLiveWriteQueue = ({
     void whenRoomCacheGapsSaved(sessionId, roomId).then(() => {
       if (runGeneration !== generation) return;
       waitingGapRooms.delete(roomId);
-      if (hasReadyPending()) scheduleDrain();
+      if (findReadyBatch(false)) scheduleDrain();
     });
   };
 
-  const hasReadyPending = (): boolean => {
-    for (const [key, entry] of pending) {
-      if (!isCacheStoreWriteLeaseCurrent(entry.lease)) {
-        pending.delete(key);
-        continue;
-      }
-      if (!hasUnsavedRoomCacheGap(sessionId, entry.room.roomId)) return true;
-      waitForRoomGap(entry.room.roomId);
-    }
-    return false;
-  };
-
-  const takeNextReadyBatch = (): PendingLiveWrite | undefined => {
+  const findReadyBatch = (remove: boolean): PendingLiveWrite | undefined => {
     for (const [key, entry] of pending) {
       if (!isCacheStoreWriteLeaseCurrent(entry.lease)) {
         pending.delete(key);
@@ -81,9 +83,10 @@ export const createLiveWriteQueue = ({
         waitForRoomGap(entry.room.roomId);
         continue;
       }
-      pending.delete(key);
+      if (remove) pending.delete(key);
       return entry;
     }
+    if (pending.size === 0) releaseReadOnlySubscription();
     return undefined;
   };
 
@@ -94,7 +97,11 @@ export const createLiveWriteQueue = ({
     const runGeneration = generation;
     try {
       while (runGeneration === generation) {
-        const entry = takeNextReadyBatch();
+        if (!isCacheWritable()) {
+          dropPending();
+          break;
+        }
+        const entry = findReadyBatch(true);
         if (!entry) break;
         try {
           const saved = await persistRoomChunkWithPreferLive({
@@ -116,7 +123,13 @@ export const createLiveWriteQueue = ({
       }
     } finally {
       draining = false;
-      if (hasReadyPending()) scheduleDrain();
+      if (!isCacheWritable()) {
+        dropPending();
+      } else if (findReadyBatch(false)) {
+        scheduleDrain();
+      } else if (pending.size === 0) {
+        releaseReadOnlySubscription();
+      }
     }
   };
 
@@ -127,6 +140,11 @@ export const createLiveWriteQueue = ({
     threadId?: string
   ) => {
     if (events.length === 0) return;
+    if (!isCacheWritable()) {
+      dropPending();
+      return;
+    }
+    unsubscribeReadOnly ??= subscribeCacheReadOnly(dropPending);
     const key = `${room.roomId}\0${threadId ?? ''}`;
     const existing = pending.get(key);
     if (existing && isCacheStoreWriteLeaseCurrent(existing.lease)) {
@@ -152,14 +170,12 @@ export const createLiveWriteQueue = ({
   };
 
   const drainNow = () => {
-    if (hasReadyPending()) void drain();
+    if (!isCacheWritable()) {
+      dropPending();
+      return;
+    }
+    if (findReadyBatch(false)) void drain();
   };
 
-  const clear = () => {
-    generation += 1;
-    pending.clear();
-    waitingGapRooms.clear();
-  };
-
-  return { enqueue, drainNow, clear };
+  return { enqueue, drainNow, clear: dropPending };
 };
