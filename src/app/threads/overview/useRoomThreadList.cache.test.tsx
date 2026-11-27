@@ -288,7 +288,7 @@ const closeList = async () => {
   renderer = undefined;
 };
 
-const bundledReply = (eventId: string) => ({
+const bundledReply = (eventId: string, rootId = '$listed') => ({
   'm.relations': {
     'm.thread': {
       count: 1,
@@ -302,7 +302,7 @@ const bundledReply = (eventId: string) => ({
         content: {
           msgtype: 'm.text',
           body: eventId,
-          'm.relates_to': { rel_type: 'm.thread', event_id: '$listed' },
+          'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
         },
       },
     },
@@ -486,6 +486,7 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
   const timeline = listInPages(room);
   vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async () => {
     timeline.setPaginationToken(null, Direction.Backward);
+    root.setUnsigned(bundledReply('$reply-1'));
     failNextRevision = true;
     return false;
   });
@@ -507,7 +508,7 @@ it('keeps a loaded list free of errors when checking its roots at the end fails'
   );
 });
 
-it('checks each listed root with its page and once more as the load ends, not once per page', async () => {
+it('serializes each unchanged listed root once when first seen and skips unchanged roots on end-of-load and remount', async () => {
   const { mx, room, engine } = setUpRoom();
   const saved: string[] = [];
   recordSaves(engine, (threadId) => saved.push(threadId));
@@ -540,15 +541,124 @@ it('checks each listed root with its page and once more as the load ends, not on
   await showOverview();
   const all = [...firstPage, ...laterPages].map((r) => r.getId());
   expect(saved).toEqual(all);
-  // One check per root as its page arrives, and one more of every root once the list is complete.
-  expect(revisedRoots.slice(0, all.length)).toEqual(all);
-  expect(revisedRoots.slice(all.length).sort()).toEqual([...all].sort());
+  // Each unchanged root is serialized once on its page and skipped by the end-of-load sweep.
+  expect(revisedRoots).toEqual(all);
 
-  // A list that arrives in one page checks each root once.
+  // Remounting with unchanged roots skips serialization and hashing completely.
   revisedRoots.length = 0;
   await showOverview();
-  expect([...revisedRoots].sort()).toEqual([...all].sort());
+  expect(revisedRoots).toEqual([]);
   expect(saved).toEqual(all);
+});
+
+it('skips re-serialization on remount for unchanged roots and invalidates on in-place mutations', async () => {
+  const { mx, room, engine } = setUpRoom();
+  const saves: string[] = [];
+  recordSaves(engine, (threadId) => saves.push(threadId));
+  const unchanged = listedRoot('$unchanged', 'Still the same');
+  const decrypted = encryptedListedRoot('$decrypted');
+  await decryptEvent(decrypted, Promise.reject(new Error('Missing key')));
+  const edited = listedRoot('$edited', 'Original');
+  const redacted = listedRoot('$redacted', 'Will redact');
+  // Pre-seed unsigned so makeRedacted mutates the existing object in place without changing its identity.
+  redacted.setUnsigned({});
+  const summarized = listedRoot('$summarized', 'With reply');
+  summarized.setUnsigned(bundledReply('$reply-a', '$summarized'));
+  const allRoots = [unchanged, decrypted, edited, redacted, summarized];
+  vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
+    room.processThreadRoots(allRoots, false);
+  });
+  const remount = async () => {
+    const list = showList(mx, engine, room);
+    await vi.waitFor(async () => {
+      await act(async () => {});
+      expect(list.current?.loading).toBe(false);
+    });
+    await closeList();
+  };
+
+  await remount();
+  expect(saves).toEqual(allRoots.map((root) => root.getId()));
+
+  // Remounting with no changes skips serializeThreadCacheEvents and persistence for every root.
+  revisedRoots.length = 0;
+  saves.length = 0;
+  await remount();
+  expect(revisedRoots).toEqual([]);
+  expect(saves).toEqual([]);
+
+  // In-place decryption invalidates only the decrypted root.
+  await decryptEvent(decrypted, Promise.resolve({ body: 'Decrypted title' }));
+  await remount();
+  expect(revisedRoots).toEqual(['$decrypted']);
+  expect(saves).toEqual(['$decrypted']);
+
+  // Arriving edit invalidates only the edited root.
+  revisedRoots.length = 0;
+  saves.length = 0;
+  edited.makeReplaced(rootEdit('$edited', 'Edited title'));
+  await remount();
+  expect(revisedRoots).toEqual(['$edited']);
+  expect(saves).toEqual(['$edited']);
+
+  // In-place redaction (same unsigned object identity) invalidates only the redacted root.
+  revisedRoots.length = 0;
+  saves.length = 0;
+  redacted.makeRedacted(
+    new MatrixEvent({
+      event_id: '$redact-root',
+      room_id: roomId,
+      sender: userId,
+      origin_server_ts: 3000,
+      type: 'm.room.redaction',
+      redacts: '$redacted',
+      content: { redacts: '$redacted' },
+    }),
+    room
+  );
+  await remount();
+  expect(revisedRoots).toEqual(['$redacted']);
+  expect(saves).toEqual(['$redacted']);
+
+  // Bundled thread summary update invalidates only the summarized root and persists the newer reply.
+  revisedRoots.length = 0;
+  saves.length = 0;
+  summarized.setUnsigned(bundledReply('$reply-b', '$summarized'));
+  await remount();
+  expect(revisedRoots).toEqual(['$summarized']);
+  expect(saves).toEqual(['$summarized']);
+
+  // Room-level redaction of a bundled reply invalidates and strips it even without mutating the root.
+  revisedRoots.length = 0;
+  saves.length = 0;
+  room.redactedBundledEdits.add('$reply-b');
+  await remount();
+  expect(revisedRoots).toEqual(['$summarized']);
+  expect(saves).toEqual(['$summarized']);
+  expect(JSON.stringify(summarized.event)).not.toContain('$reply-b');
+
+  // In-place deletion of m.thread on unsigned['m.relations'] (as Thread.clearEventMetadata does) invalidates.
+  revisedRoots.length = 0;
+  saves.length = 0;
+  delete (summarized.event.unsigned?.['m.relations'] as Record<string, unknown>)['m.thread'];
+  await remount();
+  expect(revisedRoots).toEqual(['$summarized']);
+  expect(saves).toEqual(['$summarized']);
+
+  // Verify mutations persisted to cache.
+  await vi.waitFor(async () => {
+    const editedCached = await loadLatestCachedThreadEvents(sessionId, roomId, '$edited', 1);
+    const redactedCached = await loadLatestCachedThreadEvents(sessionId, roomId, '$redacted', 1);
+    const summarizedCached = await loadLatestCachedThreadEvents(
+      sessionId,
+      roomId,
+      '$summarized',
+      1
+    );
+    expect(JSON.stringify(editedCached.rootEvent)).toContain('Edited title');
+    expect(redactedCached.rootEvent?.unsigned?.redacted_because).toBeTruthy();
+    expect(JSON.stringify(summarizedCached.rootEvent)).toContain('$reply-b');
+  });
 });
 
 it('saves only changed listed roots when the overview is shown again', async () => {

@@ -1,5 +1,12 @@
-import { MatrixEvent, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent, RelationType, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
+import { UNSIGNED_THREAD_ID_FIELD } from 'matrix-js-sdk/lib/@types/event';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { isRecord } from '../../lib/isRecord';
+import {
+  collectEmbeddedRelationEventIds,
+  isKnownRedactedEventId,
+} from '../../matrix/eventRevision';
+import { getAppliedEdit } from '../../matrix/protocol/untrustedContent';
 import {
   loadRoomThreads,
   roomThreadListIsComplete,
@@ -24,6 +31,19 @@ import {
 import { getSummaryLatestEvent } from '../../event-store/cache/cachedThreadSummary';
 import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils';
 
+const UNSIGNED_THREAD_ID_KEY = UNSIGNED_THREAD_ID_FIELD.name;
+const asRecord = (v: unknown): Record<string, unknown> | undefined => (isRecord(v) ? v : undefined);
+
+type RootRevisionSnapshot = {
+  values: readonly unknown[];
+  embeddedRelationIds: readonly string[];
+};
+
+type SavedRootRevision = {
+  revision: number;
+  snapshot: RootRevisionSnapshot | null;
+};
+
 /**
  * Per page, not per mount: returning to a room's overview must not read every
  * cached root again or rewrite every unchanged one. In a room with hundreds of
@@ -33,14 +53,17 @@ import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils
 const restoredRooms = new WeakSet<Room>();
 const savedRootRevisions = new WeakMap<
   Room,
-  { isCurrent: () => boolean; revisions: Map<string, number> }
+  { isCurrent: () => boolean; revisions: Map<string, SavedRootRevision> }
 >();
 
 /** Root revisions saved under the room's cache write lease; a cleared room cache starts over. */
-const getSavedRootRevisions = (room: Room, isCurrent: () => boolean): Map<string, number> => {
+const getSavedRootRevisions = (
+  room: Room,
+  isCurrent: () => boolean
+): Map<string, SavedRootRevision> => {
   const saved = savedRootRevisions.get(room);
   if (saved?.isCurrent()) return saved.revisions;
-  const revisions = new Map<string, number>();
+  const revisions = new Map<string, SavedRootRevision>();
   savedRootRevisions.set(room, { isCurrent, revisions });
   return revisions;
 };
@@ -57,6 +80,101 @@ const hashRevision = (value: string): number => {
   h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+};
+
+const pushRawUnsigned = (raw: Record<string, unknown> | undefined, out: unknown[]): void => {
+  const unsigned = asRecord(raw?.unsigned);
+  const relations = asRecord(unsigned?.['m.relations']);
+  out.push(
+    raw?.unsigned,
+    unsigned?.redacted_because,
+    unsigned?.transaction_id,
+    unsigned?.[UNSIGNED_THREAD_ID_KEY],
+    unsigned?.['m.relations'],
+    relations?.[RelationType.Thread],
+    relations?.[RelationType.Replace]
+  );
+};
+
+const pushEventState = (event: MatrixEvent | null, out: unknown[]): void => {
+  if (!event) {
+    out.push(null);
+    return;
+  }
+  const raw = asRecord(event.event);
+  out.push(
+    event,
+    raw,
+    raw?.event_id,
+    raw?.room_id,
+    raw?.type,
+    raw?.content,
+    event.getType(),
+    event.getClearContent?.(),
+    event.isDecryptionFailure(),
+    event.isRedacted(),
+    event.status
+  );
+  pushRawUnsigned(raw, out);
+};
+
+/** Captures every event reference and SDK-mutable field that `getRootRevision` depends on. */
+const readRootSnapshotValues = (rootEvent: MatrixEvent): readonly unknown[] => {
+  const values: unknown[] = [];
+  pushEventState(rootEvent, values);
+  const relations = asRecord(asRecord(asRecord(rootEvent.event)?.unsigned)?.['m.relations']);
+  const summary = asRecord(relations?.[RelationType.Thread]);
+  const latest = asRecord(summary?.latest_event);
+  const latestContent = asRecord(latest?.content);
+  const appliedEdit = getAppliedEdit(rootEvent);
+  values.push(
+    summary?.count,
+    summary?.latest_event,
+    summary?.['io.mindroom.title'],
+    summary?.['io.mindroom.latest_reply'],
+    latest?.content,
+    latestContent?.body,
+    latestContent?.ciphertext,
+    appliedEdit,
+    appliedEdit?.getId(),
+    appliedEdit?.isRedacted()
+  );
+  pushRawUnsigned(latest, values);
+  pushEventState(rootEvent.replacingEvent(), values);
+  return values;
+};
+
+/** Snapshot taken after `getRootRevision` so hydration mutations are already reflected. */
+const captureRootSnapshot = (room: Room, rootEvent: MatrixEvent): RootRevisionSnapshot | null => {
+  const raw = rootEvent.event as Partial<IEvent> | undefined;
+  if (
+    !raw ||
+    !rootEvent.getId() ||
+    rootEvent.isRedaction?.() ||
+    rootEvent.getRelation?.()?.rel_type === RelationType.Replace
+  ) {
+    return null;
+  }
+  const embeddedIds = collectEmbeddedRelationEventIds([raw]);
+  const appliedEditId = getAppliedEdit(rootEvent)?.getId();
+  if (appliedEditId) embeddedIds.add(appliedEditId);
+  const embeddedRelationIds = Array.from(embeddedIds);
+  if (embeddedRelationIds.some((id) => isKnownRedactedEventId(room, id))) return null;
+  return { values: readRootSnapshotValues(rootEvent), embeddedRelationIds };
+};
+
+const matchesRootSnapshot = (
+  room: Room,
+  rootEvent: MatrixEvent,
+  snapshot: RootRevisionSnapshot | null | undefined
+): boolean => {
+  if (!snapshot) return false;
+  if (snapshot.embeddedRelationIds.some((id) => isKnownRedactedEventId(room, id))) return false;
+  const current = readRootSnapshotValues(rootEvent);
+  return (
+    current.length === snapshot.values.length &&
+    current.every((value, index) => Object.is(value, snapshot.values[index]))
+  );
 };
 
 const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
@@ -118,7 +236,8 @@ export const useRoomThreadList = (
         restored.forEach(({ cached, rootEvent }) => {
           const id = rootEvent.getId();
           if (id && rootEvent.event === cached && room.getThread(id)?.rootEvent === rootEvent) {
-            saved.set(id, getRootRevision(room, rootEvent));
+            const revision = getRootRevision(room, rootEvent);
+            saved.set(id, { revision, snapshot: captureRootSnapshot(room, rootEvent) });
           }
         });
         setVersion((current) => current + 1);
@@ -145,10 +264,12 @@ export const useRoomThreadList = (
         createPreferLiveEventMapper(room, mx.getEventMapper())
       );
       const saveRoot = (threadId: string, rootEvent: MatrixEvent) => {
+        const previous = saved.get(threadId);
+        if (matchesRootSnapshot(room, rootEvent, previous?.snapshot)) return;
         // Later pages can update the same SDK object, including its edits.
         const revision = getRootRevision(room, rootEvent);
-        if (saved.get(threadId) === revision) return;
-        saved.set(threadId, revision);
+        saved.set(threadId, { revision, snapshot: captureRootSnapshot(room, rootEvent) });
+        if (previous?.revision === revision) return;
         // Keep the listed reply as an edit target when sync did not include its original event.
         // One bundled reply does not prove the thread's history or tail was downloaded.
         const latest = getSummaryLatestEvent(rootEvent.event);
