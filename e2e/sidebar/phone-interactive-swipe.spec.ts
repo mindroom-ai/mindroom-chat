@@ -647,6 +647,22 @@ for (const engine of ENGINES) {
           await readOverAnimationCount(),
           'forward swipe commit triggers only its single settle animation (no double-slide)'
         ).toBe(1);
+
+        // 5. Relaxed short back swipe (< 35% width, < 0.45 px/ms) commits via momentum projection.
+        const shortFlickBack = await startTouchDrag(page, engine, 8, 420);
+        try {
+          await shortFlickBack.moveTo(112, { steps: 6, stepMs: 16 });
+        } finally {
+          await shortFlickBack.release();
+        }
+
+        await expectAt(
+          page,
+          inRoom(garden),
+          'short casual back flick below 35% width commits back to Garden Club'
+        );
+        await expectLiveSwipeSettled(page);
+        await expectDrawer(page, false, 'drawer remains closed after short back flick');
       } finally {
         await context.close();
       }
