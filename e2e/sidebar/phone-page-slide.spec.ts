@@ -124,21 +124,224 @@ const recordSlides = (page: Page, heldAt?: number) =>
       };
     }
 
+    type SlideSlot = 'over' | 'under' | 'dim';
+    type TrackedProp = 'translate' | 'opacity';
+    type ArmedTransition = {
+      prop: TrackedProp;
+      duration: number;
+      from: string;
+    };
+    type CapturedTransition = {
+      from: string;
+      to: string;
+      duration: number;
+    };
+
     const parsePct = (value: unknown, width: number): number => {
-      const px = parseFloat(String(value ?? '0'));
-      return Number.isFinite(px) && width > 0 ? Math.round((px / width) * 100) : 0;
+      const firstToken =
+        String(value ?? '0')
+          .trim()
+          .split(/\s+/)[0] ?? '0';
+      if (firstToken.endsWith('%')) {
+        const pct = parseFloat(firstToken);
+        return Number.isFinite(pct) ? Math.round(pct) || 0 : 0;
+      }
+      const px = parseFloat(firstToken);
+      return Number.isFinite(px) && width > 0 ? Math.round((px / width) * 100) || 0 : 0;
     };
 
     const formatOpacity = (value: unknown): string => {
+      if (value === undefined || value === null || String(value).trim() === '') return '';
       const num = Number(value);
-      return Number.isFinite(num) ? String(Number(num.toFixed(4))) : String(value ?? '');
+      return Number.isFinite(num) ? String(Number(num.toFixed(4))) : String(value);
+    };
+
+    const getSlideTarget = (
+      element: HTMLElement
+    ): { stage: Element; slot: SlideSlot; prop: TrackedProp } | null => {
+      let slot: SlideSlot;
+      let prop: TrackedProp;
+      if (element.hasAttribute('data-swipe-over-thread')) {
+        slot = 'over';
+        prop = 'translate';
+      } else if (element.hasAttribute('data-swipe-under-thread')) {
+        slot = 'under';
+        prop = 'translate';
+      } else if (element.hasAttribute('data-swipe-dim')) {
+        slot = 'dim';
+        prop = 'opacity';
+      } else {
+        return null;
+      }
+      const stage = element.closest('[data-swipe-thread-stage]');
+      return stage ? { stage, slot, prop } : null;
+    };
+
+    const parseTransitionDurationMs = (
+      transitionValue: string,
+      prop: TrackedProp
+    ): number | undefined => {
+      let stripped = transitionValue;
+      while (/\([^()]*\)/.test(stripped)) {
+        stripped = stripped.replace(/\([^()]*\)/g, '');
+      }
+      for (const segment of stripped.split(',')) {
+        const tokens = segment.trim().toLowerCase().split(/\s+/).filter(Boolean);
+        if (tokens.length === 0 || tokens.includes('none')) continue;
+        if (!tokens.includes(prop) && !tokens.includes('all')) continue;
+        const durationPattern = /^(\d+(?:\.\d+)?|\.\d+)(m?s)$/;
+        const durationToken = tokens.find((token) => durationPattern.test(token));
+        const match = durationToken ? durationPattern.exec(durationToken) : null;
+        if (!match) continue;
+        const amount = Number(match[1]);
+        const ms = match[2] === 's' ? amount * 1000 : amount;
+        if (Number.isFinite(ms) && ms > 0) return Math.round(ms);
+      }
+      return undefined;
+    };
+
+    // WebKit 26.0 can dispatch `transitionrun` when `target.getAnimations()` is already empty.
+    // Capture each transition's inline start/end/duration right when `transition` and the target
+    // property are installed, while keeping `transitionrun` to verify real CSS transitions started
+    // and pausing `CSSTransition` whenever `getAnimations()` exposes it.
+    const styleOwner = new WeakMap<CSSStyleDeclaration, HTMLElement>();
+    const armedTransitions = new WeakMap<HTMLElement, ArmedTransition>();
+    const capturedTransitions = new WeakMap<HTMLElement, Map<TrackedProp, CapturedTransition>>();
+    const pausedAnimationSet = new WeakSet<Animation>();
+
+    const findTransitionAnimation = (
+      element: HTMLElement,
+      prop: string
+    ): CSSTransition | undefined =>
+      element
+        .getAnimations()
+        .find(
+          (each): each is CSSTransition =>
+            'transitionProperty' in each && (each as CSSTransition).transitionProperty === prop
+        );
+
+    const pauseTransitionIfHeld = (
+      element: HTMLElement,
+      prop: string
+    ): CSSTransition | undefined => {
+      const animation = findTransitionAnimation(element, prop);
+      if (held !== undefined && animation && !pausedAnimationSet.has(animation)) {
+        pausedAnimationSet.add(animation);
+        animation.pause();
+        animation.currentTime = held;
+        pausedAnimations.push(animation);
+      }
+      return animation;
+    };
+
+    const findOwnDescriptor = (
+      start: object | null,
+      prop: string
+    ): { owner: object; descriptor: PropertyDescriptor } | null => {
+      let current = start;
+      while (current) {
+        const descriptor = Object.getOwnPropertyDescriptor(current, prop);
+        if (descriptor) return { owner: current, descriptor };
+        current = Object.getPrototypeOf(current) as object | null;
+      }
+      return null;
+    };
+
+    const styleDesc = findOwnDescriptor(HTMLElement.prototype, 'style');
+    if (styleDesc?.descriptor.get) {
+      const originalStyleGet = styleDesc.descriptor.get;
+      Object.defineProperty(styleDesc.owner, 'style', {
+        ...styleDesc.descriptor,
+        get(this: unknown) {
+          const style = originalStyleGet.call(this) as CSSStyleDeclaration;
+          if (this instanceof HTMLElement) styleOwner.set(style, this);
+          return style;
+        },
+      });
+    }
+
+    const originalSetProperty = CSSStyleDeclaration.prototype.setProperty;
+    CSSStyleDeclaration.prototype.setProperty = function patchedSetProperty(
+      this: CSSStyleDeclaration,
+      property: string,
+      value: string | null,
+      priority?: string
+    ) {
+      const element = styleOwner.get(this);
+      const prop = property.toLowerCase();
+      if (!element || (prop !== 'transition' && prop !== 'translate' && prop !== 'opacity')) {
+        originalSetProperty.call(this, property, value, priority);
+        return;
+      }
+
+      const target = getSlideTarget(element);
+      if (!target) {
+        armedTransitions.delete(element);
+        originalSetProperty.call(this, property, value, priority);
+        return;
+      }
+
+      if (prop === 'transition') {
+        const duration = value ? parseTransitionDurationMs(value, target.prop) : undefined;
+        originalSetProperty.call(this, property, value, priority);
+        if (duration !== undefined) {
+          const from =
+            this.getPropertyValue(target.prop) ||
+            getComputedStyle(element).getPropertyValue(target.prop);
+          armedTransitions.set(element, { prop: target.prop, duration, from });
+        } else {
+          armedTransitions.delete(element);
+        }
+        return;
+      }
+
+      const armed = armedTransitions.get(element);
+      if (!armed || armed.prop !== prop) {
+        originalSetProperty.call(this, property, value, priority);
+        return;
+      }
+
+      const beforeValue = this.getPropertyValue(prop) || armed.from;
+      originalSetProperty.call(this, property, value, priority);
+      const afterValue = this.getPropertyValue(prop) || String(value ?? '');
+      if (afterValue !== beforeValue) {
+        let byProp = capturedTransitions.get(element);
+        if (!byProp) {
+          byProp = new Map();
+          capturedTransitions.set(element, byProp);
+        }
+        byProp.set(prop, {
+          from: beforeValue,
+          to: afterValue,
+          duration: armed.duration,
+        });
+        if (held !== undefined) {
+          queueMicrotask(() => {
+            if (element.isConnected && element.closest('[data-swipe-thread-stage]')) {
+              pauseTransitionIfHeld(element, prop);
+            }
+          });
+        }
+      }
+    };
+
+    const originalRemoveProperty = CSSStyleDeclaration.prototype.removeProperty;
+    CSSStyleDeclaration.prototype.removeProperty = function patchedRemoveProperty(
+      this: CSSStyleDeclaration,
+      property: string
+    ) {
+      const element = styleOwner.get(this);
+      if (element && property.toLowerCase() === 'transition') {
+        armedTransitions.delete(element);
+      }
+      return originalRemoveProperty.call(this, property);
     };
 
     let activeStage: Element | null = null;
     let activeSlide: Slide | null = null;
-    const activeSlots = new Set<'over' | 'under' | 'dim'>();
+    const activeSlots = new Set<SlideSlot>();
 
-    const getOrCreateSlide = (stage: Element, slot: 'over' | 'under' | 'dim'): Slide => {
+    const getOrCreateSlide = (stage: Element, slot: SlideSlot): Slide => {
       if (
         !activeSlide ||
         !slides.includes(activeSlide) ||
@@ -172,41 +375,43 @@ const recordSlides = (page: Page, heldAt?: number) =>
       (event) => {
         const { target } = event;
         if (!(target instanceof HTMLElement)) return;
-        const stage = target.closest('[data-swipe-thread-stage]');
-        if (!stage) return;
+        const slideTarget = getSlideTarget(target);
+        if (!slideTarget || event.propertyName !== slideTarget.prop) return;
 
-        const isOver =
-          target.hasAttribute('data-swipe-over-thread') && event.propertyName === 'translate';
-        const isUnder =
-          target.hasAttribute('data-swipe-under-thread') && event.propertyName === 'translate';
-        const isDim = target.hasAttribute('data-swipe-dim') && event.propertyName === 'opacity';
-        if (!isOver && !isUnder && !isDim) return;
+        const { stage, slot, prop } = slideTarget;
+        const captured = capturedTransitions.get(target)?.get(prop);
+        capturedTransitions.get(target)?.delete(prop);
 
-        const animation = target
-          .getAnimations()
-          .find(
-            (each): each is CSSTransition =>
-              'transitionProperty' in each &&
-              (each as CSSTransition).transitionProperty === event.propertyName
-          );
+        const animation = pauseTransitionIfHeld(target, event.propertyName);
         const effect = animation?.effect as KeyframeEffect | null | undefined;
         const keyframes = effect?.getKeyframes?.() ?? [];
         const first: Record<string, unknown> = keyframes[0] ?? {};
         const last: Record<string, unknown> = keyframes[keyframes.length - 1] ?? {};
+        const hasDistinctKeyframes =
+          first[prop] !== undefined &&
+          last[prop] !== undefined &&
+          String(first[prop]).trim() !== '' &&
+          String(last[prop]).trim() !== '' &&
+          String(first[prop]) !== String(last[prop]);
+        const fromValue = hasDistinctKeyframes ? first[prop] : (captured?.from ?? first[prop]);
+        const toValue = hasDistinctKeyframes ? last[prop] : (captured?.to ?? last[prop]);
         const width = stage.getBoundingClientRect().width || innerWidth;
 
-        if (isOver) {
+        if (slot === 'over') {
           const slide = getOrCreateSlide(stage, 'over');
-          const overFromPct = parsePct(first.translate, width);
-          const overToPct = parsePct(last.translate, width);
+          const overFromPct = parsePct(fromValue, width);
+          const overToPct = parsePct(toValue, width);
           const under = stage.querySelector('[data-swipe-under-thread]');
           const topBar = document.querySelector('[data-phone-top-bar]');
           const hit = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
           const timingDuration = effect?.getTiming?.().duration;
           const duration =
-            typeof timingDuration === 'number'
+            typeof timingDuration === 'number' &&
+            Number.isFinite(timingDuration) &&
+            timingDuration > 0
               ? Math.round(timingDuration)
-              : Math.round(parseFloat(getComputedStyle(target).transitionDuration || '0') * 1000);
+              : (captured?.duration ??
+                Math.round(parseFloat(getComputedStyle(target).transitionDuration || '0') * 1000));
           Object.assign(slide, {
             direction: overFromPct > overToPct ? 'forward' : 'back',
             duration,
@@ -224,20 +429,14 @@ const recordSlides = (page: Page, heldAt?: number) =>
             topBarInsideStage: Boolean(stage.querySelector('[data-phone-top-bar]')),
             canvasCount: stage.querySelectorAll('canvas').length,
           });
-        } else if (isUnder) {
+        } else if (slot === 'under') {
           const slide = getOrCreateSlide(stage, 'under');
-          slide.underFromPct = parsePct(first.translate, width);
-          slide.underToPct = parsePct(last.translate, width);
-        } else if (isDim) {
+          slide.underFromPct = parsePct(fromValue, width);
+          slide.underToPct = parsePct(toValue, width);
+        } else {
           const slide = getOrCreateSlide(stage, 'dim');
-          slide.dimFrom = formatOpacity(first.opacity);
-          slide.dimTo = formatOpacity(last.opacity);
-        }
-
-        if (held !== undefined && animation) {
-          animation.pause();
-          animation.currentTime = held;
-          pausedAnimations.push(animation);
+          slide.dimFrom = formatOpacity(fromValue);
+          slide.dimTo = formatOpacity(toValue);
         }
       },
       true

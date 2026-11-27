@@ -303,17 +303,20 @@ describe('playLiveSlide', () => {
     expect(canPlayLiveSlide()).toBe(false);
     const exitReduced = vi.fn();
     const commitReduced = vi.fn();
-    await playLiveSlide({
+    const reducedHandle = playLiveSlide({
       direction: 'back',
       stage,
       over,
       under,
       exit: exitReduced,
       onCommit: commitReduced,
-    }).finished;
+    });
+    expect(isLiveSlideActive()).toBe(false);
     expect(over.style.transition).toBe('');
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
     expect(commitReduced).toHaveBeenCalledTimes(1);
     expect(exitReduced).toHaveBeenCalledWith(true);
+    await reducedHandle.finished;
 
     // 2. hasUAVisualTransition cancels any active slide and skips animation for that popstate.
     setReducedMotion(false);
@@ -323,9 +326,12 @@ describe('playLiveSlide', () => {
     window.dispatchEvent(uaEvent);
     expect(canPlayLiveSlide()).toBe(false);
     const exitUA = vi.fn();
-    await playLiveSlide({ direction: 'forward', stage, over, under, exit: exitUA }).finished;
+    const uaHandle = playLiveSlide({ direction: 'forward', stage, over, under, exit: exitUA });
+    expect(isLiveSlideActive()).toBe(false);
     expect(over.style.transition).toBe('');
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
     expect(exitUA).toHaveBeenCalledWith(true);
+    await uaHandle.finished;
     await flushMicrotasks();
     expect(canPlayLiveSlide()).toBe(true);
 
@@ -333,9 +339,18 @@ describe('playLiveSlide', () => {
     overlay.open = true;
     expect(canPlayLiveSlide()).toBe(false);
     const exitOverlay = vi.fn();
-    await playLiveSlide({ direction: 'forward', stage, over, under, exit: exitOverlay }).finished;
+    const overlayHandle = playLiveSlide({
+      direction: 'forward',
+      stage,
+      over,
+      under,
+      exit: exitOverlay,
+    });
+    expect(isLiveSlideActive()).toBe(false);
     expect(over.style.transition).toBe('');
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
     expect(exitOverlay).toHaveBeenCalledWith(true);
+    await overlayHandle.finished;
   });
 });
 
