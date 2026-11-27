@@ -9,6 +9,7 @@ import contextlib
 import io
 import json
 import os
+import runpy
 import shlex
 import shutil
 import signal
@@ -521,6 +522,7 @@ class CommandLineTests(unittest.TestCase):
             (Path("/mindroom"), "a" * 40, "src/mindroom/config/agent.py", "delegate_to"),
             (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"),
             (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "class ReasoningConfig"),
+            (Path("/mindroom"), "a" * 40, "src/mindroom/custom_tools/thread_tags.py", "async def thread_tags("),
             (Path("/mindroom"), "a" * 40, "src/mindroom/tools/__init__.py", "temporary_secrets"),
         ]
         if has_transcripts:
@@ -545,6 +547,39 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("voice:\n  dictation: true\n  stt:\n", config)
         older = self.config_of_a_start(False, has_transcripts=True)
         self.assertNotIn("dictation:", older)
+
+    def test_a_commit_with_consolidated_thread_tags_uses_review_script_and_state(self) -> None:
+        consolidated = self.config_of_a_start(True)
+        self.assertIn(
+            "    - match: thread_tags\n"
+            "      script: ./approval_scripts/thread_tags_review.py\n"
+            "      timeout_days: 0.0003\n",
+            consolidated,
+        )
+        self.assertNotIn("match: untag_thread", consolidated)
+        review_script = self.slot_dir / "approval_scripts" / "thread_tags_review.py"
+        self.assertTrue(review_script.is_file())
+        self.assertEqual(review_script.read_text(), stack.THREAD_TAGS_REVIEW)
+        consolidated_state = stack.read_state(self.slot_dir)
+        assert consolidated_state is not None
+        self.assertTrue(consolidated_state["consolidatedThreadTags"])
+        self.assertEqual(consolidated_state["expireApprovalTool"], "thread_tags")
+        self.assertEqual(stack.public_state(consolidated_state)["expireApprovalTool"], "thread_tags")
+
+        legacy = self.config_of_a_start(False)
+        self.assertIn(
+            "    - match: untag_thread\n"
+            "      action: require_approval\n"
+            "      timeout_days: 0.0003\n",
+            legacy,
+        )
+        self.assertNotIn("thread_tags_review.py", legacy)
+        self.assertFalse((self.slot_dir / "approval_scripts" / "thread_tags_review.py").exists())
+        legacy_state = stack.read_state(self.slot_dir)
+        assert legacy_state is not None
+        self.assertFalse(legacy_state["consolidatedThreadTags"])
+        self.assertEqual(legacy_state["expireApprovalTool"], "untag_thread")
+        self.assertEqual(stack.public_state(legacy_state)["expireApprovalTool"], "untag_thread")
 
     def test_terminals_refuse_a_commit_without_the_terminal_toolkit(self) -> None:
         with self.starting(), mock.patch.object(stack, "commit_has", return_value=False):
@@ -1330,6 +1365,53 @@ class TranscriptionTests(unittest.TestCase):
         self.assertNotIn("temporary_secrets", real)
         self.assertNotIn("delegate_to", real)
 
+    def test_consolidated_thread_tags_updates_approval_rule_and_real_instructions(self) -> None:
+        for mode in ("stub", "real", "live"):
+            with self.subTest(mode=mode):
+                legacy = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, consolidated_thread_tags=False)
+                self.assertIn(
+                    "    - match: untag_thread\n"
+                    "      action: require_approval\n"
+                    "      timeout_days: 0.0003\n",
+                    legacy,
+                )
+                self.assertNotIn("thread_tags_review.py", legacy)
+
+                consolidated = stack.config_yaml(mode, TESTER, STUB_URL, 0.0003, consolidated_thread_tags=True)
+                self.assertIn(
+                    "    - match: thread_tags\n"
+                    "      script: ./approval_scripts/thread_tags_review.py\n"
+                    "      timeout_days: 0.0003\n",
+                    consolidated,
+                )
+                self.assertNotIn("match: untag_thread", consolidated)
+
+        legacy_real = stack.config_yaml("real", TESTER, STUB_URL, 0.0003, consolidated_thread_tags=False)
+        self.assertIn("#tag: call tag_thread once with tag 'stub-tag'", legacy_real)
+        self.assertIn("#expire: call untag_thread once with tag 'stub-tag'", legacy_real)
+
+        consolidated_real = stack.config_yaml("real", TESTER, STUB_URL, 0.0003, consolidated_thread_tags=True)
+        self.assertIn(
+            "#tag: call thread_tags once with action 'tag', tag 'stub-tag', and note 'tagged by the stub model'",
+            consolidated_real,
+        )
+        self.assertIn("#expire: call thread_tags once with action 'untag' and tag 'stub-tag'", consolidated_real)
+        self.assertNotIn("tag_thread", consolidated_real)
+        self.assertNotIn("untag_thread", consolidated_real)
+
+        with tempfile.TemporaryDirectory() as directory:
+            script_path = Path(directory) / "thread_tags_review.py"
+            script_path.write_text(stack.THREAD_TAGS_REVIEW)
+            check = runpy.run_path(str(script_path))["check"]
+        assert callable(check)
+        self.assertTrue(check("thread_tags", {"action": "untag", "tag": "stub-tag"}, "helper"))
+        self.assertFalse(
+            check("thread_tags", {"action": "tag", "tag": "stub-tag", "note": "tagged by the stub model"}, "helper")
+        )
+        self.assertFalse(check("thread_tags", {"action": "list"}, "helper"))
+        self.assertFalse(check("thread_tags", {}, "helper"))
+        self.assertFalse(check("thread_tags", None, "helper"))
+
     def test_real_transcripts_go_to_openai_and_luna_writes_the_notes(self) -> None:
         self.assertEqual(self.setting("stub", "real"), self.REAL)
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, transcription=self.REAL)
@@ -1840,6 +1922,48 @@ class StubScenarioTests(unittest.TestCase):
         self.assertEqual(kind, "text")
         self.assertIn("Finished **schedulesoon** after 1 tool call(s)", text)
         self.assertIn("Scheduled task task-1", text)
+
+    def test_thread_tags_scenarios_adapt_to_consolidated_and_legacy_tools(self) -> None:
+        scenarios = stub_model.tool_scenarios([])
+
+        def request_body(prompt: str, tool_names: tuple[str, ...], *results: str) -> dict:
+            return {
+                "model": "stub-fast",
+                "tools": [{"type": "function", "function": {"name": name}} for name in tool_names],
+                "messages": [
+                    {"role": "user", "content": prompt},
+                    *[{"role": "tool", "content": result} for result in results],
+                ],
+            }
+
+        legacy_tools = ("tag_thread", "untag_thread", "list_thread_tags")
+        consolidated_tools = ("thread_tags",)
+
+        self.assertEqual(
+            stub_model.plan(request_body("please #tag", legacy_tools), scenarios),
+            ("tool", "tag_thread", {"tag": "stub-tag", "note": "tagged by the stub model"}),
+        )
+        self.assertEqual(
+            stub_model.plan(request_body("please #expire", legacy_tools), scenarios),
+            ("tool", "untag_thread", {"tag": "stub-tag"}),
+        )
+        self.assertEqual(
+            stub_model.plan(request_body("please #tag", consolidated_tools), scenarios),
+            ("tool", "thread_tags", {"action": "tag", "tag": "stub-tag", "note": "tagged by the stub model"}),
+        )
+        self.assertEqual(
+            stub_model.plan(request_body("please #expire", consolidated_tools), scenarios),
+            ("tool", "thread_tags", {"action": "untag", "tag": "stub-tag"}),
+        )
+
+        for tag in ("#tag", "#expire"):
+            kind, text = stub_model.plan(
+                request_body(f"please {tag}", consolidated_tools, '{"status": "ok"}'),
+                scenarios,
+            )
+            self.assertEqual(kind, "text")
+            self.assertIn(f"Finished **{tag[1:]}** after 1 tool call(s)", text)
+            self.assertIn('{"status": "ok"}', text)
 
     def test_a_module_computes_steps_from_the_turn(self) -> None:
         scenarios = stub_model.tool_scenarios([], [self.module(CHAIN_MODULE)])

@@ -203,6 +203,8 @@ VOICE_DICTATION = ("src/mindroom/config/voice.py", "dictation_enabled")
 TEMPORARY_SECRETS = ("src/mindroom/tools/__init__.py", "temporary_secrets")
 # A commit whose agents accept `delegate_to` for subagent delegation.
 AGENT_DELEGATE_TO = ("src/mindroom/config/agent.py", "delegate_to")
+# A commit that consolidated tag_thread, untag_thread, and list_thread_tags into thread_tags (MindRoom #4436).
+CONSOLIDATED_THREAD_TAGS = ("src/mindroom/custom_tools/thread_tags.py", "async def thread_tags(")
 # The stub model with reasoning levels, which the model picker's effort column runs a thread on.
 REASONING_MODEL = {"key": "think", "id": "stub-think", "displayName": "Stub Think", "levels": ["low", "medium", "high"]}
 TRANSCRIPTION_MODES = ("stub", "real")
@@ -776,6 +778,26 @@ REAL_INSTRUCTIONS = [
 ]
 
 
+def real_instructions(consolidated_thread_tags: bool = False) -> list[str]:
+    """The real-model hashtag script, adapting #tag and #expire to consolidated thread_tags when enabled."""
+    if not consolidated_thread_tags:
+        return list(REAL_INSTRUCTIONS)
+    replacements = {
+        "#tag:": (
+            "#tag: call thread_tags once with action 'tag', tag 'stub-tag', and note 'tagged by the stub model', "
+            "then reply 'Done.'"
+        ),
+        "#expire:": (
+            "#expire: call thread_tags once with action 'untag' and tag 'stub-tag', "
+            "then reply with what the tool returned."
+        ),
+    }
+    return [
+        next((line_text for prefix, line_text in replacements.items() if line.startswith(prefix)), line)
+        for line in REAL_INSTRUCTIONS
+    ]
+
+
 def calls_yaml(calls: dict | None, transcription: dict | None = None) -> str:
     """The calls section: the helper answers voice calls on the slot's MatrixRTC service with the chosen profile, and
     calls between people are transcribed."""
@@ -854,6 +876,7 @@ def config_yaml(
     dictation: bool = False,
     temporary_secrets: bool = False,
     delegate_to_scout: bool = False,
+    consolidated_thread_tags: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -889,7 +912,9 @@ def config_yaml(
         shell_review = ""
     if mode == "real":
         # JSON strings are YAML flow scalars, so the script needs no escaping of its own.
-        instructions = "\n".join(f"      - {json.dumps(line)}" for line in REAL_INSTRUCTIONS)
+        instructions = "\n".join(
+            f"      - {json.dumps(line)}" for line in real_instructions(consolidated_thread_tags)
+        )
         models = real_models_yaml()
         second = MODELS["real"]["second"]["key"]
         agents = f"""  helper:
@@ -947,6 +972,18 @@ def config_yaml(
         header = "# Written by scripts/agent-stack/stack.py; the stub model picks a scenario from hashtags in the message."
     if transcription and transcription["notesModel"] == NOTES_MODEL["key"]:
         models += notes_model_yaml()
+    if consolidated_thread_tags:
+        untag_rule = (
+            "    - match: thread_tags\n"
+            "      script: ./approval_scripts/thread_tags_review.py\n"
+            f"      timeout_days: {approval_expiry_days}"
+        )
+    else:
+        untag_rule = (
+            "    - match: untag_thread\n"
+            "      action: require_approval\n"
+            f"      timeout_days: {approval_expiry_days}"
+        )
     return f"""{header}
 {models}
 agents:
@@ -959,9 +996,7 @@ tool_approval:
   rules:
     - match: resolve_thread
       action: require_approval
-    - match: untag_thread
-      action: require_approval
-      timeout_days: {approval_expiry_days}
+{untag_rule}
 {shell_review}
 background_tool_jobs:
   approval_wait_timeout: 20
@@ -986,6 +1021,11 @@ SHELL_REVIEW = '''import json
 def check(tool_name, arguments, agent_name):
     """Shell calls whose arguments say needs-approval wait for a person."""
     return "needs-approval" in json.dumps(arguments)
+'''
+
+THREAD_TAGS_REVIEW = '''def check(tool_name, arguments, agent_name):
+    """Only untag calls of consolidated thread_tags wait for a person."""
+    return isinstance(arguments, dict) and arguments.get("action") == "untag"
 '''
 
 
@@ -1372,6 +1412,9 @@ def start(
     dictation = bool(transcription) and commit_mentions(checkout, sha, *VOICE_DICTATION)
     temporary_secrets = args.model == "stub" and commit_mentions(checkout, sha, *TEMPORARY_SECRETS)
     delegate_to_scout = args.model == "stub" and commit_mentions(checkout, sha, *AGENT_DELEGATE_TO)
+    consolidated_thread_tags = commit_mentions(checkout, sha, *CONSOLIDATED_THREAD_TAGS)
+    if consolidated_thread_tags:
+        (slot_dir / "approval_scripts" / "thread_tags_review.py").write_text(THREAD_TAGS_REVIEW)
     config_path.write_text(
         config_yaml(
             args.model,
@@ -1389,6 +1432,7 @@ def start(
             dictation=dictation,
             temporary_secrets=temporary_secrets,
             delegate_to_scout=delegate_to_scout,
+            consolidated_thread_tags=consolidated_thread_tags,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
@@ -1440,6 +1484,8 @@ def start(
         "extraAgents": args.agents,
         # The config's timeout_days, exactly: approvalExpirySeconds below is rounded.
         "approvalExpiryDays": args.approval_expiry_days,
+        "consolidatedThreadTags": consolidated_thread_tags,
+        "expireApprovalTool": "thread_tags" if consolidated_thread_tags else "untag_thread",
         "pluginDirs": plugin_dirs,
         "sha": sha,
         "checkout": str(checkout),
@@ -1740,7 +1786,7 @@ def main() -> int:
         "--approval-expiry-days",
         type=float,
         default=0.0003,
-        help="expiry of untag_thread approvals, which the expiry spec waits for (default 0.0003, 26 s)",
+        help="expiry of untag_thread / thread_tags untag approvals, which the expiry spec waits for (default 0.0003, 26 s)",
     )
     args = parser.parse_args()
     if args.model not in MODES:
