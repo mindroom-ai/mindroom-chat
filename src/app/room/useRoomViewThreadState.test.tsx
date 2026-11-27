@@ -18,15 +18,18 @@ import { matchesThreadRecordFilterState } from '../event-store/threads/threadRec
 import type { ThreadRecord } from '../event-store/threads/types';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { SWIPE_PRIORITY } from '../navigation/interactiveSwipe';
-import { createSessionId } from '../matrix/session/sessions';
 import {
-  capturePhoneSwipePreview,
-  clearPhoneSwipePreviews,
+  completeLiveSlideHandoff,
+  isLiveSlideActive,
   type LiveThreadBackUnder,
   PHONE_PAGE,
   PHONE_STAGE,
-  setActivePhoneSwipeContext,
+  skipActiveLiveSlide,
 } from '../navigation/phonePageSlide';
+import {
+  SpaceUnderLayerContext,
+  type SpaceUnderLayerContextValue,
+} from '../spaces/spaceUnderLayerContext';
 import { withRoomThreadExitTargetState } from '../routes/roomNavigateState';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
@@ -114,8 +117,7 @@ afterEach(() => {
   joinedRooms.list = [];
   cachedPage.rootEvent = undefined;
   cachedPage.events = [];
-  clearPhoneSwipePreviews();
-  setActivePhoneSwipeContext(undefined);
+  skipActiveLiveSlide();
   document.body.replaceChildren();
   resolvedThreadRoot.current = undefined;
   vi.clearAllMocks();
@@ -137,18 +139,23 @@ const mountThreadState = ({
   advancedFilters?: boolean;
   threadId?: string;
   enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
+  enterLiveForwardPeek?: (threadId: string) => LiveThreadBackUnder | null;
+  spaceUnderLayer?: SpaceUnderLayerContextValue | null;
 } = {}) => {
   const store = createStore();
   if (advancedFilters) store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
   let latest: RoomViewThreadState | undefined;
+  const { spaceUnderLayer = null, ...hookOptions } = options;
   function Probe() {
-    latest = useRoomViewThreadState({ room, ...options });
+    latest = useRoomViewThreadState({ room, ...hookOptions });
     return null;
   }
   // A new element each time, so an update renders the probe again.
   const tree = () => (
     <Provider store={store}>
-      <Probe />
+      <SpaceUnderLayerContext.Provider value={spaceUnderLayer}>
+        <Probe />
+      </SpaceUnderLayerContext.Provider>
     </Provider>
   );
   act(() => {
@@ -571,7 +578,7 @@ it('handleShowSnoozed lifts only snooze exclusion in Simple mode and selects Lat
   expect(advanced.current().threadFilterState.tab).toBe('later');
 });
 
-describe('useRoomViewThreadState interactive swipe wiring', () => {
+describe('useRoomViewThreadState interactive swipe & live slide wiring', () => {
   const mountPhoneStage = (label: string) => {
     const stage = document.createElement('div');
     stage.setAttribute(PHONE_STAGE, '');
@@ -594,6 +601,26 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     return { stage, page };
   };
 
+  const makeLiveLayers = (parent: HTMLElement) => {
+    const liveStage = document.createElement('div');
+    const under = document.createElement('div');
+    const over = document.createElement('div');
+    liveStage.append(under, over);
+    parent.append(liveStage);
+    vi.spyOn(liveStage, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      width: 390,
+      height: 844,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 844,
+      toJSON: () => ({}),
+    });
+    return { liveStage, under, over };
+  };
+
   it('registers PAGE priority and interactive begin scenes on back and forward edge swipes', () => {
     const { store } = mountThreadState({ threadId: '$thread' });
     const backOptions = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2];
@@ -606,51 +633,61 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     expect(typeof forwardOptions?.begin).toBe('function');
   });
 
-  it('cancelled back drag leaves route navigation and lastExitedThreadAtom untouched', async () => {
-    const { stage, page } = mountPhoneStage('Thread');
-    const { store } = mountThreadState({ threadId: '$thread' });
-    const begin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
-    const scene = begin?.({ axisSign: 1, dirSign: 1 });
-    expect(scene).not.toBeNull();
+  it('cancelled back and forward drags leave route navigation and lastExitedThreadAtom untouched', async () => {
+    const { page } = mountPhoneStage('Thread');
+    const { liveStage, under, over } = makeLiveLayers(page);
+    const backExit = vi.fn();
+    const { store } = mountThreadState({
+      threadId: '$thread',
+      enterLiveRoomPeek: () => ({ stage: liveStage, over, under, exit: backExit }),
+    });
+    const backBegin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
+    const backScene = backBegin?.({ axisSign: 1, dirSign: 1 });
+    expect(backScene).not.toBeNull();
 
-    scene!.update(90, 90 / 390);
-    expect(page.style.translate).toBe('90px');
+    backScene!.update(90, 90 / 390);
+    expect(over.style.translate).toBe('90px');
+    await backScene!.settle(false, 0, 90);
+    backScene!.cleanup(false);
 
-    await scene!.settle(false, 0, 90);
-    scene!.cleanup(false);
-
+    expect(backExit).toHaveBeenCalledWith(false);
     expect(store.get(lastExitedThreadAtom)).toBeNull();
     expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
-    expect(navigation.navigatePath).not.toHaveBeenCalled();
-    expect(page.style.translate).toBe('');
-    expect(stage.hasAttribute('data-swipe-stage')).toBe(false);
-    expect(stage.querySelector('[data-swipe-preview]')).toBeNull();
-  });
 
-  it('cancelled forward drag leaves lastExitedThreadAtom intact and does not navigate', async () => {
-    const { stage, page } = mountPhoneStage('Room');
-    const { store, rerender } = mountThreadState();
-    act(() => store.set(lastExitedThreadAtom, { roomId: ROOM_ID, threadId: '$thread' }));
-    rerender();
+    // Cancelled end-edge forward drag preserves lastExitedThreadAtom and cleans up live over layer.
+    const fwdExit = vi.fn();
+    const enterLiveForwardPeek = vi.fn((_id: string): LiveThreadBackUnder => ({
+      stage: liveStage,
+      over,
+      under,
+      exit: fwdExit,
+    }));
+    const fwd = mountThreadState({ enterLiveForwardPeek });
+    act(() => fwd.store.set(lastExitedThreadAtom, { roomId: ROOM_ID, threadId: '$thread' }));
+    fwd.rerender();
 
-    const begin = vi.mocked(useEdgeSwipeForward).mock.lastCall?.[2]?.begin;
-    const scene = begin?.({ axisSign: -1, dirSign: 1 });
-    expect(scene).not.toBeNull();
+    const fwdBegin = vi.mocked(useEdgeSwipeForward).mock.lastCall?.[2]?.begin;
+    const fwdScene = fwdBegin?.({ axisSign: -1, dirSign: 1 });
+    expect(fwdScene).not.toBeNull();
+    expect(enterLiveForwardPeek).toHaveBeenCalledWith('$thread');
 
-    scene!.update(80, 80 / 390);
-    await scene!.settle(false, 0, 80);
-    scene!.cleanup(false);
+    fwdScene!.update(80, 80 / 390);
+    await fwdScene!.settle(false, 0, 80);
+    fwdScene!.cleanup(false);
 
-    expect(store.get(lastExitedThreadAtom)).toEqual({ roomId: ROOM_ID, threadId: '$thread' });
+    expect(fwdExit).toHaveBeenCalledWith(false);
+    expect(fwd.store.get(lastExitedThreadAtom)).toEqual({ roomId: ROOM_ID, threadId: '$thread' });
     expect(navigation.navigateRoomThread).not.toHaveBeenCalled();
-    expect(page.style.translate).toBe('');
-    expect(stage.hasAttribute('data-swipe-stage')).toBe(false);
-    expect(stage.querySelector('[data-swipe-preview]')).toBeNull();
   });
 
-  it('committed back drag exits thread, sets lastExitedThreadAtom, and caches thread preview', async () => {
-    const { stage } = mountPhoneStage('Active Thread Body');
-    const { store, rerender } = mountThreadState({ threadId: '$thread' });
+  it('committed live back drag exits thread, sets lastExitedThreadAtom, and completes handoff cleanly', async () => {
+    const { page } = mountPhoneStage('Active Thread');
+    const { liveStage, under, over } = makeLiveLayers(page);
+    const exit = vi.fn();
+    const { store } = mountThreadState({
+      threadId: '$thread',
+      enterLiveRoomPeek: () => ({ stage: liveStage, over, under, exit }),
+    });
     const begin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
     const scene = begin?.({ axisSign: 1, dirSign: 1 });
     expect(scene).not.toBeNull();
@@ -666,50 +703,13 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
     expect(navigation.navigateRoomFocusEvent).toHaveBeenCalledWith(ROOM_ID, '$thread', {
       replace: true,
     });
-    // Release the interactive handoff by removing data-phone-stage briefly, then re-adding it.
-    stage.removeAttribute(PHONE_STAGE);
-    await Promise.resolve();
-    stage.setAttribute(PHONE_STAGE, '');
-    rerender();
+    completeLiveSlideHandoff();
+    expect(exit).toHaveBeenCalledWith(true);
   });
 
-  it('rekeys the retained room preview when a local-echo threadId confirms', () => {
-    const localThreadId = `~${ROOM_ID}:txn1`;
-    const confirmedThreadId = '$confirmed-thread';
-    const sessionId = createSessionId('https://example.org', USER_ID);
-    const { stage, page } = mountPhoneStage('Room Overview');
-
-    capturePhoneSwipePreview('room', { sessionId, roomId: ROOM_ID, threadId: localThreadId });
-    page.textContent = 'New Thread';
-
-    const { rerender } = mountThreadState({ threadId: localThreadId });
-    resolvedThreadRoot.current = confirmedThreadId;
-    rerender();
-
-    expect(navigation.navigateRoomThread).toHaveBeenCalledWith(
-      ROOM_ID,
-      confirmedThreadId,
-      undefined,
-      { replace: true }
-    );
-
-    const begin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
-    const scene = begin?.({ axisSign: 1, dirSign: 1 });
-    expect(scene).not.toBeNull();
-    expect(stage.querySelector('[data-swipe-preview="under"]')?.textContent).toContain(
-      'Room Overview'
-    );
-    expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
-    scene!.cleanup(false);
-  });
-
-  it('passes peek focus targets for direct exits and focused room entries, undefined for plain room entries, and skips live peek for Space All threads', () => {
+  it('passes exact peek focus targets for room exits, routes Space returns through SpaceUnderLayerContext, and falls back to neutral backdrop on cold reload', () => {
     const { stage, page } = mountPhoneStage('');
-    const liveStage = document.createElement('div');
-    const under = document.createElement('div');
-    const over = document.createElement('div');
-    liveStage.append(under, over);
-    page.append(liveStage);
+    const { liveStage, under, over } = makeLiveLayers(page);
 
     const enterLiveRoomPeek = vi.fn((_peekFocus?: LiveRoomPeekFocus): LiveThreadBackUnder => ({
       stage: liveStage,
@@ -717,22 +717,33 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
       under,
       exit: vi.fn(),
     }));
+    const enterLiveSpaceThreadsPeek = vi.fn((): LiveThreadBackUnder | null => ({
+      stage: liveStage,
+      over,
+      under,
+      exit: vi.fn(),
+    }));
+    const spaceUnderLayer: SpaceUnderLayerContextValue = {
+      hasWarmSpaceThreads: () => true,
+      enterLiveSpaceThreadsPeek,
+      isSpaceSlideOwningThread: () => false,
+    };
 
     const savedHistoryState: unknown = window.history.state;
     window.history.replaceState(null, '');
     try {
       // 1. Direct exit (!returnsToRoom): passes effectiveThreadId so Compact focuses the card.
-      mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
-      const begin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
-      const directScene = begin?.({ axisSign: 1, dirSign: 1 });
+      mountThreadState({ threadId: '$thread', enterLiveRoomPeek, spaceUnderLayer });
+      const directScene = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin?.({
+        axisSign: 1,
+        dirSign: 1,
+      });
       expect(directScene).not.toBeNull();
-      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
       expect(enterLiveRoomPeek).toHaveBeenCalledWith({ eventId: '$thread' });
-      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).toBeNull();
-      expect(liveStage.querySelector('[data-swipe-dim="live-back"]')).not.toBeNull();
+      expect(enterLiveSpaceThreadsPeek).not.toHaveBeenCalled();
       directScene!.cleanup(false);
 
-      // 2. Returning to a focused room entry: passes origin focus event with onlyIfUnsaved.
+      // 2. Focused room return: passes origin focus event with onlyIfUnsaved.
       enterLiveRoomPeek.mockClear();
       window.history.replaceState(
         {
@@ -745,18 +756,15 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
         },
         ''
       );
-      mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
-      const focusedReturnBegin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
-      const focusedReturnScene = focusedReturnBegin?.({ axisSign: 1, dirSign: 1 });
-      expect(focusedReturnScene).not.toBeNull();
-      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
-      expect(enterLiveRoomPeek).toHaveBeenCalledWith({
-        eventId: '$older',
-        onlyIfUnsaved: true,
+      mountThreadState({ threadId: '$thread', enterLiveRoomPeek, spaceUnderLayer });
+      const focusedScene = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin?.({
+        axisSign: 1,
+        dirSign: 1,
       });
-      focusedReturnScene!.cleanup(false);
+      expect(enterLiveRoomPeek).toHaveBeenCalledWith({ eventId: '$older', onlyIfUnsaved: true });
+      focusedScene!.cleanup(false);
 
-      // 3. Returning to a plain room history entry: passes undefined to keep saved scroll.
+      // 3. Plain room return: passes undefined to keep saved scroll.
       enterLiveRoomPeek.mockClear();
       window.history.replaceState(
         {
@@ -769,15 +777,15 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
         },
         ''
       );
-      mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
-      const roomReturnBegin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
-      const roomReturnScene = roomReturnBegin?.({ axisSign: 1, dirSign: 1 });
-      expect(roomReturnScene).not.toBeNull();
-      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
+      mountThreadState({ threadId: '$thread', enterLiveRoomPeek, spaceUnderLayer });
+      const roomScene = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin?.({
+        axisSign: 1,
+        dirSign: 1,
+      });
       expect(enterLiveRoomPeek).toHaveBeenCalledWith(undefined);
-      roomReturnScene!.cleanup(false);
+      roomScene!.cleanup(false);
 
-      // 4. Thread returning to Space All threads: skips live peek and keeps backdrop fallback.
+      // 4. Thread returning to Space All threads (warm): uses enterLiveSpaceThreadsPeek.
       enterLiveRoomPeek.mockClear();
       window.history.replaceState(
         {
@@ -791,15 +799,95 @@ describe('useRoomViewThreadState interactive swipe wiring', () => {
         },
         ''
       );
-      mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
-      const spaceBegin = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin;
-      const backdropScene = spaceBegin?.({ axisSign: 1, dirSign: 1 });
-      expect(backdropScene).not.toBeNull();
+      mountThreadState({ threadId: '$thread', enterLiveRoomPeek, spaceUnderLayer });
+      const spaceScene = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin?.({
+        axisSign: 1,
+        dirSign: 1,
+      });
+      expect(spaceScene).not.toBeNull();
+      expect(enterLiveSpaceThreadsPeek).toHaveBeenCalledTimes(1);
       expect(enterLiveRoomPeek).not.toHaveBeenCalled();
-      expect(stage.querySelector('[data-swipe-preview="backdrop"]')).not.toBeNull();
-      backdropScene!.cleanup(false);
+      expect(stage.querySelector('[data-swipe-backdrop]')).toBeNull();
+      spaceScene!.cleanup(false);
+
+      // 5. Cold reload returning to Space All threads (enterLiveSpaceThreadsPeek returns null):
+      // falls back cleanly to neutral themed backdrop without touching enterLiveRoomPeek.
+      enterLiveSpaceThreadsPeek.mockReturnValueOnce(null);
+      const coldScene = vi.mocked(useEdgeSwipeBack).mock.lastCall?.[2]?.begin?.({
+        axisSign: 1,
+        dirSign: 1,
+      });
+      expect(coldScene).not.toBeNull();
+      expect(enterLiveRoomPeek).not.toHaveBeenCalled();
+      expect(stage.querySelector('[data-swipe-backdrop]')).not.toBeNull();
+      coldScene!.cleanup(false);
     } finally {
       window.history.replaceState(savedHistoryState, '');
+    }
+  });
+
+  it('plays live back slide on handleExitThread with shield blocking double-tap and cancels on skipActiveLiveSlide', async () => {
+    const { page } = mountPhoneStage('Thread');
+    const { liveStage, under, over } = makeLiveLayers(page);
+    const finishers: Array<() => void> = [];
+    const originalAnimate = HTMLElement.prototype.animate;
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value() {
+        let finish: () => void = () => undefined;
+        const finished = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        finishers.push(finish);
+        return { finished, cancel: vi.fn() } as unknown as Animation;
+      },
+    });
+    const exit = vi.fn();
+    const enterLiveRoomPeek = vi.fn((): LiveThreadBackUnder => ({
+      stage: liveStage,
+      over,
+      under,
+      exit,
+    }));
+
+    try {
+      const { current } = mountThreadState({ threadId: '$thread', enterLiveRoomPeek });
+
+      // First tap starts live back slide, mounts shield, and defers leaveThread.
+      act(() => current().handleExitThread());
+      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
+      expect(isLiveSlideActive()).toBe(true);
+      expect(liveStage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
+      expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
+
+      // Rapid double-tap while slide plays is blocked.
+      act(() => current().handleExitThread());
+      expect(enterLiveRoomPeek).toHaveBeenCalledTimes(1);
+
+      // External cancel (drawer open / Universal Link) aborts slide without firing leaveThread.
+      act(() => skipActiveLiveSlide());
+      expect(exit).toHaveBeenCalledWith(false);
+      expect(navigation.navigateRoomFocusEvent).not.toHaveBeenCalled();
+
+      // Normal completion invokes leaveThread in onCommit once over is offscreen.
+      finishers.length = 0;
+      exit.mockClear();
+      act(() => current().handleExitThread());
+      await act(async () => {
+        finishers.splice(0).forEach((finish) => finish());
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(navigation.navigateRoomFocusEvent).toHaveBeenCalledWith(ROOM_ID, '$thread', {
+        replace: true,
+      });
+      completeLiveSlideHandoff();
+      expect(exit).toHaveBeenCalledWith(true);
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, 'animate', {
+        configurable: true,
+        value: originalAnimate,
+      });
     }
   });
 });

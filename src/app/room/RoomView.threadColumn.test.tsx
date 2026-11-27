@@ -13,10 +13,18 @@ import {
   conversationUnderThreadAtom,
 } from '../navigation/conversationCover';
 import {
+  isLiveSlideActive,
+  PHONE_STAGE,
+  skipActiveLiveSlide,
+  SWIPE_OVER_THREAD,
   SWIPE_THREAD_STAGE,
   SWIPE_UNDER_THREAD,
   type LiveThreadBackUnder,
 } from '../navigation/phonePageSlide';
+import {
+  SpaceUnderLayerContext,
+  type SpaceUnderLayerContextValue,
+} from '../spaces/spaceUnderLayerContext';
 import { shownConversationViewsAtom } from '../navigation/conversationView';
 import type { RoomTimelineProps } from '../timeline/RoomTimeline';
 import type { ThreadContextBannerProps } from '../threads/ThreadContextBanner';
@@ -65,6 +73,7 @@ const state = vi.hoisted(() => ({
   cards: undefined as string[] | undefined,
   enterLiveRoomPeek: undefined as
     ((peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null) | undefined,
+  enterLiveForwardPeek: undefined as ((threadId: string) => LiveThreadBackUnder | null) | undefined,
   timelineMounts: 0,
   headerProps: [] as Array<{ passive?: boolean; openThreadId?: string; threadId?: string }>,
 }));
@@ -91,8 +100,10 @@ const toggleForMe = vi.fn();
 vi.mock('./useRoomViewThreadState', () => ({
   useRoomViewThreadState: (opts: {
     enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
+    enterLiveForwardPeek?: (threadId: string) => LiveThreadBackUnder | null;
   }) => {
     state.enterLiveRoomPeek = opts.enterLiveRoomPeek;
+    state.enterLiveForwardPeek = opts.enterLiveForwardPeek;
     return {
       viewMode: 'compact',
       handleToggleForMe: toggleForMe,
@@ -340,6 +351,7 @@ beforeEach(() => {
   state.openFocus = [];
   state.cards = undefined;
   state.enterLiveRoomPeek = undefined;
+  state.enterLiveForwardPeek = undefined;
   state.timelineMounts = 0;
   state.headerProps = [];
   localStorage.clear();
@@ -363,6 +375,7 @@ beforeEach(() => {
   });
 });
 afterEach(() => {
+  skipActiveLiveSlide();
   cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -1230,4 +1243,155 @@ it('live room peek forwards direct-exit and unsaved focused-entry targets while 
   act(() => {
     live!.exit(false);
   });
+});
+
+it('plays live 2-layer forward push on Room -> Thread on phone and skips when SpaceSectionPage owns slide or on initial mount', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame'] });
+  const finishers: Array<() => void> = [];
+  const originalAnimate = HTMLElement.prototype.animate;
+  Object.defineProperty(HTMLElement.prototype, 'animate', {
+    configurable: true,
+    value() {
+      let finish: () => void = () => undefined;
+      const finished = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      finishers.push(finish);
+      return { finished, cancel: vi.fn() } as unknown as Animation;
+    },
+  });
+  const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    width: 390,
+    height: 800,
+    top: 0,
+    left: 0,
+    right: 390,
+    bottom: 800,
+    x: 0,
+    y: 0,
+    toJSON: () => ({}),
+  });
+
+  try {
+    // 1. Initial mount directly on a thread does NOT start a forward slide.
+    state.thread = '$thread';
+    const initial = render(<div {...{ [PHONE_STAGE]: '' }}>{tree({}, ScreenSize.Mobile)}</div>);
+    expect(isLiveSlideActive()).toBe(false);
+    expect(screen.queryByTestId('messages')).toBeNull();
+    initial.unmount();
+
+    // 2. Room -> Thread transition on phone keeps ConversationLayout uncollapsed as live under-layer
+    //    during the 280 ms forward slide, then collapses ConversationLayout on settle.
+    state.thread = undefined;
+    const rendered = render(<div {...{ [PHONE_STAGE]: '' }}>{tree({}, ScreenSize.Mobile)}</div>);
+    expect(state.timelineMounts).toBe(1);
+    expect(screen.getByTestId('messages')).toBeDefined();
+
+    state.thread = '$thread';
+    rendered.rerender(<div {...{ [PHONE_STAGE]: '' }}>{tree({}, ScreenSize.Mobile)}</div>);
+    expect(isLiveSlideActive()).toBe(true);
+    // ConversationLayout stayed continuously mounted (no collapse/remount during forward push).
+    expect(state.timelineMounts).toBe(1);
+    expect(screen.getByTestId('messages')).toBeDefined();
+    expect(screen.getByTestId('thread-column').hasAttribute(SWIPE_OVER_THREAD)).toBe(true);
+    expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
+
+    act(() => {
+      vi.advanceTimersToNextFrame();
+      vi.advanceTimersToNextFrame();
+    });
+    expect(finishers.length).toBeGreaterThan(0);
+
+    await act(async () => {
+      finishers.splice(0).forEach((finish) => finish());
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(isLiveSlideActive()).toBe(false);
+    expect(screen.queryByTestId('messages')).toBeNull();
+    rendered.unmount();
+
+    // 3. Space-owned slide suppresses RoomView forward slide (no double animation).
+    const spaceOwning: SpaceUnderLayerContextValue = {
+      hasWarmSpaceThreads: () => true,
+      enterLiveSpaceThreadsPeek: () => null,
+      isSpaceSlideOwningThread: () => true,
+    };
+    state.thread = undefined;
+    const spaceOwned = render(
+      <div {...{ [PHONE_STAGE]: '' }}>
+        <SpaceUnderLayerContext.Provider value={spaceOwning}>
+          {tree({}, ScreenSize.Mobile)}
+        </SpaceUnderLayerContext.Provider>
+      </div>
+    );
+    state.thread = '$thread';
+    spaceOwned.rerender(
+      <div {...{ [PHONE_STAGE]: '' }}>
+        <SpaceUnderLayerContext.Provider value={spaceOwning}>
+          {tree({}, ScreenSize.Mobile)}
+        </SpaceUnderLayerContext.Provider>
+      </div>
+    );
+    expect(isLiveSlideActive()).toBe(false);
+    expect(screen.queryByTestId('messages')).toBeNull();
+  } finally {
+    rectSpy.mockRestore();
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      configurable: true,
+      value: originalAnimate,
+    });
+    vi.useRealTimers();
+  }
+});
+
+it('mounts ThreadColumn passively during end-edge forward peek, cleans up on cancel, and keeps ThreadView mounted across commit with zero flicker', () => {
+  state.thread = undefined;
+  const { rerender } = render(<div {...{ [PHONE_STAGE]: '' }}>{tree({}, ScreenSize.Mobile)}</div>);
+  expect(state.viewMounts).toBe(0);
+  state.focused = [];
+
+  // 1. Enter forward peek for lastExitedThread: mounts ThreadView hidden, passive header, autoFocus=false,
+  //    single header slot, and never calls engine.noteRoomFocused for the peeked thread.
+  let live: LiveThreadBackUnder | null = null;
+  act(() => {
+    live = state.enterLiveForwardPeek?.('$last') ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(true);
+  expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(true);
+  expect(state.viewMounts).toBe(1);
+  const peekingView = screen.getByTestId('thread-view');
+  expect(peekingView.dataset.thread).toBe('$last');
+  expect(peekingView.dataset.hidden).toBe('true');
+  expect(peekingView.dataset.autofocus).toBe('false');
+  expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
+  expect(state.focused).not.toContain('$last');
+
+  // Cancel unmounts ThreadColumn cleanly without opening or focusing.
+  act(() => {
+    live!.exit(false);
+  });
+  expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
+  expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
+  expect(screen.queryByTestId('thread-view')).toBeNull();
+  expect(state.focused).not.toContain('$last');
+
+  // 2. Commit transitions the SAME ThreadView instance to active with zero remount and no double slide.
+  act(() => {
+    live = state.enterLiveForwardPeek?.('$last') ?? null;
+  });
+  expect(state.viewMounts).toBe(2);
+
+  state.thread = '$last';
+  rerender(<div {...{ [PHONE_STAGE]: '' }}>{tree({}, ScreenSize.Mobile)}</div>);
+  expect(isLiveSlideActive()).toBe(false);
+  act(() => {
+    live!.exit(true);
+  });
+  // Still mount #2 (zero remount/flicker!), now active (hidden=false) and room collapsed behind it.
+  expect(state.viewMounts).toBe(2);
+  expect(screen.getByTestId('thread-view').dataset.hidden).toBe('false');
+  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
 });

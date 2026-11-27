@@ -5,7 +5,7 @@ import { Icons } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { afterWaitingSlide, slidePhonePage } from '../navigation/phonePageSlide';
+import { skipActiveLiveSlide } from '../navigation/phonePageSlide';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
 import { revealDirectionControls } from '../ui/directional';
@@ -102,9 +102,8 @@ export function useActiveCallShortcut(active: ActiveCall) {
       if (threadId) navigateRoomThread(homeRoomId, threadId);
       else navigateRoom(homeRoomId);
     };
-    // Close the drawer and open the panel in one change, even without a navigation.
-    if (drawerOpen) slidePhonePage(open);
-    else afterWaitingSlide(open);
+    skipActiveLiveSlide();
+    open();
   };
 
   return {

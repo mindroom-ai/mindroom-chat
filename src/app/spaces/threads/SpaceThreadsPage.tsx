@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
@@ -25,14 +25,9 @@ import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSpace } from '../../matrix/hooks/useSpace';
 import { getRoomThreadMode } from '../../matrix/protocol/roomThreadMode';
-import { createSessionId } from '../../matrix/session/sessions';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
-import {
-  clearActivePhoneSwipeContext,
-  setActivePhoneSwipeContext,
-} from '../../navigation/phonePageSlide';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { settingsAtom } from '../../preferences/settings';
 import { useSetting } from '../../preferences/useSetting';
@@ -65,6 +60,7 @@ import {
   toggleSpaceRoomGroupSelection,
   toggleSpaceRoomSelection,
 } from './spaceThreadsModel';
+import { useIsSpaceThreadsPassive } from '../spaceUnderLayerContext';
 import { useSpaceThreadsRooms } from './useSpaceThreadsRooms';
 import * as css from './SpaceThreads.css';
 
@@ -80,17 +76,11 @@ const getSpaceThreadsScrollMemory = (mx: MatrixClient): ScrollAnchorMemory => {
 function SpaceThreadsPageContent({ space }: { space: Room }) {
   const mx = useMatrixClient();
   const myUserId = mx.getSafeUserId();
-  const sessionId = useMemo(() => createSessionId(mx.getHomeserverUrl(), myUserId), [mx, myUserId]);
+  const passive = useIsSpaceThreadsPassive();
   const ignoredUsers = useIgnoredUsers();
   const ignoredUsersSet = useMemo(() => new Set(ignoredUsers), [ignoredUsers]);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const pageRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    const context = { sessionId, roomId: space.roomId, isSpaceThreads: true };
-    setActivePhoneSwipeContext(context);
-    return () => clearActivePhoneSwipeContext(context);
-  }, [sessionId, space.roomId]);
 
   const {
     spaceRooms,
@@ -101,7 +91,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     threadListsSettled,
     metaVersion,
     timelineTick,
-  } = useSpaceThreadsRooms(space.roomId);
+  } = useSpaceThreadsRooms(space.roomId, passive);
 
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
     null
@@ -242,13 +232,13 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
 
   const nextQuietWakeTs = result.nextQuietWakeTs;
   useEffect(() => {
-    if (!sectionsEnabled || nextQuietWakeTs === undefined) return undefined;
+    if (passive || !sectionsEnabled || nextQuietWakeTs === undefined) return undefined;
     const timer = setTimeout(
       () => setQuietClock({ enabled: true, now: Date.now() }),
       Math.max(0, Math.min(nextQuietWakeTs - Date.now(), MAX_TIMEOUT_MS))
     );
     return () => clearTimeout(timer);
-  }, [nextQuietWakeTs, quietClock.now, sectionsEnabled]);
+  }, [nextQuietWakeTs, passive, quietClock.now, sectionsEnabled]);
 
   const sortControlSignature = useMemo(
     () =>

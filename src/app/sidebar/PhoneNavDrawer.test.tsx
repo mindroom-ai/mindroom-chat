@@ -13,7 +13,12 @@ import {
   phoneNavSectionRootAtom,
   useMarkPhoneSectionRoot,
 } from '../navigation/phoneNavDrawer';
-import { PHONE_STAGE, isPhonePageSlideActive, slidePhonePage } from '../navigation/phonePageSlide';
+import {
+  isLiveSlideActive,
+  PHONE_STAGE,
+  playLiveSlide,
+  skipActiveLiveSlide,
+} from '../navigation/phonePageSlide';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { NoticeSlot, drawerNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
@@ -129,13 +134,30 @@ describe('PhoneNavDrawer', () => {
     }
   });
 
-  it('stays put away when the phone layout goes while its opening waits for a page slide', async () => {
-    // A navigation waits a frame for its page slide before it shows; the swipe skips that slide,
-    // and the drawer would come out once it is over.
-    const change = vi.fn();
+  it('cancels an in-flight live Back slide without firing its deferred onCommit when opened mid-slide', () => {
     const stage = document.createElement('div');
     stage.setAttribute(PHONE_STAGE, '');
+    const under = document.createElement('div');
+    const over = document.createElement('div');
+    stage.append(under, over);
     document.body.append(stage);
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
+      width: 390,
+      height: 800,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const pendingAnim = () =>
+      ({ finished: new Promise<void>(() => undefined), cancel: vi.fn() }) as unknown as Animation;
+    Object.defineProperty(over, 'animate', { configurable: true, value: pendingAnim });
+    Object.defineProperty(under, 'animate', { configurable: true, value: pendingAnim });
+    const onCommit = vi.fn();
+    const exit = vi.fn();
     try {
       const store = createStore();
       let renderer: ReturnType<typeof create> | undefined;
@@ -148,23 +170,20 @@ describe('PhoneNavDrawer', () => {
           </Provider>
         );
       });
-      slidePhonePage(change);
-      swipeFromLeftEdge();
-      expect(change).not.toHaveBeenCalled();
-      expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+      playLiveSlide({ direction: 'back', stage, over, under, exit, onCommit });
+      expect(isLiveSlideActive()).toBe(true);
 
-      // The phone layout goes (a phone turned sideways), and the skipped slide runs and ends.
+      act(() => store.set(phoneNavDrawerOpenAtom, true));
+      expect(isLiveSlideActive()).toBe(false);
+      expect(onCommit).not.toHaveBeenCalled();
+      expect(exit).toHaveBeenCalledWith(false);
+      expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+
       act(() => renderer?.unmount());
-      stage.remove();
-      await act(async () => {
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      expect(change).toHaveBeenCalledWith(true);
       expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     } finally {
+      skipActiveLiveSlide();
       stage.remove();
-      delete document.documentElement.dataset.pageSlide;
     }
   });
 
@@ -738,11 +757,28 @@ describe('PhoneNavDrawer interactive swipes', () => {
     }
   });
 
-  it('falls back to discrete movePhoneNavDrawer when a phonePageSlide is active', async () => {
+  it('blocks a concurrent drawer edge swipe while a live phone slide is active', async () => {
     const stage = document.createElement('div');
     stage.setAttribute(PHONE_STAGE, '');
+    const under = document.createElement('div');
+    const over = document.createElement('div');
+    stage.append(under, over);
     document.body.append(stage);
-    const change = vi.fn();
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
+      width: 390,
+      height: 800,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
+    const pendingAnim = () =>
+      ({ finished: new Promise<void>(() => undefined), cancel: vi.fn() }) as unknown as Animation;
+    Object.defineProperty(over, 'animate', { configurable: true, value: pendingAnim });
+    Object.defineProperty(under, 'animate', { configurable: true, value: pendingAnim });
     const drawer = mountDomDrawer({ withList: true });
     vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
       width: 300,
@@ -757,31 +793,22 @@ describe('PhoneNavDrawer interactive swipes', () => {
     });
 
     try {
-      slidePhonePage(change);
-      expect(isPhonePageSlideActive()).toBe(true);
+      playLiveSlide({ direction: 'back', stage, over, under, exit: vi.fn(), onCommit: vi.fn() });
+      expect(isLiveSlideActive()).toBe(true);
 
       domAct(() => {
         dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
         dispatchTouch(window, 'touchmove', [{ clientX: 130, clientY: 200 }], 200);
-      });
-
-      // Did not enter interactive peek while a phone page slide is active.
-      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
-      expect(drawer.panel.style.translate).toBe('');
-      expect(drawer.container.querySelector('[data-testid="drawer-rail"]')).toBeNull();
-
-      domAct(() => {
         dispatchTouch(window, 'touchend', [], 220);
       });
       await flushMicrotasks();
 
-      expect(change).toHaveBeenCalledWith(true);
-      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
-      expect(drawer.panel.hasAttribute('data-open')).toBe(true);
+      expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
+      expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(false);
     } finally {
+      skipActiveLiveSlide();
       drawer.unmount();
       stage.remove();
-      delete document.documentElement.dataset.pageSlide;
     }
   });
 
@@ -929,12 +956,25 @@ describe('PhoneNavDrawer interactive swipes', () => {
     }
   });
 
-  it('keeps settled open styles pinned until a mid-settle phonePageSlide finishes and opens the drawer', async () => {
+  it('synchronously skips a mid-settle live slide and commits drawer open with clean swipe styles', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame'] });
     const stage = document.createElement('div');
     stage.setAttribute(PHONE_STAGE, '');
+    const under = document.createElement('div');
+    const over = document.createElement('div');
+    stage.append(under, over);
     document.body.append(stage);
-    const change = vi.fn();
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
+      width: 390,
+      height: 800,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    });
     const drawer = mountDomDrawer({ withList: true });
     vi.spyOn(drawer.panel, 'getBoundingClientRect').mockReturnValue({
       width: 300,
@@ -959,9 +999,14 @@ describe('PhoneNavDrawer interactive swipes', () => {
     };
     Object.defineProperty(drawer.panel, 'animate', { configurable: true, value: mockAnimate });
     Object.defineProperty(drawer.scrim, 'animate', { configurable: true, value: mockAnimate });
+    const pendingAnim = () =>
+      ({ finished: new Promise<void>(() => undefined), cancel: vi.fn() }) as unknown as Animation;
+    Object.defineProperty(over, 'animate', { configurable: true, value: pendingAnim });
+    Object.defineProperty(under, 'animate', { configurable: true, value: pendingAnim });
+    const onCommit = vi.fn();
+    const exit = vi.fn();
 
     try {
-      // Begin interactive open drag past 35% and release so WAAPI settle is in-flight.
       domAct(() => {
         dispatchTouch(window, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
         dispatchTouch(window, 'touchmove', [{ clientX: 180, clientY: 200 }], 200);
@@ -970,43 +1015,17 @@ describe('PhoneNavDrawer interactive swipes', () => {
       });
       expect(finishers).toHaveLength(2);
 
-      // A phone page slide starts mid-settle before commit() runs.
-      slidePhonePage(change);
-      expect(isPhonePageSlideActive()).toBe(true);
-
-      // Resolve WAAPI settle so commit() runs, while the skipped page slide's microtask is still pending.
-      // Check synchronously inside the settle resolution before the deferred slide finishes.
-      let pinnedBeforeOpen = false;
-      let translateBeforeOpen = '';
-      let opacityBeforeOpen = '';
-      let railMountedBeforeOpen = false;
-      const originalSet = drawer.store.set.bind(drawer.store);
-      const setSpy = vi.spyOn(drawer.store, 'set').mockImplementation((atom, ...args) => {
-        if (atom === phoneNavDrawerOpenAtom && args[0] === true) {
-          pinnedBeforeOpen =
-            drawer.panel.hasAttribute('data-swiping') && drawer.scrim.hasAttribute('data-swiping');
-          translateBeforeOpen = drawer.panel.style.translate;
-          opacityBeforeOpen = drawer.scrim.style.opacity;
-          railMountedBeforeOpen =
-            drawer.container.querySelector('[data-testid="drawer-rail"]') !== null;
-        }
-        return originalSet(atom, ...args);
-      });
+      playLiveSlide({ direction: 'back', stage, over, under, exit, onCommit });
+      expect(isLiveSlideActive()).toBe(true);
 
       domAct(() => {
         finishers.forEach((finish) => finish());
       });
       await flushMicrotasks();
-      setSpy.mockRestore();
 
-      // Right up until the deferred open committed, the settled open drawer stayed pinned with zero snap-offscreen.
-      expect(pinnedBeforeOpen).toBe(true);
-      expect(translateBeforeOpen).toBe('300px');
-      expect(opacityBeforeOpen).toBe('1');
-      expect(railMountedBeforeOpen).toBe(true);
-
-      // Once open commits, [data-open] takes over cleanly and swipe styles are cleared.
-      expect(change).toHaveBeenCalledWith(true);
+      expect(isLiveSlideActive()).toBe(false);
+      expect(onCommit).not.toHaveBeenCalled();
+      expect(exit).toHaveBeenCalledWith(false);
       expect(drawer.store.get(phoneNavDrawerOpenAtom)).toBe(true);
       expect(drawer.panel.hasAttribute('data-open')).toBe(true);
       expect(drawer.scrim.hasAttribute('data-open')).toBe(true);
@@ -1015,9 +1034,9 @@ describe('PhoneNavDrawer interactive swipes', () => {
       expect(drawer.panel.hasAttribute('data-swiping')).toBe(false);
       expect(drawer.scrim.hasAttribute('data-swiping')).toBe(false);
     } finally {
+      skipActiveLiveSlide();
       drawer.unmount();
       stage.remove();
-      delete document.documentElement.dataset.pageSlide;
       vi.useRealTimers();
     }
   });

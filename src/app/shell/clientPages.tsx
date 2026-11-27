@@ -3,12 +3,7 @@ import { Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import {
-  NavigationProvider,
-  SectionPageRoot,
-  CollapsibleSidebarNav,
-  SpacePageRoot,
-} from '../sidebar/Navigation';
+import { NavigationProvider, SectionPageRoot, CollapsibleSidebarNav } from '../sidebar/Navigation';
 import { CollapsiblePageNav } from '../sidebar/ResizablePageNav';
 import { CreateRoomForm } from '../rooms/create/CreateRoom';
 import { JoinRoomPanel } from '../rooms/join/JoinAddressPrompt';
@@ -23,7 +18,6 @@ import { FloatingShell } from '../ui/page/floatingCards.css';
 import './layout/floatingCardsLayout.css';
 import { ClientShell } from './ClientShell';
 import { useMarkPhoneSectionRoot } from '../navigation/phoneNavDrawer';
-import { Space } from '../sidebar/space/Space';
 import { PhoneTopBar } from '../sidebar/PhoneTopBar';
 import { PhoneNavDrawer } from '../sidebar/PhoneNavDrawer';
 import { usePluginPage } from '../plugins/PluginPageRoute';
@@ -127,20 +121,7 @@ export function SectionIndex({
   return <>{useScreenSizeContext() === ScreenSize.Mobile ? phonePage : page}</>;
 }
 
-/** A space with its navigation; it remembers the page open in that space. */
-export function SpaceSectionPage() {
-  return (
-    <SpacePageRoot
-      nav={
-        <CollapsiblePageNav>
-          <Space />
-        </CollapsiblePageNav>
-      }
-    >
-      <Outlet />
-    </SpacePageRoot>
-  );
-}
+export { SpaceSectionPage } from '../spaces/SpaceSectionPage';
 
 export function CreateRoomPage() {
   const { t } = useTranslation();

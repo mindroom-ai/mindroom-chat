@@ -6,9 +6,18 @@ globalStyle('[data-swiping]', {
   transition: 'none !important',
 });
 
-// Casts an iOS-style side edge shadow on the upper surface during an interactive swipe without
-// bleeding onto top/bottom bars.
-globalStyle('[data-swipe-shadow]', {
-  boxShadow: '0 0 24px rgb(0 0 0 / 0.24) !important',
-  clipPath: 'inset(0 -48px)',
+// Casts an iOS-style 16 px leading-edge shadow on the upper surface during an interactive swipe or
+// live slide without allocating a clip-path mask IOSurface or bleeding onto top/bottom bars.
+globalStyle('[data-swipe-shadow]::before', {
+  content: '""',
+  position: 'absolute',
+  insetBlock: 0,
+  insetInlineStart: '-16px',
+  inlineSize: '16px',
+  pointerEvents: 'none',
+  background: 'linear-gradient(to left, rgb(0 0 0 / 0.16), transparent)',
+});
+
+globalStyle('[dir="rtl"] [data-swipe-shadow]::before, [data-swipe-shadow][dir="rtl"]::before', {
+  background: 'linear-gradient(to right, rgb(0 0 0 / 0.16), transparent)',
 });

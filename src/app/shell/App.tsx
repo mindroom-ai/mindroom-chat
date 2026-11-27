@@ -38,7 +38,7 @@ import { hasCustomTitlebar, isDesktopApp } from '../lib/nativeShell';
 import { useErrorReporting } from '../bug-reports/error-reporting/errorReporting';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
-import { withPhonePageSlide } from '../navigation/phonePageSlide';
+import { skipActiveLiveSlide } from '../navigation/phonePageSlide';
 import { PersistentParticleBackgroundProvider } from '../ui/particle-background/PersistentParticleBackground';
 import { deploymentBranding } from '../ui/branding/deploymentBranding';
 import '../ui/particle-background/particleCanvasReveal.css';
@@ -72,13 +72,17 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   // One router while the app is mounted: a refreshed configuration replaces this one only when it
   // routes the same (ClientConfigLoader), so pages keep their state. Screen size reaches pages by context.
   const [router] = useState(() => createRouter(clientConfig));
-  // On a phone a new location slides in (navigation/phonePageSlide.ts).
-  const [slidingRouter] = useState(() => withPhonePageSlide(router));
   // Error reports, when the configuration names a collector, follow the router's pages.
   useErrorReporting(clientConfig, router);
   // Universal Links the native app is opened with navigate through this router, so the pages
   // know they were opened from outside and a phone's drawer and members close for them.
-  useLayoutEffect(() => setNativeAppPathNavigator(createRouterAppPathNavigator(router)), [router]);
+  useLayoutEffect(() => {
+    const navigateNative = createRouterAppPathNavigator(router);
+    return setNativeAppPathNavigator((appPath, opts) => {
+      skipActiveLiveSlide();
+      navigateNative(appPath, opts);
+    });
+  }, [router]);
   // A configured brand names the browser tab too. A layout effect, so the unread count's title
   // (UnreadTitle, a passive effect) starts from it.
   const { pageTitle } = deploymentBranding(clientConfig);
@@ -94,8 +98,8 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   return (
     <ScreenSizeProvider value={screenSize}>
       {/* Each new location renders at once, as before React Router 7, which would otherwise make
-          every router update a transition; a page slide still commits it synchronously. */}
-      <RouterProvider router={slidingRouter} useTransitions={false} />
+          every router update a transition. */}
+      <RouterProvider router={router} useTransitions={false} />
     </ScreenSizeProvider>
   );
 }
