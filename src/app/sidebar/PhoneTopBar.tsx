@@ -4,7 +4,7 @@ import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { PHONE_NAV_MENU_BUTTON_ID, phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { movePhoneNavDrawer } from '../navigation/phonePageSlide';
+import { skipActiveLiveSlide } from '../navigation/phonePageSlide';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
 import {
   callPanelRoomAtom,
@@ -52,7 +52,8 @@ function MenuButton() {
         aria-controls={PHONE_NAV_DRAWER_ID}
         aria-describedby={hasUnread ? unreadId : undefined}
         onClick={() => {
-          void movePhoneNavDrawer(!open, setOpen);
+          if (!open) skipActiveLiveSlide();
+          setOpen(!open);
         }}
       >
         <Icon src={MenuIcon} />

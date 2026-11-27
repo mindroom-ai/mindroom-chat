@@ -16,6 +16,7 @@ import { getRoomAvatarUrl } from '../../matrix/room';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { getSpaceLobbyPath, getSpacePath, getSpaceThreadsPath } from '../../routes/pathUtils';
+import { useIsSpaceThreadsPassive } from '../spaceUnderLayerContext';
 import * as overviewCss from '../../threads/overview/RoomThreadOverview.css';
 import { ownDirectionLine, PopOut, revealDirectionControls } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
@@ -50,14 +51,15 @@ function SpaceSwitcher({ space, spaceName, avatarSrc }: SpaceSwitcherProps) {
   const [anchor, setAnchor] = useState<RectCords>();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const passive = useIsSpaceThreadsPassive();
   const refocusRef = useRef(false);
   const open = anchor !== undefined;
 
   useEffect(() => {
-    if (anchor || !refocusRef.current) return;
+    if (passive || anchor || !refocusRef.current) return;
     refocusRef.current = false;
     buttonRef.current?.focus();
-  }, [anchor]);
+  }, [anchor, passive]);
 
   const railSpaceIds = useMemo(
     () => sidebarItems.flatMap((item) => (typeof item === 'string' ? [item] : item.content)),

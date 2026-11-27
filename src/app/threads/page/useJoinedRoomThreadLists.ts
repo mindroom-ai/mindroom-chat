@@ -30,7 +30,8 @@ export const isListedRoom = (room: Room | null): room is Room =>
  */
 export const useJoinedRoomThreadLists = (
   allPages = false,
-  roomIds?: readonly string[]
+  roomIds?: readonly string[],
+  enabled = true
 ): boolean => {
   const mx = useMatrixClient();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
@@ -40,6 +41,7 @@ export const useJoinedRoomThreadLists = (
   const [, setPagesLoaded] = useState(0);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     const listed = listedRef.current;
     const waiting = targetRoomIds
       .filter((roomId) => !listed.has(roomId))
@@ -72,7 +74,7 @@ export const useJoinedRoomThreadLists = (
     // A room the room list changed under, or the page left, before its first page arrived is
     // listed by the next run; the shared load keeps a room from being requested twice meanwhile.
     return () => visit.abort();
-  }, [mx, targetRoomIds, allPages]);
+  }, [mx, targetRoomIds, allPages, enabled]);
 
   return targetRoomIds
     .map((roomId) => mx.getRoom(roomId))

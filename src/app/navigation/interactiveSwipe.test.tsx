@@ -11,7 +11,7 @@ import {
   SWIPE_PRIORITY,
   useInteractiveSwipe,
 } from './interactiveSwipe';
-import { claimInteractivePhoneSlide, PHONE_STAGE } from './phonePageSlide';
+import { completeLiveSlideHandoff, createLiveBackSwipeScene, PHONE_STAGE } from './phonePageSlide';
 
 type Point = { clientX: number; clientY: number; identifier?: number };
 
@@ -1114,10 +1114,26 @@ describe('interactiveSwipe', () => {
     }
 
     render(<Harness />);
-    const release = claimInteractivePhoneSlide({
-      fromLocationKey: 'k-thread',
-      holdElement: document.createElement('div'),
+    const over = document.createElement('div');
+    const under = document.createElement('div');
+    stage.append(under, over);
+    vi.spyOn(stage, 'getBoundingClientRect').mockReturnValue({
+      width: 390,
+      height: 800,
+      top: 0,
+      left: 0,
+      right: 390,
+      bottom: 800,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
     });
+    const scene = createLiveBackSwipeScene({
+      enterLiveUnder: () => ({ stage, over, under, exit: () => undefined }),
+      onCommit: () => undefined,
+    });
+    expect(scene).not.toBeNull();
+    scene!.commit();
 
     try {
       // Swipe dispatched directly on window while handoff awaits popstate must not commit.
@@ -1144,7 +1160,7 @@ describe('interactiveSwipe', () => {
       await flushMicrotasks();
       expect(onCommit).not.toHaveBeenCalled();
     } finally {
-      release();
+      completeLiveSlideHandoff();
     }
 
     // Once handoff releases, edge swipes work normally again.

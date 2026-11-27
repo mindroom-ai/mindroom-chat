@@ -2,8 +2,10 @@ import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import {
+  addRoomToSpace,
   createDefaultThreadFilterState,
   createPrivateRoom,
+  createPrivateSpace,
   matrixFetch,
   registerAgentAccount,
   seedRoomOverviewState,
@@ -15,71 +17,102 @@ import {
   disposableHomeserverIsUp,
 } from '../helpers/disposableAccounts';
 
-// On a phone, a thread comes in from the right edge over its room, and a thread or a room leaves
-// to it on the way back to the room or the list, as a page of a phone's own apps does
-// (src/app/navigation/phonePageSlide.ts). The page under moves a third as far, and the top bar
-// stays. The menu button brings the list out over the page, which stays put while the drawer
-// slides in from the left on its own. Where the list goes away (a room tapped in it, the menu
-// button again), the page stays put too and the drawer slides away to the left over it. Nothing
-// slides between two pages of the same depth, or for someone who asked for reduced motion. The
-// slide is the page's own (a still copy of the layout as it was, and the layout, moved past each
-// other), never a view transition of the browser, and the copy is gone when it ends. 390 by 844
-// with touch, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
-// WebKit.
-// Set PAGE_SLIDE_SHOTS=<directory> to save a frame of each slide: a page slide held half-way,
-// and in Chromium the drawer's with the motion slowed to a tenth.
+// On a phone, forward push (`Room → Thread`, `Space All threads → Thread`) and Back button
+// (`Thread → Room`, `Thread → Space All threads`) animate two live DOM layers inside a clipped
+// stage with zero DOM cloning and zero `<canvas>` bitmaps (src/app/navigation/phonePageSlide.ts):
+// the upper layer slides across the viewport (100%→0% / 0%→100%) with a leading-edge shadow while
+// the live inert under-layer parallaxes by 30% (0%→-30% / -30%→0%) behind a 0↔0.12 dim veil and a
+// double-tap input shield, leaving the fixed `PhoneTopBar` stationary. `PhoneNavDrawer` plays its
+// own 280 ms transform slide on drawer open/close and room→list navigation. Nothing slides for
+// reduced motion, and the browser View Transitions API is never invoked.
+// Set PAGE_SLIDE_SHOTS=<directory> to save mid-slide screenshots.
 const PASSWORD = 'phone-page-slide-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.PAGE_SLIDE_SHOTS;
 const ENGINES = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])] as const;
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
-/** How far into its 280 ms a slide is held for its frame: half its way. */
-const HELD_AT_MS = 60;
-/** A picture of one pixel. */
-const PIXEL = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-  'base64'
-);
+const HELD_AT_MS = 90;
+const ACTIVE_SLIDE_SELECTOR =
+  '[data-swipe-thread-stage], [data-swipe-stage], [data-swipe-hold-shield], [data-swipe-dim]';
 
 test.use(PHONE);
 
-/**
- * A slide: its direction, what played on the layout (`page`) and on the copy of the layout as it
- * was, how many copies showed, what a tap in the middle of the screen would land on, and where
- * the layout was when its slide started, in hundredths of the screen's width: at the slide's
- * start, where it is held until the page that slides in has been drawn.
- */
 type Slide = {
-  direction: string;
-  plays: string[];
-  copies?: number;
-  tapLandsOn?: string;
-  startsAt?: number;
+  direction: 'forward' | 'back';
+  duration?: number;
+  overFromPct: number;
+  overToPct: number;
+  underFromPct?: number;
+  underToPct?: number;
+  dimFrom?: string;
+  dimTo?: string;
+  hasUnder: boolean;
+  underInert: boolean;
+  hasDim: boolean;
+  hasShield: boolean;
+  hasShadow: boolean;
+  tapHitsShield: boolean;
+  topBarTop: number;
+  topBarInsideStage: boolean;
+  canvasCount: number;
 };
-type Recorded = { pageSlides: Slide[]; viewTransitions: number; drawerSlides: string[] };
+
+type Recorded = {
+  liveSlides: Slide[];
+  viewTransitions: number;
+  drawerSlides: string[];
+  pausedAnimations: Animation[];
+};
 
 const FORWARD: Slide = {
   direction: 'forward',
-  plays: ['copy phone-page-under-out', 'page phone-page-over-in'],
-  copies: 1,
-  tapLandsOn: 'the layout',
-  startsAt: 100,
+  duration: 280,
+  overFromPct: 100,
+  overToPct: 0,
+  underFromPct: 0,
+  underToPct: -30,
+  dimFrom: '0',
+  dimTo: '0.12',
+  hasUnder: true,
+  underInert: true,
+  hasDim: true,
+  hasShield: true,
+  hasShadow: true,
+  tapHitsShield: true,
+  topBarTop: 0,
+  topBarInsideStage: false,
+  canvasCount: 0,
 };
+
 const BACK: Slide = {
   direction: 'back',
-  plays: ['copy phone-page-over-out', 'page phone-page-under-in'],
-  copies: 1,
-  tapLandsOn: 'the layout',
-  startsAt: -30,
+  duration: 280,
+  overFromPct: 0,
+  overToPct: 100,
+  underFromPct: -30,
+  underToPct: 0,
+  dimFrom: '0.12',
+  dimTo: '0',
+  hasUnder: true,
+  underInert: true,
+  hasDim: true,
+  hasShield: true,
+  hasShadow: true,
+  tapHitsShield: true,
+  topBarTop: 0,
+  topBarInsideStage: false,
+  canvasCount: 0,
 };
 
 const recordSlides = (page: Page, heldAt?: number) =>
   page.addInitScript((held) => {
     const slides: Slide[] = [];
+    const pausedAnimations: Animation[] = [];
     const recorded = window as unknown as Recorded;
-    recorded.pageSlides = slides;
+    recorded.liveSlides = slides;
     recorded.viewTransitions = 0;
-    // Every view transition the page asks the browser for: none.
+    recorded.pausedAnimations = pausedAnimations;
+
     const browser = Document.prototype as unknown as {
       startViewTransition?: (...args: unknown[]) => unknown;
     };
@@ -90,33 +123,80 @@ const recordSlides = (page: Page, heldAt?: number) =>
         return start.apply(this, args);
       };
     }
-    // The document has no root element yet: both listen on the document.
-    new MutationObserver(() => {
-      const direction = document.documentElement.getAttribute('data-page-slide');
-      if (direction) slides.push({ direction, plays: [] });
-    }).observe(document, { attributes: true, subtree: true, attributeFilter: ['data-page-slide'] });
-    document.addEventListener('animationstart', (event) => {
-      const slide = slides.at(-1);
-      if (!slide || !event.animationName.startsWith('phone-page-')) return;
-      const copy = (event.target as Element).closest('[data-page-slide-copy]');
-      const play = `${copy ? 'copy' : 'page'} ${event.animationName}`;
-      if (!slide.plays.includes(play)) slide.plays.push(play);
-      slide.copies = document.querySelectorAll('[data-page-slide-copy]').length;
-      // On the layout itself, not on a part of it: on the shield the layout lays over its parts.
-      const hit = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
-      slide.tapLandsOn = hit?.hasAttribute('data-phone-stage') ? 'the layout' : hit?.tagName;
-      if (!copy && slide.startsAt === undefined) {
-        const moved = parseFloat(getComputedStyle(event.target as Element).translate);
-        slide.startsAt = Math.round((moved / innerWidth) * 100);
+
+    const parsePct = (value: unknown, width: number): number => {
+      const px = parseFloat(String(value ?? '0'));
+      return Number.isFinite(px) && width > 0 ? Math.round((px / width) * 100) : 0;
+    };
+
+    const originalAnimate = Element.prototype.animate;
+    Element.prototype.animate = function patchedAnimate(
+      keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
+      options?: number | KeyframeAnimationOptions
+    ) {
+      const animation = originalAnimate.call(this, keyframes, options);
+      const stage = this.closest('[data-swipe-thread-stage]');
+      if (stage && Array.isArray(keyframes) && keyframes.length >= 2) {
+        const first = keyframes[0] ?? {};
+        const last = keyframes[keyframes.length - 1] ?? {};
+        const width = stage.getBoundingClientRect().width || innerWidth;
+
+        if (this.hasAttribute('data-swipe-over-thread')) {
+          const overFromPct = parsePct(first.translate, width);
+          const overToPct = parsePct(last.translate, width);
+          const under = stage.querySelector('[data-swipe-under-thread]');
+          const topBar = document.querySelector('[data-phone-top-bar]');
+          const hit = document.elementFromPoint(innerWidth / 2, innerHeight / 2);
+          slides.push({
+            direction: overFromPct > overToPct ? 'forward' : 'back',
+            duration:
+              typeof options === 'number'
+                ? options
+                : typeof options?.duration === 'number'
+                  ? options.duration
+                  : undefined,
+            overFromPct,
+            overToPct,
+            hasUnder: Boolean(under),
+            underInert: Boolean(
+              under && ((under as HTMLElement).inert || under.hasAttribute('inert'))
+            ),
+            hasDim: Boolean(stage.querySelector('[data-swipe-dim]')),
+            hasShield: Boolean(stage.querySelector('[data-swipe-hold-shield]')),
+            hasShadow: this.hasAttribute('data-swipe-shadow'),
+            tapHitsShield: Boolean(hit?.hasAttribute('data-swipe-hold-shield')),
+            topBarTop: topBar ? Math.round(topBar.getBoundingClientRect().top) : -1,
+            topBarInsideStage: Boolean(stage.querySelector('[data-phone-top-bar]')),
+            canvasCount: stage.querySelectorAll('canvas').length,
+          });
+        } else if (this.hasAttribute('data-swipe-under-thread')) {
+          const slide = slides.at(-1);
+          if (slide && slide.underFromPct === undefined) {
+            slide.underFromPct = parsePct(first.translate, width);
+            slide.underToPct = parsePct(last.translate, width);
+          }
+        } else if (this.hasAttribute('data-swipe-dim')) {
+          const slide = slides.at(-1);
+          if (slide && slide.dimFrom === undefined) {
+            slide.dimFrom = String(first.opacity ?? '');
+            slide.dimTo = String(last.opacity ?? '');
+          }
+        }
+
+        if (
+          held !== undefined &&
+          (this.hasAttribute('data-swipe-over-thread') ||
+            this.hasAttribute('data-swipe-under-thread') ||
+            this.hasAttribute('data-swipe-dim'))
+        ) {
+          animation.pause();
+          animation.currentTime = held;
+          pausedAnimations.push(animation);
+        }
       }
-      if (held === undefined) return;
-      document.getAnimations().forEach((animation) => {
-        if (!(animation as CSSAnimation).animationName?.startsWith('phone-page-')) return;
-        animation.pause();
-        animation.currentTime = held;
-      });
-    });
-    // What the drawer's own slide does: it starts, and plays to its end or is cut short.
+      return animation;
+    };
+
     const drawerSlides: string[] = [];
     recorded.drawerSlides = drawerSlides;
     for (const type of ['transitionrun', 'transitionend', 'transitioncancel'] as const) {
@@ -132,19 +212,15 @@ const recordSlides = (page: Page, heldAt?: number) =>
     }
   }, heldAt);
 
-/** What the drawer's own slide did since the last call, which forgets it. */
 const spliceDrawerSlides = (page: Page): Promise<string[]> =>
-  page.evaluate(() => (window as unknown as { drawerSlides: string[] }).drawerSlides.splice(0));
+  page.evaluate(() => (window as unknown as Recorded).drawerSlides.splice(0));
 
-/** The drawer's own slide since the last call, once it has ended. */
 const takeDrawerSlide = async (page: Page, step: string): Promise<string[]> => {
   await expect
     .poll(
       () =>
         page.evaluate(() =>
-          (window as unknown as { drawerSlides: string[] }).drawerSlides.some(
-            (each) => each !== 'transitionrun'
-          )
+          (window as unknown as Recorded).drawerSlides.some((each) => each !== 'transitionrun')
         ),
       { message: `${step}: the drawer's slide ends`, timeout: 30_000 }
     )
@@ -152,24 +228,23 @@ const takeDrawerSlide = async (page: Page, step: string): Promise<string[]> => {
   return spliceDrawerSlides(page);
 };
 
-/** The slides since the last call, once the one that plays has ended. */
+const finishPausedSlides = (page: Page) =>
+  page.evaluate(() => {
+    const animations = (window as unknown as Recorded).pausedAnimations.splice(0);
+    animations.forEach((animation) => animation.finish());
+  });
+
 const takeSlides = async (page: Page, step: string): Promise<Slide[]> => {
-  await expect
-    .poll(() => page.evaluate(() => document.documentElement.hasAttribute('data-page-slide')), {
-      message: `${step}: the slide ends`,
-    })
-    .toBe(false);
-  await expect(page.locator('[data-page-slide-copy]'), `${step}: the copy is gone`).toHaveCount(0);
-  const slides = await page.evaluate(() =>
-    (window as unknown as { pageSlides: Slide[] }).pageSlides.splice(0)
-  );
-  return slides.map((slide) => ({ ...slide, plays: [...slide.plays].sort() }));
+  await expect(page.locator(ACTIVE_SLIDE_SELECTOR), `${step}: live slide clears`).toHaveCount(0);
+  await expect(page.locator('[data-swipe-under-thread]'), `${step}: under clears`).toHaveCount(0);
+  await expect(page.locator('[data-swipe-over-thread]'), `${step}: over clears`).toHaveCount(0);
+  return page.evaluate(() => (window as unknown as Recorded).liveSlides.splice(0));
 };
 
 const text = (body: string) => ({ msgtype: 'm.text', body });
 
-const seed = async (test: string, extraThreads = 0, concurrency?: number) => {
-  const username = `pps_${test}_${RUN}`;
+const seed = async (label: string, extraThreads = 0) => {
+  const username = `pps_${label}_${RUN}`;
   const reader = await matrixFetch<{ access_token: string; user_id: string }>(
     HOMESERVER,
     '/register',
@@ -178,8 +253,7 @@ const seed = async (test: string, extraThreads = 0, concurrency?: number) => {
       body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
     }
   );
-  // The rooms have an agent, as MindRoom rooms do, so they open in Compact.
-  const agent = await registerAgentAccount(HOMESERVER, `pps${test}`);
+  const agent = await registerAgentAccount(HOMESERVER, `pps${label}`);
   const create = (name: string) =>
     createPrivateRoom(HOMESERVER, reader.access_token, {
       name,
@@ -188,6 +262,7 @@ const seed = async (test: string, extraThreads = 0, concurrency?: number) => {
     });
   const say = (roomId: string, content: Record<string, unknown>) =>
     sendRoomMessage(HOMESERVER, reader.access_token, roomId, content, 'phone-page-slide');
+
   const garden = await create('Garden Club');
   const root = await say(
     garden,
@@ -203,21 +278,39 @@ const seed = async (test: string, extraThreads = 0, concurrency?: number) => {
     },
   });
   await say(garden, text('Who waters the beds in the second week of July?'));
+
   const harbor = await create('Harbor Plans');
   await say(harbor, text('Crane schedule for the north pier next week: who still needs a slot?'));
+
+  const spaceId = await createPrivateSpace(HOMESERVER, reader.access_token, {
+    name: 'Garden Space',
+    topic: 'Shared garden rooms',
+  });
+  const greenhouse = await create('Greenhouse');
+  await addRoomToSpace(HOMESERVER, reader.access_token, spaceId, greenhouse);
+  const spaceRoot = await say(
+    greenhouse,
+    text('Greenhouse glazing panels arrive Thursday morning at the south gate.')
+  );
+  await say(greenhouse, {
+    ...text('I will bring extra glazing clips and tape.'),
+    'm.relates_to': {
+      rel_type: 'm.thread',
+      event_id: spaceRoot,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: spaceRoot },
+    },
+  });
+
   const subjects = [
     'Water the new plants',
     'Plan the harvest',
     'Mend the greenhouse',
     'Clean the tools',
   ];
-  const batchSize = concurrency ?? Number(process.env.PAGE_SLIDE_SEED_CONCURRENCY ?? 8);
-  if (!Number.isSafeInteger(batchSize) || batchSize < 1)
-    throw new Error('PAGE_SLIDE_SEED_CONCURRENCY must be a positive integer');
-  // Send roots in order so their timestamps are stable; batch the replies and resolutions.
-  for (let start = 0; start < extraThreads; start += batchSize) {
+  for (let start = 0; start < extraThreads; start += 8) {
     const batch: string[] = [];
-    for (let i = start; i < Math.min(start + batchSize, extraThreads); i += 1) {
+    for (let i = start; i < Math.min(start + 8, extraThreads); i += 1) {
       batch.push(await say(garden, text(`${subjects[i % subjects.length]} (${i + 1})`)));
     }
     await Promise.all(
@@ -240,17 +333,20 @@ const seed = async (test: string, extraThreads = 0, concurrency?: number) => {
       })
     );
   }
-  return { username, root, userId: reader.user_id, roomId: garden };
+  return { username, root, userId: reader.user_id, roomId: garden, spaceId, spaceRoot };
 };
 
 const drawer = (page: Page) => page.locator('#phone-nav-drawer');
 const menuButton = (page: Page) => page.locator('#phone-nav-menu-button');
 const threadColumn = (page: Page) => page.getByTestId('thread-column');
-// The thread's own Back, in its banner.
 const threadBack = (page: Page) => threadColumn(page).getByRole('button', { name: 'Back' }).last();
-const card = (page: Page, root: string) => page.locator(`[data-thread-root-id="${root}"]`).first();
+const card = (page: Page, root: string) =>
+  page
+    .locator(
+      `[data-thread-root-id="${root}"]:not([data-swipe-under-thread], [data-swipe-under-thread] *)`
+    )
+    .first();
 
-/** Runs `check` on a phone's page in `engine`, signed in as `username`. */
 const onPhone = async (
   engine: (typeof ENGINES)[number],
   browser: Browser,
@@ -268,7 +364,7 @@ const onPhone = async (
       await check(page);
       expect(
         await page.evaluate(() => (window as unknown as Recorded).viewTransitions),
-        'the page asks the browser for no view transition'
+        'no browser view transitions'
       ).toBe(0);
     } finally {
       await context.close();
@@ -278,153 +374,143 @@ const onPhone = async (
   }
 };
 
-test.beforeEach(async () => {
-  test.skip(!(await disposableHomeserverIsUp()), 'needs the disposable homeserver (just hs-up)');
+test.beforeAll(async () => {
+  test.skip(
+    !(await disposableHomeserverIsUp()),
+    `Disposable homeserver is not reachable at ${HOMESERVER}. Run \`just hs-up\` first.`
+  );
 });
 
 for (const engine of ENGINES) {
-  test(`${engine}: the list slides away over a room, and a thread comes in from the right`, async ({
+  test(`${engine}: slides live 2-layer pages on Room ↔ Thread, Space All threads ↔ Thread, and PhoneNavDrawer`, async ({
     browser,
   }) => {
-    test.setTimeout(180_000);
-    const { username, root } = await seed(`slides${engine}`);
-    await onPhone(engine, browser, username, { heldAt: SHOTS ? HELD_AT_MS : undefined }, (page) =>
-      slidesItsPages(page, root, engine)
+    test.setTimeout(240_000);
+    const { username, root, spaceId, spaceRoot } = await seed(engine);
+    await onPhone(
+      engine,
+      browser,
+      username,
+      { heldAt: SHOTS ? HELD_AT_MS : undefined },
+      async (page) => {
+        // Home's own page: drawer is open, nothing slid on entry or reload.
+        await expect(drawer(page)).toBeVisible();
+        await expect(drawer(page).getByRole('link', { name: 'Garden Club' })).toBeVisible();
+        expect(await takeSlides(page, 'signed in'), 'signing in').toEqual([]);
+        await page.reload();
+        await expect(drawer(page).getByRole('link', { name: 'Garden Club' })).toBeVisible({
+          timeout: 60_000,
+        });
+        expect(await takeSlides(page, 'loaded again'), 'a fresh load').toEqual([]);
+
+        const shot = async (name: string, liveSlide = false) => {
+          if (!SHOTS) return;
+          if (liveSlide) {
+            await expect(page.locator('[data-swipe-thread-stage]')).toHaveCount(1);
+            await page.waitForTimeout(100);
+            await page.screenshot({ path: `${SHOTS}/${engine}-${name}.png` });
+            await finishPausedSlides(page);
+          } else {
+            await page.waitForTimeout(150);
+            await page.screenshot({ path: `${SHOTS}/${engine}-${name}.png` });
+          }
+        };
+
+        // Opening a room from the drawer slides the drawer away over the stationary room.
+        await spliceDrawerSlides(page);
+        await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
+        await shot('1-list-slides-away');
+        await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
+        await expect(drawer(page)).toBeHidden();
+        expect(await takeSlides(page, 'a room from the list'), 'a room from the list').toEqual([]);
+        expect(
+          await takeDrawerSlide(page, 'a room from the list'),
+          'the drawer slides away'
+        ).toEqual(['transitionrun', 'transitionend']);
+
+        // Room → Thread: live 2-layer forward push over inert Room with dim veil, shield, fixed top bar.
+        await card(page, root).tap();
+        await shot('2-room-to-thread', true);
+        await expect(threadColumn(page)).toBeVisible();
+        expect(await takeSlides(page, 'a thread from its room'), 'Room → Thread').toEqual([
+          FORWARD,
+        ]);
+
+        // Thread → Room via Back button: live 2-layer back slide with shield and zero clones/canvases.
+        await threadBack(page).tap();
+        await shot('3-thread-to-room', true);
+        await expect(threadColumn(page)).toBeHidden();
+        expect(await takeSlides(page, 'back to the room'), 'Thread → Room').toEqual([BACK]);
+
+        // Browser back (Room → Home list): drawer plays its own 280 ms slide-in, no page slide.
+        await spliceDrawerSlides(page);
+        await page.goBack();
+        await shot('4-room-to-list');
+        await expect(drawer(page)).toBeVisible();
+        expect(await takeSlides(page, 'back to the list'), 'Room → Home list').toEqual([]);
+        expect(await takeDrawerSlide(page, 'back to the list'), 'the drawer slides in').toEqual([
+          'transitionrun',
+          'transitionend',
+        ]);
+
+        // Pick another room, then toggle drawer via menu button.
+        await spliceDrawerSlides(page);
+        await drawer(page).getByRole('link', { name: 'Harbor Plans' }).tap();
+        await expect(drawer(page)).toBeHidden();
+        await takeSlides(page, 'the other room');
+        await takeDrawerSlide(page, 'the other room');
+
+        await spliceDrawerSlides(page);
+        await menuButton(page).tap();
+        await shot('5-drawer-open');
+        await expect(drawer(page)).toBeVisible();
+        expect(await takeSlides(page, 'menu open'), 'the page stays put').toEqual([]);
+        expect(await takeDrawerSlide(page, 'menu open'), 'the drawer slides in').toEqual([
+          'transitionrun',
+          'transitionend',
+        ]);
+        await menuButton(page).tap();
+        await expect(drawer(page)).toBeHidden();
+        expect(await takeSlides(page, 'menu close'), 'the page stays put').toEqual([]);
+        expect(await takeDrawerSlide(page, 'menu close'), 'the drawer slides away').toEqual([
+          'transitionrun',
+          'transitionend',
+        ]);
+
+        // Space All threads → Thread → Back: single Space-owned forward slide (no double-animate)
+        // and live back slide back to Space All threads.
+        await page.goto(`/${encodeURIComponent(spaceId)}/threads`);
+        await expect(page.locator(`[data-space-threads-page="${spaceId}"]`)).toBeVisible({
+          timeout: 60_000,
+        });
+        await expect(card(page, spaceRoot)).toBeVisible({ timeout: 60_000 });
+        await takeSlides(page, 'arrived at Space All threads');
+
+        await card(page, spaceRoot).tap();
+        await shot('6-space-threads-to-thread', true);
+        await expect(threadColumn(page)).toBeVisible();
+        expect(
+          await takeSlides(page, 'Space All threads → Thread'),
+          'Space All threads → Thread (single Space-owned slide)'
+        ).toEqual([FORWARD]);
+
+        await threadBack(page).tap();
+        await shot('7-thread-to-space-threads', true);
+        await expect(page).toHaveURL(/\/threads\/?$/);
+        await expect(page.locator(`[data-space-threads-page="${spaceId}"]`)).toBeVisible();
+        expect(
+          await takeSlides(page, 'Thread → Space All threads'),
+          'Thread → Space All threads'
+        ).toEqual([BACK]);
+      }
     );
-  });
-
-  test(`${engine}: a slide leaves the page's own fields as they are`, async ({ browser }) => {
-    test.setTimeout(180_000);
-    const { username, root } = await seed(`fields${engine}`);
-    // Held: the copy stays in the page until the slide gives up on its end.
-    await onPhone(engine, browser, username, { heldAt: HELD_AT_MS }, async (page) => {
-      await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
-      await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
-      // Fields as a card in the page has them: radio buttons outside a form, and a typed secret.
-      await page.locator('[data-phone-stage] > [data-phone-page]').evaluate((phonePage) => {
-        phonePage.insertAdjacentHTML(
-          'beforeend',
-          '<div data-pps-fields style="position: absolute; pointer-events: none">' +
-            '<input type="radio" name="pps-keep" value="once">' +
-            '<input type="radio" name="pps-keep" value="day">' +
-            '<input type="text" name="pps-secret"></div>'
-        );
-        const [, day, secret] = Array.from(phonePage.querySelectorAll('[data-pps-fields] input'));
-        (day as HTMLInputElement).checked = true;
-        (secret as HTMLInputElement).value = 'typed-secret';
-      });
-      const fields = () =>
-        page.evaluate(() => {
-          const values = (within: Element | null) =>
-            Array.from(within?.querySelectorAll('input') ?? [], (field) =>
-              field.type === 'radio' ? field.checked : field.value
-            );
-          const live = '[data-phone-stage] > [data-phone-page] > [data-pps-fields]';
-          const still = document.querySelector('[data-page-slide-copy] [data-pps-fields]');
-          return {
-            page: values(document.querySelector(live)),
-            copy: values(still),
-            named: still?.querySelectorAll('[name]').length,
-          };
-        });
-
-      await card(page, root).tap();
-      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
-      // The copy looks as the page did but for what was typed, and is no part of its radio group.
-      expect(await fields(), 'while the copy shows').toEqual({
-        page: [false, true, 'typed-secret'],
-        copy: [false, true, ''],
-        named: 0,
-      });
-      await expect(threadColumn(page)).toBeVisible();
-      await takeSlides(page, 'a thread from its room');
-      expect((await fields()).page, 'after the slide').toEqual([false, true, 'typed-secret']);
-    });
-  });
-
-  test(`${engine}: the copy a slide shows asks the network for nothing`, async ({ browser }) => {
-    test.setTimeout(180_000);
-    const { username, root } = await seed(`media${engine}`);
-    // Held: the copy stays in the page until the slide gives up on its end.
-    await onPhone(engine, browser, username, { heldAt: HELD_AT_MS }, async (page) => {
-      // Pictures the browser may not keep: every showing of one from the network is a request.
-      const requests: string[] = [];
-      await page.route('**/pps-media/*', (route) => {
-        const { pathname } = new URL(route.request().url());
-        requests.push(pathname);
-        if (pathname.endsWith('/missing.png')) return route.fulfill({ status: 404 });
-        return route.fulfill({
-          contentType: 'image/png',
-          headers: { 'Cache-Control': 'no-store' },
-          body: PIXEL,
-        });
-      });
-      await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
-      await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
-      // In the page: a picture from the network, a `picture` whose source picks another, one the
-      // page holds in memory, as the app's avatars and message pictures are, one whose address
-      // the page has let go of since (the app does with avatars it has not shown for a while),
-      // and one that failed to load.
-      await page.locator('[data-phone-stage] > [data-phone-page]').evaluate(async (phonePage) => {
-        const memory = async () =>
-          URL.createObjectURL(await (await fetch('/pps-media/held.png')).blob());
-        const [held, gone] = [await memory(), await memory()];
-        phonePage.insertAdjacentHTML(
-          'beforeend',
-          '<div data-pps-media style="position: absolute; pointer-events: none">' +
-            '<img src="/pps-media/network.png">' +
-            '<picture><source srcset="/pps-media/source.png"><img src="/pps-media/fallback.png">' +
-            `</picture><img src="${held}"><img src="${gone}"><img src="/pps-media/missing.png">` +
-            '</div>'
-        );
-        const pictures = Array.from(phonePage.querySelectorAll('[data-pps-media] img'));
-        await Promise.allSettled(pictures.map((picture) => (picture as HTMLImageElement).decode()));
-        URL.revokeObjectURL(gone);
-      });
-      const before = [...requests].sort();
-      expect(before, 'the page loads each picture once').toEqual(
-        ['held', 'held', 'missing', 'network', 'source'].map((name) => `/pps-media/${name}.png`)
-      );
-
-      await card(page, root).tap();
-      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
-      const copied = await page
-        .locator('[data-page-slide-copy] [data-pps-media]')
-        .evaluate((media) =>
-          Array.from(media.querySelectorAll('img, canvas'), (picture) => {
-            if (!(picture instanceof HTMLCanvasElement)) {
-              return picture.hasAttribute('src') ? 'a picture to load' : 'a blank box';
-            }
-            const [red = 0, , , alpha = 0] = picture
-              .getContext('2d')!
-              .getImageData(0, 0, 1, 1).data;
-            return red > 200 && alpha > 0 ? 'drawn' : 'an empty canvas';
-          })
-        );
-      // Each picture the page shows is drawn in the copy at once, with nothing to load or decode,
-      // the one whose address is gone too; the one that failed is a blank box.
-      expect
-        .soft(copied, 'the pictures of the copy')
-        .toEqual(['drawn', 'drawn', 'drawn', 'drawn', 'a blank box']);
-      expect
-        .soft(
-          await page.locator('[data-page-slide-copy] :is([srcset], source[src])').count(),
-          'the copy names no source to pick from'
-        )
-        .toBe(0);
-      await expect(threadColumn(page)).toBeVisible();
-      await takeSlides(page, 'a thread from its room');
-      // Time for a request that started with the copy to reach the network.
-      await page.waitForTimeout(1_000);
-      expect([...requests].sort(), 'the slide asked the network for no picture').toEqual(before);
-    });
   });
 
   test(`${engine}: nothing slides for someone who asked for reduced motion`, async ({
     browser,
   }) => {
     test.setTimeout(180_000);
-    const { username, root } = await seed(`still${engine}`);
+    const { username, root, spaceId, spaceRoot } = await seed(`still${engine}`);
     await onPhone(engine, browser, username, { reducedMotion: 'reduce' }, async (page) => {
       await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
       await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
@@ -432,124 +518,49 @@ for (const engine of ENGINES) {
       await expect(threadColumn(page)).toBeVisible();
       await threadBack(page).tap();
       await expect(threadColumn(page)).toBeHidden();
+
+      await page.goto(`/${encodeURIComponent(spaceId)}/threads`);
+      await expect(card(page, spaceRoot)).toBeVisible({ timeout: 60_000 });
+      await card(page, spaceRoot).tap();
+      await expect(threadColumn(page)).toBeVisible();
+      await threadBack(page).tap();
+      await expect(page).toHaveURL(/\/threads\/?$/);
+
       expect(await takeSlides(page, 'reduced motion')).toEqual([]);
     });
   });
-}
 
-test('webkit: a held copy keeps clips and pictures through stage growth', async ({ browser }) => {
-  test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
-  const { username, root } = await seed('clip');
-  await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
-    await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
-    await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
-    const siblingY = await page.locator('[data-phone-stage]').evaluate(async (stage, pixel) => {
-      // Simulate the keyboard reducing the stage without fixing the copy to its initial height.
-      document.head.insertAdjacentHTML(
-        'beforeend',
-        `<style>
-        [data-phone-stage], [data-page-slide-copy] {
-          height: var(--test-height) !important; max-height: var(--test-height) !important;
-          flex: none !important;
-        }
-      </style>`
-      );
-      document.documentElement.style.setProperty('--test-height', '450px');
-      const phonePage = stage.querySelector('[data-phone-page]')!;
-      phonePage.insertAdjacentHTML(
-        'beforeend',
-        '<div data-probe-scroll style="position:absolute;top:0;left:0;height:140px;width:110px;overflow:auto;overflow-anchor:none;pointer-events:none">' +
-          '<div data-page-slide-clip><div style="height:400px">Far clip</div></div>' +
-          '<div style="height:1600px"></div><div data-probe-sibling style="height:350px">Visible sibling</div></div>' +
-          '<div data-near-clip data-page-slide-clip style="position:absolute;top:475px;left:120px;width:120px;overflow:auto;pointer-events:none">' +
-          `<div data-page-slide-row><img src="data:image/png;base64,${pixel}" width="32" height="32" alt="Garden avatar"></div></div>`
-      );
-      await phonePage.querySelector<HTMLImageElement>('[data-near-clip] img')!.decode();
-      const scroller = phonePage.querySelector<HTMLElement>('[data-probe-scroll]')!;
-      scroller.scrollTop = 2030;
-      return (
-        scroller.querySelector('[data-probe-sibling]')!.getBoundingClientRect().top -
-        scroller.getBoundingClientRect().top
-      );
-    }, PIXEL.toString('base64'));
-    await card(page, root).tap();
-    const layout = await page.locator('[data-page-slide-copy]').evaluate(async (copy) => {
-      const stage = copy.parentElement!;
-      const clip = copy.querySelector('[data-near-clip]')!;
-      const scroller = copy.querySelector('[data-probe-scroll]')!;
-      const y =
-        scroller.querySelector('[data-probe-sibling]')!.getBoundingClientRect().top -
-        scroller.getBoundingClientRect().top;
-      const visible = () => clip.getBoundingClientRect().top < stage.getBoundingClientRect().bottom;
-      const before = visible();
-      document.documentElement.style.setProperty('--test-height', '844px');
-      // Through a paint, so a resize callback that ended the slide would have run.
-      await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
-      const canvas = clip.querySelector('canvas');
-      const alpha = canvas?.getContext('2d')?.getImageData(0, 0, 1, 1).data[3];
-      return { y, before, after: visible(), alpha, held: copy.isConnected };
-    });
-    expect(layout.held, 'the copy outlived the resize').toBe(true);
-    expect(layout.y).toBeCloseTo(siblingY, 0);
-    expect(layout.before).toBe(false);
-    expect(layout.after).toBe(true);
-    expect(layout.alpha, 'newly exposed avatar was drawn').toBeGreaterThan(0);
-  });
-});
+  test(`${engine}: scrolled Compact room preserves viewport positions across live forward and back slides`, async ({
+    browser,
+  }) => {
+    test.setTimeout(240_000);
+    const { username, userId, roomId } = await seed(`compact${engine}`, 32);
+    await onPhone(engine, browser, username, {}, async (page) => {
+      await seedRoomOverviewState({
+        page,
+        userId,
+        roomId,
+        viewMode: 'compact',
+        filterState: { ...createDefaultThreadFilterState(), sortBy: 'natural' },
+      });
+      await page.evaluate((id) => {
+        localStorage.setItem(`compactRoomSections:${id}`, JSON.stringify({ on: true, folded: [] }));
+      }, userId);
+      await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+      const view = page.locator('[data-phone-stage] > [data-phone-page] [data-compact-room-view]');
+      await expect(view).toBeVisible({ timeout: 60_000 });
+      await expect
+        .poll(() => view.evaluate((el) => el.scrollHeight > el.clientHeight * 2), {
+          timeout: 60_000,
+        })
+        .toBe(true);
 
-// The copy must keep the scrolled screen and the space for unmounted cards.
-test('webkit: a scrolled Compact room copies what shows, not every card', async ({ browser }) => {
-  test.skip(!WEBKIT_EXECUTABLE, 'needs Playwright WebKit');
-  test.setTimeout(240_000);
-  const threadCount = Number(process.env.PAGE_SLIDE_THREADS ?? 250);
-  const { username, userId, roomId } = await seed('long', threadCount, 1);
-  await onPhone('webkit', browser, username, { heldAt: HELD_AT_MS }, async (page) => {
-    await seedRoomOverviewState({
-      page,
-      userId,
-      roomId,
-      viewMode: 'compact',
-      filterState: { ...createDefaultThreadFilterState(), sortBy: 'natural' },
-    });
-    await page.evaluate((id) => {
-      localStorage.setItem(`compactRoomSections:${id}`, JSON.stringify({ on: true, folded: [] }));
-    }, userId);
-    await page.reload();
-    await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
-    await expect(drawer(page)).toBeHidden();
-    const view = '[data-compact-room-view]';
-    const cards = '[data-thread-root-id]';
-    const before = page.locator(`[data-phone-stage] > [data-phone-page] ${view}`);
-    // The original example includes a root with no replies, which older history may omit.
-    await expect
-      .poll(async () => Number(await before.getAttribute('data-compact-card-count')), {
-        timeout: 90_000,
-      })
-      .toBeGreaterThanOrEqual(threadCount);
-    // The seek below is taken once, against the measured extent: the count shows before it.
-    await expect(before).not.toHaveAttribute('data-cards-pending', 'true', { timeout: 30_000 });
-    const first = before.locator(cards).first();
-    await expect(first).toBeInViewport();
-    const firstId = await first.getAttribute('data-thread-root-id');
-    await before.evaluate((scroller) => {
-      scroller.scrollTop = scroller.scrollHeight * 0.6;
-    });
-    await expect(before.locator(`[data-thread-root-id="${firstId}"]`)).toHaveCount(0);
-    await expect
-      .poll(() =>
-        before.evaluate((scroller, selector) => {
-          const { top, bottom } = scroller.getBoundingClientRect();
-          return Array.from(scroller.querySelectorAll(selector)).filter((card) => {
-            const rect = card.getBoundingClientRect();
-            return rect.top >= top + 80 && rect.bottom <= bottom - 80;
-          }).length;
-        }, cards)
-      )
-      .toBeGreaterThan(2);
-    const settleCards = () =>
-      expect
+      await view.evaluate((el) => {
+        el.scrollTop = Math.round((el.scrollHeight - el.clientHeight) * 0.55);
+      });
+      await expect
         .poll(() =>
-          before.evaluate((scroller) =>
+          view.evaluate((scroller) =>
             scroller
               .getAnimations({ subtree: true })
               .some((animation) =>
@@ -558,250 +569,52 @@ test('webkit: a scrolled Compact room copies what shows, not every card', async 
           )
         )
         .toBe(false);
-    await settleCards();
-    const finishSlide = async () => {
-      await page.evaluate(() => {
-        document.getAnimations().forEach((animation) => {
-          if ((animation as CSSAnimation).animationName?.startsWith('phone-page-'))
-            animation.finish();
-        });
-      });
-      await takeSlides(page, 'the held slide');
-    };
 
-    const initial = await before.evaluate((scroller, shooting) => {
-      const read = (scroller: Element) => {
+      const initial = await view.evaluate((scroller) => {
         const { top, bottom, left, right } = scroller.getBoundingClientRect();
         const visible = Array.from(scroller.querySelectorAll<HTMLElement>('[data-thread-root-id]'))
           .map((row) => ({
-            id: row.dataset.threadRootId,
-            title: row.querySelector('[title]')?.getAttribute('title'),
+            id: row.dataset.threadRootId ?? '',
             rect: row.getBoundingClientRect(),
           }))
           .filter(
-            ({ rect }) =>
-              rect.bottom > top && rect.top < bottom && rect.right > left && rect.left < right
+            ({ id, rect }) =>
+              id && rect.bottom > top && rect.top < bottom && rect.right > left && rect.left < right
           )
-          .map(({ id, title, rect }) => ({
-            id,
-            title,
-            y: rect.top - top,
-            x: rect.left - left,
-            width: rect.width,
-            height: rect.height,
-          }));
-        return {
-          nodes: scroller
-            .closest('[data-page-slide-copy], [data-phone-stage]')!
-            .querySelectorAll('*').length,
-          scrollTop: scroller.scrollTop,
-          scrollHeight: scroller.scrollHeight,
-          visible,
-          height: bottom - top,
-        };
-      };
-
-      type Layout = ReturnType<typeof read>;
-      let live: Layout | undefined;
-      let tap: number | undefined;
-      document.addEventListener(
-        'click',
-        () => {
-          tap = performance.now();
-          live = read(scroller);
-        },
-        { capture: true, once: true }
-      );
-      document.addEventListener('animationstart', (event) => {
-        if (event.animationName === 'phone-page-over-out') {
-          const still = document.querySelector('[data-page-slide-copy]');
-          (window as unknown as { backNodes?: number }).backNodes =
-            still?.querySelectorAll('*').length;
-        }
-        if (event.animationName !== 'phone-page-under-out' || !live) return;
-        const copy = document.querySelector('[data-page-slide-copy] [data-compact-room-view]');
-        const capture = window as unknown as {
-          snapshot?: { layout: Layout; live: Layout; frameMs: number };
-        };
-        if (copy && tap !== undefined && !capture.snapshot)
-          capture.snapshot = { frameMs: performance.now() - tap, layout: read(copy), live };
+          .map(({ id, rect }) => ({ id, y: rect.top - top, height: rect.height }));
+        return { scrollTop: scroller.scrollTop, height: bottom - top, visible };
       });
-      if (shooting) {
-        // Keep the held copy around for screenshots. 2_000 matches PLAY_MS in phonePageSlide.ts.
-        const clock: Window = window;
-        const later = clock.setTimeout.bind(clock);
-        clock.setTimeout = (handler, delay, ...args: unknown[]) =>
-          later(
-            handler,
-            delay === 2_000 && !!document.documentElement.dataset.pageSlide ? 120_000 : delay,
-            ...args
-          );
-      }
-      return read(scroller);
-    }, !!SHOTS);
-    expect(initial.scrollTop).toBeGreaterThan(initial.height * 2);
-    expect(initial.visible.length).toBeGreaterThan(2);
-    expect(initial.visible.every(({ title }) => !!title)).toBe(true);
+      expect(initial.scrollTop).toBeGreaterThan(initial.height);
+      expect(initial.visible.length).toBeGreaterThan(2);
 
-    // A partial row or one behind the glass bars belongs in the copy, but is not a tap target.
-    const tappable = initial.visible.filter(
-      ({ y, height }) => y >= 80 && y + height <= initial.height - 80
-    );
-    const opened = tappable[Math.floor(tappable.length / 2)]!;
-    const viewBox = (await before.boundingBox())!;
-    await page.touchscreen.tap(
-      viewBox.x + opened.x + opened.width / 2,
-      viewBox.y + opened.y + opened.height / 2
-    );
-    const {
-      layout: snapshot,
-      live,
-      frameMs,
-    } = await page
-      .waitForFunction(
-        () => {
-          type Capture = { layout: typeof initial; live: typeof initial; frameMs: number };
-          return (window as unknown as { snapshot?: Capture }).snapshot!;
-        },
-        undefined,
-        { timeout: 30_000 }
-      )
-      .then((capture) => capture.jsonValue());
-    console.log('Compact slide:', { frameMs, liveNodes: live.nodes, copyNodes: snapshot.nodes });
-    if (SHOTS) {
-      await page
-        .locator('[data-page-slide-copy] > *')
-        .evaluateAll((parts) => parts.map((part) => getComputedStyle(part).translate));
-      await page.screenshot({ path: `${SHOTS}/webkit-large-compact-slide.png` });
-    }
-    await expect(threadColumn(page)).toBeVisible();
-    expect(snapshot.scrollTop).toBeCloseTo(live.scrollTop, 0);
-    expect(snapshot.scrollHeight).toBe(live.scrollHeight);
-    expect(snapshot.visible.map(({ id, title }) => ({ id, title }))).toEqual(
-      live.visible.map(({ id, title }) => ({ id, title }))
-    );
-    snapshot.visible.forEach((row, index) => {
-      for (const axis of ['x', 'y', 'width', 'height'] as const) {
-        expect(row[axis]).toBeCloseTo(live.visible[index]![axis], 0);
-      }
+      const tappable = initial.visible.filter(
+        ({ y, height }) => y >= 80 && y + height <= initial.height - 80
+      );
+      const opened = tappable[Math.floor(tappable.length / 2)]!;
+      await takeSlides(page, 'before tapping scrolled card');
+
+      await card(page, opened.id).tap();
+      await expect(threadColumn(page)).toBeVisible();
+      expect(await takeSlides(page, 'scrolled Room → Thread')).toEqual([FORWARD]);
+
+      await threadBack(page).tap();
+      await expect(threadColumn(page)).toBeHidden();
+      expect(await takeSlides(page, 'scrolled Thread → Room')).toEqual([BACK]);
+
+      const anchors = initial.visible.filter(
+        ({ y, height }) => y >= 0 && y + height <= initial.height
+      );
+      await expect
+        .poll(() =>
+          view.evaluate((scroller, rows) => {
+            const top = scroller.getBoundingClientRect().top;
+            return rows.every(({ id, y }) => {
+              const row = scroller.querySelector(`[data-thread-root-id="${CSS.escape(id)}"]`);
+              return row && Math.abs(row.getBoundingClientRect().top - top - y) <= 2;
+            });
+          }, anchors)
+        )
+        .toBe(true);
     });
-    expect(snapshot.nodes).toBeLessThan(2_400);
-
-    await finishSlide();
-    await threadBack(page).tap();
-    const backNodes = await page
-      .waitForFunction(() => (window as unknown as { backNodes?: number }).backNodes!, undefined, {
-        timeout: 10_000,
-      })
-      .then((count) => count.jsonValue());
-    expect(backNodes).toBeLessThan(2_000);
-    await expect(threadColumn(page)).toBeHidden();
-    await finishSlide();
-    // Back restores the screen the reader left, without another scroll from the test.
-    const anchors = live.visible.filter(
-      ({ id, y, height }) => id !== opened.id && y >= 80 && y + height <= live.height - 80
-    );
-    expect(anchors.length).toBeGreaterThanOrEqual(2);
-    await expect
-      .poll(() =>
-        before.evaluate((scroller, rows) => {
-          const top = scroller.getBoundingClientRect().top;
-          return rows.every(({ id, y }) => {
-            const row = scroller.querySelector(`[data-thread-root-id="${CSS.escape(id!)}"]`);
-            return row && Math.abs(row.getBoundingClientRect().top - top - y) <= 2;
-          });
-        }, anchors)
-      )
-      .toBe(true);
-    console.log('Compact back slide:', { copyNodes: backNodes });
   });
-});
-
-const slidesItsPages = async (page: Page, root: string, engine: (typeof ENGINES)[number]) => {
-  {
-    // Home's own page: the list is out.
-    await expect(drawer(page)).toBeVisible();
-    await expect(drawer(page).getByRole('link', { name: 'Garden Club' })).toBeVisible();
-    // Nothing slid on the way in: the list was out with the first page. Nor on a fresh load.
-    expect(await takeSlides(page, 'signed in'), 'signing in').toEqual([]);
-    await page.reload();
-    await expect(drawer(page).getByRole('link', { name: 'Garden Club' })).toBeVisible({
-      timeout: 60_000,
-    });
-    expect(await takeSlides(page, 'loaded again'), 'a fresh load').toEqual([]);
-
-    // A frame of each slide mid-way: a page slide is held there (`recordSlides`) until its copy
-    // goes, and Chromium slows the drawer's to a tenth.
-    const slow =
-      SHOTS && engine === 'chromium' ? await page.context().newCDPSession(page) : undefined;
-    await slow?.send('Animation.enable');
-    await slow?.send('Animation.setPlaybackRate', { playbackRate: 0.1 });
-    const shot = async (name: string, pageSlide = false) => {
-      if (!SHOTS || !(pageSlide || slow)) return;
-      if (pageSlide) await expect(page.locator('[data-page-slide-copy]')).toHaveCount(1);
-      await page.waitForTimeout(pageSlide ? 300 : 900);
-      // WebKit draws a slide held while it played where it is held only once its style is read.
-      if (pageSlide) {
-        await page
-          .locator('[data-page-slide-copy] > *')
-          .evaluateAll((parts) => parts.map((part) => getComputedStyle(part).translate));
-      }
-      await page.screenshot({ path: `${SHOTS}/${engine}-${name}.png` });
-    };
-
-    // Whatever the drawer did on the way in is no part of what follows.
-    await spliceDrawerSlides(page);
-    await drawer(page).getByRole('link', { name: 'Garden Club' }).tap();
-    await shot('1-list-slides-away');
-    await expect(card(page, root)).toBeVisible({ timeout: 60_000 });
-    await expect(drawer(page)).toBeHidden();
-    // The page stays put, and the drawer slides away over the room to its end.
-    expect(await takeSlides(page, 'a room from the list'), 'a room from the list').toEqual([]);
-    expect(await takeDrawerSlide(page, 'a room from the list'), 'the drawer slides away').toEqual([
-      'transitionrun',
-      'transitionend',
-    ]);
-
-    await card(page, root).tap();
-    await shot('2-thread-comes-in', true);
-    await expect(threadColumn(page)).toBeVisible();
-    expect(await takeSlides(page, 'a thread from its room'), 'a thread from its room').toEqual([
-      FORWARD,
-    ]);
-
-    await threadBack(page).tap();
-    await shot('3-thread-leaves', true);
-    await expect(threadColumn(page)).toBeHidden();
-    expect(await takeSlides(page, 'back to the room'), 'back to the room').toEqual([BACK]);
-
-    // The browser's back (Android's back button) leaves the room for the list.
-    await page.goBack();
-    await shot('4-room-leaves', true);
-    await expect(drawer(page)).toBeVisible();
-    expect(await takeSlides(page, 'back to the list'), 'back to the list').toEqual([BACK]);
-
-    // Another section's list in the place of this one: as deep as before, nothing slides.
-    await drawer(page).getByRole('link', { name: 'Harbor Plans' }).tap();
-    await expect(drawer(page)).toBeHidden();
-    await takeSlides(page, 'the other room');
-    await takeDrawerSlide(page, 'the other room');
-
-    // The menu button brings the list out over the page, which stays put, and puts it away.
-    await spliceDrawerSlides(page);
-    await menuButton(page).tap();
-    await shot('5-list-comes-out');
-    await expect(drawer(page)).toBeVisible();
-    expect(await takeSlides(page, 'the menu button'), 'the page stays put').toEqual([]);
-    expect(await takeDrawerSlide(page, 'the menu button'), 'the drawer slides in').toEqual([
-      'transitionrun',
-      'transitionend',
-    ]);
-    await menuButton(page).tap();
-    await expect(drawer(page)).toBeHidden();
-    expect(await takeSlides(page, 'the menu button again'), 'the page stays put').toEqual([]);
-    expect(await takeDrawerSlide(page, 'the menu button again'), 'the drawer slides away').toEqual([
-      'transitionrun',
-      'transitionend',
-    ]);
-  }
-};
+}

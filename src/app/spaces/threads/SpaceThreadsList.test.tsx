@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { Activity } from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { EventType, MatrixEvent, SyncState, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -19,6 +20,7 @@ import { resetPendingThreadTagsForTests } from '../../threads/tags/threadTagPend
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
 import type { SpaceRoomItem } from './spaceThreadsModel';
+import { SpaceThreadsPassiveContext } from '../spaceUnderLayerContext';
 import { SpaceThreadsList, type SpaceThreadsListProps } from './SpaceThreadsList';
 
 const ME = '@me:example.org';
@@ -58,7 +60,13 @@ vi.mock('../../threads/ThreadActionsMenu', () => ({
   },
 }));
 
-vi.mock('../../threads/overview/ThreadCardBadges', () => ({ ThreadCardBadges: () => null }));
+const badgeMocks = vi.hoisted(() => ({ renders: 0 }));
+vi.mock('../../threads/overview/ThreadCardBadges', () => ({
+  ThreadCardBadges: () => {
+    badgeMocks.renders += 1;
+    return <span data-testid="plugin-thread-badge" />;
+  },
+}));
 
 const makeDeferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -639,7 +647,7 @@ describe('SpaceThreadsList', () => {
     );
   });
 
-  it('bounds mounted cards for 3,000 sectioned threads and clips phone slides', () => {
+  it('bounds mounted cards for 3,000 sectioned threads', () => {
     vi.useFakeTimers();
     stubCompactLayout({ viewAttr: 'data-space-threads-list' });
     const entries = Array.from({ length: 3000 }, (_, i) =>
@@ -656,12 +664,11 @@ describe('SpaceThreadsList', () => {
       sections,
     });
     const list = container.querySelector<HTMLElement>('[data-space-threads-list="true"]')!;
-    expect(list.hasAttribute('data-page-slide-clip')).toBe(true);
     expect(list.dataset.compactCardCount).toBe('3000');
     expect([...container.querySelectorAll('[data-compact-section]')]).toHaveLength(3);
     expect(container.querySelectorAll('[data-scroll-anchor]').length).toBeLessThanOrEqual(48);
     expect(container.querySelector('[data-thread-root-id="$t-2999"]')).toBeNull();
-  });
+  }, 15_000);
 
   it('reaches far-down sectioned threads via End, Home, ArrowDown, and deep scroll', () => {
     vi.useFakeTimers();
@@ -750,6 +757,113 @@ describe('SpaceThreadsList', () => {
       48
     );
   }, 30_000);
+  it('preserves scrollTop and avoids block-0 flash across Activity visible -> hidden -> visible and suppresses plugin badges while passive', () => {
+    vi.useFakeTimers();
+    badgeMocks.renders = 0;
+    const layout = stubCompactLayout({ viewAttr: 'data-space-threads-list' });
+    const scrollMemory: ScrollAnchorMemory = new Map();
+    const entries = Array.from({ length: 96 }, (_, i) =>
+      entry(i % 2 === 0 ? ROOM_A : ROOM_B, `$act-${i}`, `Activity thread ${i}`)
+    );
+    const rooms = [makeRoom(ROOM_A, 'Engineering'), makeRoom(ROOM_B, 'Design')];
+    const roomMap = new Map(rooms.map((r) => [r.roomId, r] as const));
+    const mx = {
+      getSafeUserId: () => ME,
+      getUserId: () => ME,
+      getHomeserverUrl: () => 'https://example.org',
+      getRoom: (id: string) => roomMap.get(id) ?? null,
+      getSyncState: () => SyncState.Syncing,
+      on: vi.fn(),
+      off: vi.fn(),
+      removeListener: vi.fn(),
+      mxcUrlToHttp: () => null,
+    } as unknown as MatrixClient;
+    rooms.forEach((room) => Object.assign(room, { client: mx }));
+    const roomsById = new Map(
+      rooms.map((room, i) => [
+        room.roomId,
+        { room, name: room.name, accentColor: i === 0 ? '#111' : '#222' },
+      ])
+    );
+    const entryKeys = entries.map((e) => e.key);
+    const entryByKey = new Map(entries.map((e) => [e.key, e]));
+
+    const viewOf = (
+      mode: 'visible' | 'hidden',
+      passive: boolean,
+      keys = entryKeys,
+      byKey = entryByKey
+    ) => (
+      <MatrixClientProvider value={mx}>
+        <SpaceThreadsPassiveContext.Provider value={passive}>
+          <Activity mode={mode}>
+            <SpaceThreadsList
+              entryKeys={keys}
+              entryByKey={byKey}
+              foldedSections={[]}
+              onToggleSectionFold={() => undefined}
+              roomsById={roomsById}
+              showRoomBadge
+              snoozeNow={1_000}
+              metaVersion={0}
+              showLoading={false}
+              scrollMemory={scrollMemory}
+              scrollMemoryKey="!space:example.org"
+              onOpenThread={() => undefined}
+            />
+          </Activity>
+        </SpaceThreadsPassiveContext.Provider>
+      </MatrixClientProvider>
+    );
+
+    const rendered = render(viewOf('visible', false));
+    const list = rendered.container.querySelector<HTMLElement>('[data-space-threads-list="true"]')!;
+    tickFrames(10);
+    layout.scroll(list, 6000);
+    expect(rendered.container.querySelector('[data-thread-root-id="$act-60"]')).not.toBeNull();
+    expect(rendered.container.querySelector('[data-thread-root-id="$act-0"]')).toBeNull();
+
+    // Hide via <Activity mode="hidden">.
+    rendered.rerender(viewOf('hidden', false));
+    expect(scrollMemory.get('!space:example.org')?.scrollTop).toBe(6000);
+
+    // Simulate WebKit resetting scrollTop to 0 under display: none.
+    list.scrollTop = 0;
+    const rendersBeforePeek = badgeMocks.renders;
+
+    // Reveal passively (as during a swipe-back peek): scrollTop restores synchronously before
+    // useCompactBlocks layout(), block-0 never flashes, and plugin badges stay unmounted.
+    rendered.rerender(viewOf('visible', true));
+    expect(list.scrollTop).toBe(6000);
+    expect(rendered.container.querySelector('[data-thread-root-id="$act-60"]')).not.toBeNull();
+    expect(rendered.container.querySelector('[data-thread-root-id="$act-0"]')).toBeNull();
+    expect(badgeMocks.renders).toBe(rendersBeforePeek);
+    expect(rendered.container.querySelector('[data-testid="plugin-thread-badge"]')).toBeNull();
+
+    // Reveal actively on commit: scrollTop stays at 6000 and plugin badges mount again.
+    rendered.rerender(viewOf('visible', false));
+    expect(list.scrollTop).toBe(6000);
+    expect(badgeMocks.renders).toBeGreaterThan(rendersBeforePeek);
+
+    // 2nd hide -> insert a new thread at the top while hidden -> reveal tracks anchored card
+    // instead of keeping stale raw pixel scrollTop=6000.
+    const anchorTopBefore2ndHide = rendered.container
+      .querySelector<HTMLElement>('[data-scroll-anchor="$act-60"]')!
+      .getBoundingClientRect().top;
+    rendered.rerender(viewOf('hidden', false));
+    list.scrollTop = 0;
+    const inserted = entry(ROOM_A, '$act-new-top', 'Inserted while hidden');
+    const nextKeys = [inserted.key, ...entryKeys];
+    const nextByKey = new Map([[inserted.key, inserted], ...entryByKey]);
+    rendered.rerender(viewOf('visible', false, nextKeys, nextByKey));
+    tickFrames(4);
+    expect(list.scrollTop).toBe(6100);
+    const anchorTopAfter2ndReveal = rendered.container
+      .querySelector<HTMLElement>('[data-scroll-anchor="$act-60"]')!
+      .getBoundingClientRect().top;
+    expect(Math.abs(anchorTopAfter2ndReveal - anchorTopBefore2ndHide)).toBeLessThanOrEqual(2);
+  }, 30_000);
+
   it('arbitrates macOS Electron trackpad swipes with desktopHistorySwipe across non-cancelable wheels, horizontal scrollers, and swipe-tracking=false', async () => {
     const shellListeners = new Set<(event: DesktopShellEvent) => void>();
     const emitShell = (event: DesktopShellEvent) =>

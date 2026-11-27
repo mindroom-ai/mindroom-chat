@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from 'jotai';
 import {
   MatrixEventEvent,
@@ -31,6 +31,7 @@ import { revealDirectionControls } from '../../ui/directional';
 import { getRoomAccentColor, type SpaceRoomItem } from './spaceThreadsModel';
 
 const ZERO_REPLY_RESCAN_DEBOUNCE_MS = 150;
+const EMPTY_ROOM_IDS: readonly string[] = [];
 
 const shouldTriggerStandaloneRescan = (
   event: MatrixEvent,
@@ -58,12 +59,15 @@ const shouldTriggerStandaloneRescan = (
  * metadata/agent changes, and debounces rescans for standalone 0-reply roots (including decryption,
  * non-streaming edits, and main-timeline read receipts).
  */
-export const useSpaceThreadsRooms = (spaceId: string) => {
+export const useSpaceThreadsRooms = (spaceId: string, passive = false) => {
   const mx = useMatrixClient();
   const store = useStore();
   const visibleSpaceRoomIds = useVisibleRooms(useSpaceNavigationRooms(spaceId));
-  const threadListsSettled = useJoinedRoomThreadLists(true, visibleSpaceRoomIds);
-  const loadedMembersVersion = useLoadedRoomMembers(mx, visibleSpaceRoomIds);
+  const threadListsSettled = useJoinedRoomThreadLists(true, visibleSpaceRoomIds, !passive);
+  const loadedMembersVersion = useLoadedRoomMembers(
+    mx,
+    passive ? EMPTY_ROOM_IDS : visibleSpaceRoomIds
+  );
   const spaceRooms = useMemo(
     () =>
       visibleSpaceRoomIds.map((id) => mx.getRoom(id)).filter((room): room is Room => Boolean(room)),
@@ -72,10 +76,22 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
 
   const [roomMetaVersion, setRoomMetaVersion] = useState(0);
   const [timelineTick, setTimelineTick] = useState(0);
+  const metaSuspendedRef = useRef(false);
 
   useEffect(() => {
-    if (spaceRooms.length === 0) return undefined;
+    if (passive || spaceRooms.length === 0) {
+      metaSuspendedRef.current = true;
+      return undefined;
+    }
     const bumpMeta = () => setRoomMetaVersion((tick) => tick + 1);
+    // Refresh room metadata and standalone timeline snapshot on `<Activity>` reveal or
+    // passive→active transition so rooms renamed or standalone messages received while parked
+    // appear immediately.
+    if (metaSuspendedRef.current) {
+      metaSuspendedRef.current = false;
+      bumpMeta();
+      setTimelineTick((tick) => tick + 1);
+    }
     const handleState = (event: MatrixEvent) => {
       const type = event.getType();
       if (
@@ -93,6 +109,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
       room.on?.(RoomEvent.CurrentStateUpdated, bumpMeta);
     });
     return () => {
+      metaSuspendedRef.current = true;
       spaceRooms.forEach((room) => {
         room.removeListener?.(RoomEvent.Name, bumpMeta);
         room.removeListener?.(RoomStateEvent.Members, bumpMeta);
@@ -100,7 +117,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
         room.removeListener?.(RoomEvent.CurrentStateUpdated, bumpMeta);
       });
     };
-  }, [spaceRooms]);
+  }, [passive, spaceRooms]);
 
   const metaVersion = roomMetaVersion + loadedMembersVersion;
 
@@ -121,7 +138,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
   const orderedRoomIds = useMemo(() => [...roomsById.keys()], [roomsById]);
 
   useEffect(() => {
-    if (spaceRooms.length === 0) return undefined;
+    if (passive || spaceRooms.length === 0) return undefined;
     const roomById = new Map(spaceRooms.map((room) => [room.roomId, room] as const));
     const myUserId = mx.getUserId?.();
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -165,7 +182,7 @@ export const useSpaceThreadsRooms = (spaceId: string) => {
       });
       mx.removeListener?.(MatrixEventEvent.Decrypted, onDecrypted);
     };
-  }, [mx, spaceRooms, store]);
+  }, [mx, passive, spaceRooms, store]);
 
   const hasMindroomAgents = useMemo(() => {
     void metaVersion;

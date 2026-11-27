@@ -16,11 +16,7 @@ import {
   SWIPE_PRIORITY,
   animateSwipeElements,
 } from '../navigation/interactiveSwipe';
-import {
-  afterWaitingSlide,
-  isPhonePageSlideActive,
-  movePhoneNavDrawer,
-} from '../navigation/phonePageSlide';
+import { skipActiveLiveSlide } from '../navigation/phonePageSlide';
 import { useEdgeSwipe } from '../navigation/useEdgeSwipe';
 import { edgeSwipeBackCountAtom } from '../navigation/useEdgeSwipeBack';
 import { useSwipeAway } from '../navigation/useSwipeAway';
@@ -78,12 +74,12 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
  */
 export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const [open, setOpenNow] = useAtom(phoneNavDrawerOpenAtom);
-  // What a person does to the drawer goes through `movePhoneNavDrawer`: the drawer slides in and
-  // away on its own over the page, which stays put; what follows a navigation is part of that
-  // navigation's slide.
+  // Opening the drawer cancels any in-flight live page slide so its built-in 280 ms slide-in plays
+  // immediately without racing a stale Back commit.
   const setOpen = useCallback(
     (next: boolean) => {
-      void movePhoneNavDrawer(next, setOpenNow);
+      if (next) skipActiveLiveSlide();
+      setOpenNow(next);
     },
     [setOpenNow]
   );
@@ -103,7 +99,6 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
   const swipedClosedRef = useRef(false);
-  const pendingOpenHandoffRef = useRef<{ panel: HTMLElement; scrim: HTMLElement } | null>(null);
   const mountedRef = useRef(true);
   // Motion only from the frame after the drawer first shows the stored state, so a page that opens
   // with the drawer out does not slide it. The page brings it out in a layout effect of the first
@@ -119,39 +114,23 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
 
   useDrawerFollowsNavigation(setOpenNow);
   useInert(panelRef, !open);
+  useLayoutEffect(() => {
+    if (open) skipActiveLiveSlide(false);
+  }, [open]);
   // Gone with the phone layout (a phone turned sideways), the drawer is away: nothing else would
-  // put it away, and edge swipes rest while it is out. After an opening that still waits for the
-  // page slide's frame, which would otherwise leave it out with no drawer there.
-  useEffect(() => () => afterWaitingSlide(() => setOpenNow(false)), [setOpenNow]);
+  // put it away, and edge swipes rest while it is out.
+  useEffect(() => () => setOpenNow(false), [setOpenNow]);
 
   // Put away, the drawer drops the rail and the list once it has slid out, as a phone's page had
   // them unmounted before; out, sliding, or peeking during an interactive edge swipe, it holds them.
   const [sliding, setSliding] = useState(false);
   const [peeking, setPeeking] = useState(false);
-  const clearPendingOpenHandoff = useCallback((resetPeeking: boolean) => {
-    const pending = pendingOpenHandoffRef.current;
-    if (!pending) return;
-    pendingOpenHandoffRef.current = null;
-    pending.panel.style.translate = '';
-    pending.scrim.style.opacity = '';
-    void pending.panel.offsetWidth;
-    delete pending.panel.dataset.swiping;
-    delete pending.scrim.dataset.swiping;
-    if (resetPeeking && mountedRef.current) {
-      setPeeking(false);
-    }
-  }, []);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      clearPendingOpenHandoff(false);
     };
-  }, [clearPendingOpenHandoff]);
-  useLayoutEffect(() => {
-    if (!open || !pendingOpenHandoffRef.current) return;
-    clearPendingOpenHandoff(true);
-  }, [open, clearPendingOpenHandoff]);
+  }, []);
   useEffect(() => {
     if (open) {
       swipedClosedRef.current = false;
@@ -236,7 +215,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const openDrawer = useCallback(() => setOpen(true), [setOpen]);
   const beginOpenSwipe = useCallback(
     ({ dirSign }: { axisSign: 1 | -1; dirSign: 1 | -1 }): InteractiveSwipeScene | null => {
-      if (isPhonePageSlideActive() || pendingOpenHandoffRef.current) return null;
+      skipActiveLiveSlide();
       const panel = panelRef.current;
       const scrim = scrimRef.current;
       if (!panel || !scrim) return null;
@@ -263,7 +242,6 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
       scrim.dataset.swiping = '';
 
       let didCommit = false;
-      let handedOff = false;
       let cleaned = false;
 
       const clearSwipeStyles = () => {
@@ -301,31 +279,18 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         },
         commit() {
           didCommit = true;
-          let deferred: Promise<void> | undefined;
+          skipActiveLiveSlide();
           flushSync(() => {
-            deferred = movePhoneNavDrawer(true, setOpenNow);
+            setOpenNow(true);
+            setPeeking(false);
           });
-          if (store.get(phoneNavDrawerOpenAtom) || !deferred) {
-            flushSync(() => setPeeking(false));
-            if (!cleaned) {
-              cleaned = true;
-              clearSwipeStyles();
-            }
-            return;
+          if (!cleaned) {
+            cleaned = true;
+            clearSwipeStyles();
           }
-          // Deferred behind a phone page slide that began mid-drag/settle: keep the settled open
-          // state visually pinned until `[data-open]` commits (or the slide ends without opening).
-          handedOff = true;
-          const handoff = { panel, scrim };
-          pendingOpenHandoffRef.current = handoff;
-          void deferred.finally(() => {
-            if (pendingOpenHandoffRef.current === handoff && !store.get(phoneNavDrawerOpenAtom)) {
-              clearPendingOpenHandoff(true);
-            }
-          });
         },
         cleanup(committed) {
-          if (cleaned || handedOff) return;
+          if (cleaned) return;
           cleaned = true;
           clearSwipeStyles();
           if (!committed && !didCommit && mountedRef.current) {
@@ -334,7 +299,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         },
       };
     },
-    [clearPendingOpenHandoff, setOpenNow, store]
+    [setOpenNow, store]
   );
   useEdgeSwipe({
     direction: 'back',

@@ -31,7 +31,7 @@ import { createSpaceModalAtom } from '../navigation/createSpaceModal';
 import { desktopAccessModalAtom } from '../navigation/desktopAccessModal';
 import { incomingPairInviteAtom } from '../desktop-access/incomingPairInviteAtom';
 import { imageViewerOpenAtom } from '../navigation/imageViewerState';
-import { clearPhoneSwipePreviews } from '../navigation/phonePageSlide';
+import { skipActiveLiveSlide } from '../navigation/phonePageSlide';
 import {
   phoneNavDrawerOpenAtom,
   phoneNavSectionRootAtom,
@@ -114,7 +114,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(activityShowAutomationsAtom),
   toInitial(userDirectoryCacheAtom),
   toInitial(lastExitedThreadAtom),
-  () => clearPhoneSwipePreviews(),
+  () => skipActiveLiveSlide(),
   () => stopVoiceAudioPlayback(),
   // What the pages were showing: the call and its panel (and its focus hand-off), transcription,
   // the Sub-agents panel, agent-call failures, and open dialogs and overlays.

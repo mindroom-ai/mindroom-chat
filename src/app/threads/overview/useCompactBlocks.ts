@@ -64,7 +64,13 @@ export function useCompactBlocks(options: Options) {
       gesture: undefined as { id: string; pointer?: number } | undefined,
     };
   }, [memory, roomId]);
+  if (!state.placed) {
+    const latestSaved = memory.get(roomId);
+    if (latestSaved) state.saved = latestSaved;
+  }
   const { geometry, saved } = state;
+  const savedScrollTopRef = useRef<{ roomId: string; scrollTop: number } | undefined>(undefined);
+  const restoredScrollTopRef = useRef<number | undefined>(undefined);
   const { heights, fresh, gap } = geometry;
   const [, render] = useReducer((revision: number) => revision + 1, 0);
   const blocks: string[][] = [];
@@ -117,7 +123,11 @@ export function useCompactBlocks(options: Options) {
   // went, so what places the list (the anchor memory, the browser) chooses as among all cards.
   const moved = state.order !== order;
   const seen = moved ? [] : slots(geometry.visible);
-  const offset = (back && placeReady ? saved?.scrollTop : scrollRef.current?.scrollTop) ?? 0;
+  const liveScrollTop =
+    savedScrollTopRef.current?.roomId === roomId
+      ? savedScrollTopRef.current.scrollTop
+      : scrollRef.current?.scrollTop;
+  const offset = (back && placeReady ? saved?.scrollTop : liveScrollTop) ?? 0;
   let here = 0;
   for (let end = 0; offset > 0 && here < blocks.length - 1; here += 1) {
     for (const id of blocks[here]!) end += (heights.get(id) ?? 0) + gap;
@@ -201,7 +211,14 @@ export function useCompactBlocks(options: Options) {
     };
     const scroll = () => {
       clearResizeTimer();
-      const takeover = !state.placed && !!state.saved?.scrollTop && view.scrollTop !== 0;
+      const isRestoredScroll =
+        restoredScrollTopRef.current !== undefined &&
+        view.scrollTop === restoredScrollTopRef.current;
+      if (isRestoredScroll) {
+        restoredScrollTopRef.current = undefined;
+      }
+      const takeover =
+        !isRestoredScroll && !state.placed && !!state.saved?.scrollTop && view.scrollTop !== 0;
       if (takeover) state.placed = state.left = true;
       const wake = takeover || state.end;
       state.end = false;
@@ -270,6 +287,28 @@ export function useCompactBlocks(options: Options) {
       view.removeEventListener('scroll', scroll);
     };
   }, [contentRef, geometry, getRowId, memory, roomId, scrollRef, state]);
+  useLayoutEffect(() => {
+    const view = scrollRef.current;
+    const pending = savedScrollTopRef.current;
+    if (view && pending?.roomId === roomId && view.clientHeight > 0) {
+      if (view.scrollTop !== pending.scrollTop) {
+        view.scrollTop = pending.scrollTop;
+        restoredScrollTopRef.current = view.scrollTop;
+      }
+      savedScrollTopRef.current = undefined;
+    }
+    return () => {
+      // Capture scrollTop before `<Activity mode="hidden">` sets `display: none` (which resets
+      // scrollTop to 0 in WebKit); never overwrite from a zero-sized hidden element.
+      if (view && view.clientHeight > 0) {
+        savedScrollTopRef.current = { roomId, scrollTop: view.scrollTop };
+      }
+      restoredScrollTopRef.current = undefined;
+      state.placed = false;
+      state.left = false;
+      state.reachable = undefined;
+    };
+  }, [roomId, scrollRef, state]);
   useLayoutEffect(() => {
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return;

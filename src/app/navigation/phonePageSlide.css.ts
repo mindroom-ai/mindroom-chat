@@ -1,102 +1,50 @@
-import { globalKeyframes, globalStyle } from '@vanilla-extract/css';
+import { globalStyle } from '@vanilla-extract/css';
 import { color } from 'folds';
-import { motion } from '../ui/styles/Motion.css';
 
-// A phone's page slide (phonePageSlide.ts): a still copy of the phone layout as it was, laid over
-// the layout, and the layout as it is move past each other with `translate`, which lays nothing
-// out and leaves an element's own `transform` (the navigation drawer's) alone.
-// `html[data-page-slide]` is there from the call until the slide ends, and says `forward` or
-// `back` once the page has changed and the copy is in.
+// Live 2-layer phone navigation stack (phonePageSlide.ts): two live DOM layers slide past each
+// other with GPU `translate` inside a rectangular `overflow: clip` stage (zero DOM cloning, zero
+// `<canvas>` bitmaps, zero `clip-path` masks).
 
-const STAGE = '[data-phone-stage]';
-const COPY = '[data-page-slide-copy]';
-const PREVIEW = '[data-swipe-preview]';
-const DIM = '[data-swipe-dim]';
-const HOLD_SHIELD = '[data-swipe-hold-shield]';
-// What slides: all of the layout but the top bar, which stays above every page.
-const SLIDES = `:not([data-phone-top-bar], [data-page-slide-copy], ${PREVIEW}, ${DIM}, ${HOLD_SHIELD})`;
-const forward = "html[data-page-slide='forward']";
-const back = "html[data-page-slide='back']";
-const playing = (selector: string) => `${forward} ${selector}, ${back} ${selector}`;
-
-// The layout takes no taps while it slides: they would land on what moves. Over the layout only,
-// and gone with it: a page that takes its place (signed out, turned sideways) takes taps at once.
-globalStyle(playing(`${STAGE}::after`), {
-  content: '""',
-  position: 'absolute',
-  inset: 0,
-  zIndex: 2147483647,
+// Cold-reload fallback stage clipping when no live under-layer was mounted yet.
+globalStyle('[data-phone-stage][data-swipe-stage]', {
+  overflow: 'clip',
+  isolation: 'isolate',
 });
 
-// Nothing that slides shows outside the layout or makes it scroll, and the copy's place under or
-// over the layout's own layers (the drawer) is counted inside it.
-globalStyle(playing(STAGE), { overflow: 'clip', isolation: 'isolate' });
-globalStyle(`${STAGE}[data-swipe-stage]`, { overflow: 'clip', isolation: 'isolate' });
-// The copy fills the layout as the layout fills its own place (`position` is set on it, over
-// the layout's own).
-globalStyle(COPY, { inset: 0, pointerEvents: 'none' });
-globalStyle(`${forward} ${COPY}`, { zIndex: -1 });
-globalStyle(`${back} ${COPY}`, { zIndex: 2 });
-// Still: what played in the page when it was copied shows as it ended, and plays no more.
-// 168s is a multiple of both 1.4s (ThreadStreamingDot) and 1.2s (TypingDot), so infinite pulses
-// freeze at 0% (matching a freshly mounted view) while finite entrance animations stay ended.
-globalStyle(`${COPY} > * *`, {
-  animationDelay: '-168s !important',
-  animationPlayState: 'paused !important',
-});
-
-// Interactive finger-following thread <-> room swipe preview and dim veil layers.
-globalStyle(PREVIEW, {
+// Neutral themed surface backdrop for cold-reload swipe-back fallback (kept below the top bar).
+globalStyle('[data-swipe-backdrop]', {
   position: 'absolute',
   inset: 0,
+  zIndex: 0,
   pointerEvents: 'none',
-});
-globalStyle(`${PREVIEW}[data-swipe-backdrop]`, {
-  insetBlockStart: 0,
   backgroundColor: 'var(--app-bg-color)',
 });
-globalStyle("[data-swipe-preview='under'], [data-swipe-preview='backdrop']", {
-  zIndex: -1,
-});
-globalStyle("[data-swipe-preview='over'], [data-swipe-preview='over-backdrop']", {
-  zIndex: 2,
-});
-globalStyle("[data-swipe-preview='hold']", {
-  zIndex: 2,
-});
-// Blocks taps below the top bar from the release of an interactive thread swipe, while it settles
-// and while its async handoff awaits route commit, so taps on what moves or on the settled
-// preview cannot activate controls in the page underneath.
-globalStyle(HOLD_SHIELD, {
+
+// Subtle dim veil between the live upper and lower layers during a slide or swipe.
+globalStyle('[data-swipe-dim]', {
   position: 'absolute',
-  insetInline: 0,
-  insetBlockEnd: 0,
-  insetBlockStart: 0,
+  inset: 0,
+  zIndex: 1,
+  backgroundColor: 'rgb(0 0 0)',
+  pointerEvents: 'none',
+});
+
+// Blocks double-taps while a live slide plays or an interactive swipe settles and awaits commit.
+globalStyle('[data-swipe-hold-shield]', {
+  position: 'absolute',
+  inset: 0,
   zIndex: 3,
   pointerEvents: 'auto',
 });
 
-globalStyle(DIM, {
-  position: 'absolute',
-  insetInline: 0,
-  insetBlockEnd: 0,
-  insetBlockStart: 0,
-  backgroundColor: 'rgb(0 0 0)',
-  pointerEvents: 'none',
-});
-globalStyle("[data-swipe-dim='back']", {
-  zIndex: -1,
-});
-globalStyle("[data-swipe-dim='forward'], [data-swipe-dim='live-back']", {
-  zIndex: 1,
-});
-
-// Live in-place room peek behind a sliding thread column when no cached room preview matches.
+// Live 2-layer navigation stage (RoomView and SpaceSectionPage).
 globalStyle('[data-swipe-thread-stage]', {
   position: 'relative',
   overflow: 'clip',
   isolation: 'isolate',
 });
+
+// Live inert under-layer revealed behind a sliding upper surface.
 globalStyle('[data-swipe-under-thread]', {
   position: 'absolute !important' as 'absolute',
   inset: '0 !important',
@@ -108,44 +56,17 @@ globalStyle('[data-swipe-under-thread]', {
   pointerEvents: 'none !important' as 'none',
   zIndex: '0 !important',
 });
+
+// Live upper layer sliding over the revealed under-layer and dim veil.
 globalStyle('[data-swipe-over-thread]', {
   position: 'relative',
   zIndex: 2,
   backgroundColor: color.Surface.Container,
 });
 
-// The end edge is the right one, or the left where lines run right to left.
-globalStyle('html', { vars: { '--phone-slide-end': '1' } });
-globalStyle("html[dir='rtl']", { vars: { '--phone-slide-end': '-1' } });
-// As far as the phone is wide, whatever the width of what slides (the drawer is narrower).
-const offEnd = 'calc(100vw * var(--phone-slide-end)) 0';
-// The page under moves a third as far, as it does in a phone's own apps.
-const aside = 'calc(-30vw * var(--phone-slide-end)) 0';
-
-const overIn = 'phone-page-over-in';
-const overOut = 'phone-page-over-out';
-const underIn = 'phone-page-under-in';
-const underOut = 'phone-page-under-out';
-globalKeyframes(overIn, { from: { translate: offEnd } });
-globalKeyframes(overOut, { to: { translate: offEnd } });
-globalKeyframes(underIn, { from: { translate: aside } });
-globalKeyframes(underOut, { to: { translate: aside } });
-
-// As long as the navigation drawer's slide, which this one shows in place of.
-const play = (name: string) =>
-  `${name} ${motion.duration.Slower} ${motion.easing.Standard} both` as const;
-
-globalStyle(`${forward} ${STAGE} > ${SLIDES}`, { animation: play(overIn) });
-globalStyle(`${forward} ${COPY} > ${SLIDES}`, { animation: play(underOut) });
-globalStyle(`${back} ${STAGE} > ${SLIDES}`, { animation: play(underIn) });
-globalStyle(`${back} ${COPY} > ${SLIDES}`, { animation: play(overOut) });
-// Held at its start, the copy in the place of the page as it was, until the page that slides in
-// has been drawn (`html[data-page-slide-held]`, phonePageSlide.ts).
-globalStyle(`html[data-page-slide-held] :is(${STAGE}, ${COPY}) > ${SLIDES}`, {
-  animationPlayState: 'paused',
-});
-// The page that is over casts a shadow on the one under, to its sides only: not on the top bar.
-globalStyle(`${forward} ${STAGE} > [data-phone-page], ${back} ${COPY} > [data-phone-page]`, {
-  boxShadow: '0 0 24px rgb(0 0 0 / 0.24)',
-  clipPath: 'inset(0 -48px)',
+// Cold-reload fallback lifts inline clipping on [data-phone-page] while sliding so its 16 px
+// leading-edge ::before shadow renders cleanly inside the clipped [data-phone-stage].
+globalStyle('[data-phone-stage][data-swipe-stage] > [data-phone-page][data-swipe-over-thread]', {
+  overflowInline: 'visible',
+  overflowBlock: 'clip',
 });

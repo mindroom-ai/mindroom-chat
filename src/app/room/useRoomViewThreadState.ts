@@ -9,7 +9,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -25,14 +24,18 @@ import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { isIOSStandaloneWebApp, isNativeIOS } from '../native/nativeSso';
 import { SWIPE_PRIORITY } from '../navigation/interactiveSwipe';
 import {
-  clearActivePhoneSwipeContext,
-  createThreadBackSwipeScene,
-  createThreadForwardSwipeScene,
-  getCurrentPhoneLocationKey,
+  canPlayLiveSlide,
+  createLiveBackSwipeScene,
+  createLiveForwardSwipeScene,
+  getActiveLiveSlideDirection,
+  isLiveHandoffActive,
+  playLiveSlide,
+  registerLiveHistoryBackSlide,
+  skipActiveLiveSlide,
+  type LiveSlideHandle,
   type LiveThreadBackUnder,
-  rekeyPhoneSwipePreviewThread,
-  setActivePhoneSwipeContext,
 } from '../navigation/phonePageSlide';
+import { useSpaceUnderLayer } from '../spaces/spaceUnderLayerContext';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { conversationBehindPanelAtom } from '../navigation/conversationCover';
@@ -85,6 +88,7 @@ export type LiveRoomPeekFocus = {
 };
 
 type UseRoomViewThreadStateOptions = {
+  enterLiveForwardPeek?: (threadId: string) => LiveThreadBackUnder | null;
   enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
   eventId?: string;
   hasMindroomAgents?: boolean;
@@ -129,6 +133,7 @@ export type RoomViewThreadState = {
 };
 
 export const useRoomViewThreadState = ({
+  enterLiveForwardPeek,
   enterLiveRoomPeek,
   eventId,
   hasMindroomAgents = true,
@@ -293,11 +298,75 @@ export const useRoomViewThreadState = ({
     [navigatePath, resolveThreadExit]
   );
 
-  const handleExitThread = useCallback(() => {
+  const spaceUnderLayer = useSpaceUnderLayer();
+  const spaceUnderLayerRef = useLatestRef(spaceUnderLayer);
+  const enterLiveRoomPeekRef = useLatestRef(enterLiveRoomPeek);
+  const enterLiveForwardPeekRef = useLatestRef(enterLiveForwardPeek);
+  const activeBackSlideRef = useRef<LiveSlideHandle | null>(null);
+
+  const commitExitThread = useCallback(() => {
     if (!effectiveThreadId) return;
     setLastExitedThread({ roomId, threadId: effectiveThreadId });
     leaveThread(() => navigateRoomFocusEvent(roomId, effectiveThreadId, { replace: true }));
   }, [effectiveThreadId, leaveThread, navigateRoomFocusEvent, roomId, setLastExitedThread]);
+
+  // Cancel any in-flight Back slide if the route/thread changes externally before commit.
+  useEffect(
+    () => () => {
+      const pending = activeBackSlideRef.current;
+      if (!pending) return;
+      activeBackSlideRef.current = null;
+      pending.skip(false);
+    },
+    [effectiveThreadId, locationKey, roomId]
+  );
+
+  const resolveBackUnder = useCallback((): LiveThreadBackUnder | null => {
+    if (!effectiveThreadId) return null;
+    const { originFocusEventId, returnsToRoom, returnsToSpaceThreads } = resolveThreadExit();
+    if (returnsToSpaceThreads) {
+      return spaceUnderLayerRef.current?.enterLiveSpaceThreadsPeek() ?? null;
+    }
+    const peekFocus: LiveRoomPeekFocus | undefined = !returnsToRoom
+      ? { eventId: effectiveThreadId }
+      : originFocusEventId
+        ? { eventId: originFocusEventId, onlyIfUnsaved: true }
+        : undefined;
+    return enterLiveRoomPeekRef.current?.(peekFocus) ?? null;
+  }, [effectiveThreadId, enterLiveRoomPeekRef, resolveThreadExit, spaceUnderLayerRef]);
+
+  const startAnimatedBack = useCallback(
+    (onCommit: () => void): boolean => {
+      if (!effectiveThreadId) return false;
+      // Ignore duplicate Back taps while a Back slide or commit handoff is already in progress.
+      if (getActiveLiveSlideDirection() === 'back' || isLiveHandoffActive()) return true;
+      // Do not silently drop Back when a forward push slide is mid-flight: finish it and proceed.
+      if (getActiveLiveSlideDirection() === 'forward') skipActiveLiveSlide();
+      if (!canPlayLiveSlide()) return false;
+      const live = resolveBackUnder();
+      if (!live) return false;
+      const handle = playLiveSlide({
+        direction: 'back',
+        ...live,
+        onCommit: () => {
+          activeBackSlideRef.current = null;
+          onCommit();
+        },
+      });
+      activeBackSlideRef.current = handle;
+      void handle.finished.finally(() => {
+        if (activeBackSlideRef.current === handle) activeBackSlideRef.current = null;
+      });
+      return true;
+    },
+    [effectiveThreadId, resolveBackUnder]
+  );
+
+  const handleExitThread = useCallback(() => {
+    if (!effectiveThreadId) return;
+    if (startAnimatedBack(commitExitThread)) return;
+    commitExitThread();
+  }, [commitExitThread, effectiveThreadId, startAnimatedBack]);
 
   // A deleted unsent root no longer exists, so swipe-forward must not reopen it and the
   // room must not try to focus it.
@@ -353,73 +422,29 @@ export const useRoomViewThreadState = ({
     threadId,
   ]);
 
-  useLayoutEffect(() => {
-    if (threadId && effectiveThreadId && threadId !== effectiveThreadId) {
-      rekeyPhoneSwipePreviewThread('room', { sessionId, roomId, threadId }, effectiveThreadId);
-    }
-    const { returnsToSpaceThreads } = resolveThreadExit();
-    const context = {
-      sessionId,
-      roomId,
-      threadId: effectiveThreadId,
-      ...(returnsToSpaceThreads ? { returnToSpaceThreads: true } : {}),
-    };
-    setActivePhoneSwipeContext(context);
-    return () => clearActivePhoneSwipeContext(context);
-  }, [effectiveThreadId, resolveThreadExit, roomId, sessionId, threadId]);
-
-  const resolveFromLocationKey = useCallback(
-    () =>
-      locationKey ??
-      getCurrentPhoneLocationKey() ??
-      (window.history.state as { key?: string } | null)?.key ??
-      '',
-    [locationKey]
-  );
-
-  const enterLiveRoomPeekRef = useLatestRef(enterLiveRoomPeek);
-
   const beginThreadBackSwipe = useCallback(
     ({ dirSign }: { dirSign: 1 | -1 }) => {
       if (!effectiveThreadId) return null;
-      const { originFocusEventId, returnsToRoom, returnsToSpaceThreads } = resolveThreadExit();
-      const peekFocus: LiveRoomPeekFocus | undefined = !returnsToRoom
-        ? { eventId: effectiveThreadId }
-        : originFocusEventId
-          ? { eventId: originFocusEventId, onlyIfUnsaved: true }
-          : undefined;
-      return createThreadBackSwipeScene({
-        key: { sessionId, roomId, threadId: effectiveThreadId },
-        fromLocationKey: resolveFromLocationKey(),
-        onCommit: handleExitThread,
+      return createLiveBackSwipeScene({
         dirSign,
-        enterLiveUnder: returnsToSpaceThreads
-          ? undefined
-          : () => enterLiveRoomPeekRef.current?.(peekFocus) ?? null,
+        onCommit: commitExitThread,
+        enterLiveUnder: resolveBackUnder,
       });
     },
-    [
-      effectiveThreadId,
-      enterLiveRoomPeekRef,
-      handleExitThread,
-      resolveFromLocationKey,
-      resolveThreadExit,
-      roomId,
-      sessionId,
-    ]
+    [commitExitThread, effectiveThreadId, resolveBackUnder]
   );
 
   const beginThreadForwardSwipe = useCallback(
     ({ dirSign }: { dirSign: 1 | -1 }) => {
       if (!lastExitedThread || lastExitedThread.roomId !== roomId) return null;
-      return createThreadForwardSwipeScene({
-        key: { sessionId, roomId, threadId: lastExitedThread.threadId },
-        fromLocationKey: resolveFromLocationKey(),
-        onCommit: handleSwipeForwardToThread,
+      const targetThreadId = lastExitedThread.threadId;
+      return createLiveForwardSwipeScene({
         dirSign,
+        onCommit: handleSwipeForwardToThread,
+        enterLiveOver: () => enterLiveForwardPeekRef.current?.(targetThreadId) ?? null,
       });
     },
-    [handleSwipeForwardToThread, lastExitedThread, resolveFromLocationKey, roomId, sessionId]
+    [enterLiveForwardPeekRef, handleSwipeForwardToThread, lastExitedThread, roomId]
   );
 
   // A side panel in the conversation's place leaves the swipes to the page.
@@ -437,6 +462,20 @@ export const useRoomViewThreadState = ({
       begin: beginThreadForwardSwipe,
     }
   );
+
+  // Android hardware Back: when a single `window.history.back()` exits this filling phone thread
+  // to its live Room or Space All threads under-layer, slide out first and preserve exact
+  // `window.history.back()` (never substituting `leaveThread()`).
+  useEffect(() => {
+    if (!swipes || !effectiveThreadId) return undefined;
+    return registerLiveHistoryBackSlide(() => {
+      const { origin, returnsToRoom, returnsToSpaceThreads } = resolveThreadExit();
+      if ((!returnsToRoom && !returnsToSpaceThreads) || (origin && origin.steps !== 1)) {
+        return false;
+      }
+      return startAnimatedBack(() => window.history.back());
+    });
+  }, [effectiveThreadId, resolveThreadExit, startAnimatedBack, swipes]);
 
   // Typed queries apply on a pause, not per keystroke: structured tokens
   // (tag:/is:) parsed mid-word would otherwise refilter the overview with

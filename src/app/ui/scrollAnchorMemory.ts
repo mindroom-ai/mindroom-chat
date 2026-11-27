@@ -143,9 +143,11 @@ export function useScrollAnchorMemory({
   const restoreRef = useRef<RestoreState>(undefined);
   const [restarts, setRestarts] = useState(0);
   const readyRef = useRef(ready);
+  const progressRef = useRef(progress);
   useLayoutEffect(() => {
     readyRef.current = ready;
-  }, [ready]);
+    progressRef.current = progress;
+  }, [progress, ready]);
 
   useLayoutEffect(() => {
     const view = scrollRef.current;
@@ -215,9 +217,20 @@ export function useScrollAnchorMemory({
     const view = scrollRef.current;
     return () => {
       // A list without its rows, before they render or after they all went,
-      // keeps the position saved before it.
-      if (view && readyRef.current) {
+      // keeps the position saved before it. Also skip a zero-height hidden
+      // element (`<Activity mode="hidden">` sets `display: none`) while still
+      // accepting partial test rects whose `height` is omitted.
+      const rect = view?.getBoundingClientRect();
+      const hidden = typeof rect?.height === 'number' && rect.height <= 0;
+      if (view && readyRef.current && !hidden) {
         memory.set(memoryKey, captureScrollAnchors(view, getRowId));
+      }
+      // Reset restore and placement progress so subsequent `<Activity>` reveals (which preserve
+      // refs and progress state) re-read the saved anchors and track rows shifted while hidden.
+      restoreRef.current = undefined;
+      if (progressRef.current) {
+        progressRef.current.placed = false;
+        progressRef.current.left = false;
       }
     };
   }, [getRowId, memory, memoryKey, scrollRef]);

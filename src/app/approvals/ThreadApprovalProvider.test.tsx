@@ -1064,6 +1064,74 @@ describe('thread approval provider rescans', () => {
     expect(mocks.abort.mock.calls).toEqual([[room.roomId, '$thread', 'thread-approvals']]);
   });
 
+  it('defers approval history backfill while passive and starts it on activation without remounting children', async () => {
+    let childMounts = 0;
+    function Child() {
+      React.useEffect(() => {
+        childMounts += 1;
+      }, []);
+      return null;
+    }
+
+    await act(async () => {
+      renderer = create(
+        <ThreadApprovalProvider room={room} threadId="$thread" passive>
+          <Child />
+        </ThreadApprovalProvider>
+      );
+    });
+    expect(childMounts).toBe(1);
+    expect(mocks.backfill).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.update(
+        <ThreadApprovalProvider room={room} threadId="$thread" passive={false}>
+          <Child />
+        </ThreadApprovalProvider>
+      );
+    });
+    expect(childMounts).toBe(1);
+    expect(mocks.backfill).toHaveBeenCalledTimes(1);
+  });
+
+  it('runs full discovery (not an origins-only repair) on passive activation when a cached approval is already present', async () => {
+    const cached = event('$cached-approval');
+    room.getLiveTimeline().getEvents().push(cached);
+    mocks.backfill.mockImplementationOnce(async () => ({
+      events: [cached, event('$older-approval', { ...content, approval_id: 'two' })],
+      repairedEventIds: ['$cached-approval', '$older-approval'],
+    }));
+
+    await act(async () => {
+      renderer = create(
+        <ThreadApprovalProvider room={room} threadId="$thread" passive>
+          <Probe />
+        </ThreadApprovalProvider>
+      );
+    });
+    // Neither discovery nor targeted repair runs while passive.
+    expect(mocks.backfill).not.toHaveBeenCalled();
+
+    await act(async () => {
+      renderer.update(
+        <ThreadApprovalProvider room={room} threadId="$thread" passive={false}>
+          <Probe />
+        </ThreadApprovalProvider>
+      );
+    });
+    // First backfill on activation must be full thread discovery (`origins === undefined`).
+    expect(mocks.backfill).toHaveBeenCalledTimes(1);
+    expect(mocks.backfill).toHaveBeenCalledWith(
+      mx,
+      scheduler,
+      room.roomId,
+      '$thread',
+      undefined,
+      expect.arrayContaining([cached])
+    );
+    expect(current.records.map((record) => record.approval.approvalId)).toEqual(['one', 'two']);
+  });
+
   it('ignores MatrixEventEvent.Replaced for unrelated rooms and ordinary messages', async () => {
     vi.useFakeTimers();
     try {

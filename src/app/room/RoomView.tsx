@@ -50,10 +50,15 @@ import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBann
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { isEventId } from '../lib/matrixIds';
 import {
+  canPlayLiveSlide,
+  completeLiveSlideHandoff,
+  isLiveSlideSyncExit,
+  playLiveSlide,
   SWIPE_THREAD_STAGE,
   SWIPE_UNDER_THREAD,
   type LiveThreadBackUnder,
 } from '../navigation/phonePageSlide';
+import { useSpaceUnderLayer } from '../spaces/spaceUnderLayerContext';
 import { useRoomViewThreadState, type LiveRoomPeekFocus } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { ThreadView } from './ThreadView';
@@ -65,6 +70,7 @@ import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
+const NOOP = () => undefined;
 /** The thread column opens this wide, and may take what the messages beside it can spare. */
 const THREAD_COLUMN_DEFAULT_WIDTH = 480;
 // The page's own style (Page), and with the thread column beside the room area.
@@ -179,10 +185,27 @@ export function RoomView({
   // Cancelling a background job sends an event, so it takes that event's power level.
   const canCancelJobs = permissions.event(BACKGROUND_JOB_CANCEL_EVENT, myUserId);
 
-  const [peekingRoom, setPeekingRoom] = useState<{ focusEventId?: string } | null>(null);
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const spaceUnderLayer = useSpaceUnderLayer();
+  type LiveLayerState =
+    | null
+    | { kind: 'back-peek'; focusEventId?: string }
+    | { kind: 'forward-push' }
+    | { kind: 'forward-peek'; threadId: string };
+  const [liveLayer, setLiveLayer] = useState<LiveLayerState>(null);
+  const phoneRef = useRef(phone);
+  phoneRef.current = phone;
+  const columnOpenRef = useRef(false);
   const columnFillsRef = useRef(false);
   const crossRoomForkRef = useRef(Boolean(crossRoomFork));
   crossRoomForkRef.current = Boolean(crossRoomFork);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   const enterLiveRoomPeek = useCallback(
     (peekFocus?: LiveRoomPeekFocus): LiveThreadBackUnder | null => {
@@ -203,7 +226,7 @@ export function RoomView({
       stage.setAttribute(SWIPE_THREAD_STAGE, '');
       under.setAttribute(SWIPE_UNDER_THREAD, '');
       try {
-        flushSync(() => setPeekingRoom({ focusEventId }));
+        flushSync(() => setLiveLayer({ kind: 'back-peek', focusEventId }));
       } catch (error) {
         stage.removeAttribute(SWIPE_THREAD_STAGE);
         under.removeAttribute(SWIPE_UNDER_THREAD);
@@ -215,37 +238,85 @@ export function RoomView({
         over,
         under,
         exit(committed) {
-          if (!pageRef.current) {
-            stage.removeAttribute(SWIPE_THREAD_STAGE);
-            under.removeAttribute(SWIPE_UNDER_THREAD);
-            return;
-          }
-          if (!committed || columnFillsRef.current) {
-            flushSync(() => setPeekingRoom(null));
-            stage.removeAttribute(SWIPE_THREAD_STAGE);
-            under.removeAttribute(SWIPE_UNDER_THREAD);
-            threadReturnPlaceRef.current = savedReturnPlace;
-            if (savedCompactScroll) {
-              compactRoomScrollStateRef.current.set(roomId, savedCompactScroll);
-            } else {
-              compactRoomScrollStateRef.current.delete(roomId);
+          if (mountedRef.current && pageRef.current) {
+            const restore = !committed || columnFillsRef.current;
+            const clear = () => setLiveLayer((prev) => (prev?.kind === 'back-peek' ? null : prev));
+            // Commit collapse synchronously before removing layer markers and before restoring
+            // scroll refs so unmounting preview cleanups cannot clobber the saved room position.
+            if (isLiveSlideSyncExit()) flushSync(clear);
+            else clear();
+            if (restore) {
+              threadReturnPlaceRef.current = savedReturnPlace;
+              if (savedCompactScroll) {
+                compactRoomScrollStateRef.current.set(roomId, savedCompactScroll);
+              } else {
+                compactRoomScrollStateRef.current.delete(roomId);
+              }
             }
-            return;
           }
           stage.removeAttribute(SWIPE_THREAD_STAGE);
           under.removeAttribute(SWIPE_UNDER_THREAD);
-          setPeekingRoom(null);
         },
       };
     },
     [roomId]
   );
 
+  const enterLiveForwardPeek = useCallback((targetThreadId: string): LiveThreadBackUnder | null => {
+    const stage = pageRef.current;
+    const under = areaRef.current;
+    if (
+      !phoneRef.current ||
+      columnOpenRef.current ||
+      crossRoomForkRef.current ||
+      !stage ||
+      !under
+    ) {
+      return null;
+    }
+
+    stage.setAttribute(SWIPE_THREAD_STAGE, '');
+    under.setAttribute(SWIPE_UNDER_THREAD, '');
+    try {
+      flushSync(() => setLiveLayer({ kind: 'forward-peek', threadId: targetThreadId }));
+    } catch (error) {
+      stage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+      throw error;
+    }
+
+    const over = stage.querySelector<HTMLElement>(':scope > [data-testid="thread-column"]');
+    if (!over) {
+      if (mountedRef.current) {
+        flushSync(() => setLiveLayer((prev) => (prev?.kind === 'forward-peek' ? null : prev)));
+      }
+      stage.removeAttribute(SWIPE_THREAD_STAGE);
+      under.removeAttribute(SWIPE_UNDER_THREAD);
+      return null;
+    }
+
+    return {
+      stage,
+      over,
+      under,
+      exit() {
+        if (mountedRef.current) {
+          const clear = () => setLiveLayer((prev) => (prev?.kind === 'forward-peek' ? null : prev));
+          if (isLiveSlideSyncExit()) flushSync(clear);
+          else clear();
+        }
+        stage.removeAttribute(SWIPE_THREAD_STAGE);
+        under.removeAttribute(SWIPE_UNDER_THREAD);
+      },
+    };
+  }, []);
+
   const threadState = useRoomViewThreadState({
     room,
     threadId,
     eventId,
     hasMindroomAgents,
+    enterLiveForwardPeek,
     enterLiveRoomPeek,
   });
   const { effectiveThreadId: openThreadId, viewMode } = threadState;
@@ -265,14 +336,87 @@ export function RoomView({
   // Every open thread (or cross-room fork draft) shows in the column: beside the room's messages
   // while the person chose that (or a second thread shows) and the page has room, else filling
   // the page, over the room's conversation, which goes.
+  columnOpenRef.current = columnOpen;
   const columnFills =
     columnOpen && ((threadLayout.layout === 'full' && !besideWhileSecond) || !threadLayout.roomy);
   columnFillsRef.current = columnFills;
-  const peekingOnly = columnFills && peekingRoom !== null;
-  const peekFocusEventId = peekingOnly ? peekingRoom.focusEventId : undefined;
+
+  // Detect same-room forward push (Room -> Thread) synchronously during render so
+  // ConversationLayout stays uncollapsed as the live under-layer during the 280 ms slide.
+  const [prevRoomColumn, setPrevRoomColumn] = useState({ roomId, columnFills });
+  if (prevRoomColumn.roomId !== roomId || prevRoomColumn.columnFills !== columnFills) {
+    const sameRoom = prevRoomColumn.roomId === roomId;
+    const entering = sameRoom && !prevRoomColumn.columnFills && columnFills;
+    setPrevRoomColumn({ roomId, columnFills });
+    if (
+      entering &&
+      phone &&
+      !crossRoomFork &&
+      liveLayer?.kind !== 'forward-peek' &&
+      !spaceUnderLayer?.isSpaceSlideOwningThread() &&
+      canPlayLiveSlide()
+    ) {
+      setLiveLayer({ kind: 'forward-push' });
+    } else if (!sameRoom && liveLayer !== null) {
+      setLiveLayer(null);
+    } else if (!columnFills && liveLayer?.kind === 'forward-push') {
+      setLiveLayer(null);
+    }
+  } else if (!phone && liveLayer?.kind === 'forward-push') {
+    setLiveLayer(null);
+  }
+
+  const peekingBack = liveLayer?.kind === 'back-peek';
+  const slidingForward = liveLayer?.kind === 'forward-push';
+  const peekingForwardThreadId = liveLayer?.kind === 'forward-peek' ? liveLayer.threadId : null;
+  const peekingForwardOnly = peekingForwardThreadId !== null && !columnOpen;
+  const renderedThreadId = openThreadId ?? peekingForwardThreadId ?? undefined;
+  const renderColumn = columnOpen || peekingForwardThreadId !== null;
+  const columnFillsOrPeeks = columnFills || peekingForwardOnly;
+  const peekingOnly = columnFills && (peekingBack || slidingForward);
+  const peekFocusEventId = columnFills && peekingBack ? liveLayer.focusEventId : undefined;
+
+  useLayoutEffect(() => {
+    if ((!columnFills && peekingBack) || (columnFills && peekingForwardThreadId !== null)) {
+      completeLiveSlideHandoff();
+    }
+  }, [columnFills, peekingBack, peekingForwardThreadId]);
+
   useEffect(() => {
-    if (!columnFills) setPeekingRoom(null);
-  }, [columnFills]);
+    if (!columnFills && peekingBack) setLiveLayer(null);
+  }, [columnFills, peekingBack]);
+
+  useLayoutEffect(() => {
+    if (!phone || !slidingForward) return undefined;
+    const stage = pageRef.current;
+    const under = areaRef.current;
+    const over = stage?.querySelector<HTMLElement>(':scope > [data-testid="thread-column"]');
+    if (!stage || !under || !over) {
+      setLiveLayer((prev) => (prev?.kind === 'forward-push' ? null : prev));
+      return undefined;
+    }
+
+    stage.setAttribute(SWIPE_THREAD_STAGE, '');
+    under.setAttribute(SWIPE_UNDER_THREAD, '');
+    const slide = playLiveSlide({
+      direction: 'forward',
+      stage,
+      over,
+      under,
+      exit() {
+        if (mountedRef.current) {
+          const clear = () => setLiveLayer((prev) => (prev?.kind === 'forward-push' ? null : prev));
+          if (isLiveSlideSyncExit()) flushSync(clear);
+          else clear();
+        }
+        stage.removeAttribute(SWIPE_THREAD_STAGE);
+        under.removeAttribute(SWIPE_UNDER_THREAD);
+      },
+    });
+    return () => {
+      slide.skip(false);
+    };
+  }, [phone, slidingForward]);
   // The unsent root deleted while its thread showed (onColumnGone).
   const deletedRoot = useRef<string>(undefined);
   useLocalEchoRoot(room, openThreadId, () => {
@@ -356,6 +500,7 @@ export function RoomView({
   );
   // The column filling the page hides the room's messages and their composer under it.
   useInert(areaRef, columnFills);
+  useInert(columnRef, peekingForwardOnly);
   const setUnderThread = useSetAtom(conversationUnderThreadAtom);
   useLayoutEffect(() => {
     if (!columnFills) return undefined;
@@ -384,7 +529,6 @@ export function RoomView({
   const showFull = () => threadLayout.setLayout('full');
   // Focus left in a thread column that closed goes to the room's composer; not on a phone, where
   // that would raise the keyboard over the room's messages.
-  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const hadColumn = useRef(false);
   useEffect(() => {
     const closed = hadColumn.current && !columnOpen;
@@ -412,14 +556,18 @@ export function RoomView({
         onShowFull={onShowFull}
       />
     ) : (
-      openThreadId && (
+      renderedThreadId && (
         <ThreadContextBanner
           room={room}
-          threadId={openThreadId}
-          summaryInfo={threadState.threadSummaryInfo}
-          onExitThread={threadState.handleExitThread}
-          onShowBeside={onShowBeside}
-          onShowFull={onShowFull}
+          threadId={renderedThreadId}
+          summaryInfo={
+            peekingForwardOnly
+              ? threadState.summaryMap.get(renderedThreadId)
+              : threadState.threadSummaryInfo
+          }
+          onExitThread={peekingForwardOnly ? NOOP : threadState.handleExitThread}
+          onShowBeside={peekingForwardOnly ? undefined : onShowBeside}
+          onShowFull={peekingForwardOnly ? undefined : onShowFull}
         />
       )
     );
@@ -461,7 +609,7 @@ export function RoomView({
   };
 
   return (
-    <Page ref={pageRef} style={columnOpen ? PAGE_ROW_STYLE : PAGE_STYLE}>
+    <Page ref={pageRef} style={renderColumn ? PAGE_ROW_STYLE : PAGE_STYLE}>
       <ConversationLayout
         room={room}
         areaRef={areaRef}
@@ -496,19 +644,19 @@ export function RoomView({
             />
           )
         }
-        collapsed={columnFills && peekingRoom === null}
+        collapsed={columnFills && liveLayer === null}
         conversationRef={conversationRef}
       >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />
       </ConversationLayout>
-      {columnOpen && (
+      {renderColumn && (
         <ResizablePanel
           side="end"
           storageKey={THREAD_COLUMN_WIDTH_KEY}
           defaultWidth={THREAD_COLUMN_DEFAULT_WIDTH}
           minContentWidth={CONVERSATION_MIN_WIDTH}
           maxPanelWidth={SIDE_PANEL_MAX_WIDTH}
-          fullWidth={columnFills}
+          fullWidth={columnFillsOrPeeks}
           resizeLabel={t('thread.resize')}
           // While a second thread keeps it beside the messages, filling the page would not take.
           onExpand={besideWhileSecond ? undefined : showFull}
@@ -517,7 +665,7 @@ export function RoomView({
           onKeyDown={noteThreadColumnKey}
         >
           <div ref={columnRef} style={COLUMN_STYLE}>
-            {!crossRoomFork && threadState.threadNotFound ? (
+            {!crossRoomFork && !peekingForwardOnly && threadState.threadNotFound ? (
               // A thread that is not this room's, nor of any joined room the client knows. Filling
               // the page, the column has the room's header the room area hides.
               <>
@@ -551,11 +699,17 @@ export function RoomView({
               <ThreadView
                 room={room}
                 sourceRoom={crossRoomFork?.sourceRoom}
-                threadId={crossRoomFork ? crossRoomFork.threadId : openThreadId!}
+                threadId={crossRoomFork ? crossRoomFork.threadId : renderedThreadId!}
                 eventId={
-                  crossRoomFork ? crossRoomFork.forkAt : focusEventInRoom ? undefined : eventId
+                  crossRoomFork
+                    ? crossRoomFork.forkAt
+                    : peekingForwardOnly || focusEventInRoom
+                      ? undefined
+                      : eventId
                 }
-                forkAt={crossRoomFork ? crossRoomFork.forkAt : forkAt}
+                forkAt={
+                  crossRoomFork ? crossRoomFork.forkAt : peekingForwardOnly ? undefined : forkAt
+                }
                 onExitCrossRoomFork={crossRoomFork ? handleExitCrossRoomFork : undefined}
                 header={threadBanner}
                 // The banner's title follows the summaries the thread's own events bring.
@@ -565,23 +719,27 @@ export function RoomView({
                 }
                 // Filling the page, the column has the room's header the room area hides.
                 roomHeader={
-                  columnFills
+                  columnFillsOrPeeks
                     ? (headerRef) => (
                         <>
                           <RoomViewHeader
                             hasMindroomAgents={hasMindroomAgents}
-                            threadId={openThreadId}
+                            threadId={renderedThreadId}
+                            passive={peekingForwardOnly}
                             threadFilterState={threadState.threadFilterState}
                             onFocusComposer={focusScheduleComposer}
                             canEditSchedule={
                               composerShown &&
                               !isConfirmedMatrixEventId(forkAt) &&
                               !crossRoomFork &&
-                              !behindPanel
+                              !behindPanel &&
+                              !peekingForwardOnly
                             }
                             {...headerProps}
                           />
-                          <RoomHeaderSlot room={room} headerRef={headerRef} />
+                          {!peekingForwardOnly && (
+                            <RoomHeaderSlot room={room} headerRef={headerRef} />
+                          )}
                         </>
                       )
                     : undefined
@@ -589,11 +747,14 @@ export function RoomView({
                 // Beside the messages, where typing goes to the room's composer, it takes the focus,
                 // and from the room's composer whose send opened it. ThreadView reads it as the
                 // thread opens, in the effects of the commit that opens it, before this view's reset.
-                autoFocus={!columnFills || focusOpenedThread.current}
-                hidden={behindPanel}
-                onThreadLoadError={crossRoomFork ? undefined : threadLoadFailed}
-                onUnmount={crossRoomFork ? undefined : onColumnGone}
-                focusRef={focusColumn}
+                autoFocus={(!columnFills || focusOpenedThread.current) && !peekingForwardOnly}
+                hidden={behindPanel || peekingForwardOnly}
+                passive={peekingForwardOnly}
+                onThreadLoadError={
+                  crossRoomFork || peekingForwardOnly ? undefined : threadLoadFailed
+                }
+                onUnmount={crossRoomFork || peekingForwardOnly ? undefined : onColumnGone}
+                focusRef={peekingForwardOnly ? undefined : focusColumn}
                 // Files dropped anywhere on the column, its header too, go to the thread's composer.
                 fileDropContainerRef={columnRef}
               />

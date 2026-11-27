@@ -197,12 +197,12 @@ for (const ios of [false, true]) {
     await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
     await clickThreadExitButton(page);
     await expect(page).toHaveURL(/focusEvent=1/);
-    // Wait for the Back slide to finish: it can still cover the room after the URL and cards
-    // return.
-    const pageSlide = page.locator('html[data-page-slide]');
-    await expect(pageSlide).toHaveCount(0);
+    // Wait for the live Back slide and handoff shield to finish before measuring viewport offsets.
+    const liveSlide = page.locator(
+      '[data-swipe-thread-stage], [data-swipe-stage], [data-swipe-hold-shield], [data-swipe-dim]'
+    );
+    await expect(liveSlide).toHaveCount(0);
     await expect(card(linked!)).toBeInViewport();
-    await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0);
 
     const visitAndReturn = async (
       scrollTop: number,
@@ -237,12 +237,11 @@ for (const ios of [false, true]) {
       const opened = new URL(page.url()).searchParams.get('threadId')!;
       expect(sectionIds.has(opened), `the tap opens a ${section} card`).toBe(true);
       await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
-      await expect(pageSlide).toHaveCount(0);
+      await expect(liveSlide).toHaveCount(0);
       await leave();
       await expect(page).not.toHaveURL(/threadId=/);
-      await expect(pageSlide).toHaveCount(0);
+      await expect(liveSlide).toHaveCount(0);
       await expect(card(opened)).toBeAttached();
-      await expect(page.locator('[data-page-slide-copy]')).toHaveCount(0);
       const after = await settledCards(page);
       if (shot && process.env.SHOTS)
         await page.screenshot({ path: `${process.env.SHOTS}/${shot}` });

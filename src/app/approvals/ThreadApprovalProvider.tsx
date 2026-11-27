@@ -78,11 +78,14 @@ export function ThreadApprovalProvider({
   threadId,
   children,
   focusConversation,
+  passive = false,
 }: {
   room: Room;
   threadId?: string;
   children: React.ReactNode;
   focusConversation?: () => void;
+  /** True while mounted passively during an uncommitted swipe preview; defers history backfill. */
+  passive?: boolean;
 }) {
   return threadId ? (
     <ActiveThreadApprovalProvider
@@ -90,6 +93,7 @@ export function ThreadApprovalProvider({
       room={room}
       threadId={threadId}
       focusConversation={focusConversation}
+      passive={passive}
     >
       {children}
     </ActiveThreadApprovalProvider>
@@ -103,11 +107,13 @@ function ActiveThreadApprovalProvider({
   threadId,
   children,
   focusConversation,
+  passive,
 }: {
   room: Room;
   threadId: string;
   children: React.ReactNode;
   focusConversation?: () => void;
+  passive: boolean;
 }) {
   const mx = useMatrixClient();
   const ignoredUsers = useIgnoredUsers();
@@ -280,6 +286,7 @@ function ActiveThreadApprovalProvider({
     };
   }, [mx, events, decrypted]);
   useEffect(() => {
+    if (passive) return undefined;
     let active = true;
     const waiters = historyWaiters.get(scheduler) ?? new Map<string, number>();
     historyWaiters.set(scheduler, waiters);
@@ -328,7 +335,7 @@ function ActiveThreadApprovalProvider({
       waiters.delete(waitKey);
       scheduler.abort(room.roomId, threadId, kind);
     };
-  }, [mx, scheduler, room.roomId, threadId, request, ingest]);
+  }, [mx, scheduler, room.roomId, threadId, request, ingest, passive]);
   useEffect(() => {
     const onSync = (state: SyncState, previous: SyncState | null) => {
       if (state === SyncState.Syncing && previous !== SyncState.Syncing && failed.current)
@@ -340,6 +347,7 @@ function ActiveThreadApprovalProvider({
     };
   }, [mx, refresh]);
   useEffect(() => {
+    if (passive) return;
     const origins = [...events]
       .filter(
         ([id, event]) =>
@@ -352,7 +360,7 @@ function ActiveThreadApprovalProvider({
       .map(([, event]) => event);
     if (!fetching.current && !repairError && origins.length > 0)
       setRequest(({ revision }) => ({ revision: revision + 1, origins }));
-  }, [events, loading, threadId, repairError]);
+  }, [events, loading, threadId, repairError, passive]);
   useEffect(() => {
     const deadlines = records.flatMap(({ approval }) => {
       const expiry =

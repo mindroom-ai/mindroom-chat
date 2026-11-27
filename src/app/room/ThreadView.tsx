@@ -81,6 +81,7 @@ export function ThreadView({
   header,
   autoFocus = false,
   hidden = false,
+  passive = false,
   onThreadLoadError,
   onUnmount,
   focusRef,
@@ -101,6 +102,8 @@ export function ThreadView({
   header?: ReactNode;
   autoFocus?: boolean;
   hidden?: boolean;
+  /** True while mounted passively during an uncommitted swipe preview. */
+  passive?: boolean;
   onThreadLoadError?: (threadId: string) => void;
   onUnmount?: (threadId: string) => void;
   /** Holds, while it is mounted, the function that takes the focus to its composer. */
@@ -267,6 +270,7 @@ export function ThreadView({
               focusConversation={focusConversation}
               canCancelJobs={canCancelJobs}
               readOnly={!!forkFrom}
+              passive={passive}
               notice={
                 <ComposerNotice
                   room={room}

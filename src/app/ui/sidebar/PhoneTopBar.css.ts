@@ -23,8 +23,8 @@ export const ReturnToCallRow = style({
   backgroundColor: color.Background.Container,
 });
 
-// Give the stage and the page slide's copy their own offset, shared by their drawer layers.
-const phoneLayout = ':is([data-phone-stage], [data-page-slide-copy])';
+// Give the phone stage its own chrome offset, shared by its drawer layers.
+const phoneLayout = '[data-phone-stage]';
 globalStyle(`${phoneLayout}:has(> .${PhoneChrome})`, {
   vars: { [phoneChromeHeight]: phoneTopBarHeight },
 });
