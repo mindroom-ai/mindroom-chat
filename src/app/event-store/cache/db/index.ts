@@ -116,6 +116,7 @@ export {
   checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,
   getTailDiscontinuityGeneration,
+  loadAllRoomTailDiscontinuities,
   loadRoomTailDiscontinuity,
 } from './cacheStoreDiscontinuity';
 

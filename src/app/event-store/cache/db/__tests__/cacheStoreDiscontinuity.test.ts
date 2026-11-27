@@ -8,10 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,
+  loadAllRoomTailDiscontinuities,
   loadRoomTailDiscontinuity,
   markRoomTailDiscontinuity,
 } from '../cacheStoreDiscontinuity';
 import { resetCacheStoreForTesting } from '../cacheStoreDb';
+import { updateRoomOfflineProgress } from '../cacheStoreMeta';
+import { saveThreadEventsToCache } from '../cacheStoreEvents';
 
 const SESSION_ID = 'session-p32';
 const ROOM_ID = '!room:example.org';
@@ -191,6 +194,41 @@ describe('cacheStoreDiscontinuity (ISSUE-207 P3.2)', () => {
       markRoomTailDiscontinuity(SESSION_ID, ROOM_ID, { markedAt: 1000 })
     ).rejects.toThrow('unavailable');
     await expect(loadRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).rejects.toThrow('unavailable');
+    await expect(loadAllRoomTailDiscontinuities(SESSION_ID)).rejects.toThrow('unavailable');
     await expect(clearRoomTailDiscontinuity(SESSION_ID, ROOM_ID)).rejects.toThrow('unavailable');
+  });
+
+  it('loads all room discontinuity markers in one meta readonly transaction', async () => {
+    await markRoomTailDiscontinuity(SESSION_ID, '!r1:example.org', {
+      markedAt: 1000,
+      prevBatch: 'b1',
+    });
+    await markRoomTailDiscontinuity(SESSION_ID, '!r2:example.org', {
+      markedAt: 2000,
+      prevBatch: 'b2',
+    });
+    await updateRoomOfflineProgress(SESSION_ID, '!r3:example.org', { opened: true });
+    await saveThreadEventsToCache(SESSION_ID, '!r3:example.org', '$root', [
+      {
+        event_id: '$reply',
+        room_id: '!r3:example.org',
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        origin_server_ts: 1,
+        content: { msgtype: 'm.text', body: 'hi' },
+      },
+    ]);
+
+    const txSpy = vi.spyOn(IDBDatabase.prototype, 'transaction');
+    const markers = await loadAllRoomTailDiscontinuities(SESSION_ID);
+
+    expect(txSpy).toHaveBeenCalledTimes(1);
+    expect(txSpy.mock.calls[0]?.slice(0, 2)).toEqual(['meta', 'readonly']);
+    expect(Array.from(markers.entries())).toEqual([
+      ['!r1:example.org', { markedAt: 1000, prevBatch: 'b1' }],
+      ['!r2:example.org', { markedAt: 2000, prevBatch: 'b2' }],
+    ]);
+    await clearRoomTailDiscontinuity(SESSION_ID, '!r1:example.org');
+    await clearRoomTailDiscontinuity(SESSION_ID, '!r2:example.org');
   });
 });

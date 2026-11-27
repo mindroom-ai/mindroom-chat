@@ -477,4 +477,137 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     ]);
     tracker.stop();
   });
+
+  it('loads startup discontinuity markers with one bulk read for joined rooms only', async () => {
+    const enqueued: GapFillJob[] = [];
+    const loadAllDiscontinuities = vi.fn().mockResolvedValue(
+      new Map([
+        ['!join-a', { markedAt: 1000, prevBatch: 'ta', generation: 'g-a' }],
+        ['!left-c', { markedAt: 1500, prevBatch: 'tc', generation: 'g-c' }],
+        ['!unknown', { markedAt: 1600, prevBatch: 'tu', generation: 'g-u' }],
+      ])
+    );
+    const tracker = createEngineGapTracker({
+      mx: {
+        getRooms: () => [
+          makeRoom({ roomId: '!join-a', membership: 'join' }),
+          makeRoom({ roomId: '!join-b', membership: 'join' }),
+          makeRoom({ roomId: '!left-c', membership: 'leave' }),
+        ],
+      } as unknown as MatrixClient,
+      sessionId: 'session',
+      enqueueGapFill: (job) => enqueued.push(job),
+      loadAllDiscontinuities,
+    });
+
+    await tracker.handleSyncPrepared();
+
+    expect(loadAllDiscontinuities).toHaveBeenCalledTimes(1);
+    expect(loadAllDiscontinuities).toHaveBeenCalledWith('session');
+    expect(enqueued).toEqual([
+      {
+        roomId: '!join-a',
+        reason: 'startup',
+        markedAt: 1000,
+        prevBatch: 'ta',
+        generation: 'g-a',
+      },
+    ]);
+  });
+
+  it('serializes multi-room resets, prioritizes awaited overlap, and does not stall on retries', async () => {
+    vi.useFakeTimers();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const enqueued: GapFillJob[] = [];
+    const tailOrder: string[] = [];
+    let inFlight = 0;
+    let maxInFlight = 0;
+    let releaseFirstMark: (() => void) | undefined;
+    let rejectFirstMark: ((error: Error) => void) | undefined;
+
+    const serialLoadCachedTail = vi.fn(
+      async (_sessionId: string, roomId: string): Promise<CachedRoomEventPage> => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        tailOrder.push(roomId);
+        await Promise.resolve();
+        inFlight -= 1;
+        return {
+          events: [{ event_id: `$tail-${roomId}`, origin_server_ts: 1 }],
+          hasMoreBefore: false,
+        };
+      }
+    );
+    markDiscontinuity
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            releaseFirstMark = () => resolve({ markedAt: 1000, prevBatch: 'b1' });
+            rejectFirstMark = reject;
+          })
+      )
+      .mockImplementation(defaultMarkDiscontinuity);
+
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'serial-session',
+      enqueueGapFill: (job) => enqueued.push(job),
+      markDiscontinuity,
+      loadCachedTail: serialLoadCachedTail,
+      now: () => 1000,
+    });
+
+    const r1 = makeRoom({ roomId: '!r1', paginationToken: 'b1' });
+    const r2 = makeRoom({ roomId: '!r2', paginationToken: 'b2' });
+    const r3 = makeRoom({ roomId: '!r3', paginationToken: 'b3' });
+    tracker.handleTimelineReset(r1, r1.getUnfilteredTimelineSet());
+    tracker.handleTimelineReset(r2, r2.getUnfilteredTimelineSet());
+    tracker.handleTimelineReset(r3, r3.getUnfilteredTimelineSet());
+
+    // Only !r1 started immediately; !r2 and !r3 wait in the serial queue.
+    expect(tailOrder).toEqual(['!r1']);
+    const r1Overlap = tracker.whenOverlapCaptured?.('!r1');
+    const r3Overlap = tracker.whenOverlapCaptured?.('!r3');
+
+    // !r1 overlap resolves before its markDiscontinuity settles.
+    await r1Overlap;
+    await vi.waitFor(() => expect(releaseFirstMark).toBeDefined());
+
+    // Failing !r1's mark backs off onto a timer without blocking !r3 (prioritized) or !r2.
+    rejectFirstMark?.(new Error('transient idb failure'));
+    await r3Overlap;
+    await vi.waitFor(() => expect(enqueued.map((job) => job.roomId)).toEqual(['!r3', '!r2']));
+
+    expect(maxInFlight).toBe(1);
+    expect(tailOrder).toEqual(['!r1', '!r3', '!r2']);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+
+    // !r1 retries on backoff without re-reading loadCachedTail.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(enqueued.map((job) => job.roomId)).toEqual(['!r3', '!r2', '!r1']);
+    expect(tailOrder).toEqual(['!r1', '!r3', '!r2']);
+    tracker.stop();
+  });
+
+  it('resolves whenOverlapCaptured on stop() or revoked lease so waiters never hang', async () => {
+    loadCachedTail.mockImplementation(() => new Promise(() => undefined));
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'waiter-session',
+      enqueueGapFill: () => undefined,
+      markDiscontinuity,
+      loadCachedTail,
+    });
+    const r1 = makeRoom({ roomId: '!r1', paginationToken: 'b1' });
+    const r2 = makeRoom({ roomId: '!r2', paginationToken: 'b2' });
+    tracker.handleTimelineReset(r1, r1.getUnfilteredTimelineSet());
+    tracker.handleTimelineReset(r2, r2.getUnfilteredTimelineSet());
+
+    const r1Wait = tracker.whenOverlapCaptured?.('!r1');
+    revokeCacheStoreWrites('waiter-session');
+    // Revoked queued room resolves immediately without waiting for the worker.
+    expect(tracker.whenOverlapCaptured?.('!r2')).toBeUndefined();
+    tracker.stop();
+    await r1Wait;
+  });
 });

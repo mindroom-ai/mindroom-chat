@@ -42,6 +42,8 @@ import {
   setEvictionProtectedRoomIds,
   revokeCacheStoreWrites,
   captureCacheStoreWriteLease,
+  isCacheStoreWriteLeaseCurrent,
+  type CacheStoreWriteLease,
 } from '../cache/db';
 import { createEngineWriteThrough, type EngineWriteThrough } from './engineWriteThrough';
 import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracker';
@@ -163,27 +165,6 @@ export const createSyncEngine = ({
     onPolicyChange: () => gapFillExecutor.recheckDeferred(),
   });
 
-  const effectiveWriteThrough =
-    writeThrough ??
-    createEngineWriteThrough({
-      sessionId,
-      persist: (room, events, roomTailLoaded, threadId) => {
-        const lease = captureCacheStoreWriteLease(sessionId, room.roomId);
-        void persistRoomChunkWithPreferLive({
-          mx,
-          sessionId,
-          room,
-          chunk: events.map((event) => event.event),
-          mappedEvents: events,
-          roomTailLoaded: roomTailLoaded ?? false,
-          threadId,
-          writeLease: lease,
-        })
-          .then((saved) => saved && offline.observe(saved.events, room.roomId, lease))
-          .catch(() => undefined);
-      },
-    });
-
   // ISSUE-207 P4.2: the executor runs every limited-sync / startup job the
   // gap tracker enqueues. A test's stub `gapTracker` enqueues none.
   const gapFillExecutor = createGapFillExecutor({
@@ -214,6 +195,91 @@ export const createSyncEngine = ({
       enqueueGapFill: gapFillExecutor.enqueue,
     });
 
+  type PendingLiveWrite = {
+    room: Room;
+    events: MatrixEvent[];
+    roomTailLoaded: boolean | undefined;
+    threadId?: string;
+    lease: CacheStoreWriteLease;
+  };
+  const pendingLiveWrites = new Map<string, PendingLiveWrite>();
+  let liveDrainScheduled = false;
+  let drainingLiveWrites = false;
+
+  const scheduleLiveWriteDrain = () => {
+    if (drainingLiveWrites || liveDrainScheduled || pendingLiveWrites.size === 0) return;
+    liveDrainScheduled = true;
+    queueMicrotask(() => {
+      liveDrainScheduled = false;
+      void drainLiveWrites();
+    });
+  };
+
+  const drainLiveWrites = async () => {
+    if (drainingLiveWrites) return;
+    drainingLiveWrites = true;
+    liveDrainScheduled = false;
+    try {
+      while (pendingLiveWrites.size > 0) {
+        const next = pendingLiveWrites.entries().next();
+        if (next.done) break;
+        const [key, entry] = next.value;
+        pendingLiveWrites.delete(key);
+        if (!isCacheStoreWriteLeaseCurrent(entry.lease)) continue;
+        const waitForOverlap = effectiveGapTracker.whenOverlapCaptured?.(entry.room.roomId);
+        if (waitForOverlap) {
+          await waitForOverlap;
+          if (!isCacheStoreWriteLeaseCurrent(entry.lease)) continue;
+        }
+        try {
+          const saved = await persistRoomChunkWithPreferLive({
+            mx,
+            sessionId,
+            room: entry.room,
+            chunk: entry.events.map((event) => event.event),
+            mappedEvents: entry.events,
+            roomTailLoaded: entry.roomTailLoaded ?? false,
+            threadId: entry.threadId,
+            writeLease: entry.lease,
+          });
+          if (saved) void offline.observe(saved.events, entry.room.roomId, entry.lease);
+        } catch {
+          // A failed batch must not stall subsequent rooms in the serial drain.
+        }
+      }
+    } finally {
+      drainingLiveWrites = false;
+      if (pendingLiveWrites.size > 0) scheduleLiveWriteDrain();
+    }
+  };
+
+  const effectiveWriteThrough =
+    writeThrough ??
+    createEngineWriteThrough({
+      sessionId,
+      persist: (room, events, roomTailLoaded, threadId) => {
+        if (events.length === 0) return;
+        const key = `${room.roomId}\0${threadId ?? ''}`;
+        const existing = pendingLiveWrites.get(key);
+        if (existing && isCacheStoreWriteLeaseCurrent(existing.lease)) {
+          existing.room = room;
+          existing.events.push(...events);
+          if (roomTailLoaded === true) existing.roomTailLoaded = true;
+          else if (existing.roomTailLoaded === undefined) existing.roomTailLoaded = roomTailLoaded;
+        } else {
+          if (existing) pendingLiveWrites.delete(key);
+          pendingLiveWrites.set(key, {
+            room,
+            events: [...events],
+            roomTailLoaded,
+            threadId,
+            lease: captureCacheStoreWriteLease(sessionId, room.roomId),
+          });
+        }
+        scheduleLiveWriteDrain();
+      },
+    });
+
   let started = false;
   let liveMode = false;
   let unsubscribePrefetchConfig: (() => void) | undefined;
@@ -221,9 +287,10 @@ export const createSyncEngine = ({
   const bindableWindow = getBindableWindow();
   const bindableDocument = getBindableDocument();
 
-  // Drain the edit compaction debounce before the page freezes.
+  // Drain edit compaction and queued live writes before the page freezes.
   const flushForVisibility = () => {
     effectiveWriteThrough.flush();
+    if (pendingLiveWrites.size > 0) void drainLiveWrites();
   };
 
   const handlePageHide = () => flushForVisibility();
@@ -437,6 +504,7 @@ export const createSyncEngine = ({
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
       offline.stop();
       revokeCacheStoreWrites(sessionId);
+      pendingLiveWrites.clear();
       forgetEncryptedRoomCheck?.();
 
       bindableWindow?.removeEventListener('pagehide', handlePageHide);

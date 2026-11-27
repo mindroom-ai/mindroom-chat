@@ -89,6 +89,25 @@ export const readMetaRecord = async (
   });
 };
 
+/**
+ * Read every meta row for the session in one `readonly` transaction.
+ * Throws `CacheStoreMetaUnavailableError` when IndexedDB is unavailable
+ * and rejects on transaction failure.
+ */
+export const readAllMetaRecords = async (sessionId: string): Promise<CachedMetaRecord[]> => {
+  const db = await openCacheStore(sessionId);
+  if (!db) throw new CacheStoreMetaUnavailableError();
+
+  return new Promise<CachedMetaRecord[]>((resolve, reject) => {
+    const transaction = db.transaction(META_STORE, 'readonly');
+    const request = transaction.objectStore(META_STORE).getAll();
+    request.onsuccess = () => resolve((request.result as CachedMetaRecord[] | undefined) ?? []);
+    request.onerror = () => reject(request.error);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+};
+
 // Ordinary room/thread writers rebuild their metadata. Keep durable offline
 // progress in its own scope, removed by the existing whole-room clear.
 const OFFLINE_SCOPE = '__offline';

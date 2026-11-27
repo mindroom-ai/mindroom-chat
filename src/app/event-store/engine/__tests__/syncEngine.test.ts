@@ -1,10 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientEvent, RoomEvent, SyncState } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+
+const mockPersistRoomChunk = vi.hoisted(() => vi.fn());
+vi.mock('../../cache/eventRepository', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../cache/eventRepository')>();
+  return {
+    ...actual,
+    persistRoomChunkWithPreferLive: mockPersistRoomChunk,
+  };
+});
+
 import { createSyncEngine, stopSyncEngineForClient } from '../syncEngine';
 import type { EngineWriteThrough } from '../engineWriteThrough';
 import type { EngineGapTracker } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
+import { revokeRoomCacheStoreWrites } from '../../cache/db';
 
 /**
  * Compact SDK mock. The engine only calls `on`, `removeListener`,
@@ -79,10 +90,12 @@ const makeEvent = (): MatrixEvent =>
 describe('SyncEngine (ISSUE-207 P3.1)', () => {
   beforeEach(() => {
     resetCacheProbe();
+    mockPersistRoomChunk.mockReset().mockResolvedValue(undefined);
   });
 
   afterEach(() => {
     resetCacheProbe();
+    vi.restoreAllMocks();
   });
 
   it('derives sessionId from client baseUrl + safe user id', () => {
@@ -373,5 +386,203 @@ describe('SyncEngine (ISSUE-207 P3.1)', () => {
     engine.start();
     engine.stop();
     expect(writeThrough.flush).toHaveBeenCalled();
+  });
+
+  it('coalesces same-turn live writes per (room, thread) and drains single-flight', async () => {
+    const mx = createMockClient(SyncState.Syncing);
+    const gapTracker: EngineGapTracker = {
+      handleTimelineReset: vi.fn(),
+      handleSyncPrepared: vi.fn().mockResolvedValue(undefined),
+      stop: vi.fn(),
+    };
+    const engine = createSyncEngine({ mx, gapTracker });
+    engine.start();
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const calls: { roomId: string; threadId?: string; roomTailLoaded?: boolean; ids: string[] }[] =
+      [];
+    mockPersistRoomChunk.mockImplementation(
+      async (args: {
+        room: Room;
+        threadId?: string;
+        roomTailLoaded?: boolean;
+        mappedEvents?: MatrixEvent[];
+      }) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        calls.push({
+          roomId: args.room.roomId,
+          threadId: args.threadId,
+          roomTailLoaded: args.roomTailLoaded,
+          ids: (args.mappedEvents ?? []).map((event) => event.getId() ?? ''),
+        });
+        // Event arriving for queued !r2 while !r1 is in flight coalesces into !r2's batch.
+        if (calls.length === 1) {
+          mx.__emit(RoomEvent.Timeline, makeLive('$b2'), r2, false, false, { liveEvent: true });
+        }
+        await Promise.resolve();
+        inFlight -= 1;
+        return undefined;
+      }
+    );
+
+    const makeLive = (id: string, opts?: { threadRootId?: string; redacts?: string }) =>
+      ({
+        ...makeEvent(),
+        getId: () => id,
+        event: { event_id: id },
+        threadRootId: opts?.threadRootId,
+        isRedaction: () => !!opts?.redacts,
+        getAssociatedId: () => opts?.redacts,
+        getContent: () => (opts?.redacts ? { redacts: opts.redacts } : {}),
+      }) as unknown as MatrixEvent;
+
+    const targets = new Map<string, MatrixEvent>([
+      [
+        '$target-1',
+        {
+          ...makeEvent(),
+          getId: () => '$target-1',
+          getType: () => 'm.room.message',
+        } as unknown as MatrixEvent,
+      ],
+      [
+        '$target-2',
+        {
+          ...makeEvent(),
+          getId: () => '$target-2',
+          getType: () => 'm.room.message',
+        } as unknown as MatrixEvent,
+      ],
+    ]);
+    const r1 = {
+      ...makeRoom('!r1'),
+      findEventById: (id: string) => targets.get(id),
+      threadsTimelineSets: [],
+    } as unknown as Room;
+    const r2 = { ...makeRoom('!r2'), threadsTimelineSets: [] } as unknown as Room;
+    mx.__emit(RoomEvent.Timeline, makeLive('$a1'), r1, false, false, { liveEvent: true });
+    mx.__emit(RoomEvent.Timeline, makeLive('$a2'), r1, false, false, { liveEvent: true });
+    mx.__emit(RoomEvent.Timeline, makeLive('$b1'), r2, false, false, { liveEvent: true });
+    // Thread $t1 gets redaction (undefined) + live reply (true) + redaction (undefined): true dominates both ways.
+    mx.__emit(RoomEvent.Redaction, makeLive('$red-t1', { redacts: '$target-1' }), r1, '$t1');
+    mx.__emit(
+      RoomEvent.Timeline,
+      makeLive('$t1-reply', { threadRootId: '$t1' }),
+      r1,
+      false,
+      false,
+      {
+        liveEvent: true,
+      }
+    );
+    mx.__emit(RoomEvent.Redaction, makeLive('$red-t1-after', { redacts: '$target-1' }), r1, '$t1');
+    // Thread $t2 gets only a redaction: must pass roomTailLoaded=false (no upgrade to true).
+    mx.__emit(RoomEvent.Redaction, makeLive('$red-t2', { redacts: '$target-2' }), r1, '$t2');
+
+    // Still coalescing in the current turn before microtask drains.
+    expect(mockPersistRoomChunk).not.toHaveBeenCalled();
+
+    await vi.waitFor(() => expect(calls).toHaveLength(4));
+    expect(maxInFlight).toBe(1);
+    expect(calls).toEqual([
+      { roomId: '!r1', threadId: undefined, roomTailLoaded: false, ids: ['$a1', '$a2'] },
+      { roomId: '!r2', threadId: undefined, roomTailLoaded: false, ids: ['$b1', '$b2'] },
+      {
+        roomId: '!r1',
+        threadId: '$t1',
+        roomTailLoaded: true,
+        ids: ['$red-t1', '$t1-reply', '$red-t1-after'],
+      },
+      { roomId: '!r1', threadId: '$t2', roomTailLoaded: false, ids: ['$red-t2'] },
+    ]);
+    engine.stop();
+  });
+
+  it('drops pre-clear queued events on lease revocation and awaits pre-gap overlap capture', async () => {
+    const mx = createMockClient(SyncState.Syncing);
+    let resolveOverlap: (() => void) | undefined;
+    const gapTracker: EngineGapTracker = {
+      handleTimelineReset: vi.fn(),
+      handleSyncPrepared: vi.fn().mockResolvedValue(undefined),
+      whenOverlapCaptured: (roomId) =>
+        roomId === '!r-gap'
+          ? new Promise<void>((resolve) => {
+              resolveOverlap = resolve;
+            })
+          : undefined,
+      stop: vi.fn(),
+    };
+    const engine = createSyncEngine({ mx, gapTracker });
+    engine.start();
+
+    const makeLive = (id: string) =>
+      ({ ...makeEvent(), getId: () => id, event: { event_id: id } }) as unknown as MatrixEvent;
+    const rClear = { ...makeRoom('!r-clear'), threadsTimelineSets: [] } as unknown as Room;
+    const rGap = { ...makeRoom('!r-gap'), threadsTimelineSets: [] } as unknown as Room;
+
+    mx.__emit(RoomEvent.Timeline, makeLive('$stale'), rClear, false, false, { liveEvent: true });
+    revokeRoomCacheStoreWrites(engine.sessionId, '!r-clear');
+    mx.__emit(RoomEvent.Timeline, makeLive('$fresh'), rClear, false, false, { liveEvent: true });
+    mx.__emit(RoomEvent.Timeline, makeLive('$after-reset'), rGap, false, false, {
+      liveEvent: true,
+    });
+
+    await vi.waitFor(() => expect(mockPersistRoomChunk).toHaveBeenCalledTimes(1));
+    expect(
+      (mockPersistRoomChunk.mock.calls[0]![0] as { mappedEvents: MatrixEvent[] }).mappedEvents.map(
+        (event) => event.getId()
+      )
+    ).toEqual(['$fresh']);
+    // !r-gap must wait for whenOverlapCaptured before persisting.
+    expect(resolveOverlap).toBeDefined();
+    expect(mockPersistRoomChunk).toHaveBeenCalledTimes(1);
+
+    resolveOverlap?.();
+    await vi.waitFor(() => expect(mockPersistRoomChunk).toHaveBeenCalledTimes(2));
+    expect(
+      (mockPersistRoomChunk.mock.calls[1]![0] as { mappedEvents: MatrixEvent[] }).mappedEvents.map(
+        (event) => event.getId()
+      )
+    ).toEqual(['$after-reset']);
+    engine.stop();
+  });
+
+  it('drains queued writes immediately on pagehide and clears them on stop()', () => {
+    const windowListeners = new Map<string, () => void>();
+    vi.stubGlobal('window', {
+      addEventListener: (type: string, listener: () => void) => windowListeners.set(type, listener),
+      removeEventListener: (type: string) => windowListeners.delete(type),
+    });
+    const mx = createMockClient(SyncState.Syncing);
+    const engine = createSyncEngine({
+      mx,
+      gapTracker: {
+        handleTimelineReset: vi.fn(),
+        handleSyncPrepared: vi.fn().mockResolvedValue(undefined),
+        stop: vi.fn(),
+      },
+    });
+    engine.start();
+
+    const makeLive = (id: string) =>
+      ({ ...makeEvent(), getId: () => id, event: { event_id: id } }) as unknown as MatrixEvent;
+    const r1 = { ...makeRoom('!r1'), threadsTimelineSets: [] } as unknown as Room;
+    mx.__emit(RoomEvent.Timeline, makeLive('$before-hide'), r1, false, false, { liveEvent: true });
+    expect(mockPersistRoomChunk).not.toHaveBeenCalled();
+
+    // pagehide drains synchronously without waiting for the microtask.
+    windowListeners.get('pagehide')?.();
+    expect(mockPersistRoomChunk).toHaveBeenCalledTimes(1);
+
+    // stop() drops newly queued events before any microtask can drain them.
+    mockPersistRoomChunk.mockClear();
+    mx.__emit(RoomEvent.Timeline, makeLive('$dropped'), r1, false, false, { liveEvent: true });
+    engine.stop();
+    vi.unstubAllGlobals();
+    return Promise.resolve().then(() => {
+      expect(mockPersistRoomChunk).not.toHaveBeenCalled();
+    });
   });
 });

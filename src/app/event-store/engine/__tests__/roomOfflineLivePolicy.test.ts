@@ -111,3 +111,36 @@ it('does not schedule attachment work for an inline replacement', async () => {
     control.stop();
   }
 });
+
+it('skips meta IDB reads in observe() when there are no subscribers and no eligible attachments', async () => {
+  const { control } = await setup('all-rooms');
+  const plainText = new MatrixEvent({
+    event_id: '$plain',
+    room_id: roomId,
+    sender: '@alice:example.org',
+    type: 'm.room.message',
+    origin_server_ts: 2,
+    content: { msgtype: 'm.text', body: 'hello' },
+  });
+  const txSpy = vi.spyOn(IDBDatabase.prototype, 'transaction');
+  try {
+    await control.observe([plainText], roomId);
+    expect(txSpy).not.toHaveBeenCalled();
+    control.stop();
+    await control.observe([plainText], roomId);
+    expect(txSpy).not.toHaveBeenCalled();
+    control.start();
+
+    // With a UI subscriber, plain live events still refresh the room snapshot.
+    const onSnapshot = vi.fn();
+    const unsubscribe = control.controller.subscribe(roomId, onSnapshot);
+    await vi.waitFor(() => expect(onSnapshot).toHaveBeenCalled());
+    txSpy.mockClear();
+
+    await control.observe([plainText], roomId);
+    expect(txSpy).toHaveBeenCalled();
+    unsubscribe();
+  } finally {
+    control.stop();
+  }
+});
