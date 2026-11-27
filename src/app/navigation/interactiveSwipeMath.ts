@@ -3,6 +3,9 @@ export const SWIPE_LOCK_SLOP_PX = 10;
 export const SWIPE_COMMIT_RATIO = 0.35;
 export const SWIPE_FLICK_MIN_PX = 24;
 export const SWIPE_FLICK_VELOCITY = 0.45;
+// Apple UIKit UIScrollView.DecelerationRate.normal (WWDC 2018 Designing Fluid Interfaces).
+export const SWIPE_DECELERATION_RATE = 0.998;
+export const SWIPE_PROJECTION_MS = SWIPE_DECELERATION_RATE / (1 - SWIPE_DECELERATION_RATE);
 export const SWIPE_REVERSAL_VELOCITY = -0.3;
 export const SWIPE_VELOCITY_WINDOW_MS = 100;
 export const EDGE_DISCRETE_MIN_PX = 72;
@@ -58,9 +61,15 @@ export function createSwipeTracker({
 
   const recordSample = (x: number, timeMs: number) => {
     const last = samples[samples.length - 1];
-    if (!last || last.t !== timeMs || last.x !== x) {
-      samples.push({ x, t: timeMs });
+    if (last && last.x === x) {
+      if (samples.length === 1 && timeMs > last.t) {
+        last.t = timeMs;
+      } else if (samples.length > 1 && timeMs - last.t > SWIPE_VELOCITY_WINDOW_MS) {
+        velocity = 0;
+      }
+      return;
     }
+    samples.push({ x, t: timeMs });
     const cutoff = timeMs - SWIPE_VELOCITY_WINDOW_MS;
     while (samples.length > 2 && samples[0]!.t < cutoff) {
       samples.shift();
@@ -77,14 +86,7 @@ export function createSwipeTracker({
     if (!newest || endTimeMs - newest.t > SWIPE_VELOCITY_WINDOW_MS) {
       return 0;
     }
-    const cutoff = endTimeMs - SWIPE_VELOCITY_WINDOW_MS;
-    let oldestIndex = 0;
-    while (oldestIndex < samples.length - 2 && samples[oldestIndex]!.t < cutoff) {
-      oldestIndex += 1;
-    }
-    const oldest = samples[oldestIndex]!;
-    const dt = Math.max(newest.t, endTimeMs) - oldest.t;
-    return dt > 0 ? ((newest.x - oldest.x) * axisSign) / dt : 0;
+    return velocity;
   };
 
   const updateOffset = (x: number, extent: number) => {
@@ -159,7 +161,10 @@ export function createSwipeTracker({
       }
       return (
         offset >= extent * SWIPE_COMMIT_RATIO ||
-        (offset >= SWIPE_FLICK_MIN_PX && effectiveVelocity >= SWIPE_FLICK_VELOCITY)
+        (offset >= SWIPE_FLICK_MIN_PX &&
+          (effectiveVelocity >= SWIPE_FLICK_VELOCITY ||
+            (effectiveVelocity > 0 &&
+              offset + effectiveVelocity * SWIPE_PROJECTION_MS >= extent * 0.5)))
       );
     },
 

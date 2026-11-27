@@ -459,6 +459,31 @@ describe('interactiveSwipe', () => {
       expect(mock.cleanup).toHaveBeenCalledWith(false);
     });
 
+    it('commits a short flick when touchend repeats the last x 16ms later', async () => {
+      const mock = createMockScene(390);
+      render(<InteractiveEdge begin={() => mock.scene} onCommit={vi.fn()} />);
+
+      act(() => {
+        window.dispatchEvent(
+          createTouchEvent('touchstart', [{ identifier: 1, clientX: 8, clientY: 200 }], 0)
+        );
+        window.dispatchEvent(
+          createTouchEvent('touchmove', [{ identifier: 1, clientX: 20, clientY: 200 }], 20)
+        );
+        window.dispatchEvent(
+          createTouchEvent('touchmove', [{ identifier: 1, clientX: 72, clientY: 200 }], 110)
+        );
+        window.dispatchEvent(
+          createTouchEvent('touchend', [], 126, [{ identifier: 1, clientX: 72, clientY: 200 }])
+        );
+      });
+
+      await flushMicrotasks();
+      expect(mock.settle).toHaveBeenCalledWith(true, expect.any(Number), 54);
+      expect(mock.commit).toHaveBeenCalledOnce();
+      expect(mock.cleanup).toHaveBeenCalledWith(true);
+    });
+
     it('suppresses one stray click immediately after a locked drag and restores clicks next tick', () => {
       vi.useFakeTimers();
       const onClick = vi.fn();
