@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React, { type ReactNode, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,12 +35,9 @@ type FakeTrack = {
   setPointerCapture: ReturnType<typeof vi.fn>;
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: () => void;
-  parentElement?: {
-    scrollTop: number;
-    contains: (node: unknown) => boolean;
-    parentElement?: null;
-  } | null;
-  querySelector?: (selector: string) => { focus: ReturnType<typeof vi.fn> } | null;
+  contains: (node: unknown) => boolean;
+  parentElement?: Element | null;
+  querySelector: (selector: string) => { focus: ReturnType<typeof vi.fn> } | null;
   ownerDocument: {
     visibilityState: 'visible' | 'hidden';
     activeElement?: unknown;
@@ -49,7 +47,7 @@ type FakeTrack = {
 };
 
 /** The strip under the card that names the action. */
-type FakeStrip = { style: { display: string } };
+type FakeStrip = { style: { display: string }; contains: (node: unknown) => boolean };
 
 /** The element that holds the cards. */
 type FakeList = {
@@ -77,6 +75,8 @@ beforeEach(() => {
     setPointerCapture: vi.fn(),
     addEventListener: vi.fn(),
     removeEventListener: () => undefined,
+    contains: (node) => node === track,
+    querySelector: () => null,
     ownerDocument: {
       visibilityState: 'visible',
       addEventListener: (type, listener) => {
@@ -91,7 +91,7 @@ beforeEach(() => {
       },
     },
   };
-  strip = { style: { display: '' } };
+  strip = { style: { display: '' }, contains: (node) => node === strip };
   list = {
     addEventListener: vi.fn(
       (type: string, listener: (event: unknown) => void, options: unknown) => {
@@ -106,7 +106,8 @@ beforeEach(() => {
   documentListeners = {};
   direction = 'ltr';
   renderers = [];
-  vi.stubGlobal('window', { innerWidth: VIEWPORT_WIDTH });
+  document.body.innerHTML = '';
+  Object.defineProperty(window, 'innerWidth', { configurable: true, value: VIEWPORT_WIDTH });
   vi.stubGlobal('getComputedStyle', () => ({ direction }));
 });
 
@@ -771,9 +772,8 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
     swipe(300, 190);
     pointer('onPointerDown', 80);
     pointer('onPointerUp', 80);
-    const moreTarget = {
-      closest: (sel: string) => (sel.includes('[data-compact-thread-more]') ? {} : null),
-    };
+    const moreTarget = document.createElement('button');
+    moreTarget.setAttribute('data-compact-thread-more', 'true');
     const moreClick = {
       detail: 1,
       target: moreTarget,
@@ -799,8 +799,8 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
     expect(track.style.transform).toBe('');
 
     // Two cards in one list: swiping the second closes the first parked card.
-    const track1: FakeTrack = { ...track, style: { transform: '' } };
-    const track2: FakeTrack = { ...track, style: { transform: '' } };
+    const track1: FakeTrack = { ...track, style: { transform: '' }, contains: (t) => t === track1 };
+    const track2: FakeTrack = { ...track, style: { transform: '' }, contains: (t) => t === track2 };
     let two!: ReactTestRenderer;
     act(() => {
       two = create(
@@ -834,7 +834,7 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
           createNodeMock: (host: React.ReactElement<any>) => {
             if (host.props['data-list']) return list;
             if (host.props['data-compact-card-swipe'] === 'action')
-              return { style: { display: '' } };
+              return { style: { display: '' }, contains: () => false };
             if (host.props['data-compact-card-swipe'] === 'track') {
               return host.props.children.props['data-card'] === '1' ? track1 : track2;
             }
@@ -874,12 +874,36 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
   it('closes a parked card on Escape, outside pointerdown, scroll, disable, and visibility hidden', () => {
     const { swipe, rerender } = renderSplit();
 
-    // Escape
+    // Escape with focus inside the card closes and stops propagation
     swipe(300, 190);
-    const esc = { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() };
-    tellDocument('keydown', esc);
+    track.ownerDocument.activeElement = track;
+    const escInCard = { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    tellDocument('keydown', escInCard);
     expect(track.style.transform).toBe('');
-    expect(esc.preventDefault).toHaveBeenCalled();
+    expect(escInCard.preventDefault).toHaveBeenCalled();
+    expect(escInCard.stopPropagation).toHaveBeenCalled();
+
+    // Escape with focus outside card/tray closes the tray without swallowing Escape
+    swipe(300, 190);
+    track.ownerDocument.activeElement = document.body;
+    const escOutside = { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    tellDocument('keydown', escOutside);
+    expect(track.style.transform).toBe('');
+    expect(escOutside.preventDefault).not.toHaveBeenCalled();
+    expect(escOutside.stopPropagation).not.toHaveBeenCalled();
+
+    // Escape while a dialog overlay is open leaves the parked tray alone
+    swipe(300, 190);
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    document.body.append(dialog);
+    track.ownerDocument.activeElement = strip;
+    const escOverlay = { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    tellDocument('keydown', escOverlay);
+    expect(track.style.transform).toBe('translateX(-156px)');
+    expect(escOverlay.preventDefault).not.toHaveBeenCalled();
+    dialog.remove();
+    tellDocument('keydown', { key: 'Escape', preventDefault: vi.fn(), stopPropagation: vi.fn() });
 
     // Outside pointerdown (inside track or strip stays open; outside closes)
     swipe(300, 190);
@@ -1106,11 +1130,13 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
   });
 
   it('ignores tiny <= 8px vertical scroll drift after parking and dismisses on > 8px scroll', () => {
-    const scroller = {
-      scrollTop: 100,
-      contains: (node: unknown) => node === track,
-      parentElement: null,
-    };
+    const scroller = document.createElement('div');
+    Object.defineProperty(scroller, 'scrollTop', {
+      configurable: true,
+      writable: true,
+      value: 100,
+    });
+    scroller.contains = (node: unknown) => node === track;
     track.parentElement = scroller;
     const { swipe } = renderSplit();
 
@@ -1130,5 +1156,52 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
     scroller.scrollTop = 109;
     tellDocument('scroll', { target: scroller });
     expect(track.style.transform).toBe('');
+  });
+
+  it('reflects live snooze state while parked, refuses to park if resolved mid-swipe, and ignores post-unmount touchend', () => {
+    const cardFocus = vi.fn();
+    track.querySelector = (selector) =>
+      selector === '[data-thread-root-id]' ? { focus: cardFocus } : null;
+    const { swipe, pointer, rerender, onSnooze, onSwipe, actionStrip, trayButton, renderer } =
+      renderSplit({ snoozed: true, snoozeLabel: 'Unsnooze' });
+
+    // Park while snoozed, then snooze expires while parked -> label and action update live.
+    swipe(300, 190);
+    expect(actionStrip()[0]!.props['data-snoozed']).toBe('true');
+    rerender({ snoozed: false, snoozeLabel: 'Snooze', onSnooze });
+    expect(actionStrip()[0]!.props['data-snoozed']).toBeUndefined();
+    expect(trayButton('snooze').findByType('span').props.children).toBe('Snooze');
+    track.ownerDocument.activeElement = strip;
+    act(() => {
+      trayButton('snooze').props.onClick();
+    });
+    expect(onSnooze).toHaveBeenCalledWith(false);
+    expect(cardFocus).not.toHaveBeenCalled();
+
+    // Thread resolves mid-swipe -> releasing in the park range snaps closed instead of parking.
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 190);
+    rerender({
+      resolved: true,
+      label: 'Reopen thread',
+      snoozeLabel: undefined,
+      onSnooze: undefined,
+    });
+    pointer('onPointerUp', 190);
+    expect(track.style.transform).toBe('');
+
+    // Unmounting mid-swipe cancels any deferred touchend timer so onSwipe is not called.
+    vi.useFakeTimers();
+    rerender({ resolved: false, label: 'Resolve', snoozeLabel: 'Snooze', onSnooze });
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 100);
+    tellDocument('touchend', { touches: [] });
+    act(() => renderer.unmount());
+    act(() => {
+      vi.runAllTimers();
+    });
+    expect(onSwipe).not.toHaveBeenCalled();
   });
 });

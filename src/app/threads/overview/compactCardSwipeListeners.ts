@@ -1,170 +1,127 @@
 import { type RefObject, useEffect } from 'react';
+import { hasOpenOverlay } from '../../lib/openOverlay';
 
 // Ignore tiny residual vertical momentum right after parking a card on a trackpad.
-export const PARK_SCROLL_DISMISS_THRESHOLD = 8;
-
-export const isNodeInside = (el: HTMLElement | null, target: EventTarget | null): boolean =>
-  Boolean(
-    el &&
-    target &&
-    (el === target ||
-      (typeof el.contains === 'function' &&
-        (typeof Node === 'undefined' || target instanceof Node) &&
-        el.contains(target as Node)))
-  );
-
+const PARK_SCROLL_DRIFT_PX = 8;
 const CARD_ACTION_SELECTOR =
   '[data-compact-thread-more],[data-compact-thread-pin],[data-compact-thread-resolve]';
+const PASSIVE = { capture: true, passive: true } as const;
 
-export const isCardActionTarget = (target: EventTarget | null): boolean => {
-  if (!target || typeof target !== 'object') return false;
-  const el =
-    'closest' in target && typeof target.closest === 'function'
-      ? (target as Element)
-      : 'parentElement' in target
-        ? (target as Node).parentElement
-        : null;
-  return Boolean(el?.closest?.(CARD_ACTION_SELECTOR));
-};
+export const isCardActionTarget = (target: EventTarget | null): boolean =>
+  Boolean(
+    (target instanceof Element ? target : (target as Node | null)?.parentElement)?.closest(
+      CARD_ACTION_SELECTOR
+    )
+  );
 
-export const focusCompactCardButton = (track: HTMLElement | null): void => {
-  const cardButton =
-    track?.querySelector?.<HTMLElement>('[data-thread-root-id]') ??
-    track?.querySelector?.<HTMLElement>('button');
-  cardButton?.focus({ preventScroll: true });
-};
+export const focusCompactCardButton = (track: HTMLElement | null): void =>
+  (
+    track?.querySelector<HTMLElement>('[data-thread-root-id]') ??
+    track?.querySelector<HTMLElement>('button')
+  )?.focus({ preventScroll: true });
 
 const getScrollTop = (target: EventTarget | null, doc: Document): number | undefined => {
-  if (!target || target === doc) {
-    const root = doc.scrollingElement ?? doc.documentElement;
-    if (root && typeof root.scrollTop === 'number') return root.scrollTop;
-    return typeof doc.defaultView?.scrollY === 'number' ? doc.defaultView.scrollY : undefined;
-  }
-  return 'scrollTop' in target && typeof (target as HTMLElement).scrollTop === 'number'
-    ? (target as HTMLElement).scrollTop
-    : undefined;
+  const el = !target || target === doc ? (doc.scrollingElement ?? doc.documentElement) : target;
+  return el instanceof Element ? el.scrollTop : undefined;
 };
 
-/** Document touch/visibility safety net: no swipe outlives its touch or a hidden page. */
-export const useTouchSwipeSafetyNet = (
-  trackRef: RefObject<HTMLDivElement | null>,
-  gestureRef: RefObject<{ swipe?: unknown } | undefined>,
-  actionsRef: RefObject<{
-    endSwipe: (source: 'touch' | 'trackpad', commit: boolean) => void;
-    abortAll: () => void;
-  }>
-): void => {
-  useEffect(() => {
-    const doc = trackRef.current?.ownerDocument;
-    if (!doc) return undefined;
-    const handleTouchStart = (event: TouchEvent) => {
-      const gesture = gestureRef.current;
-      if (gesture && (event.touches.length > 1 || gesture.swipe)) {
-        actionsRef.current.endSwipe('touch', false);
-      }
-    };
-    const handleTouchEnd = (event: TouchEvent) => {
-      const gesture = gestureRef.current;
-      if (!gesture?.swipe || event.touches.length > 0) return;
-      setTimeout(() => {
-        if (gestureRef.current === gesture) {
-          actionsRef.current.endSwipe('touch', event.type === 'touchend');
-        }
-      }, 0);
-    };
-    const handleVisibilityChange = () => {
-      if (doc.visibilityState === 'hidden') actionsRef.current.abortAll();
-    };
-    const early = { capture: true, passive: true };
-    doc.addEventListener('touchstart', handleTouchStart, early);
-    doc.addEventListener('touchend', handleTouchEnd, early);
-    doc.addEventListener('touchcancel', handleTouchEnd, early);
-    doc.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      doc.removeEventListener('touchstart', handleTouchStart, early);
-      doc.removeEventListener('touchend', handleTouchEnd, early);
-      doc.removeEventListener('touchcancel', handleTouchEnd, early);
-      doc.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [actionsRef, gestureRef, trackRef]);
+const listen = (
+  doc: Document,
+  entries: Array<[string, EventListener, AddEventListenerOptions]>
+) => {
+  entries.forEach(([type, fn, opts]) => doc.addEventListener(type, fn, opts));
+  return () => entries.forEach(([type, fn, opts]) => doc.removeEventListener(type, fn, opts));
 };
 
-/** Dismisses a parked swipe tray on outside tap/click, Escape, contextmenu, or real vertical scroll. */
-export const useParkedCardDismissal = (
+/** Document safety net (touch/visibility) and parked-tray dismissal listeners. */
+export const useCompactCardSwipeDocumentListeners = (
   parked: boolean,
   trackRef: RefObject<HTMLDivElement | null>,
   stripRef: RefObject<HTMLDivElement | null>,
-  actionsRef: RefObject<{ closeParked: () => void }>
+  activeRef: RefObject<{ kind: 'touch' | 'trackpad'; swipe?: unknown } | undefined>,
+  actionsRef: RefObject<{
+    endSwipe: (commit: boolean) => void;
+    closeParked: () => void;
+    abortAll: () => void;
+  }>
 ): void => {
+  // No touch swipe outlives its touch or a hidden page.
+  useEffect(() => {
+    const doc = trackRef.current?.ownerDocument;
+    if (!doc) return undefined;
+    const onTouchStart = (e: Event) => {
+      const a = activeRef.current;
+      if (a?.kind === 'touch' && ((e as TouchEvent).touches.length > 1 || a.swipe))
+        actionsRef.current.endSwipe(false);
+    };
+    const onTouchEnd = (e: Event) => {
+      const a = activeRef.current;
+      if (a?.kind !== 'touch' || !a.swipe || (e as TouchEvent).touches.length > 0) return;
+      setTimeout(() => {
+        if (activeRef.current === a) actionsRef.current.endSwipe(e.type === 'touchend');
+      }, 0);
+    };
+    const onVisibility = () => {
+      if (doc.visibilityState === 'hidden') actionsRef.current.abortAll();
+    };
+    return listen(doc, [
+      ['touchstart', onTouchStart, PASSIVE],
+      ['touchend', onTouchEnd, PASSIVE],
+      ['touchcancel', onTouchEnd, PASSIVE],
+      ['visibilitychange', onVisibility, {}],
+    ]);
+  }, [actionsRef, activeRef, trackRef]);
+
+  // Dismiss a parked tray on outside pointerdown, Escape, contextmenu, or real vertical scroll.
   useEffect(() => {
     if (!parked) return undefined;
     const doc = trackRef.current?.ownerDocument;
     if (!doc) return undefined;
-    const parkedScrollTop = new Map<EventTarget, number>();
-    const recordScrollTop = (target: EventTarget | null) => {
-      if (!target) return;
-      const top = getScrollTop(target, doc);
-      if (top !== undefined) parkedScrollTop.set(target, top);
+    const startTop = new Map<EventTarget, number>();
+    const record = (t: EventTarget | null) => {
+      const top = t ? getScrollTop(t, doc) : undefined;
+      if (t && top !== undefined) startTop.set(t, top);
     };
-    recordScrollTop(doc);
-    recordScrollTop(doc.documentElement ?? null);
-    for (let el: HTMLElement | null = trackRef.current; el; el = el.parentElement ?? null) {
-      recordScrollTop(el);
-    }
-    const onPointerDown = (event: Event) => {
-      const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
-      if (
-        path.includes(trackRef.current!) ||
-        path.includes(stripRef.current!) ||
-        isNodeInside(trackRef.current, event.target) ||
-        isNodeInside(stripRef.current, event.target)
-      ) {
-        return;
-      }
-      actionsRef.current.closeParked();
-    };
-    const onKeyDown = (event: Event) => {
-      const { key, shiftKey } = event as KeyboardEvent;
-      if (key === 'Escape') {
-        const restoreFocus = isNodeInside(stripRef.current, doc.activeElement);
+    record(doc);
+    for (let el: HTMLElement | null = trackRef.current; el; el = el.parentElement) record(el);
+
+    const onPointerDown = (e: Event) => {
+      const t = e.target as Node | null;
+      if (!trackRef.current?.contains(t) && !stripRef.current?.contains(t))
         actionsRef.current.closeParked();
-        if (restoreFocus) focusCompactCardButton(trackRef.current);
-        event.preventDefault();
-        event.stopPropagation();
-      } else if (key === 'ContextMenu' || (shiftKey && key === 'F10')) {
+    };
+    const onKeyDown = (e: Event) => {
+      const { key, shiftKey } = e as KeyboardEvent;
+      if (key === 'ContextMenu' || (shiftKey && key === 'F10')) {
         actionsRef.current.closeParked();
+      } else if (key === 'Escape' && !hasOpenOverlay()) {
+        const inStrip = Boolean(stripRef.current?.contains(doc.activeElement));
+        const inCard = inStrip || Boolean(trackRef.current?.contains(doc.activeElement));
+        actionsRef.current.closeParked();
+        if (!inCard) return;
+        if (inStrip) focusCompactCardButton(trackRef.current);
+        e.preventDefault();
+        e.stopPropagation();
       }
     };
-    const onScroll = (event: Event) => {
-      const t = event.target;
-      if (
-        t &&
-        t !== doc &&
-        !(doc.documentElement && t === doc.documentElement) &&
-        !isNodeInside(t as HTMLElement, trackRef.current)
-      ) {
-        return;
-      }
-      const currentTop = getScrollTop(t, doc);
-      const startTop = parkedScrollTop.get(t ?? doc);
-      if (
-        currentTop !== undefined &&
-        startTop !== undefined &&
-        Math.abs(currentTop - startTop) <= PARK_SCROLL_DISMISS_THRESHOLD
-      ) {
-        return;
-      }
-      actionsRef.current.closeParked();
+    const onScroll = (e: Event) => {
+      const t = e.target;
+      const isAncestor =
+        !t ||
+        t === doc ||
+        t === doc.documentElement ||
+        (t instanceof Element && t.contains(trackRef.current));
+      if (!isAncestor) return;
+      const top = getScrollTop(t, doc);
+      const start = startTop.get(t ?? doc);
+      if (top === undefined || start === undefined || Math.abs(top - start) > PARK_SCROLL_DRIFT_PX)
+        actionsRef.current.closeParked();
     };
-    const onContextMenu = () => actionsRef.current.closeParked();
-    const listeners: Array<[string, EventListener, AddEventListenerOptions]> = [
-      ['pointerdown', onPointerDown, { capture: true, passive: true }],
+    return listen(doc, [
+      ['pointerdown', onPointerDown, PASSIVE],
       ['keydown', onKeyDown, { capture: true }],
-      ['scroll', onScroll, { capture: true, passive: true }],
-      ['contextmenu', onContextMenu, { capture: true, passive: true }],
-    ];
-    listeners.forEach(([type, fn, opts]) => doc.addEventListener(type, fn, opts));
-    return () =>
-      listeners.forEach(([type, fn]) => doc.removeEventListener(type, fn, { capture: true }));
+      ['scroll', onScroll, PASSIVE],
+      ['contextmenu', () => actionsRef.current.closeParked(), PASSIVE],
+    ]);
   }, [actionsRef, parked, stripRef, trackRef]);
 };

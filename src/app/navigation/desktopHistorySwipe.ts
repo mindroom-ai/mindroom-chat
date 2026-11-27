@@ -126,6 +126,7 @@ export const installDesktopHistorySwipe = (
     gesture = next;
     indicator.hide();
     if (g?.kind === 'claimed') {
+      lastCommitAt = now();
       g.claim.end();
     } else if (
       g?.kind === 'track' &&

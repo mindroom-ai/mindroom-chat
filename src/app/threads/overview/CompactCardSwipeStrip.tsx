@@ -2,6 +2,11 @@ import { type CSSProperties, type HTMLAttributes, type RefObject } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import * as css from './CompactCardSwipe.css';
 
+export type SwipePointerHandlers = Pick<
+  HTMLAttributes<HTMLDivElement>,
+  'onPointerDown' | 'onPointerMove' | 'onPointerUp' | 'onPointerCancel' | 'onLostPointerCapture'
+>;
+
 export type CompactCardSwipeStripProps = {
   resolved: boolean;
   label: string;
@@ -14,15 +19,8 @@ export type CompactCardSwipeStripProps = {
   onResolveClick?: () => void;
   stripRef?: RefObject<HTMLDivElement | null>;
   'data-tour-swipe'?: string;
-} & Pick<
-  HTMLAttributes<HTMLDivElement>,
-  | 'onPointerDown'
-  | 'onPointerMove'
-  | 'onPointerUp'
-  | 'onPointerCancel'
-  | 'onLostPointerCapture'
-  | 'onClickCapture'
->;
+} & SwipePointerHandlers &
+  Pick<HTMLAttributes<HTMLDivElement>, 'onClickCapture'>;
 
 /** The action strip or split tray revealed behind a swiped compact card; shared with the tour. */
 export function CompactCardSwipeStrip({
@@ -39,22 +37,9 @@ export function CompactCardSwipeStrip({
   ...props
 }: CompactCardSwipeStripProps) {
   if (snoozeLabel !== undefined) {
-    const tabIndex = parked ? 0 : -1;
-    const buttons = [
-      {
-        action: 'snooze',
-        className: css.SnoozeButton,
-        icon: Icons.Clock,
-        text: snoozeLabel,
-        onClick: onSnoozeClick,
-      },
-      {
-        action: 'resolve',
-        className: css.ResolveButton,
-        icon: Icons.Check,
-        text: label,
-        onClick: onResolveClick,
-      },
+    const items = [
+      ['snooze', css.SnoozeButton, Icons.Clock, snoozeLabel, onSnoozeClick],
+      ['resolve', css.ResolveButton, Icons.Check, label, onResolveClick],
     ] as const;
     return (
       <div
@@ -72,18 +57,18 @@ export function CompactCardSwipeStrip({
         aria-hidden={parked ? undefined : true}
         {...props}
       >
-        {buttons.map((btn) => (
+        {items.map(([action, cls, icon, text, onClick]) => (
           <button
-            key={btn.action}
+            key={action}
             type="button"
-            className={`${css.TrayButton} ${btn.className}`}
-            data-compact-card-swipe-action={btn.action}
-            tabIndex={tabIndex}
-            onClick={btn.onClick}
+            className={`${css.TrayButton} ${cls}`}
+            data-compact-card-swipe-action={action}
+            tabIndex={parked ? 0 : -1}
+            onClick={onClick}
           >
-            <Icon size="200" src={btn.icon} />
+            <Icon size="200" src={icon} />
             <Text size="T200" className={css.TrayLabel}>
-              {btn.text}
+              {text}
             </Text>
           </button>
         ))}

@@ -382,7 +382,8 @@ describe('installDesktopHistorySwipe', () => {
     expect(counts()).toEqual([2, 0]);
   });
   it('arbitrates registered trackpad claimers cleanly with non-cancelable follow-ups and swipe-tracking=false', () => {
-    install({}, false); // swipe-tracking disabled ("Swipe between pages" off)
+    let t = 1000;
+    install({ now: () => t }, false); // swipe-tracking disabled ("Swipe between pages" off)
     const move = vi.fn();
     const end = vi.fn();
     const cancel = vi.fn();
@@ -417,6 +418,15 @@ describe('installDesktopHistorySwipe', () => {
     phase('end');
     expect(end).toHaveBeenCalledTimes(1);
     expect(cancel).not.toHaveBeenCalled();
+
+    // Late discrete AppKit swipe right after claimed end is suppressed within dedup window.
+    t += 50;
+    emit({ type: 'swipe', direction: 'left' });
+    expect(counts()).toEqual([0, 0]);
+    t += 300;
+    emit({ type: 'swipe', direction: 'left' });
+    expect(counts()).toEqual([1, 0]);
+    backSpy.mockClear();
 
     // Sloppy diagonal scroll (|x| < 1.5 * |y|) does not claim a card or fire onVerticalScroll.
     claimFn.mockClear();
