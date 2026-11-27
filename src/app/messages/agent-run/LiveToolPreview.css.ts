@@ -184,13 +184,19 @@ export const StepName = styleVariants({
   failed: [stepNameBase, { fontWeight: config.fontWeight.W500 }],
 });
 
-// Indented past StepIcon (16px) + StepHead gap (8px) so wrapped args align under StepName.
+// Indented in interface direction past StepIcon (16px) + StepHead gap (8px) so an LTR command
+// inside an RTL interface still aligns under StepName.
+export const StepArgWrap = style({
+  display: 'block',
+  minWidth: 0,
+  paddingInlineStart: toRem(24),
+});
+
 export const StepArg = style({
   ...mono,
   ...muted,
   display: '-webkit-box',
   minWidth: 0,
-  paddingInlineStart: toRem(24),
   overflow: 'hidden',
   overflowWrap: 'anywhere',
   wordBreak: 'break-word',

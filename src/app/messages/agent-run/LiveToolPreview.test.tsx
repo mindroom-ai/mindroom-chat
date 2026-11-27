@@ -255,6 +255,7 @@ describe('LiveToolPreview', () => {
     // Clicking active step opens full drawer (command + full 5-line output, no duplicate) and collapses back.
     const activeToggle = steps[3]?.querySelector<HTMLButtonElement>('button[aria-expanded]');
     expect(activeToggle?.getAttribute('aria-expanded')).toBe('false');
+    expect(activeToggle?.getAttribute('aria-controls')).toBeNull();
     expect(steps[3]?.querySelector('[data-live-step-drawer]')).toBeNull();
     act(() => activeToggle?.click());
     expect(activeToggle?.getAttribute('aria-expanded')).toBe('true');
@@ -309,7 +310,11 @@ describe('LiveToolPreview', () => {
     expect(withArg.querySelector('button[aria-expanded]')?.getAttribute('aria-expanded')).toBe(
       'false'
     );
-    expect(withArg.querySelector(`.${css.StepArg.split(' ')[0]}`)?.textContent).toBe('src/index.ts');
+    const argWrap = withArg.querySelector(`.${css.StepArgWrap.split(' ')[0]}`);
+    const argText = argWrap?.querySelector(`.${css.StepArg.split(' ')[0]}`);
+    expect(argWrap?.getAttribute('dir')).toBeNull();
+    expect(argText?.getAttribute('dir')).toBe('auto');
+    expect(argText?.textContent).toBe('src/index.ts');
     // Bare foreground shell step without args or progress is also non-interactive.
     expect(container.querySelector('[data-live-shell="2"] button[aria-expanded]')).toBeNull();
   });
@@ -331,7 +336,7 @@ describe('LiveToolPreview', () => {
       {
         type: 'tool_call_completed',
         tool_name: 'bash',
-        args_preview: 'timeout=60, command=set -e\npytest -q',
+        args_preview: 'command=set -e\npytest -q',
         result_preview: 'AssertionError: boom',
         is_error: true,
         started_at: NOW - 8,
@@ -363,7 +368,7 @@ describe('LiveToolPreview', () => {
     const doneCopy = doneDrawer?.querySelector<HTMLButtonElement>('[data-live-step-copy]');
     expect(doneCopy).not.toBeNull();
     expect(doneToggle?.contains(doneCopy!)).toBe(false);
-    expect(doneCopy?.textContent).toBe('Copy');
+    expect(doneCopy?.textContent).toBe('Copy code');
     await act(async () => {
       doneCopy?.click();
       await Promise.resolve();
@@ -380,7 +385,7 @@ describe('LiveToolPreview', () => {
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(doneCopy?.textContent).toBe('Copy');
+    expect(doneCopy?.textContent).toBe('Copy code');
 
     // Failed shell step shows Command header, multiline command, warning-tinted result, and Copy failed + cleanup on unmount.
     const failedToggle = failedStep?.querySelector<HTMLButtonElement>('button[aria-expanded]');
@@ -411,7 +416,128 @@ describe('LiveToolPreview', () => {
     root = createRoot(container);
   });
 
-  it('preserves expanded state across live frame updates and completion into result_preview', () => {
+  it.each([
+    [
+      'shell JSON array with sibling arg',
+      'bash',
+      'args=["git", "status"], cwd=/repo',
+      'args=["git", "status"], cwd=/repo',
+    ],
+    [
+      'shell command containing comma-key syntax',
+      'run_shell_command',
+      "command=echo 'a=1, b=2'",
+      "command=echo 'a=1, b=2'",
+    ],
+    [
+      'single-key JSON shell command',
+      'bash',
+      '{"command": "echo \'a=1, b=2\'"}',
+      "echo 'a=1, b=2'",
+    ],
+    [
+      'non-shell multiline arg with indentation',
+      'send_message',
+      'text=first line\n  second line',
+      'text=first line\n  second line',
+    ],
+  ])(
+    'keeps lossless drawer text and copy payload for %s',
+    async (_label, toolName, argsPreview, expectedDetail) => {
+      ingestRun('del-lossless', { title: 'Lossless', callerToolCallId: 'call_lossless' }, [
+        { type: 'tool_call_completed', tool_name: toolName, args_preview: argsPreview },
+      ]);
+      render([subagentItem('call_lossless')]);
+
+      const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+      act(() => toggle?.click());
+      expect(container.querySelector('[data-live-step-command]')?.textContent).toBe(expectedDetail);
+
+      const copyBtn = container.querySelector<HTMLButtonElement>('[data-live-step-copy]');
+      await act(async () => {
+        copyBtn?.click();
+        await Promise.resolve();
+      });
+      expect(copyMocks.copyToClipboard).toHaveBeenCalledWith(expectedDetail, copyBtn);
+    }
+  );
+
+  it('auto-scrolls expanded live drawer output to bottom, pauses on scroll up, and resumes at bottom', () => {
+    let mockScrollHeight = 400;
+    const ownScrollHeight = Object.getOwnPropertyDescriptor(
+      HTMLPreElement.prototype,
+      'scrollHeight'
+    );
+    const ownClientHeight = Object.getOwnPropertyDescriptor(
+      HTMLPreElement.prototype,
+      'clientHeight'
+    );
+    Object.defineProperty(HTMLPreElement.prototype, 'scrollHeight', {
+      configurable: true,
+      get: () => mockScrollHeight,
+    });
+    Object.defineProperty(HTMLPreElement.prototype, 'clientHeight', {
+      configurable: true,
+      get: () => 200,
+    });
+
+    try {
+      const shell = toolItem({
+        index: 1,
+        toolName: 'run_shell_command',
+        argsPreview: 'command=npm test',
+        progress: 'line 1\nline 2',
+      });
+      render([shell]);
+
+      // Opens scrolled to the bottom immediately.
+      const toggle = container.querySelector<HTMLButtonElement>('button[aria-expanded]');
+      act(() => toggle?.click());
+      const pre = container.querySelector<HTMLPreElement>('[data-live-output]');
+      expect(pre).not.toBeNull();
+      expect(pre?.scrollTop).toBe(400);
+
+      // Follows new live output while pinned at bottom.
+      mockScrollHeight = 520;
+      render([{ ...shell, progress: 'line 1\nline 2\nline 3' }]);
+      expect(pre?.scrollTop).toBe(520);
+
+      // User scrolls up (> 4px from bottom): stops auto-scrolling on subsequent updates.
+      act(() => {
+        if (pre) {
+          pre.scrollTop = 100;
+          pre.dispatchEvent(new Event('scroll'));
+        }
+      });
+      mockScrollHeight = 640;
+      render([{ ...shell, progress: 'line 1\nline 2\nline 3\nline 4' }]);
+      expect(pre?.scrollTop).toBe(100);
+
+      // User scrolls back within 4px of bottom (640 - 438 - 200 = 2 <= 4): resumes auto-scrolling.
+      act(() => {
+        if (pre) {
+          pre.scrollTop = 438;
+          pre.dispatchEvent(new Event('scroll'));
+        }
+      });
+      mockScrollHeight = 760;
+      render([{ ...shell, progress: 'line 1\nline 2\nline 3\nline 4\nline 5' }]);
+      expect(pre?.scrollTop).toBe(760);
+    } finally {
+      if (ownScrollHeight) {
+        Object.defineProperty(HTMLPreElement.prototype, 'scrollHeight', ownScrollHeight);
+      } else {
+        Reflect.deleteProperty(HTMLPreElement.prototype, 'scrollHeight');
+      }
+      if (ownClientHeight) {
+        Object.defineProperty(HTMLPreElement.prototype, 'clientHeight', ownClientHeight);
+      } else {
+        Reflect.deleteProperty(HTMLPreElement.prototype, 'clientHeight');
+      }
+    }
+  });
+
+    it('preserves expanded state across live frame updates and completion into result_preview', () => {
     const startedEvent: ToolTraceEvent = {
       type: 'tool_call_started',
       tool_call_id: 'call_live_1',
