@@ -549,6 +549,27 @@ export function RoomInput({
     ]
   );
 
+  const prepareDictationVoiceItems = useCallback(
+    async (
+      file: File,
+      duration: number,
+      waveform: number[] | undefined
+    ): Promise<TUploadItem[]> => {
+      if (deferredDraft) {
+        return [
+          {
+            file,
+            originalFile: file,
+            encInfo: undefined,
+            metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
+          },
+        ];
+      }
+      return transport.createVoiceUploadItems(file, duration, waveform, room);
+    },
+    [deferredDraft, room, transport]
+  );
+
   const rootRef = useRef<HTMLDivElement | null>(null);
   const dictationOwnerKey = `${textKey}:${view ?? 'room'}`;
   const dictation = useRoomInputDictation({
@@ -562,6 +583,8 @@ export function RoomInput({
     rootRef,
     containerRef: fileDropContainerRef,
     onCommandProblem: setCommandProblem,
+    prepareVoiceUploadItems: prepareDictationVoiceItems,
+    appendAttachments: attachments.access.append,
     restoreAttachments: restoreDictationAttachments,
     restoreReplyDraft,
     saveDraft,
@@ -691,6 +714,7 @@ export function RoomInput({
           takeRootModelDraft,
           restoreRootModelDraft: (target, content) =>
             getModelController(mx).restoreRootModelDraft(target, content),
+          createVoiceUploadItems: transport.createVoiceUploadItems,
           uploadItem: transport.uploadItem,
           prepareAttachmentsForSend,
           clearReplyDraft,

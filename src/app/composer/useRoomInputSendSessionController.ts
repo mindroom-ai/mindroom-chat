@@ -54,6 +54,11 @@ import {
   threadForkDraftId,
 } from '../event-store/threads/threadFork';
 
+export const LIFECYCLE_COMPLETE_ACTIVE_SESSION_ERROR =
+  'Cannot start a lifecycle-complete send while another session is active.';
+export const LIFECYCLE_COMPLETE_UNFINISHED_ERROR =
+  'Lifecycle-complete send did not finish within the initiating call.';
+
 type SendSession = RoomInputSendSessionState & {
   room: Room;
   roomId: string;
@@ -70,7 +75,7 @@ type SendSession = RoomInputSendSessionState & {
   signalBridgedRoom: boolean;
   failFast: boolean;
   uploads?: Upload[];
-  onUploadSent?: (file: TUploadContent) => void;
+  onUploadSent?: (file: TUploadContent, rootEventId?: string) => void;
   beforeSend?: StartRoomInputSendSessionOptions['beforeSend'];
   onLocalEchoCreated?: StartRoomInputSendSessionOptions['onLocalEchoCreated'];
   onTextConsumed?: () => void;
@@ -214,7 +219,7 @@ export type StartRoomInputSendSessionOptions = {
   composerFallback?: Descendant[];
   composerContext?: ComposerContext;
   composerAlreadyReset?: boolean;
-  onUploadSent?: (file: TUploadContent) => void;
+  onUploadSent?: (file: TUploadContent, rootEventId?: string) => void;
   /**
    * Asked for this send, with the room it goes to, just before its text message goes out, after
    * anything it waited for (its long-text upload): false sends nothing, and the text returns to
@@ -702,7 +707,7 @@ export const useRoomInputSendSessionController = ({
             ? relation.event_id
             : response.event_id;
       }
-      session.onUploadSent?.(file);
+      session.onUploadSent?.(file, session.rootEventId);
       clearReplyDraftForSession(session);
       // The composer that took the send over meanwhile holds the file now.
       session.composer.attachments.remove(session.roomId, [file]);
@@ -892,9 +897,7 @@ export const useRoomInputSendSessionController = ({
       if (existingSession) {
         if (completeWithinCall) {
           restoreResetFallback();
-          throw new Error(
-            'Cannot start a lifecycle-complete send while another session is active.'
-          );
+          throw new Error(LIFECYCLE_COMPLETE_ACTIVE_SESSION_ERROR);
         }
         if (hasRoomInputSendFailures(existingSession) && !composerAlreadyReset) {
           // Send again: the attachments whose send failed go out again; text being sent stays
@@ -1086,7 +1089,7 @@ export const useRoomInputSendSessionController = ({
       }
       if (completeWithinCall && activeSlot.session) {
         clearSendSession(activeSlot);
-        throw new Error('Lifecycle-complete send did not finish within the initiating call.');
+        throw new Error(LIFECYCLE_COMPLETE_UNFINISHED_ERROR);
       }
     },
     [

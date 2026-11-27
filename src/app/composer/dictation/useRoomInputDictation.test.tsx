@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientSessions } from '../../computer/clientSessions';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { createSessionId } from '../../matrix/session/sessions';
+import type { TUploadItem } from '../../matrix/state/upload';
 import { ConversationViewContext, HOME_ASK_VIEW } from '../../navigation/conversationView';
 import { pageNoticeSlotAtom } from '../../ui/noticeSlots';
 import { LiveCaptureIndicator } from '../capture/LiveCaptureIndicator';
@@ -36,10 +37,15 @@ import {
   type DictationFinishResult,
   type DictationSession,
   type DictationSnapshot,
+  type DictationVoiceAudio,
 } from './dictationSession';
 import { insertDictatedText } from './insertDictatedText';
 import { dictationRestoresAtom } from './startLiveDictation';
-import { useRoomInputDictation, type RoomInputDictationFeature } from './useRoomInputDictation';
+import {
+  useRoomInputDictation,
+  type RoomInputDictationFeature,
+  type UseRoomInputDictationOptions,
+} from './useRoomInputDictation';
 
 const serverMock = vi.hoisted(
   (): {
@@ -155,6 +161,7 @@ const createMockSession = (opts?: {
   originApiUrl?: string;
   journalId?: string;
   hasClient?: boolean;
+  voiceAudio?: DictationVoiceAudio | undefined;
 }) => {
   const listeners = new Set<() => void>();
   let clientAttached = opts?.hasClient ?? true;
@@ -168,6 +175,7 @@ const createMockSession = (opts?: {
     failedSegments: 0,
     completedSegments: 0,
     hasPartialText: false,
+    hasVoiceAudio: false,
     previewText: '',
     capReached: false,
     interrupted: false,
@@ -229,6 +237,11 @@ const createMockSession = (opts?: {
     takePartialText: vi.fn(() => {
       setSnap({ phase: 'idle' });
       return { text: 'partial text', ...(opts?.journalId ? { journalId: opts.journalId } : {}) };
+    }),
+    buildVoiceAudio: vi.fn(async () => opts?.voiceAudio),
+    completeVoiceFallback: vi.fn(() => {
+      setSnap({ phase: 'idle', hasVoiceAudio: false });
+      return opts?.journalId ? { journalId: opts.journalId } : {};
     }),
     park: vi.fn(),
     reset: vi.fn(() => {
@@ -457,7 +470,8 @@ describe('useRoomInputDictation', () => {
     editor: Editor,
     store: ReturnType<typeof createStore>,
     session: DictationSession,
-    extraChild?: React.ReactNode
+    extraChild?: React.ReactNode,
+    hookOverrides?: Partial<UseRoomInputDictationOptions>
   ) => {
     let latest!: RoomInputDictationFeature;
     function Harness({ tick: _tick }: { tick: number }) {
@@ -468,6 +482,7 @@ describe('useRoomInputDictation', () => {
         ownerKey: 'composer-1',
         rootRef,
         createSession: () => session,
+        ...hookOverrides,
       });
       return (
         <div ref={rootRef}>
@@ -2034,12 +2049,186 @@ describe('useRoomInputDictation', () => {
     view.unmount();
   });
 
-  it('omits Retry and send and names the original room when a staged composer targets a different room', () => {
+  const makeVoiceFixture = (
+    duration: number,
+    bar: number,
+    missingAudioPartialText?: string
+  ): { voiceFile: File; voiceAudio: DictationVoiceAudio; voiceItem: TUploadItem } => {
+    const voiceFile = new File([new Uint8Array(64)], 'voice-message.wav', { type: 'audio/wav' });
+    const waveform = Array.from({ length: 48 }, () => bar);
+    const voiceAudio: DictationVoiceAudio = {
+      file: voiceFile,
+      duration,
+      waveform,
+      ...(missingAudioPartialText !== undefined ? { missingAudioPartialText } : {}),
+    };
+    const voiceItem: TUploadItem = {
+      file: voiceFile,
+      originalFile: voiceFile,
+      encInfo: undefined,
+      metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
+    };
+    return { voiceFile, voiceAudio, voiceItem };
+  };
+
+  it('attaches failed live dictation as a voice TUploadItem, inserts missingAudioPartialText, prevents double clicks, and deletes journal only after staging', async () => {
+    const store = createStore();
+    const editor = makeSlateEditor('Draft:');
+    Transforms.select(editor, { path: [0, 0], offset: 6 });
+
+    const { voiceFile, voiceAudio, voiceItem } = makeVoiceFixture(
+      2_400,
+      300,
+      'Earlier pruned words.'
+    );
+    const mock = createMockSession({
+      journalId: 'j-attach-ok',
+      voiceAudio,
+      initial: {
+        phase: 'failed',
+        failedSegments: 1,
+        completedSegments: 1,
+        hasPartialText: true,
+        hasVoiceAudio: true,
+        errorMessage: 'Transcription timed out.',
+      },
+    });
+    store.set(liveCaptureAtom, { kind: 'dictation', session: mock.session });
+
+    let resolvePrep!: (items: TUploadItem[]) => void;
+    const prepareVoiceUploadItems = vi.fn(
+      () =>
+        new Promise<TUploadItem[]>((resolve) => {
+          resolvePrep = resolve;
+        })
+    );
+    const appendAttachments = vi.fn();
+    const saveDraft = vi.fn();
+
+    renderHarness(editor, store, mock.session, undefined, {
+      ownerKey: 'composer-attach',
+      prepareVoiceUploadItems,
+      appendAttachments,
+      saveDraft,
+    });
+
+    const attachBtn = screen.getByRole<HTMLButtonElement>('button', {
+      name: 'composer.dictation.attachAsVoice',
+    });
+    expect(attachBtn.disabled).toBe(false);
+
+    // Double-clicking while prep is in flight invokes buildVoiceAudio/prepareVoiceUploadItems only once.
+    fireEvent.click(attachBtn);
+    await waitFor(() => expect(prepareVoiceUploadItems).toHaveBeenCalledTimes(1));
+    expect(attachBtn.disabled).toBe(true);
+    fireEvent.click(attachBtn);
+    expect(prepareVoiceUploadItems).toHaveBeenCalledTimes(1);
+    expect(prepareVoiceUploadItems).toHaveBeenCalledWith(voiceFile, 2_400, voiceAudio.waveform);
+    // Session and journal remain untouched until staging finishes.
+    expect(mock.session.completeVoiceFallback).not.toHaveBeenCalled();
+    expect(serverMock.deleteCapture).not.toHaveBeenCalled();
+    expect(store.get(liveCaptureAtom)?.session).toBe(mock.session);
+
+    await act(async () => {
+      resolvePrep([voiceItem]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(appendAttachments).toHaveBeenCalledWith('!room:example.org', [voiceItem])
+    );
+    expect(readText(editor)).toBe('Draft: Earlier pruned words.');
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(mock.session.completeVoiceFallback).toHaveBeenCalledTimes(1);
+    expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-attach-ok');
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+  });
+
+  it('preserves failed live dictation session and journal on thrown error or prepError, then stages unencrypted voice item on retry', async () => {
+    const store = createStore();
+    const editor = makeSlateEditor();
+    const { voiceFile, voiceAudio, voiceItem } = makeVoiceFixture(1_500, 512);
+    const mock = createMockSession({
+      journalId: 'j-attach-fail',
+      voiceAudio,
+      initial: {
+        phase: 'failed',
+        failedSegments: 1,
+        hasVoiceAudio: true,
+        errorMessage: 'Server 503',
+      },
+    });
+    store.set(liveCaptureAtom, { kind: 'dictation', session: mock.session });
+
+    let attempt = 0;
+    const prepareVoiceUploadItems = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 1) throw new Error('E2EE key unavailable');
+      if (attempt === 2)
+        return [{ ...voiceItem, prepError: new Error('Blob prep failed') } as TUploadItem];
+      return [voiceItem];
+    });
+    const appendAttachments = vi.fn();
+
+    renderHarness(editor, store, mock.session, undefined, {
+      roomId: '!home-target:example.org',
+      ownerKey: 'home-ask',
+      sendKey: 'home-ask',
+      prepareVoiceUploadItems,
+      appendAttachments,
+    });
+
+    const clickAttach = () =>
+      fireEvent.click(screen.getByRole('button', { name: 'composer.dictation.attachAsVoice' }));
+
+    // 1. Thrown error keeps session in failed phase, preserves journal, and displays error.
+    clickAttach();
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('E2EE key unavailable')
+    );
+    expect(appendAttachments).not.toHaveBeenCalled();
+    expect(mock.session.completeVoiceFallback).not.toHaveBeenCalled();
+    expect(serverMock.deleteCapture).not.toHaveBeenCalled();
+    expect(store.get(liveCaptureAtom)?.session).toBe(mock.session);
+
+    // 2. Returned prepError also keeps session and journal intact.
+    clickAttach();
+    await waitFor(() =>
+      expect(screen.getByRole('alert').textContent).toContain('Blob prep failed')
+    );
+    expect(appendAttachments).not.toHaveBeenCalled();
+    expect(serverMock.deleteCapture).not.toHaveBeenCalled();
+
+    // 3. Subsequent click succeeds, stages unencrypted voice item, and cleans up journal.
+    clickAttach();
+    await waitFor(() => expect(appendAttachments).toHaveBeenCalledTimes(1));
+    expect(appendAttachments).toHaveBeenCalledWith('!home-target:example.org', [
+      expect.objectContaining({
+        file: voiceFile,
+        encInfo: undefined,
+        metadata: {
+          markedAsSpoiler: false,
+          voiceMessage: { duration: 1_500, waveform: voiceAudio.waveform },
+        },
+      }),
+    ]);
+    expect(mock.session.completeVoiceFallback).toHaveBeenCalledTimes(1);
+    expect(serverMock.deleteCapture).toHaveBeenCalledWith('j-attach-fail');
+    expect(store.get(liveCaptureAtom)).toBeUndefined();
+  });
+
+  it('omits Retry and send and Send as voice and names the original room when a staged composer targets a different room', () => {
     const store = createStore();
     const spaceKey = 'space-key';
     const retryAndSend = vi.fn();
+    const sendAsVoice = vi.fn();
     const { session } = createMockSession({
-      initial: { phase: 'failed', failedSegments: 1, errorMessage: 'network error' },
+      initial: {
+        phase: 'failed',
+        failedSegments: 1,
+        hasVoiceAudio: true,
+        errorMessage: 'network error',
+      },
     });
     store.set(
       detachedDictationSendsAtom,
@@ -2053,6 +2242,7 @@ describe('useRoomInputDictation', () => {
             status: 'failed',
             session,
             retryAndSend,
+            sendAsVoice,
             insertPartial: vi.fn(),
             discard: vi.fn(async () => undefined),
             abort: vi.fn(),
@@ -2094,6 +2284,7 @@ describe('useRoomInputDictation', () => {
 
     const view = render(wrap('!des:example.org'));
     expect(screen.queryByText('composer.dictation.retryAndSend')).toBeNull();
+    expect(screen.queryByText('composer.dictation.sendAsVoice')).toBeNull();
     expect(screen.getByText('composer.dictation.discard')).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toContain(
       'composer.dictation.sendFailedOffTarget'
@@ -2102,6 +2293,8 @@ describe('useRoomInputDictation', () => {
     view.rerender(wrap('!eng:example.org'));
     fireEvent.click(screen.getByText('composer.dictation.retryAndSend'));
     expect(retryAndSend).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByText('composer.dictation.sendAsVoice'));
+    expect(sendAsVoice).toHaveBeenCalledTimes(1);
     view.unmount();
   });
 });

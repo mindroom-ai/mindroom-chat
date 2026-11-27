@@ -1887,6 +1887,8 @@
       "finishAndSend": "完成並傳送",
       "retry": "重試",
       "retryAndSend": "重試並傳送",
+      "sendAsVoice": "以語音傳送",
+      "attachAsVoice": "以語音附加",
       "insertPartial": "插入部分文字",
       "discard": "捨棄",
       "dismissError": "關閉聽寫錯誤",

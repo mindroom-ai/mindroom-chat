@@ -220,8 +220,7 @@ const offerRecoveredDictation = async (
       groups: prepared.groups,
     },
     prepared.tailSegments,
-    tailChunks.length,
-    prepared.prunedOnSeal
+    tailChunks.length
   );
 
   return true;

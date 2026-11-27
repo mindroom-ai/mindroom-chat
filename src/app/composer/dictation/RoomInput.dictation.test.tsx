@@ -10,6 +10,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import type { ComposerExtraVoiceAction } from '../ComposerActionsMenu';
 import { RoomInput } from '../RoomInput';
 import { VoiceMessageIcon } from '../voice/VoiceMessageIcon';
+import { useRoomInputDictation } from './useRoomInputDictation';
 
 const layoutState = vi.hoisted(
   (): {
@@ -30,6 +31,7 @@ const layoutState = vi.hoisted(
     editorKeyDown: ((event: React.KeyboardEvent<HTMLDivElement>) => void) | undefined;
     startSendSession: ReturnType<typeof vi.fn>;
     handoffMock: ReturnType<typeof vi.fn<(...args: unknown[]) => unknown>>;
+    createVoiceUploadItems: ReturnType<typeof vi.fn<(...args: unknown[]) => Promise<unknown[]>>>;
     detachForSend: ReturnType<
       typeof vi.fn<() => { session: { finish: ReturnType<typeof vi.fn> }; savedSelection: null }>
     >;
@@ -51,6 +53,14 @@ const layoutState = vi.hoisted(
     editorKeyDown: undefined,
     startSendSession: vi.fn(async () => undefined),
     handoffMock: vi.fn(),
+    createVoiceUploadItems: vi.fn(async (file: unknown, duration: unknown, waveform: unknown) => [
+      {
+        file,
+        originalFile: file,
+        encInfo: { iv: 'enc' },
+        metadata: { markedAsSpoiler: false, voiceMessage: { duration, waveform } },
+      },
+    ]),
     detachForSend: vi.fn(() => ({ session: { finish: vi.fn() }, savedSelection: null })),
   })
 );
@@ -64,7 +74,7 @@ vi.mock('../dictation/dictationSendHandoff', () => ({
 }));
 
 vi.mock('../dictation/useRoomInputDictation', () => ({
-  useRoomInputDictation: () => ({
+  useRoomInputDictation: vi.fn(() => ({
     available: layoutState.dictationAvailable,
     blocksSubmit: layoutState.dictationBlocksSubmit,
     canSend: layoutState.dictationCanSend,
@@ -86,7 +96,7 @@ vi.mock('../dictation/useRoomInputDictation', () => ({
           ? 'sendable'
           : 'idle',
     detachForSend: () => (layoutState.dictationCanSend ? layoutState.detachForSend() : undefined),
-  }),
+  })),
 }));
 
 vi.mock('../useRoomInputVoice', () => ({
@@ -229,7 +239,10 @@ vi.mock('../useRoomInputAttachments', () => ({
 vi.mock('../useRoomInputDraft', () => ({ useRoomInputDraft: () => vi.fn() }));
 vi.mock('../useRoomInputUploadTransport', () => ({
   getVoiceMessageContentOptions: () => ({}),
-  useRoomInputUploadTransport: () => ({}),
+  useRoomInputUploadTransport: () => ({
+    createVoiceUploadItems: layoutState.createVoiceUploadItems,
+    uploadItem: vi.fn(),
+  }),
 }));
 vi.mock('../../ui/IconTooltip', () => ({
   IconTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) =>
@@ -247,6 +260,7 @@ const renderInput = (
     screenSize?: ScreenSize;
     text?: string;
     forkFrom?: { threadId: string; eventId: string };
+    stagedDraftKey?: string;
     ask?: React.ComponentProps<typeof RoomInput>['ask'];
   } = {}
 ) => {
@@ -262,6 +276,7 @@ const renderInput = (
           roomId={room.roomId}
           room={room}
           forkFrom={opts.forkFrom}
+          stagedDraftKey={opts.stagedDraftKey}
           ask={opts.ask}
         />
       </ScreenSizeProvider>
@@ -287,6 +302,8 @@ beforeEach(() => {
   layoutState.startSendSession.mockClear();
   layoutState.handoffMock.mockClear();
   layoutState.detachForSend.mockClear();
+  layoutState.createVoiceUploadItems.mockClear();
+  vi.mocked(useRoomInputDictation).mockClear();
 });
 
 afterEach(() => cleanup());
@@ -522,5 +539,59 @@ describe('RoomInput dictation layout and submit guard', () => {
     expect(screen.getByTestId<HTMLButtonElement>('send-btn').disabled).toBe(false);
     fireEvent.click(screen.getByTestId('send-btn'));
     expect(layoutState.handoffMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('wires voice fallback preparation for normal rooms (transport) and deferred drafts (unencrypted local item)', async () => {
+    const file = new File([new Uint8Array(48)], 'voice.wav', { type: 'audio/wav' });
+    const waveform = Array.from({ length: 48 }, () => 200);
+    const prepareLastVoice = () =>
+      vi
+        .mocked(useRoomInputDictation)
+        .mock.lastCall?.[0]?.prepareVoiceUploadItems?.(file, 1_800, waveform);
+
+    // Normal room delegates to transport.createVoiceUploadItems(..., room) and passes it to handoff.
+    layoutState.dictationCanSend = true;
+    const normal = renderInput({ screenSize: ScreenSize.Desktop });
+    expect(await prepareLastVoice()).toEqual([
+      expect.objectContaining({
+        file,
+        encInfo: { iv: 'enc' },
+        metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
+      }),
+    ]);
+    expect(layoutState.createVoiceUploadItems).toHaveBeenCalledWith(file, 1_800, waveform, room);
+    fireEvent.click(screen.getByTestId('send-btn'));
+    expect(layoutState.handoffMock).toHaveBeenCalledWith(
+      expect.objectContaining({ createVoiceUploadItems: layoutState.createVoiceUploadItems })
+    );
+    normal.unmount();
+
+    // Deferred Home ask and Space All-threads composers build an unencrypted local voice item.
+    const deferredCases: Array<Parameters<typeof renderInput>[0]> = [
+      {
+        stagedDraftKey: '["@alice:example.org"]',
+        ask: {
+          agentUserId: '@mindroom_assistant:example.org',
+          placeholder: 'Ask',
+          pickers: <div />,
+          canSend: () => true,
+        },
+      },
+      { stagedDraftKey: '["@alice:example.org",null,"space-threads","!space:example.org"]' },
+    ];
+    for (const opts of deferredCases) {
+      layoutState.createVoiceUploadItems.mockClear();
+      const view = renderInput(opts);
+      expect(await prepareLastVoice()).toEqual([
+        {
+          file,
+          originalFile: file,
+          encInfo: undefined,
+          metadata: { markedAsSpoiler: false, voiceMessage: { duration: 1_800, waveform } },
+        },
+      ]);
+      expect(layoutState.createVoiceUploadItems).not.toHaveBeenCalled();
+      view.unmount();
+    }
   });
 });
