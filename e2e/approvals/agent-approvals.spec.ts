@@ -113,6 +113,8 @@ test('denying a held shell call with a reason hands the reason to the agent', as
 test('an approval nobody answers expires and says so', async ({ page, stack }) => {
   await openLobby(page, stack);
   const expireTool = stack.expireApprovalTool ?? 'untag_thread';
+  const expireOperation = stack.consolidatedThreadTags ? `${expireTool} / untag` : expireTool;
+  const escapedExpireOperation = expireOperation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   // Tag the thread first, so the untag call has a tag to ask about.
   const rootId = await startThread(stack, `${uniqueWord('expire')} #tag`);
   await showThread(page, stack, rootId);
@@ -122,16 +124,19 @@ test('an approval nobody answers expires and says so', async ({ page, stack }) =
   await sendFromComposer(page, 'now untag it #expire');
   const pending = await waitForApproval(stack, rootId, 'pending');
   expect(pending.content.tool_name).toBe(expireTool);
-  await expect(page.getByRole('region', { name: 'Thread approvals' })).toContainText(expireTool, {
-    timeout: 60_000,
-  });
+  await expect(page.getByRole('region', { name: 'Thread approvals' })).toContainText(
+    expireOperation,
+    { timeout: 60_000 }
+  );
 
   await waitForApproval(stack, rootId, 'expired', (stack.approvalExpirySeconds + 90) * 1000);
   await expect(page.getByRole('region', { name: 'Thread approvals' })).toBeHidden({
     timeout: 30_000,
   });
   await expect(
-    page.getByRole('button', { name: new RegExp(`${expireTool} expired|Approval expired`) })
+    page.getByRole('button', {
+      name: new RegExp(`${escapedExpireOperation} expired|Approval expired`),
+    })
   ).toBeVisible({ timeout: 30_000 });
   // The tag stays, since the call never ran.
   await expect(page.getByRole('button', { name: 'Remove stub-tag tag' })).toBeVisible();

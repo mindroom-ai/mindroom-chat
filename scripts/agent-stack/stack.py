@@ -205,6 +205,8 @@ TEMPORARY_SECRETS = ("src/mindroom/tools/__init__.py", "temporary_secrets")
 AGENT_DELEGATE_TO = ("src/mindroom/config/agent.py", "delegate_to")
 # A commit that consolidated tag_thread, untag_thread, and list_thread_tags into thread_tags (MindRoom #4436).
 CONSOLIDATED_THREAD_TAGS = ("src/mindroom/custom_tools/thread_tags.py", "async def thread_tags(")
+# A commit that consolidated terminal_open/run/send/read/list into terminal_read and terminal_write (MindRoom #4442).
+CONSOLIDATED_TERMINAL = ("src/mindroom/custom_tools/terminal.py", "async def terminal_write(")
 # The stub model with reasoning levels, which the model picker's effort column runs a thread on.
 REASONING_MODEL = {"key": "think", "id": "stub-think", "displayName": "Stub Think", "levels": ["low", "medium", "high"]}
 TRANSCRIPTION_MODES = ("stub", "real")
@@ -778,20 +780,32 @@ REAL_INSTRUCTIONS = [
 ]
 
 
-def real_instructions(consolidated_thread_tags: bool = False) -> list[str]:
-    """The real-model hashtag script, adapting #tag and #expire to consolidated thread_tags when enabled."""
-    if not consolidated_thread_tags:
+def real_instructions(
+    consolidated_thread_tags: bool = False,
+    consolidated_terminal: bool = False,
+) -> list[str]:
+    """The real-model hashtag script, adapting #tag/#expire and #terminal to consolidated tools when enabled."""
+    replacements: dict[str, str] = {}
+    if consolidated_thread_tags:
+        replacements.update(
+            {
+                "#tag:": (
+                    "#tag: call thread_tags once with action 'tag', tag 'stub-tag', and note 'tagged by the stub model', "
+                    "then reply 'Done.'"
+                ),
+                "#expire:": (
+                    "#expire: call thread_tags once with action 'untag' and tag 'stub-tag', "
+                    "then reply with what the tool returned."
+                ),
+            }
+        )
+    if consolidated_terminal:
+        replacements["#terminal:"] = (
+            "#terminal: call terminal_write once with action 'open', then terminal_write once with action 'run', "
+            "the session_id it returned, and command 'echo stub-terminal-$((6 * 7))', then reply with its output."
+        )
+    if not replacements:
         return list(REAL_INSTRUCTIONS)
-    replacements = {
-        "#tag:": (
-            "#tag: call thread_tags once with action 'tag', tag 'stub-tag', and note 'tagged by the stub model', "
-            "then reply 'Done.'"
-        ),
-        "#expire:": (
-            "#expire: call thread_tags once with action 'untag' and tag 'stub-tag', "
-            "then reply with what the tool returned."
-        ),
-    }
     return [
         next((line_text for prefix, line_text in replacements.items() if line.startswith(prefix)), line)
         for line in REAL_INSTRUCTIONS
@@ -877,6 +891,7 @@ def config_yaml(
     temporary_secrets: bool = False,
     delegate_to_scout: bool = False,
     consolidated_thread_tags: bool = False,
+    consolidated_terminal: bool = False,
 ) -> str:
     plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
@@ -913,7 +928,11 @@ def config_yaml(
     if mode == "real":
         # JSON strings are YAML flow scalars, so the script needs no escaping of its own.
         instructions = "\n".join(
-            f"      - {json.dumps(line)}" for line in real_instructions(consolidated_thread_tags)
+            f"      - {json.dumps(line)}"
+            for line in real_instructions(
+                consolidated_thread_tags=consolidated_thread_tags,
+                consolidated_terminal=consolidated_terminal,
+            )
         )
         models = real_models_yaml()
         second = MODELS["real"]["second"]["key"]
@@ -1413,6 +1432,7 @@ def start(
     temporary_secrets = args.model == "stub" and commit_mentions(checkout, sha, *TEMPORARY_SECRETS)
     delegate_to_scout = args.model == "stub" and commit_mentions(checkout, sha, *AGENT_DELEGATE_TO)
     consolidated_thread_tags = commit_mentions(checkout, sha, *CONSOLIDATED_THREAD_TAGS)
+    consolidated_terminal = commit_mentions(checkout, sha, *CONSOLIDATED_TERMINAL)
     if consolidated_thread_tags:
         (slot_dir / "approval_scripts" / "thread_tags_review.py").write_text(THREAD_TAGS_REVIEW)
     config_path.write_text(
@@ -1433,6 +1453,7 @@ def start(
             temporary_secrets=temporary_secrets,
             delegate_to_scout=delegate_to_scout,
             consolidated_thread_tags=consolidated_thread_tags,
+            consolidated_terminal=consolidated_terminal,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
