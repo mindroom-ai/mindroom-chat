@@ -12,9 +12,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Direction, type EventTimelineSet, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { createEngineGapTracker, type GapFillJob } from '../engineGapTracker';
-import { resetCacheHealthForTesting } from '../../cache/cacheHealth';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
-import { loadRoomCacheGap, revokeCacheStoreWrites, type CachedRoomEventPage } from '../../cache/db';
+import {
+  hasUnsavedRoomCacheGap,
+  loadRoomCacheGap,
+  revokeCacheStoreWrites,
+  type CachedRoomEventPage,
+} from '../../cache/db';
 
 const makeRoom = ({
   roomId,
@@ -55,8 +59,6 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
 
   beforeEach(() => {
     resetCacheProbe();
-    resetCacheHealthForTesting();
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     markDiscontinuity.mockReset();
     markDiscontinuity.mockImplementation(defaultMarkDiscontinuity);
     loadCachedTail.mockReset();
@@ -66,7 +68,6 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    resetCacheHealthForTesting();
     resetCacheProbe();
   });
 
@@ -539,5 +540,38 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     expect(enqueued.map((job) => job.roomId)).toEqual(['!r2', '!r3', '!r1']);
     expect(tailOrder).toEqual(['!r1', '!r2', '!r3']);
     tracker.stop();
+  });
+
+  it('stops retrying on VersionError while keeping the unsaved gap hold and invoking onVersionError', async () => {
+    vi.useFakeTimers();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const enqueued: GapFillJob[] = [];
+    const onVersionError = vi.fn();
+    markDiscontinuity.mockRejectedValue(new DOMException('newer schema', 'VersionError'));
+
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'version-error-session',
+      enqueueGapFill: (job) => enqueued.push(job),
+      markDiscontinuity,
+      loadCachedTail,
+      onVersionError,
+      now: () => 1000,
+    });
+
+    const room = makeRoom({ roomId: '!a', paginationToken: 'batch-1' });
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
+
+    await vi.waitFor(() => expect(onVersionError).toHaveBeenCalledTimes(1));
+    expect(hasUnsavedRoomCacheGap('version-error-session', '!a')).toBe(true);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(markDiscontinuity).toHaveBeenCalledTimes(1);
+    expect(onVersionError).toHaveBeenCalledTimes(1);
+    expect(enqueued).toEqual([]);
+
+    tracker.stop();
+    expect(hasUnsavedRoomCacheGap('version-error-session', '!a')).toBe(false);
   });
 });

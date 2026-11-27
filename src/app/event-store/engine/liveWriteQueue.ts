@@ -1,5 +1,5 @@
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { isCacheWritable, subscribeCacheReadOnly } from '../cache/cacheHealth';
+import { isCacheWritable } from '../cache/cacheHealth';
 import {
   captureCacheStoreWriteLease,
   hasUnsavedRoomCacheGap,
@@ -21,6 +21,7 @@ export type LiveWriteQueue = {
   enqueue(room: Room, events: MatrixEvent[], roomTailLoaded?: boolean, threadId?: string): void;
   drainNow(): void;
   clear(): void;
+  disable(): void;
 };
 
 export const createLiveWriteQueue = ({
@@ -37,28 +38,25 @@ export const createLiveWriteQueue = ({
   let generation = 0;
   let drainScheduled = false;
   let draining = false;
-  let unsubscribeReadOnly: (() => void) | undefined;
-
-  const releaseReadOnlySubscription = () => {
-    unsubscribeReadOnly?.();
-    unsubscribeReadOnly = undefined;
-  };
+  let disabled = false;
 
   const dropPending = () => {
     generation += 1;
     pending.clear();
     waitingGapRooms.clear();
-    releaseReadOnlySubscription();
+  };
+
+  const disable = () => {
+    disabled = true;
+    dropPending();
   };
 
   const scheduleDrain = () => {
-    if (draining || drainScheduled || pending.size === 0) return;
+    if (disabled || draining || drainScheduled || pending.size === 0) return;
     drainScheduled = true;
-    const runGeneration = generation;
     queueMicrotask(() => {
       drainScheduled = false;
-      if (runGeneration !== generation) return;
-      void drain();
+      if (!disabled && pending.size > 0) void drain();
     });
   };
 
@@ -67,13 +65,13 @@ export const createLiveWriteQueue = ({
     waitingGapRooms.add(roomId);
     const runGeneration = generation;
     void whenRoomCacheGapsSaved(sessionId, roomId).then(() => {
-      if (runGeneration !== generation) return;
+      if (runGeneration !== generation || disabled) return;
       waitingGapRooms.delete(roomId);
-      if (findReadyBatch(false)) scheduleDrain();
+      scheduleDrain();
     });
   };
 
-  const findReadyBatch = (remove: boolean): PendingLiveWrite | undefined => {
+  const takeNextReadyBatch = (): PendingLiveWrite | undefined => {
     for (const [key, entry] of pending) {
       if (!isCacheStoreWriteLeaseCurrent(entry.lease)) {
         pending.delete(key);
@@ -83,10 +81,9 @@ export const createLiveWriteQueue = ({
         waitForRoomGap(entry.room.roomId);
         continue;
       }
-      if (remove) pending.delete(key);
+      pending.delete(key);
       return entry;
     }
-    if (pending.size === 0) releaseReadOnlySubscription();
     return undefined;
   };
 
@@ -97,11 +94,11 @@ export const createLiveWriteQueue = ({
     const runGeneration = generation;
     try {
       while (runGeneration === generation) {
-        if (!isCacheWritable()) {
+        if (disabled || !isCacheWritable()) {
           dropPending();
           break;
         }
-        const entry = findReadyBatch(true);
+        const entry = takeNextReadyBatch();
         if (!entry) break;
         try {
           const saved = await persistRoomChunkWithPreferLive({
@@ -123,12 +120,10 @@ export const createLiveWriteQueue = ({
       }
     } finally {
       draining = false;
-      if (!isCacheWritable()) {
+      if (disabled || !isCacheWritable()) {
         dropPending();
-      } else if (findReadyBatch(false)) {
+      } else if (runGeneration !== generation && pending.size > 0) {
         scheduleDrain();
-      } else if (pending.size === 0) {
-        releaseReadOnlySubscription();
       }
     }
   };
@@ -140,11 +135,10 @@ export const createLiveWriteQueue = ({
     threadId?: string
   ) => {
     if (events.length === 0) return;
-    if (!isCacheWritable()) {
+    if (disabled || !isCacheWritable()) {
       dropPending();
       return;
     }
-    unsubscribeReadOnly ??= subscribeCacheReadOnly(dropPending);
     const key = `${room.roomId}\0${threadId ?? ''}`;
     const existing = pending.get(key);
     if (existing && isCacheStoreWriteLeaseCurrent(existing.lease)) {
@@ -170,12 +164,12 @@ export const createLiveWriteQueue = ({
   };
 
   const drainNow = () => {
-    if (!isCacheWritable()) {
+    if (disabled || !isCacheWritable()) {
       dropPending();
       return;
     }
-    if (findReadyBatch(false)) void drain();
+    if (pending.size > 0) void drain();
   };
 
-  return { enqueue, drainNow, clear: dropPending };
+  return { enqueue, drainNow, clear: dropPending, disable };
 };

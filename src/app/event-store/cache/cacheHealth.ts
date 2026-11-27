@@ -29,7 +29,6 @@ export type CacheHealth = {
 
 let health: CacheHealth = { state: 'healthy' };
 const loggedScopes = new Set<string>();
-const readOnlyListeners = new Set<() => void>();
 
 const isQuotaExceededError = (error: unknown): boolean => {
   if (!error || typeof error !== 'object') return false;
@@ -50,19 +49,7 @@ const isQuotaExceededError = (error: unknown): boolean => {
 
 export const getCacheHealth = (): CacheHealth => ({ ...health });
 
-const isVersionError = (error: unknown): boolean =>
-  Boolean(
-    error && typeof error === 'object' && (error as { name?: unknown }).name === 'VersionError'
-  );
-
 export const isCacheWritable = (): boolean => health.state === 'healthy';
-
-export const subscribeCacheReadOnly = (listener: () => void): (() => void) => {
-  readOnlyListeners.add(listener);
-  return () => {
-    readOnlyListeners.delete(listener);
-  };
-};
 
 /**
  * Count, surface, and classify a cache write failure. First failure per
@@ -81,21 +68,15 @@ export const reportCacheWriteError = (scope: string, error: unknown): void => {
     );
   }
 
-  const fatalReason = isQuotaExceededError(error)
-    ? `QuotaExceededError in ${scope}`
-    : isVersionError(error)
-      ? `VersionError in ${scope}`
-      : undefined;
-  if (fatalReason && health.state !== 'read-only') {
+  if (isQuotaExceededError(error) && health.state !== 'read-only') {
     health = {
       state: 'read-only',
-      reason: fatalReason,
+      reason: `QuotaExceededError in ${scope}`,
     };
     console.error(
-      `[mindroom-cache] ${fatalReason}; cache degraded to read-only for this session; ` +
+      '[mindroom-cache] storage quota exceeded — cache degraded to read-only for this session; ' +
         'cached paint and network reconcile continue, new cache writes are skipped'
     );
-    readOnlyListeners.forEach((listener) => listener());
   }
 };
 

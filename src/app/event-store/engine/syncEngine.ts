@@ -182,14 +182,6 @@ export const createSyncEngine = ({
       });
     },
   });
-  const effectiveGapTracker =
-    gapTracker ??
-    createEngineGapTracker({
-      mx,
-      sessionId,
-      enqueueGapFill: gapFillExecutor.enqueue,
-    });
-
   const liveWriteQueue = createLiveWriteQueue({
     mx,
     sessionId,
@@ -197,6 +189,14 @@ export const createSyncEngine = ({
       void offline.observe(events, roomId, lease);
     },
   });
+  const effectiveGapTracker =
+    gapTracker ??
+    createEngineGapTracker({
+      mx,
+      sessionId,
+      enqueueGapFill: gapFillExecutor.enqueue,
+      onVersionError: liveWriteQueue.disable,
+    });
   const effectiveWriteThrough =
     writeThrough ?? createEngineWriteThrough({ sessionId, persist: liveWriteQueue.enqueue });
 

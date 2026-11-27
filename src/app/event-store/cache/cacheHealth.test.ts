@@ -5,7 +5,6 @@ import {
   isCacheWritable,
   reportCacheWriteError,
   resetCacheHealthForTesting,
-  subscribeCacheReadOnly,
 } from './cacheHealth';
 import { getCacheProbeSnapshot, resetCacheProbe } from './cacheProbe';
 
@@ -70,19 +69,5 @@ describe('cacheHealth (ISSUE-207 P1.5)', () => {
       new Error('IDB put failed: exceeded storage quota for origin')
     );
     expect(isCacheWritable()).toBe(false);
-  });
-
-  it('degrades to read-only on VersionError and notifies subscribers once', () => {
-    const onReadOnly = vi.fn();
-    const unsubscribe = subscribeCacheReadOnly(onReadOnly);
-    const versionError = Object.assign(new Error('newer db'), { name: 'VersionError' });
-
-    reportCacheWriteError('gap.mark', versionError);
-    reportCacheWriteError('roomEventCache.save', versionError);
-
-    expect(isCacheWritable()).toBe(false);
-    expect(getCacheHealth()).toEqual({ state: 'read-only', reason: 'VersionError in gap.mark' });
-    expect(onReadOnly).toHaveBeenCalledTimes(1);
-    unsubscribe();
   });
 });

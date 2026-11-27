@@ -23,7 +23,6 @@
 
 import type { EventTimelineSet, MatrixClient, Room } from 'matrix-js-sdk';
 import { Direction } from 'matrix-js-sdk';
-import { isCacheWritable, reportCacheWriteError } from '../cache/cacheHealth';
 import { countCacheProbe } from '../cache/cacheProbe';
 import {
   getTailDiscontinuityGeneration,
@@ -58,6 +57,8 @@ export type EngineGapTrackerOptions = {
   loadRoomDiscontinuities?: typeof loadRoomTailDiscontinuities;
   /** Test hook: control the pre-reset cache boundary snapshot. */
   loadCachedTail?: typeof loadLatestCachedRoomEvents;
+  /** Called when this session's cache database cannot be opened due to VersionError. */
+  onVersionError?: () => void;
   /** Test hook: override the wall-clock time. */
   now?: () => number;
 };
@@ -74,6 +75,11 @@ export type EngineGapTracker = {
 
 const GAP_MARK_RETRY_BASE_MS = 1_000;
 const GAP_MARK_RETRY_MAX_MS = 30_000;
+
+const isVersionError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  (error as { name?: unknown }).name === 'VersionError';
 export const GAP_FILL_OVERLAP_TAIL_LIMIT = 200;
 
 /**
@@ -182,13 +188,7 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
         const roomId = next.value;
         markQueue.delete(roomId);
         const pending = pendingMarks.get(roomId);
-        if (
-          !pending ||
-          pending.retryTimer ||
-          !isPendingActive(roomId, pending) ||
-          !isCacheWritable()
-        )
-          continue;
+        if (!pending || pending.retryTimer || !isPendingActive(roomId, pending)) continue;
 
         const overlapEventIds = await captureOverlap(roomId, pending);
         if (!isPendingActive(roomId, pending)) continue;
@@ -204,11 +204,14 @@ export const createEngineGapTracker = (options: EngineGapTrackerOptions): Engine
           enqueueGapFill(roomId, 'limited-sync', durableMarker);
         } catch (error: unknown) {
           if (!isPendingActive(roomId, pending)) continue;
-          reportCacheWriteError('gap.mark', error);
           pending.failureCount += 1;
           reportPersistenceError(error, pending);
-          // Keep the unsaved gap hold active for reader safety, but stop retrying once read-only.
-          if (!isCacheWritable()) continue;
+          if (isVersionError(error)) {
+            // Keep the unsaved gap hold active for reader safety; a newer DB schema
+            // cannot be opened until reload, so stop retrying for this engine.
+            options.onVersionError?.();
+            continue;
+          }
           const retryDelay = Math.min(
             GAP_MARK_RETRY_BASE_MS * 2 ** (pending.failureCount - 1),
             GAP_MARK_RETRY_MAX_MS
