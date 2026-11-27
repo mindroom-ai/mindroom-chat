@@ -13,6 +13,7 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from 'jotai';
+import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { openSubagentsPanel } from '../navigation/subagentsPanel';
 import { openWorkflowRunPanel } from '../navigation/workflowPanel';
@@ -55,7 +56,12 @@ type OpenMode = 'hover' | 'pinned';
  * Stop, or several with Stop all. Their title lists each job with its own Stop on hover or when
  * pressed, one job too.
  */
-export function BackgroundJobsBar({
+export function BackgroundJobsBar(props: BackgroundJobsBarProps) {
+  if (usePaneCollapsed()) return null;
+  return <BackgroundJobsBarActive {...props} />;
+}
+
+function BackgroundJobsBarActive({
   room,
   threadId,
   canCancel,

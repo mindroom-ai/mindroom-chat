@@ -82,7 +82,7 @@ export function InsetScrollbar({
       if (!frame) frame = requestAnimationFrame(update);
     };
     const reveal = () => {
-      track.dataset.active = 'true';
+      if (track.dataset.active !== 'true') track.dataset.active = 'true';
       clearTimeout(hideTimer);
       hideTimer = setTimeout(() => {
         if (!drag) track.dataset.active = 'false';

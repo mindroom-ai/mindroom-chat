@@ -11,6 +11,7 @@ import type { SubagentMeta } from '../matrix/protocol/subagentFrame';
 import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 import { getSubagentRunStore } from '../messages/live/subagentRunStore';
 import { getWorkflowRunStore } from '../messages/live/workflowRunStore';
+import { PaneCollapsedContext } from '../lib/hooks/usePaneCollapsed';
 import { BackgroundJobsBar } from './BackgroundJobsBar';
 import { BackgroundJobRow } from './BackgroundJobRow';
 import type { BackgroundJobsBarItem } from './backgroundJobsPresentation';
@@ -1437,4 +1438,18 @@ it('restores focus to the surviving bar toggle when the folded pill disappears a
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('skips rendering and subscriptions while its pane is collapsed', () => {
+  state.jobs = [job('a', { toolCallId: 'call-1' })];
+  signals.subscribe.mockClear();
+  act(() => {
+    root.render(
+      <PaneCollapsedContext.Provider value>
+        <BackgroundJobsBar room={room} threadId={null} canCancel />
+      </PaneCollapsedContext.Provider>
+    );
+  });
+  expect(container.querySelector('[data-jobs-bar]')).toBeNull();
+  expect(signals.subscribe).not.toHaveBeenCalled();
 });

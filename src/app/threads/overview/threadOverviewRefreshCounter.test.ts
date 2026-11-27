@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { RoomEvent, ThreadEvent, type Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
+import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 const makeRoom = () => {
@@ -86,5 +87,47 @@ describe('useThreadOverviewRefreshCounter', () => {
     });
 
     expect(counters).toEqual([0]);
+  });
+
+  it('defers counter bumps while collapsed and flushes once on uncollapse', async () => {
+    const room = makeRoom();
+    const counters: number[] = [];
+    let renderer: ReturnType<typeof create> | undefined;
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          PaneCollapsedContext.Provider,
+          { value: true },
+          React.createElement(CounterHarness, {
+            onCounter: (counter) => counters.push(counter),
+            room,
+          })
+        )
+      );
+    });
+    await act(async () => {
+      room.emit(RoomEvent.Receipt, undefined, room);
+      room.emit(ThreadEvent.Update);
+    });
+    expect(counters).toEqual([0]);
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(
+          PaneCollapsedContext.Provider,
+          { value: false },
+          React.createElement(CounterHarness, {
+            onCounter: (counter) => counters.push(counter),
+            room,
+          })
+        )
+      );
+    });
+    expect(counters).toEqual([0, 0, 1]);
+
+    await act(async () => {
+      renderer?.unmount();
+    });
   });
 });

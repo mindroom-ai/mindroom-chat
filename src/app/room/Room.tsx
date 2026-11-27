@@ -22,6 +22,7 @@ import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
 import { usePowerLevels, PowerLevelsContextProvider } from '../matrix/hooks/usePowerLevels';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
+import { PaneCollapsedContext } from '../lib/hooks/usePaneCollapsed';
 import { canvasesEnabled } from '../config/canvases';
 import { useClientConfig } from '../config/useClientConfig';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
@@ -1279,8 +1280,9 @@ function RoomContent() {
               {routedThreadId && secondShown && (
                 <RoomMessageAnnouncer room={room} threadId={secondShown} myUserId={ownUserId} />
               )}
-              <MessageLinkCards roomId={room.roomId}>
-                <RoomView
+              <PaneCollapsedContext.Provider value={behindPanel}>
+                <MessageLinkCards roomId={room.roomId}>
+                  <RoomView
                   room={room}
                   eventId={eventId}
                   threadId={routedThreadId}
@@ -1294,10 +1296,11 @@ function RoomContent() {
                   hasMindroomAgents={hasMindroomAgents}
                   joinRequestCount={joinRequestCount}
                   onThreadLoadError={onThreadLoadError}
-                  besideWhileSecond={!!secondShown}
-                  {...headerPanels}
-                />
-              </MessageLinkCards>
+                    besideWhileSecond={!!secondShown}
+                    {...headerPanels}
+                  />
+                </MessageLinkCards>
+              </PaneCollapsedContext.Provider>
             </Box>
             <RoomPanelEdgeSwipeContext value={mobile && behindPanel}>
               {sidePanel && (

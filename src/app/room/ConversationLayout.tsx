@@ -9,6 +9,7 @@ import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
+import { PaneCollapsedContext, usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { RoomViewFollowing } from '../timeline/RoomViewFollowing';
@@ -184,6 +185,8 @@ export function ConversationLayout({
   const footerRef = useRef<HTMLDivElement>(null);
   const dockRef = useRef<HTMLDivElement>(null);
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const parentCollapsed = usePaneCollapsed();
+  const paneCollapsed = collapsed || parentCollapsed;
   const shownHeader = !collapsed && header;
   useOverlayInsets(
     areaRef,
@@ -194,6 +197,7 @@ export function ConversationLayout({
   );
 
   return (
+    <PaneCollapsedContext.Provider value={paneCollapsed}>
     <div ref={areaRef} className={css.RoomArea} style={collapsed ? COLLAPSED_STYLE : AREA_STYLE}>
       {shownHeader && (
         // The element draws the header's surface; the row inside shows it and paints none.
@@ -226,7 +230,7 @@ export function ConversationLayout({
               <div ref={dockRef} style={DOCK_STYLE}>
                 <div className={overlay.DockRow}>
                   <div className={overlay.DockBars}>
-                    <RoomViewTyping room={room} threadId={threadId} />
+                    <RoomViewTyping room={room} threadId={threadId} containerRef={areaRef} />
                     {/* A bar that throws hides itself, not the room; it tries again in the next conversation. */}
                     <ErrorBoundary
                       fallback={null}
@@ -267,5 +271,6 @@ export function ConversationLayout({
       </div>
       {children}
     </div>
+    </PaneCollapsedContext.Provider>
   );
 }

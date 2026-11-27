@@ -5,6 +5,7 @@ import { createStore, Provider } from 'jotai';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { roomIdToTypingMembersAtom } from '../../matrix/state/typingMembers';
+import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
 import { RoomViewTyping } from './RoomViewTyping';
 
 vi.mock('./RoomViewTyping.css', () => ({
@@ -340,4 +341,120 @@ it('skips the arrive animation when switching rooms or threads into active typin
   expect(view.querySelector('[role="status"]')?.classList.contains('typing-strip-arriving')).toBe(
     false
   );
+});
+
+it('tracks streaming reply visibility with scoped IntersectionObserver without scroll listeners or polling', async () => {
+  let notifyIntersection: IntersectionObserverCallback | undefined;
+  const observed = new Set<Element>();
+  const observe = vi.fn((el: Element) => observed.add(el));
+  const unobserve = vi.fn((el: Element) => observed.delete(el));
+  const disconnect = vi.fn(() => observed.clear());
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        notifyIntersection = callback;
+      }
+
+      observe = observe;
+
+      unobserve = unobserve;
+
+      disconnect = disconnect;
+    }
+  );
+  const addDocListener = vi.spyOn(document, 'addEventListener');
+  const setIntervalSpy = vi.spyOn(window, 'setInterval');
+  try {
+    activeRunsState = [activeRunsFor(['$thread'])];
+    streamingReplyId = '$io-streaming';
+    const area = document.createElement('div');
+    const scroller = document.createElement('div');
+    scroller.style.overflowY = 'auto';
+    scroller.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 700, left: 0, right: 390, width: 390, height: 700 }) as DOMRect;
+    const rows = document.createElement('div');
+    rows.setAttribute('data-timeline-rows', '');
+    scroller.append(rows);
+    area.append(scroller);
+    document.body.append(area);
+    const areaRef = { current: area };
+    const store = createStore();
+    typing(store, HELPER);
+
+    container = document.createElement('div');
+    area.append(container);
+    act(() => {
+      root = createRoot(container!);
+      root.render(
+        <Provider store={store}>
+          <RoomViewTyping room={room} threadId="$thread" containerRef={areaRef} />
+        </Provider>
+      );
+    });
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+    expect(addDocListener).not.toHaveBeenCalledWith('scroll', expect.anything(), true);
+    expect(setIntervalSpy).not.toHaveBeenCalled();
+
+    const row = document.createElement('div');
+    row.setAttribute('data-message-id', '$io-streaming');
+    row.getBoundingClientRect = () =>
+      ({ top: 100, bottom: 300, left: 0, right: 300, width: 300, height: 200 }) as DOMRect;
+    await act(async () => {
+      rows.append(row);
+    });
+    expect(observe).toHaveBeenCalledWith(row);
+    expect(container.querySelector('[role="status"]')).toBeNull();
+
+    // Scroll off-screen via IntersectionObserver: typing strip appears without polling.
+    act(() => {
+      notifyIntersection?.(
+        [{ target: row, isIntersecting: false } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      );
+    });
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+
+    // Back in view: typing strip hides again.
+    act(() => {
+      notifyIntersection?.(
+        [{ target: row, isIntersecting: true } as unknown as IntersectionObserverEntry],
+        {} as IntersectionObserver
+      );
+    });
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    area.remove();
+  } finally {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  }
+});
+
+it('pauses typing subscriptions and renders nothing while its pane is collapsed', () => {
+  const store = createStore();
+  typing(store, '@avery:example.org');
+  container = document.createElement('div');
+  document.body.append(container);
+  act(() => {
+    root = createRoot(container!);
+    root.render(
+      <Provider store={store}>
+        <PaneCollapsedContext.Provider value>
+          <RoomViewTyping room={room} />
+        </PaneCollapsedContext.Provider>
+      </Provider>
+    );
+  });
+  expect(container.querySelector('[role="status"]')).toBeNull();
+
+  act(() => {
+    root?.render(
+      <Provider store={store}>
+        <PaneCollapsedContext.Provider value={false}>
+          <RoomViewTyping room={room} />
+        </PaneCollapsedContext.Provider>
+      </Provider>
+    );
+  });
+  expect(container.querySelector('[role="status"]')?.textContent).toBe('Avery is typing...');
 });

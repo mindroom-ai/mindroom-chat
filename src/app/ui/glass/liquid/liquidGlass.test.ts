@@ -344,7 +344,7 @@ describe('liquid glass rendering lifecycle', () => {
 
     const detachFirst = attachLiquidGlass(element, { refraction: false });
     const detachSecond = attachLiquidGlass(second, { refraction: false });
-    expect(matchMediaSpy).toHaveBeenCalledTimes(4);
+    expect(matchMediaSpy).toHaveBeenCalledTimes(5);
     expect(preferenceListeners.size).toBe(1);
 
     element.dispatchEvent(new MouseEvent('pointermove', { clientX: 100, clientY: 50 }));
@@ -369,7 +369,7 @@ describe('liquid glass rendering lifecycle', () => {
 
     // Re-attaching after the last detach initializes a fresh watcher.
     cleanup = attachLiquidGlass(element, { refraction: false });
-    expect(matchMediaSpy).toHaveBeenCalledTimes(8);
+    expect(matchMediaSpy).toHaveBeenCalledTimes(10);
     expect(preferenceListeners.size).toBe(1);
     second.remove();
   });
@@ -410,5 +410,24 @@ describe('liquid glass rendering lifecycle', () => {
     expect(document.querySelector('filter')).toBe(activeFilter);
     expect(element.getAttribute('data-liquid-glass')).toBe('active');
     expect(toDataURL).not.toHaveBeenCalled();
+  });
+
+  it('skips pointer listeners and watchers on touch-only surfaces without refraction, and short-circuits touch pointermove', () => {
+    preferences.set('(hover: none)', true);
+    const addListener = vi.spyOn(element, 'addEventListener');
+    cleanup = attachLiquidGlass(element, { refraction: false });
+    expect(addListener).not.toHaveBeenCalled();
+    expect(preferenceListeners.size).toBe(0);
+    cleanup();
+
+    preferences.set('(hover: none)', false);
+    cleanup = attachLiquidGlass(element, { refraction: false });
+    const child = document.createElement('span');
+    element.append(child);
+    const closestSpy = vi.spyOn(child, 'closest');
+    const touchMove = new MouseEvent('pointermove', { bubbles: true, clientX: 20, clientY: 20 });
+    Object.defineProperty(touchMove, 'pointerType', { value: 'touch' });
+    child.dispatchEvent(touchMove);
+    expect(closestSpy).not.toHaveBeenCalled();
   });
 });

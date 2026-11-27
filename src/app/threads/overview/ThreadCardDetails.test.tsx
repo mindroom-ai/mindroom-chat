@@ -592,4 +592,14 @@ describe('ThreadCardDetails', () => {
     expect(shown()?.textContent).toBe('Details of $a');
     expect(seen).toEqual([undefined]);
   });
+
+  it('skips MutationObserver and scroll listeners when mounted without a fine hover pointer', () => {
+    hover = false;
+    const view = document.defaultView!;
+    const windowListened = vi.spyOn(view, 'addEventListener');
+    const observed = vi.spyOn(view.MutationObserver.prototype, 'observe');
+    render(<Harness />);
+    expect(windowListened).not.toHaveBeenCalledWith('scroll', expect.anything(), expect.anything());
+    expect(observed).not.toHaveBeenCalled();
+  });
 });

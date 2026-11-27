@@ -43,6 +43,7 @@ import { usePanelFrame } from '../ui/panels/panelFrameContext';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { MessageLinkCards } from './MessageLinkCards';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { PaneCollapsedContext, usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { ComposerNotice, ConversationLayout } from './ConversationLayout';
 import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { CrossRoomForkDraftBanner } from '../threads/fork/CrossRoomForkDraftBanner';
@@ -141,6 +142,7 @@ export function ThreadView({
   // A cross-room fork draft still registers its view so its composer and menus stay active,
   // without claiming that `threadId` belongs to `roomId`.
   const outOfSight = usePanelFrame()?.layout === 'folded' || hidden;
+  const parentCollapsed = usePaneCollapsed();
   const { roomId } = room;
   useShownConversationView(
     !outOfSight,
@@ -231,6 +233,7 @@ export function ThreadView({
     ) : undefined);
 
   return (
+    <PaneCollapsedContext.Provider value={outOfSight || parentCollapsed}>
     <ConversationViewContext value={view}>
       <PowerLevelsContextProvider value={targetPowerLevels}>
         <MessageLinkCards roomId={readRoom.roomId}>
@@ -288,5 +291,6 @@ export function ThreadView({
         </MessageLinkCards>
       </PowerLevelsContextProvider>
     </ConversationViewContext>
+    </PaneCollapsedContext.Provider>
   );
 }

@@ -12,11 +12,16 @@ const mapCache = new Map<string, { url: string; scale: number }>();
 const roots = new WeakMap<Document, SVGSVGElement>();
 const preferenceWatchers = new WeakMap<
   Window,
-  { queries: MediaQueryList[]; listeners: Set<() => void>; onChange: () => void }
+  {
+    queries: MediaQueryList[];
+    hover: MediaQueryList;
+    listeners: Set<() => void>;
+    onChange: () => void;
+  }
 >();
 let nextId = 0;
 
-const watchPreferences = (view: Window, listener: () => void) => {
+const watchPreferences = (view: Window, listener: () => void, hoverQuery?: MediaQueryList) => {
   let watcher = preferenceWatchers.get(view);
   if (!watcher) {
     const listeners = new Set<() => void>();
@@ -24,8 +29,9 @@ const watchPreferences = (view: Window, listener: () => void) => {
       listeners.forEach((notify) => notify());
     };
     const queries = PREFERENCE_QUERIES.map((query) => view.matchMedia(query));
+    const hover = hoverQuery ?? view.matchMedia('(hover: none)');
     queries.forEach((query) => query.addEventListener?.('change', onChange));
-    watcher = { queries, listeners, onChange };
+    watcher = { queries, hover, listeners, onChange };
     preferenceWatchers.set(view, watcher);
   }
   watcher.listeners.add(listener);
@@ -210,6 +216,9 @@ export const attachLiquidGlass = (
     typeof CSS !== 'undefined' &&
     CSS.supports('backdrop-filter', 'url("#liquid-glass")') &&
     hasGpu(document);
+  const hoverQuery = preferenceWatchers.get(view)?.hover ?? view.matchMedia('(hover: none)');
+  const canHover = !hoverQuery.matches;
+  if (!supportsRefraction && !canHover) return () => {};
   let disposed = false;
   let visible = false;
   let filter: ReturnType<typeof createFilter>;
@@ -326,14 +335,15 @@ export const attachLiquidGlass = (
     }
     if (resizeTimer === undefined) queueMap();
   };
-  const preferences = watchPreferences(view, onPreferenceChange);
+  const preferences = watchPreferences(view, onPreferenceChange, hoverQuery);
   const onPointerMove = (event: PointerEvent) => {
+    if (event.pointerType === 'touch') return;
     // Flat scrolling chrome must not move the light on its enclosing glass panel either.
     if (event.target instanceof Element && event.target.closest('[data-glass-flat="true"]')) {
       clearLight();
       return;
     }
-    if (!preferences.permitsMotion() || event.pointerType === 'touch') return;
+    if (!preferences.permitsMotion()) return;
     pointerX = event.clientX;
     pointerY = event.clientY;
     if (lightFrame) return;
@@ -369,9 +379,11 @@ export const attachLiquidGlass = (
     }
   }
   intersectionObserver?.observe(element);
-  element.addEventListener('pointermove', onPointerMove, { passive: true });
-  element.addEventListener('pointerleave', clearLight);
-  element.addEventListener('pointercancel', clearLight);
+  if (canHover) {
+    element.addEventListener('pointermove', onPointerMove, { passive: true });
+    element.addEventListener('pointerleave', clearLight);
+    element.addEventListener('pointercancel', clearLight);
+  }
 
   return () => {
     disposed = true;
@@ -381,8 +393,10 @@ export const attachLiquidGlass = (
     resizeObserver?.disconnect();
     intersectionObserver?.disconnect();
     preferences.unsubscribe();
-    element.removeEventListener('pointermove', onPointerMove);
-    element.removeEventListener('pointerleave', clearLight);
-    element.removeEventListener('pointercancel', clearLight);
+    if (canHover) {
+      element.removeEventListener('pointermove', onPointerMove);
+      element.removeEventListener('pointerleave', clearLight);
+      element.removeEventListener('pointercancel', clearLight);
+    }
   };
 };

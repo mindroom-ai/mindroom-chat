@@ -239,7 +239,21 @@ export const useThreadOpeningPin = (o: ThreadOpeningPinOptions): void => {
       return;
     }
     const scrollArea = o.scrollRef.current;
-    if (!o.threadId || !scrollArea) return;
+    if (
+      !o.threadId ||
+      !scrollArea ||
+      !shouldPinThreadToBottomOnOpen({
+        suppressOpenBottomPin: o.isThreadOpenBottomPinSuppressed(),
+        threadId: o.threadId,
+        threadLatestOpenPending: o.threadLatestOpenPending,
+        threadOpenedAtLatest: o.threadOpenedAtLatest,
+        hasUserScrollIntent: o.threadUserScrolled,
+        threadInitialRenderMode: o.threadInitialRenderMode,
+        threadEventCount: o.threadEventsLength,
+      })
+    ) {
+      return;
+    }
     const correction = o.readMeasurementCorrectionPx?.() ?? 0;
     if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
       pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
