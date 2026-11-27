@@ -29,7 +29,8 @@ The person's latest message picks a scenario by hashtag:
                (https://example.org/work/..., a reserved name nothing is fetched from by a homeserver without a
                preview allowlist), characters each of those calls prints after its line, shell calls started first
                as background jobs (background_after 0) that run bgsec seconds, and the seed of the generated Markdown)
-  #terminal    terminal_open, then terminal_run of an echo in the terminal it opened (stack.py --terminals)
+  #terminal    terminal_open / terminal_write (action="open"), then terminal_run / terminal_write (action="run")
+               of an echo in the terminal it opened (stack.py --terminals)
   #secret      request_temporary_secret for STUB_TOKEN
   #delegate    run_subagent delegating to scout
 
@@ -89,13 +90,31 @@ CANVAS_PAGE = (
 # A tool step's arguments may hold this key: how long, in seconds, the model thinks before the call. It is not sent.
 THINK_SECONDS = "_think_seconds"
 
-def terminal_command(turn: Turn) -> dict | str:
-    """#terminal's second step: the command, in the terminal whose ID terminal_open answered."""
+
+def terminal_tool_name(legacy_name: str) -> Callable[[Turn], str]:
+    """Return consolidated `terminal_write` when offered, otherwise its legacy tool name."""
+
+    def select(turn: Turn) -> str:
+        return "terminal_write" if "terminal_write" in turn.tools else legacy_name
+
+    return select
+
+
+def terminal_open_arguments(turn: Turn) -> dict[str, object]:
+    """#terminal's first step: open a terminal via consolidated `terminal_write` or legacy `terminal_open`."""
+    return {"action": "open"} if "terminal_write" in turn.tools else {}
+
+
+def terminal_command(turn: Turn) -> dict[str, object] | str:
+    """#terminal's second step: the command, in the terminal whose ID opening answered."""
     opened = re.fullmatch(r"Opened terminal (\S+)\.", turn.results[-1].strip())
     if not opened:
         return f"The terminal did not open: {turn.results[-1]}"
     # The terminal prints stub-terminal-42, which the typed line does not hold.
-    return {"session_id": opened.group(1), "command": "echo stub-terminal-$((6 * 7))"}
+    arguments: dict[str, object] = {"session_id": opened.group(1), "command": "echo stub-terminal-$((6 * 7))"}
+    if "terminal_write" in turn.tools:
+        return {"action": "run", **arguments}
+    return arguments
 
 
 def tool_properties(tools: list[dict]) -> Mapping[str, frozenset[str]]:
@@ -202,7 +221,10 @@ TOOL_SCENARIOS: dict[str, list[Step]] = {
     "#job": [
         ("run_shell_command", {"args": "sleep 45; echo background job finished", "background_after": 0})
     ],
-    "#terminal": [("terminal_open", {}), ("terminal_run", terminal_command)],
+    "#terminal": [
+        (terminal_tool_name("terminal_open"), terminal_open_arguments),
+        (terminal_tool_name("terminal_run"), terminal_command),
+    ],
     "#secret": [
         (
             "request_temporary_secret",

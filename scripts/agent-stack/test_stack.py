@@ -522,6 +522,7 @@ class CommandLineTests(unittest.TestCase):
             (Path("/mindroom"), "a" * 40, "src/mindroom/config/agent.py", "delegate_to"),
             (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "allow_shell_without_worker"),
             (Path("/mindroom"), "a" * 40, "src/mindroom/config/models.py", "class ReasoningConfig"),
+            (Path("/mindroom"), "a" * 40, "src/mindroom/custom_tools/terminal.py", "async def terminal_write("),
             (Path("/mindroom"), "a" * 40, "src/mindroom/custom_tools/thread_tags.py", "async def thread_tags("),
             (Path("/mindroom"), "a" * 40, "src/mindroom/tools/__init__.py", "temporary_secrets"),
         ]
@@ -580,6 +581,25 @@ class CommandLineTests(unittest.TestCase):
         self.assertFalse(legacy_state["consolidatedThreadTags"])
         self.assertEqual(legacy_state["expireApprovalTool"], "untag_thread")
         self.assertEqual(stack.public_state(legacy_state)["expireApprovalTool"], "untag_thread")
+
+    def test_a_real_start_adapts_terminal_instructions_to_consolidated_terminal_write(self) -> None:
+        keys = dict.fromkeys(stack.REQUIRED_REAL_KEYS, "sk-test")
+        for consolidated in (True, False):
+            with (
+                self.subTest(consolidated=consolidated),
+                self.starting(),
+                mock.patch.dict(os.environ, keys),
+                mock.patch.object(stack, "commit_has", return_value=False),
+                mock.patch.object(stack, "commit_mentions", return_value=consolidated),
+            ):
+                self.assertEqual(self.main("7", "up", "--model", "real"), 0)
+            config = (self.slot_dir / "config.yaml").read_text()
+            if consolidated:
+                self.assertIn("call terminal_write once with action 'open'", config)
+                self.assertNotIn("terminal_open", config)
+            else:
+                self.assertIn("call terminal_open once, then terminal_run once", config)
+                self.assertNotIn("terminal_write", config)
 
     def test_terminals_refuse_a_commit_without_the_terminal_toolkit(self) -> None:
         with self.starting(), mock.patch.object(stack, "commit_has", return_value=False):
@@ -1412,6 +1432,38 @@ class TranscriptionTests(unittest.TestCase):
         self.assertFalse(check("thread_tags", {}, "helper"))
         self.assertFalse(check("thread_tags", None, "helper"))
 
+    def test_consolidated_terminal_updates_real_instructions(self) -> None:
+        legacy_instructions = "\n".join(stack.real_instructions())
+        self.assertIn("#terminal: call terminal_open once, then terminal_run once", legacy_instructions)
+        self.assertNotIn("terminal_write", legacy_instructions)
+
+        consolidated_instructions = "\n".join(stack.real_instructions(consolidated_terminal=True))
+        self.assertIn(
+            "#terminal: call terminal_write once with action 'open', then terminal_write once with action 'run'",
+            consolidated_instructions,
+        )
+        self.assertNotIn("terminal_open", consolidated_instructions)
+        self.assertNotIn("terminal_run", consolidated_instructions)
+        self.assertIn("#tag: call tag_thread once", consolidated_instructions)
+
+        both_instructions = "\n".join(
+            stack.real_instructions(consolidated_thread_tags=True, consolidated_terminal=True)
+        )
+        self.assertIn("#tag: call thread_tags once with action 'tag'", both_instructions)
+        self.assertIn("#terminal: call terminal_write once with action 'open'", both_instructions)
+
+        legacy_real = stack.config_yaml("real", TESTER, STUB_URL, 0.0003)
+        self.assertIn("#terminal: call terminal_open once, then terminal_run once", legacy_real)
+        self.assertNotIn("terminal_write", legacy_real)
+
+        consolidated_real = stack.config_yaml("real", TESTER, STUB_URL, 0.0003, consolidated_terminal=True)
+        self.assertIn(
+            "#terminal: call terminal_write once with action 'open', then terminal_write once with action 'run'",
+            consolidated_real,
+        )
+        self.assertNotIn("terminal_open", consolidated_real)
+        self.assertNotIn("terminal_run", consolidated_real)
+
     def test_real_transcripts_go_to_openai_and_luna_writes_the_notes(self) -> None:
         self.assertEqual(self.setting("stub", "real"), self.REAL)
         config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, transcription=self.REAL)
@@ -1760,6 +1812,29 @@ class StubScenarioTests(unittest.TestCase):
         self.assertEqual(
             stub_model.plan(turn("Opened terminal t-Ab3_x9."), scenarios),
             ("tool", "terminal_run", {"session_id": "t-Ab3_x9", "command": "echo stub-terminal-$((6 * 7))"}),
+        )
+        refused = "Error: This shell has no workspace to start a terminal in."
+        self.assertEqual(stub_model.plan(turn(refused), scenarios), ("text", f"The terminal did not open: {refused}"))
+        kind, text = stub_model.plan(turn("Opened terminal t1.", "stub-terminal-42\n[exit status 0]"), scenarios)
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **terminal** after 2 tool call(s)", text)
+        self.assertIn("stub-terminal-42", text)
+
+    def test_terminal_adapts_to_consolidated_terminal_write(self) -> None:
+        scenarios = stub_model.tool_scenarios([])
+        terminal = [{"type": "function", "function": {"name": name}} for name in ("terminal_read", "terminal_write")]
+
+        def turn(*results: str) -> dict:
+            return {**self.turn("please #terminal", *results), "tools": terminal}
+
+        self.assertEqual(stub_model.plan(turn(), scenarios), ("tool", "terminal_write", {"action": "open"}))
+        self.assertEqual(
+            stub_model.plan(turn("Opened terminal t-Ab3_x9."), scenarios),
+            (
+                "tool",
+                "terminal_write",
+                {"action": "run", "session_id": "t-Ab3_x9", "command": "echo stub-terminal-$((6 * 7))"},
+            ),
         )
         refused = "Error: This shell has no workspace to start a terminal in."
         self.assertEqual(stub_model.plan(turn(refused), scenarios), ("text", f"The terminal did not open: {refused}"))
