@@ -232,7 +232,7 @@ describe('SubagentsPanel interactive inner detail swipes', () => {
     expect(underLayer.style.translate).toBe('-86.4px');
 
     act(() => {
-      dispatchEdgeTouch('touchend', [], 400);
+      dispatchEdgeTouch('touchend', [], 450);
     });
     await flushMicrotasks();
 
@@ -309,7 +309,7 @@ describe('SubagentsPanel interactive inner detail swipes', () => {
     expect(document.activeElement).toBe(childBackButton);
 
     act(() => {
-      dispatchEdgeTouch('touchend', [], 400);
+      dispatchEdgeTouch('touchend', [], 450);
     });
     await flushMicrotasks();
 

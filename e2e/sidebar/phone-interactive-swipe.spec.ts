@@ -651,7 +651,7 @@ for (const engine of ENGINES) {
         // 5. Relaxed short back swipe (< 35% width, < 0.45 px/ms) commits via momentum projection.
         const shortFlickBack = await startTouchDrag(page, engine, 8, 420);
         try {
-          await shortFlickBack.moveTo(108, { steps: 6, stepMs: 50 });
+          await shortFlickBack.moveTo(112, { steps: 9, stepMs: 28 });
         } finally {
           await shortFlickBack.release();
         }
