@@ -11,8 +11,12 @@ import { Icon, Icons } from 'folds';
 import {
   ExpandAllInitContext,
   ManualExpansionStateContext,
+  hasOpenReplyDisclosure,
   rememberManualExpansionState,
+  replyDisclosureScope,
 } from '../manualExpansionState';
+import { useToolCallsShown } from '../toolCallVisibility';
+import { ToolCallMessageContext } from './toolCallStatus';
 import { formatWorkDuration } from '../../lib/time';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useRevealOnOpen } from '../../ui/disclosureReveal';
@@ -58,11 +62,16 @@ type FinishedWorkFoldProps = {
 export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: FinishedWorkFoldProps) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
+  const message = useContext(ToolCallMessageContext);
+  const [toolsShown] = useToolCallsShown(message?.roomId, message?.threadId);
+  const scope = replyDisclosureScope(message?.roomId, message?.eventId);
   const manualExpansionState = useContext(ManualExpansionStateContext);
   const expandAllInit = useContext(ExpandAllInitContext);
   const [open, setOpen] = useState(
     () => manualExpansionState?.get(foldKey) ?? expandAllInit ?? false
   );
+  const [wasFolded, setWasFolded] = useState(!!folded);
+  const persistAutoOpenRef = useRef(false);
   const previousExpandAllInitRef = useRef(expandAllInit);
   // While the work slides open or folds back; folding, it stays mounted until it has folded.
   const [moving, setMoving] = useState<'opening' | 'closing'>();
@@ -76,6 +85,31 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
     workRef,
     moving === 'opening' ? workRef : undefined
   );
+
+  // If the reader had thinking or tools open while the reply streamed, keep the newly folded work
+  // open in place instead of collapsing it out from under them.
+  if (folded && !wasFolded) {
+    setWasFolded(true);
+    if (
+      !open &&
+      manualExpansionState?.get(foldKey) !== false &&
+      hasOpenReplyDisclosure(manualExpansionState, scope, { toolsShown })
+    ) {
+      persistAutoOpenRef.current = true;
+      setOpen(true);
+      setMoving(undefined);
+    }
+  } else if (!folded && wasFolded) {
+    setWasFolded(false);
+  }
+
+  useEffect(() => {
+    if (!persistAutoOpenRef.current) return;
+    persistAutoOpenRef.current = false;
+    if (manualExpansionState && !manualExpansionState.has(foldKey)) {
+      rememberManualExpansionState(manualExpansionState, foldKey, true);
+    }
+  }, [foldKey, manualExpansionState, open]);
 
   // As CollapsibleMessage: expand all opens the work and collapse all folds it, unless the reader
   // chose for this reply since.

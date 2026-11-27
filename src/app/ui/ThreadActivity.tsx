@@ -1,8 +1,9 @@
-import { ReactNode, type Ref, useId, useRef, useState } from 'react';
+import { ReactNode, type Ref, useId, useRef } from 'react';
 import { Icon, Icons, IconSrc, Spinner } from 'folds';
 import * as css from './ThreadActivity.css';
 import { IsolatedText, ownDirectionLine } from './directional';
 import { useRevealOnOpen } from './disclosureReveal';
+import { usePersistedDisclosure } from './manualExpansionState';
 
 export type ActivityTone = keyof typeof css.Icon;
 
@@ -34,6 +35,7 @@ export function ThreadActivity({
   detail,
   aside,
   preview,
+  disclosureKey,
   children,
 }: {
   rootRef?: Ref<HTMLDivElement>;
@@ -44,9 +46,10 @@ export function ThreadActivity({
   aside?: ReactNode;
   // Shown under the line whether or not the panel is open.
   preview?: ReactNode;
+  disclosureKey?: string | readonly string[];
   children?: ReactNode;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = usePersistedDisclosure(disclosureKey, false);
   const panelId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -91,8 +94,8 @@ export function ThreadActivity({
  * A tool result shown on one line; selecting it shows the whole text. It reads in its own
  * direction, so `8 results` keeps its order in a right-to-left interface.
  */
-export function ActivityResult({ text }: { text: string }) {
-  const [full, setFull] = useState(false);
+export function ActivityResult({ text, disclosureKey }: { text: string; disclosureKey?: string }) {
+  const [full, setFull] = usePersistedDisclosure(disclosureKey, false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const armReveal = useRevealOnOpen(full, buttonRef, buttonRef);
   return (

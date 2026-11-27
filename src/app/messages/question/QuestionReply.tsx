@@ -12,17 +12,19 @@ type RenderHtml = (html: string | undefined) => ReactNode;
 
 type QuestionReplyProps = {
   html: string | undefined;
-  question: InteractiveQuestion;
-  renderCard: (showText: boolean) => ReactNode;
+  question?: InteractiveQuestion;
+  renderCard?: (showText: boolean) => ReactNode;
   renderHtml: RenderHtml;
   /** The reply's body from its HTML and a renderer of that HTML: its reasoning, its folded work. */
   renderBody: (renderHtml: RenderHtml, html: string | undefined) => ReactNode;
 };
 
 /**
- * An agent reply that asks a question: the card takes the place of the question's text in the
- * reply, or, when the reply does not show that text as MindRoom writes it (or has no HTML), adds
- * its buttons under the reply, so nothing the reply says is lost.
+ * An agent reply that may ask a question: when a question is present, its card takes the place
+ * of the question's text in the reply, or adds its buttons under the reply when the reply does
+ * not show that text as MindRoom writes it (or has no HTML). Mounted unconditionally around
+ * agent bodies with a fixed 2-slot FootnoteScopeProvider so a late-arriving question never
+ * unmounts the reply body.
  */
 export function QuestionReply({
   html,
@@ -32,20 +34,12 @@ export function QuestionReply({
   renderBody,
 }: QuestionReplyProps) {
   // Each render reads the question again; its value, not its identity, decides the split.
-  const questionKey = JSON.stringify(question);
+  const questionKey = question && renderCard ? JSON.stringify(question) : undefined;
   const marked = useMemo(() => {
-    if (!html) return undefined;
+    if (!html || !questionKey) return undefined;
     const split = splitQuestionBlock(html, JSON.parse(questionKey) as InteractiveQuestion);
     return split && `${split.before}${CARD_PLACE}${split.after}`;
   }, [html, questionKey]);
-  if (marked === undefined) {
-    return (
-      <FootnoteScopeProvider>
-        {renderBody(renderHtml, html)}
-        {renderCard(false)}
-      </FootnoteScopeProvider>
-    );
-  }
   const renderPart: RenderHtml = (part) => {
     const at = part?.indexOf(CARD_PLACE) ?? -1;
     if (!part || at < 0) return renderHtml(part);
@@ -54,10 +48,15 @@ export function QuestionReply({
     return (
       <>
         {before.trim() !== '' && renderHtml(before)}
-        {renderCard(true)}
+        {renderCard?.(true)}
         {after.trim() !== '' && renderHtml(after)}
       </>
     );
   };
-  return <FootnoteScopeProvider>{renderBody(renderPart, marked)}</FootnoteScopeProvider>;
+  return (
+    <FootnoteScopeProvider>
+      {marked === undefined ? renderBody(renderHtml, html) : renderBody(renderPart, marked)}
+      {marked === undefined && renderCard ? renderCard(false) : null}
+    </FootnoteScopeProvider>
+  );
 }

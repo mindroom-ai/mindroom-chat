@@ -4,13 +4,15 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { ManualExpansionStateContext } from '../manualExpansionState';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { getDefaultStore } from 'jotai';
 import { getSettings, settingsAtom } from '../../preferences/settings';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
-import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
+import { LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY } from '../live/useLiveReplyContent';
 import {
   InlineSecretRequestsContext,
   NO_INLINE_SECRET_REQUESTS,
@@ -60,6 +62,16 @@ vi.mock('../../approvals/ToolApprovalCard', () => ({ ToolApprovalCard: () => nul
 vi.mock('../../approvals/SecretRequestLine', () => ({ SecretRequestLine: () => 'secret line' }));
 vi.mock('./PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({ ThinkingPlaceholder: () => null }));
+vi.mock('../question/QuestionCard', () => ({
+  QuestionCard: () => React.createElement('div', { 'data-question-card': true }, 'question card'),
+}));
+const sidecarHydrations = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock('../../event-store/cache/attachmentRepository', () => ({
+  hydrateCachedLongText: async (
+    _mx: unknown,
+    source: { mxcUri?: string; previewContent: Record<string, unknown> }
+  ) => (source.mxcUri ? sidecarHydrations.get(source.mxcUri) : undefined) ?? source.previewContent,
+}));
 
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
   Arguments: 'Arguments',
@@ -162,6 +174,8 @@ let replyCount = 0;
 let replyId = '$reply';
 
 let renderer: ReactTestRenderer | undefined;
+let manualExpansionState = new Map<string, boolean>();
+const mockMx = { getUserId: () => '@reader:example.org' } as unknown as MatrixClient;
 // The deployment's configuration, as a test sets it.
 let clientConfig: ClientConfig = {};
 const render = (
@@ -171,24 +185,29 @@ const render = (
   secrets: InlineSecretRequestPlan = NO_INLINE_SECRET_REQUESTS
 ) =>
   act(() => {
+    const msgType = typeof content.msgtype === 'string' ? content.msgtype : 'm.text';
     const tree = (
-      <ClientConfigProvider value={clientConfig}>
-        <InlineSecretRequestsContext value={secrets}>
-          <ToolCallMessageContext value={{ eventId: replyId, roomId: '!room:example.org' }}>
-            {renderAgentMessageContent({
-              mEvent,
-              eventId: replyId,
-              fromMindroomAgent,
-              highlightRegex,
-              displayName: 'Agent',
-              msgType: 'm.text',
-              content,
-              htmlReactParserOptions,
-              linkifyOpts,
-            })}
-          </ToolCallMessageContext>
-        </InlineSecretRequestsContext>
-      </ClientConfigProvider>
+      <MatrixClientProvider value={mockMx}>
+        <ManualExpansionStateContext.Provider value={manualExpansionState}>
+          <ClientConfigProvider value={clientConfig}>
+            <InlineSecretRequestsContext value={secrets}>
+              <ToolCallMessageContext value={{ eventId: replyId, roomId: '!room:example.org' }}>
+                {renderAgentMessageContent({
+                  mEvent,
+                  eventId: replyId,
+                  fromMindroomAgent,
+                  highlightRegex,
+                  displayName: 'Agent',
+                  msgType,
+                  content,
+                  htmlReactParserOptions,
+                  linkifyOpts,
+                })}
+              </ToolCallMessageContext>
+            </InlineSecretRequestsContext>
+          </ClientConfigProvider>
+        </ManualExpansionStateContext.Provider>
+      </MatrixClientProvider>
     );
     if (renderer) renderer.update(tree);
     else renderer = create(tree);
@@ -211,6 +230,8 @@ describe('finished agent work', () => {
   beforeEach(() => {
     replyCount += 1;
     replyId = `$reply${replyCount}`;
+    manualExpansionState = new Map<string, boolean>();
+    sidecarHydrations.clear();
   });
 
   afterEach(() => {
@@ -497,5 +518,143 @@ describe('finished agent work', () => {
     );
     expect(order).not.toContain(-1);
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('keeps thinking, tool run, and finished work open across sidecar, trailing text, question, completion, and remount', async () => {
+    const toolRunButtons = () =>
+      renderer!.root.findAll(
+        (node) => node.type === 'button' && textOf(node).includes('web_search')
+      );
+    const baseStreaming = (extra: Record<string, unknown> = {}) => ({
+      ...reply('streaming', `<p>Let me look.</p>${marker('web_search', 1)}`),
+      'io.mindroom.tool_trace': toolTrace('web_search'),
+      [LIVE_REASONING_KEY]: 'Checking the sources.',
+      ...extra,
+    });
+
+    render(baseStreaming());
+    act(() => {
+      reasoningToggle().props.onClick();
+      toolRunButtons()[0]!.props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Transition to an m.file long-text sidecar checkpoint and hydrate it.
+    const sidecarUrl = 'mxc://example.org/streaming-checkpoint-1';
+    const hydratedSidecar = baseStreaming();
+    sidecarHydrations.set(sidecarUrl, hydratedSidecar);
+    await act(async () => {
+      render({
+        msgtype: 'm.file',
+        body: 'Let me look.',
+        url: sidecarUrl,
+        'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        [LIVE_REASONING_KEY]: 'Checking the sources.',
+      });
+      await Promise.resolve();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Live frame returns over the sidecar with trailing text inside the marker paragraph.
+    render(
+      baseStreaming({
+        formatted_body: '<p>Let me look.</p><p>🔧 <code>web_search</code> [1]<br/>After call</p>',
+      })
+    );
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Trailing text disappears and an interactive question appears on the reply.
+    render(
+      baseStreaming({
+        'io.mindroom.question': {
+          version: 1,
+          question: 'Continue?',
+          options: [{ label: 'Yes', emoji: '✅' }],
+        },
+      })
+    );
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Stream completes: Worked for X stays open with thinking and tool run still open.
+    const completed = {
+      ...reply('completed'),
+      'io.mindroom.reasoning': {
+        text: 'Checking the sources.',
+        duration_ms: 4000,
+        segments: [{ start: 0, after_tool: 0, duration_ms: 4000 }],
+      },
+    };
+    render(completed);
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    const thoughtToggle = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node).startsWith('Thought'));
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Virtualization unmount + remount preserves all three open disclosures.
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    render(completed);
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+  });
+
+  it('still folds finished work when the reader opened and then closed thinking before completion', () => {
+    render({
+      ...reply('streaming'),
+      [LIVE_REASONING_KEY]: 'Initial thought.',
+    });
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+
+    render(reply('completed'));
+    expect(workedRow().props['aria-expanded']).toBe(false);
+    expect(text()).not.toContain('Let me look.');
+  });
+
+  it('keeps both halves of an open tool run open when opening thinking splits it', () => {
+    const html = `${marker('web_search', 1)}${marker('read_file', 2)}`;
+    render({
+      ...reply('streaming', html),
+      [LIVE_REASONING_KEY]: 'First thought.\n\nSecond thought.',
+      [LIVE_REASONING_SEGMENTS_KEY]: [
+        { start: 0, after_tool: 0 },
+        { start: 16, after_tool: 1 },
+      ],
+    });
+    const runButtons = () =>
+      renderer!.root.findAll(
+        (node) =>
+          node.type === 'button' &&
+          (textOf(node).includes('web_search') || textOf(node).includes('read_file'))
+      );
+
+    expect(runButtons()).toHaveLength(1);
+    act(() => {
+      runButtons()[0]!.props.onClick();
+    });
+    expect(runButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Opening thinking introduces splitAfter=1, splitting [1, 2] into [1] and [2].
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    const splitRuns = runButtons();
+    expect(splitRuns).toHaveLength(2);
+    expect(splitRuns[0]!.props['aria-expanded']).toBe(true);
+    expect(splitRuns[1]!.props['aria-expanded']).toBe(true);
   });
 });

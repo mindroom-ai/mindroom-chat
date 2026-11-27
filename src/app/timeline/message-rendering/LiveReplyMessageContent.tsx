@@ -19,6 +19,11 @@ export function LiveReplyMessageContent(props: LiveReplyMessageContentProps) {
   const getLiveContent = useCallback(() => content, [content]) as <T>() => T;
 
   return (
-    <RenderMessageContent {...props} getContent={getLiveContent} urlPreview={urlPreview && !live} />
+    <RenderMessageContent
+      {...props}
+      msgType={typeof content.msgtype === 'string' ? content.msgtype : props.msgType}
+      getContent={getLiveContent}
+      urlPreview={urlPreview && !live}
+    />
   );
 }

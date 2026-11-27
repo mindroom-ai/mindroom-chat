@@ -3,6 +3,7 @@ import {
   type RefObject,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,6 +13,7 @@ import { Icon, Icons } from 'folds';
 import { usePauseAnimationWhenHidden } from '../../lib/hooks/usePauseWhenHidden';
 import { useRevealOnOpen, useRevealTargets } from '../../ui/disclosureReveal';
 import { useToolCallsShown } from '../toolCallVisibility';
+import { replyDisclosureScope, usePersistedDisclosure } from '../manualExpansionState';
 import {
   type FoldedToolCall,
   summarizeToolCalls,
@@ -122,9 +124,13 @@ function Cog({ calls, open, onToggle, cogRef }: CogProps) {
 export function ToolCallsFold({ children }: { children: ReactNode }) {
   const message = useContext(ToolCallMessageContext);
   const [shown] = useToolCallsShown(message?.roomId, message?.threadId);
-  const [open, setOpen] = useState(false);
+  const scope = replyDisclosureScope(message?.roomId, message?.eventId);
+  const [open, setOpen] = usePersistedDisclosure(scope ? `${scope}tool-fold` : undefined, false);
+  const effectiveOpen = shown ? false : open;
   // Showing the tool calls closes the cog, so hiding them again hides the runs too.
-  if (shown && open) setOpen(false);
+  useEffect(() => {
+    if (shown && open) setOpen(false);
+  }, [shown, open, setOpen]);
   const [runs, setRuns] = useState<Readonly<Record<string, readonly FoldedToolCall[]>>>({});
   const report = useCallback((key: string, calls?: readonly FoldedToolCall[]) => {
     setRuns((current) => {
@@ -141,17 +147,20 @@ export function ToolCallsFold({ children }: { children: ReactNode }) {
   }, []);
   const cogRef = useRef<HTMLButtonElement>(null);
   const { register: registerRun, getTargets } = useRevealTargets();
-  const armReveal = useRevealOnOpen(open, cogRef, getTargets);
-  const fold = useMemo(() => ({ open, report, registerRun }), [open, report, registerRun]);
+  const armReveal = useRevealOnOpen(effectiveOpen, cogRef, getTargets);
+  const fold = useMemo(
+    () => ({ open: effectiveOpen, report, registerRun }),
+    [effectiveOpen, report, registerRun]
+  );
   const toggle = useCallback(() => {
-    if (!open) armReveal();
-    setOpen(!open);
-  }, [armReveal, open]);
+    if (!effectiveOpen) armReveal();
+    setOpen(!effectiveOpen);
+  }, [armReveal, effectiveOpen, setOpen]);
 
   const calls = Object.values(runs).flat();
   const cog =
     !shown && calls.length > 0 ? (
-      <Cog calls={calls} open={open} onToggle={toggle} cogRef={cogRef} />
+      <Cog calls={calls} open={effectiveOpen} onToggle={toggle} cogRef={cogRef} />
     ) : null;
 
   return (

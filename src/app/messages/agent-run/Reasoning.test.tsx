@@ -76,8 +76,12 @@ vi.mock('./ThinkingPlaceholder', () => ({
 // The long-text renderer renders the preview content it gets, as before its sidecar loads.
 vi.mock('../content/LongTextText', () => ({
   LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  LongTextText: ({ content, renderBody }: any) =>
-    renderBody(content, { body: content.body, customBody: content.formatted_body }, 'ready'),
+  LongTextText: ({ content, longTextSource, renderBody }: any) =>
+    renderBody(
+      content,
+      { body: content.body, customBody: content.formatted_body },
+      longTextSource ? 'ready' : undefined
+    ),
 }));
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({

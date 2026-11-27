@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import React, { ReactNode, type JSX, use, useContext, useMemo, useRef, useState } from 'react';
+import React, { ReactNode, type JSX, use, useContext, useMemo, useRef } from 'react';
 import {
   type DOMNode,
   Element,
@@ -74,6 +74,7 @@ import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
 import { useToolCallsShown } from '../toolCallVisibility';
+import { replyDisclosureScope, usePersistedDisclosure } from '../manualExpansionState';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
@@ -133,13 +134,15 @@ function PasteMarkerBadge({ marker }: { marker: PasteMarker }) {
 function CollapsibleBlock({
   icon,
   label,
+  disclosureKey,
   children,
 }: {
   icon: IconSrc;
   label: string;
+  disclosureKey?: string;
   children?: ReactNode;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = usePersistedDisclosure(disclosureKey, false);
   const glassRef = useGlassHighlight<HTMLDivElement>();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
@@ -182,7 +185,8 @@ function CollapsibleBlock({
 export const renderHtmlBlock = (
   name: string,
   children: ChildNode[],
-  opts: HTMLReactParserOptions
+  opts: HTMLReactParserOptions,
+  index = 0
 ): React.ReactElement | undefined => {
   if (!Object.prototype.hasOwnProperty.call(MINDROOM_BLOCK_META, name)) return undefined;
 
@@ -190,7 +194,12 @@ export const renderHtmlBlock = (
   const { icon } = MINDROOM_BLOCK_META[blockName];
 
   return (
-    <NamedBlock icon={icon} blockName={blockName}>
+    <NamedBlock
+      key={`mindroom-block-${blockName}-${index}`}
+      icon={icon}
+      blockName={blockName}
+      blockIndex={index}
+    >
       {domToReact(children as DOMNode[], opts)}
     </NamedBlock>
   );
@@ -199,17 +208,22 @@ export const renderHtmlBlock = (
 function NamedBlock({
   icon,
   blockName,
+  blockIndex,
   children,
 }: {
   icon: IconSrc;
   blockName: BlockTagName;
+  blockIndex: number;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
+  const message = useContext(ToolCallMessageContext);
+  const scope = replyDisclosureScope(message?.roomId, message?.eventId);
   return (
     <CollapsibleBlock
       icon={icon}
       label={t(`mindroomUi.messages.mindroomHtmlBlocks.blocks.${blockName}`)}
+      disclosureKey={scope ? `${scope}block:${blockName}:${blockIndex}` : undefined}
     >
       {children}
     </CollapsibleBlock>
@@ -319,9 +333,11 @@ function ToolElapsed({ startedAt }: { startedAt: number }) {
 function ToolRefGroupItem({
   parsedTool,
   state,
+  resultDisclosureKey,
 }: {
   parsedTool: ToolBlockRenderData;
   state: ToolCallState;
+  resultDisclosureKey?: string;
 }) {
   const { t } = useTranslation();
   const { src, tone } = TOOL_STATE_ICON[state];
@@ -346,7 +362,9 @@ function ToolRefGroupItem({
             <ApprovalArgumentFields value={parsedTool.argsPreview} parse={toToolArgumentFields} />
           </div>
         )}
-        {parsedTool.result && <ActivityResult text={parsedTool.result} />}
+        {parsedTool.result && (
+          <ActivityResult text={parsedTool.result} disclosureKey={resultDisclosureKey} />
+        )}
       </div>
     </div>
   );
@@ -486,10 +504,13 @@ function ToolRefGroupBlock({
   const icon = metadataStatus
     ? { src: Icons.Terminal, tone: 'neutral' as const }
     : TOOL_STATE_ICON[summary.state];
+  const scope = replyDisclosureScope(message?.roomId, message?.eventId);
+  const seenToolIndexes = new Map<number, number>();
 
   return (
     <ThreadActivity
       rootRef={fold?.open ? fold.registerRun : undefined}
+      disclosureKey={scope ? calls.map((call) => `${scope}tool-run:${call.index}`) : undefined}
       icon={
         <ActivityIcon
           src={icon.src}
@@ -520,13 +541,21 @@ function ToolRefGroupBlock({
         )
       }
     >
-      {loadedTools.map((parsedTool, index) => (
-        <ToolRefGroupItem
-          key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
-          parsedTool={parsedTool}
-          state={states[index]!}
-        />
-      ))}
+      {loadedTools.map((parsedTool, index) => {
+        const occurrence = seenToolIndexes.get(parsedTool.index) ?? 0;
+        seenToolIndexes.set(parsedTool.index, occurrence + 1);
+        const occSuffix = occurrence > 0 ? `#${occurrence}` : '';
+        return (
+          <ToolRefGroupItem
+            key={`tool-group-item-${parsedTool.index}${occSuffix}`}
+            parsedTool={parsedTool}
+            state={states[index]!}
+            resultDisclosureKey={
+              scope ? `${scope}tool-result:${parsedTool.index}${occSuffix}` : undefined
+            }
+          />
+        );
+      })}
       {metadataStatus && (
         <div className={activityCss.Row}>
           <ActivityIcon src={Icons.Info} pending={metadataStatus === 'loading'} />
@@ -586,6 +615,7 @@ function InlineSecretRequestBlock({
     );
   if (!roomId || !line) return null;
   if (hidden) return <div ref={lineRef} hidden />;
+  const scope = replyDisclosureScope(roomId, message?.eventId);
   return (
     <SecretRequestLine
       lineRef={lineRef}
@@ -594,6 +624,7 @@ function InlineSecretRequestBlock({
       request={request}
       roomId={roomId}
       agentUserId={agentUserId}
+      disclosureKey={scope ? `${scope}secret:${eventId}` : undefined}
     />
   );
 }
@@ -871,55 +902,56 @@ const createToolTraceMarkerParserOptions = (
               replyEnded={replyEnded}
             />
           );
-          if (!trailingElement) return toolBlock;
-
-          // Each marker that starts the trailing content gets its own block, as
-          // rendering that content would give it. Take them in one pass, since
-          // rendering it would recurse once per marker.
           const chainedToolBlocks: ReactNode[] = [];
-          const restChildren = takeLeadingToolRefs(trailingElement, (html) => {
-            const toolRef = parseToolRefHtml(html);
-            // Leave content that repeats a consumed index to the check above.
-            // The marker starts that content, so its first bracketed number is
-            // in the marker.
-            const textIndex = parseToolRefIndexFromTextPrefix(html);
-            if (!toolRef || (textIndex !== undefined && consumedToolIndexes.has(textIndex))) {
-              return false;
-            }
+          let restElement: Element | undefined;
+          if (trailingElement) {
+            // Each marker that starts the trailing content gets its own block, as
+            // rendering that content would give it. Take them in one pass, since
+            // rendering it would recurse once per marker.
+            const restChildren = takeLeadingToolRefs(trailingElement, (html) => {
+              const toolRef = parseToolRefHtml(html);
+              // Leave content that repeats a consumed index to the check above.
+              // The marker starts that content, so its first bracketed number is
+              // in the marker.
+              const textIndex = parseToolRefIndexFromTextPrefix(html);
+              if (!toolRef || (textIndex !== undefined && consumedToolIndexes.has(textIndex))) {
+                return false;
+              }
 
-            const data = buildToolRefRenderData(
-              toolRef,
-              traceEvents?.[toolRef.index - 1],
-              metadataStatus
-            );
-            consumedToolIndexes.add(toolRef.index);
-            groupRootIndexes.add(toolRef.index);
-            addReplyTool(data);
-            chainedToolBlocks.push(
-              <ToolRun
-                key={`tool-group-${toolRef.index}`}
-                tools={[data]}
-                replyTools={replyTools}
-                replyEnded={replyEnded}
-              />
-            );
-            return true;
-          });
-          const restElement =
-            restChildren.length > 0
-              ? new Element(
-                  trailingElement.name,
-                  { ...trailingElement.attribs },
-                  restChildren.map((child) => cloneDomChildNode(child))
-                )
-              : undefined;
+              const data = buildToolRefRenderData(
+                toolRef,
+                traceEvents?.[toolRef.index - 1],
+                metadataStatus
+              );
+              consumedToolIndexes.add(toolRef.index);
+              groupRootIndexes.add(toolRef.index);
+              addReplyTool(data);
+              chainedToolBlocks.push(
+                <ToolRun
+                  key={`tool-group-${toolRef.index}`}
+                  tools={[data]}
+                  replyTools={replyTools}
+                  replyEnded={replyEnded}
+                />
+              );
+              return true;
+            });
+            restElement =
+              restChildren.length > 0
+                ? new Element(
+                    trailingElement.name,
+                    { ...trailingElement.attribs },
+                    restChildren.map((child) => cloneDomChildNode(child))
+                  )
+                : undefined;
+          }
 
           return (
-            <>
+            <React.Fragment key={`tool-group-${firstItem.data.index}`}>
               {toolBlock}
-              {chainedToolBlocks}
-              {restElement && domToReact([restElement], nextOpts)}
-            </>
+              {trailingElement ? chainedToolBlocks : null}
+              {restElement ? domToReact([restElement], nextOpts) : null}
+            </React.Fragment>
           );
         }
       }

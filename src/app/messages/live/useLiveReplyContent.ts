@@ -102,6 +102,7 @@ export const getShownToolCalls = (
 const getLiveContent = (content: IContent, docs: LiveDocs, renderMarkdown: boolean): IContent => {
   const live: IContent = {
     ...content,
+    ...(content.msgtype === 'm.file' ? { msgtype: 'm.text' } : {}),
     body: docs.md || MINDROOM_THINKING_PLACEHOLDER_BODY,
     [STREAM_STATUS_KEY]: docs.status,
   };
@@ -286,8 +287,31 @@ export const useLiveReplyContent = (
   // mid-stream), the entry expires while the durable reply is still an earlier state of what the
   // reader saw. The row keeps that text until an edit with more of it arrives, so a reply only
   // grows or pauses.
-  const shownRef = useRef<{ docs: LiveDocs; order: LiveOrder }>(undefined);
-  if (docs && entry) shownRef.current = { docs, order: { sid: entry.sid, seq: entry.seq } };
+  const replyIdentity = roomId && replyId ? `${roomId}\0${replyId}` : undefined;
+  const status = getStreamStatusFromContent(content);
+  const durableStreaming =
+    !!event && !event.isRedacted() && !!status && LIVE_DURABLE_STATUSES.has(status);
+  const shownRef = useRef<{ identity: string | undefined; docs: LiveDocs; order: LiveOrder }>(
+    undefined
+  );
+  const lastLiveDocsRef = useRef<{ identity: string | undefined; docs: LiveDocs }>(undefined);
+  if (shownRef.current && shownRef.current.identity !== replyIdentity) {
+    shownRef.current = undefined;
+  }
+  if (
+    lastLiveDocsRef.current &&
+    (lastLiveDocsRef.current.identity !== replyIdentity || !durableStreaming)
+  ) {
+    lastLiveDocsRef.current = undefined;
+  }
+  if (docs && entry) {
+    shownRef.current = { identity: replyIdentity, docs, order: { sid: entry.sid, seq: entry.seq } };
+  }
+  const waitDocs = verdict === 'wait' ? entry?.docs : undefined;
+  const activeLiveDocs = docs ?? waitDocs;
+  if (activeLiveDocs && durableStreaming) {
+    lastLiveDocsRef.current = { identity: replyIdentity, docs: activeLiveDocs };
+  }
   const heldDocs =
     !docs &&
     verdict !== 'wait' &&
@@ -304,17 +328,24 @@ export const useLiveReplyContent = (
     store.drop(roomId, replyId);
   }, [entry, replyId, roomId, store, verdict]);
 
-  const waitDocs = verdict === 'wait' ? entry?.docs : undefined;
+  const enrichmentDocs = waitDocs ?? (durableStreaming ? lastLiveDocsRef.current?.docs : undefined);
   const liveContent = useMemo(() => {
     if (liveDocs) return getLiveContent(content, liveDocs, markdownReady);
     const durable = withWarmupActivity(content);
-    if (!waitDocs) return durable;
-    const covered = withRunningOutput(durable, waitDocs.tools);
-    if (!waitDocs.reasoning) return covered;
-    const { segments } = waitDocs;
-    const segmentsContent = segments.length > 0 ? { [LIVE_REASONING_SEGMENTS_KEY]: segments } : {};
-    return { ...covered, [LIVE_REASONING_KEY]: waitDocs.reasoning, ...segmentsContent };
-  }, [content, liveDocs, markdownReady, waitDocs]);
+    if (!enrichmentDocs) return durable;
+    const covered = withRunningOutput(durable, enrichmentDocs.tools);
+    const extra: IContent = {};
+    if (enrichmentDocs.reasoning) {
+      extra[LIVE_REASONING_KEY] = enrichmentDocs.reasoning;
+      if (enrichmentDocs.segments.length > 0) {
+        extra[LIVE_REASONING_SEGMENTS_KEY] = enrichmentDocs.segments;
+      }
+    }
+    if (enrichmentDocs.compactions && enrichmentDocs.compactions.length > 0) {
+      extra[LIVE_COMPACTIONS_KEY] = enrichmentDocs.compactions;
+    }
+    return Object.keys(extra).length > 0 ? { ...covered, ...extra } : covered;
+  }, [content, enrichmentDocs, liveDocs, markdownReady]);
   return {
     content: liveContent,
     live: verdict === 'show' || verdict === 'wait' || heldDocs !== undefined,

@@ -89,4 +89,53 @@ describe('LiveReplyMessageContent', () => {
   it('shows URL previews of the final edit', () => {
     expect(renderedUrlPreview(durable('completed'))).toBe(true);
   });
+
+  it('passes msgType="m.text" when a live frame overlays an m.file long-text checkpoint', () => {
+    act(() =>
+      getLiveReplyStore(mx).ingest(
+        ROOM,
+        AGENT,
+        {
+          reply: REPLY,
+          sid: '1761858000123-0a1b2c3d',
+          seq: 1,
+          snapshot: {
+            md: 'Live reply text',
+            reasoning: '',
+            tools: [],
+            status: 'streaming',
+            activity: '',
+            segments: [],
+          },
+        },
+        Date.now()
+      )
+    );
+    const sidecarCheckpoint: IContent = {
+      msgtype: 'm.file',
+      body: 'Preview',
+      url: 'mxc://example/sidecar',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+    };
+    act(() => {
+      renderer = create(
+        <MatrixClientProvider value={mx}>
+          <LiveReplyMessageContent
+            mEvent={reply}
+            displayName="Agent"
+            msgType="m.file"
+            ts={1}
+            getContent={(() => sidecarCheckpoint) as never}
+            urlPreview
+            htmlReactParserOptions={{}}
+            linkifyOpts={{}}
+          />
+        </MatrixClientProvider>
+      );
+    });
+    const renderedProps = renderer!.root.findByType('render-message-content' as never).props;
+    expect(renderedProps.msgType).toBe('m.text');
+    expect(renderedProps.getContent().msgtype).toBe('m.text');
+  });
 });

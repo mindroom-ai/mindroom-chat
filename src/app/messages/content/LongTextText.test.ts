@@ -1170,7 +1170,7 @@ describe('LongTextText hydration identity', () => {
     const { LongTextKind, LongTextText } = await getLongTextTextModule();
     longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(createDeferred().promise);
     const content = createPreviewContent();
-    const statuses: string[] = [];
+    const statuses: (string | undefined)[] = [];
     const render = (hydrate: boolean) =>
       React.createElement(LongTextText, {
         kind: LongTextKind.Text,
@@ -1529,6 +1529,65 @@ describe('LongTextText hydration identity', () => {
     expect(renderer.root.findByProps({ 'data-testid': 'tool-trace-probe' }).children).toEqual([
       'Hydrated B|trace-present',
     ]);
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('clears stale sidecar state across defined -> undefined -> defined transitions', async () => {
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const sidecarADeferred = createDeferred<Record<string, unknown>>();
+    const sidecarBDeferred = createDeferred<Record<string, unknown>>();
+    longTextMocks.hydrateMindroomLongTextSource
+      .mockReturnValueOnce(sidecarADeferred.promise)
+      .mockReturnValueOnce(sidecarBDeferred.promise);
+
+    const observed: Array<{ body: string; status: string | undefined }> = [];
+    const renderElement = (content: Record<string, unknown>, longTextSource?: LongTextSource) =>
+      React.createElement(LongTextText, {
+        kind: LongTextKind.Text,
+        content,
+        longTextSource,
+        renderBody: (_resolved, props, status) => {
+          observed.push({ body: props.body, status });
+          return React.createElement('span', { 'data-testid': 'body' }, props.body);
+        },
+      });
+
+    const contentA = { ...createPreviewContent(), body: 'Preview A', url: 'mxc://server/a' };
+    const sourceA = createLongTextSource({ previewContent: contentA, mxcUri: 'mxc://server/a' });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(renderElement(contentA, sourceA));
+    });
+    await act(async () => {
+      sidecarADeferred.resolve({
+        msgtype: 'm.text',
+        body: 'Hydrated A',
+        formatted_body: '<p>Hydrated A</p>',
+      });
+      await sidecarADeferred.promise;
+    });
+    expect(renderer.root.findByProps({ 'data-testid': 'body' }).children).toEqual(['Hydrated A']);
+
+    // Switch to non-sidecar live frame: renders directly without stale sidecar content.
+    observed.length = 0;
+    await act(async () => {
+      renderer.update(renderElement({ msgtype: 'm.text', body: 'Live frame' }, undefined));
+    });
+    expect(observed.at(-1)).toEqual({ body: 'Live frame', status: undefined });
+    expect(renderer.root.findByProps({ 'data-testid': 'body' }).children).toEqual(['Live frame']);
+
+    // Switch to a new cold sidecar: must show Preview B, never stale Hydrated A.
+    observed.length = 0;
+    const contentB = { ...createPreviewContent(), body: 'Preview B', url: 'mxc://server/b' };
+    const sourceB = createLongTextSource({ previewContent: contentB, mxcUri: 'mxc://server/b' });
+    await act(async () => {
+      renderer.update(renderElement(contentB, sourceB));
+    });
+    expect(observed.map((entry) => entry.body)).not.toContain('Hydrated A');
+    expect(renderer.root.findByProps({ 'data-testid': 'body' }).children).toEqual(['Preview B']);
 
     await act(async () => {
       renderer.unmount();

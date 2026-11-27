@@ -731,12 +731,15 @@ const renderCustomElement = (
   name: string,
   attribs: Record<string, string>,
   children: ChildNode[],
-  options: HTMLReactParserOptions
+  options: HTMLReactParserOptions,
+  index = 0
 ): ReactElement | undefined =>
   isMatrixMath(name, attribs) ? (
-    <WithKatex render={() => renderCustomHtmlElement(name, attribs, children, options) ?? null} />
+    <WithKatex
+      render={() => renderCustomHtmlElement(name, attribs, children, options, index) ?? null}
+    />
   ) : (
-    renderCustomHtmlElement(name, attribs, children, options)
+    renderCustomHtmlElement(name, attribs, children, options, index)
   );
 
 export const getReactCustomHtmlParser = (
@@ -745,7 +748,7 @@ export const getReactCustomHtmlParser = (
   params: ReactCustomHtmlParserParams
 ): HTMLReactParserOptions => {
   const parserOptions: HTMLReactParserOptions = {
-    replace: (domNode) => {
+    replace: (domNode, index) => {
       if (isText(domNode)) {
         // Whitespace keeps html-react-parser's handling, which drops it inside table structure.
         if (domNode.data.trim() === '' || hasAncestor(domNode, ['code', 'pre'])) return undefined;
@@ -768,13 +771,13 @@ export const getReactCustomHtmlParser = (
         const inner = withoutAttribute(attribs, 'data-mx-spoiler');
         return (
           <Spoiler reason={attribs['data-mx-spoiler'] || undefined}>
-            {renderCustomElement(name, inner, children, parserOptions) ??
+            {renderCustomElement(name, inner, children, parserOptions, index) ??
               domToReact(children as DOMNode[], parserOptions)}
           </Spoiler>
         );
       }
 
-      const customElement = renderCustomElement(name, attribs, children, parserOptions);
+      const customElement = renderCustomElement(name, attribs, children, parserOptions, index);
       if (customElement) return customElement;
 
       const props = attributesToProps(attribs);

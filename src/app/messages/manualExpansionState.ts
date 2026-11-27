@@ -1,35 +1,50 @@
-import { createContext } from 'react';
+import { DISCLOSURE_KEY_PREFIX } from '../ui/manualExpansionState';
 
-// Manual expansion is user preference, unlike the timeline's module-level overflow
-// verdict cache (which is only a measurement warm-start hint). Keep it in a
-// room/thread timeline-owned Map so virtualization remounts can reuse it without
-// leaking UI state across navigation. Long messages (CollapsibleMessage) and
-// finished agent work (FinishedWorkFold) keep their choices here under distinct keys.
-export const ManualExpansionStateContext = createContext<Map<string, boolean> | undefined>(
-  undefined
-);
+export {
+  DISCLOSURE_KEY_PREFIX,
+  ExpandAllInitContext,
+  MANUAL_EXPANSION_STATE_LIMIT,
+  ManualExpansionStateContext,
+  clearBulkExpansionOverrides,
+  rememberManualExpansionState,
+  usePersistedDisclosure,
+} from '../ui/manualExpansionState';
 
-// The owning timeline's expand/collapse-all baseline, scoped to that timeline instance. Newly
-// mounted rows read it render-purely as their initial expanded state (virtualized timelines mount
-// rows lazily), and mounted rows follow its changes in an effect, one commit after the timeline
-// captures its reader anchor. `undefined` means "no override, use the per-message default".
-// Long messages and finished agent work both follow it.
-export const ExpandAllInitContext = createContext<boolean | undefined>(undefined);
+export const replyDisclosureScope = (
+  roomId: string | undefined,
+  eventId: string | undefined
+): string | undefined =>
+  eventId ? `${DISCLOSURE_KEY_PREFIX}${roomId ?? ''}:${eventId}:` : undefined;
 
-export const MANUAL_EXPANSION_STATE_LIMIT = 4000;
+// Disclosures rendered inside the tool-call cog (`ToolCallsFold`), hidden while the cog is closed.
+const TOOL_FOLD_CHILD_PREFIXES = [
+  'tool-run:',
+  'tool-result:',
+  'live-shell:',
+  'live-subagent:',
+  'secret:',
+];
 
-export const rememberManualExpansionState = (
-  state: Map<string, boolean>,
-  key: string,
-  expanded: boolean,
-  limit = MANUAL_EXPANSION_STATE_LIMIT
-) => {
-  // Refresh existing keys so oldest-entry eviction retains recently-used rows.
-  state.delete(key);
-  state.set(key, expanded);
-  while (state.size > limit) {
-    const oldestKey = state.keys().next().value;
-    if (oldestKey === undefined) break;
-    state.delete(oldestKey);
+/**
+ * Whether any inner disclosure inside the reply identified by `scope` is currently open.
+ * When tool calls are hidden behind a closed cog (`toolsShown === false` and `tool-fold` is not
+ * open), disclosures nested inside the cog are ignored so closing the cog lets finished work fold.
+ */
+export const hasOpenReplyDisclosure = (
+  state: ReadonlyMap<string, boolean> | undefined,
+  scope: string | undefined,
+  opts?: { toolsShown?: boolean }
+): boolean => {
+  if (!state || !scope) return false;
+  const ignoreToolFoldChildren =
+    opts?.toolsShown === false && state.get(`${scope}tool-fold`) !== true;
+  for (const [key, value] of state) {
+    if (value !== true || !key.startsWith(scope)) continue;
+    if (ignoreToolFoldChildren) {
+      const suffix = key.slice(scope.length);
+      if (TOOL_FOLD_CHILD_PREFIXES.some((prefix) => suffix.startsWith(prefix))) continue;
+    }
+    return true;
   }
+  return false;
 };

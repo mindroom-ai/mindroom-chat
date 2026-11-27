@@ -26,6 +26,7 @@ import {
 import { MessageLayout } from '../../preferences/settings';
 import { MessageEvent } from '../../matrix/types/room';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
+import { LiveReplyMessageContent } from './LiveReplyMessageContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
@@ -1584,5 +1585,33 @@ describe('cross-room fork prefix rows', () => {
     } finally {
       matrixClientMock.getRoom.mockImplementation(() => null);
     }
+  });
+
+  it('keeps an agent row on LiveReplyMessageContent when stream metadata arrives on edit', async () => {
+    const agentEvent = makeEvent('$agent-reply', {
+      sender: '@mindroom_dev:example.org',
+      content: { msgtype: 'm.text', body: 'Initial' },
+    });
+    const { renderer, update } = await mountFeature([rowFor(agentEvent as unknown as MatrixEvent)]);
+    const initialLive = renderer.root.findAllByType(LiveReplyMessageContent);
+    expect(initialLive).toHaveLength(1);
+    const initialContent = renderer.root.findByType(RenderMessageContent);
+
+    Object.assign(agentEvent, {
+      __editedEvent: makeEvent('$agent-reply|edit', {
+        sender: '@mindroom_dev:example.org',
+        ts: 2,
+        content: {
+          msgtype: 'm.text',
+          body: 'Streaming update',
+          'io.mindroom.stream_status': 'streaming',
+          'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+        },
+      }),
+    });
+    update();
+
+    expect(renderer.root.findAllByType(LiveReplyMessageContent)).toHaveLength(1);
+    expect(renderer.root.findByType(RenderMessageContent)).toBe(initialContent);
   });
 });

@@ -57,11 +57,15 @@ vi.mock('./PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null 
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({ ThinkingPlaceholder: () => null }));
 vi.mock('./LongTextText', () => ({
   LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  LongTextText: ({ content, renderBody }: any) =>
-    renderBody(
-      content,
-      { body: content.body, customBody: content.formatted_body },
-      longText.status
+  LongTextText: ({ content, longTextSource, renderBody }: any) =>
+    React.createElement(
+      'div',
+      null,
+      renderBody(
+        content,
+        { body: content.body, customBody: content.formatted_body },
+        longTextSource ? longText.status : undefined
+      )
     ),
 }));
 

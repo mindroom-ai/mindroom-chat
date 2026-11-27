@@ -376,6 +376,7 @@ vi.mock('../TimelineMinimap.css', () => ({
 
 vi.mock('../../matrix/matrix', () => ({
   getMxIdLocalPart: (userId: string) => /^@([^:]+):/.exec(userId)?.[1] ?? userId,
+  getMxIdServer: (userId: string) => /^@[^:]+:(.+)$/.exec(userId)?.[1],
 }));
 
 vi.mock('../../matrix/room', () => ({
@@ -1185,6 +1186,8 @@ describe('RoomTimeline collapsible wiring', () => {
     const provider = renderer.root.findByType('collapsible-message-state-provider' as never);
     const manualExpansionState = provider.props.manualExpansionState as Map<string, boolean>;
     manualExpansionState.set('$historical', true);
+    manualExpansionState.set('finished-work:$historical', false);
+    manualExpansionState.set('disclosure:!room:example.org:$historical:reasoning', true);
     const expandAllButton = renderer.root.find(
       (node) =>
         node.type === 'button' &&
@@ -1199,7 +1202,9 @@ describe('RoomTimeline collapsible wiring', () => {
       expandAllButton.props.onClick({ preventDefault: vi.fn() });
     });
 
-    expect(manualExpansionState.size).toBe(0);
+    expect([...manualExpansionState.entries()]).toEqual([
+      ['disclosure:!room:example.org:$historical:reasoning', true],
+    ]);
     const refreshedProvider = renderer.root.findByType(
       'collapsible-message-state-provider' as never
     );

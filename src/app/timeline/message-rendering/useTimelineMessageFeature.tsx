@@ -101,6 +101,7 @@ import {
   NOTICE_STATE_EVENT_TYPES,
   TEXT_MSGTYPES,
 } from '../../event-store/timeline/timelineRowTypes';
+import { clearBulkExpansionOverrides } from '../../messages/manualExpansionState';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { QuietMarkerData, TimelineMessageData, TimelineMessageRow } from './types';
@@ -308,8 +309,8 @@ export const useTimelineExpansionState = () => {
   const manualExpansionState = useRef(new Map<string, boolean>()).current;
   const [expandAll, setExpandAll] = useState(false);
   const toggleExpandAll = useCallback(() => {
-    // The new baseline replaces every choice made for a single message.
-    manualExpansionState.clear();
+    // The new baseline replaces every outer fold choice while preserving inner reply disclosures.
+    clearBulkExpansionOverrides(manualExpansionState);
     setExpandAll((current) => !current);
   }, [manualExpansionState]);
   return { liveExpansion, manualExpansionState, expandAll, setExpandAll, toggleExpandAll };
@@ -673,8 +674,10 @@ export const useTimelineMessageFeature = ({
               liveExpansionIds,
               isMindroomAgentUserId(event.getSender() ?? undefined)
             );
-      const isAgentReply =
-        !!content['io.mindroom.ai_run'] || !!content['io.mindroom.stream_status'];
+      const isAgentReply = isMindroomAgentUserIdForViewer(
+        event.getSender() ?? undefined,
+        userId ?? undefined
+      );
       const replyEventId =
         kind !== 'sticker' && shouldShowReply(row) ? event.replyEventId : undefined;
       // The classic view shows thread replies in the room; each quotes its thread's root, and the

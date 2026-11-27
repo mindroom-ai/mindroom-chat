@@ -1,12 +1,4 @@
-import {
-  useCallback,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type Ref,
-  type RefObject,
-} from 'react';
+import { useCallback, useId, useLayoutEffect, useRef, type Ref, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Icon, Icons } from 'folds';
@@ -17,6 +9,7 @@ import { ActivityIcon, type ActivityTone } from '../ui/ThreadActivity';
 import * as activityCss from '../ui/ThreadActivity.css';
 import { IsolatedText } from '../ui/directional';
 import { useRevealOnOpen } from '../ui/disclosureReveal';
+import { usePersistedDisclosure } from '../ui/manualExpansionState';
 import {
   SecretRequestChip,
   SecretRequestDetails,
@@ -81,6 +74,7 @@ export function SecretRequestLine({
   request,
   roomId,
   agentUserId,
+  disclosureKey,
 }: {
   /** Receives the line's element, for the reply that draws it. */
   lineRef?: RefObject<HTMLDivElement | null>;
@@ -91,9 +85,10 @@ export function SecretRequestLine({
   request: SecretRequest;
   roomId: string;
   agentUserId: string;
+  disclosureKey?: string;
 }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = usePersistedDisclosure(disclosureKey, false);
   const panelId = useId();
   const temporary = request.kind === 'temporary';
   const { status } = request;
