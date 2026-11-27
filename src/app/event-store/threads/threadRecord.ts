@@ -63,6 +63,8 @@ type BuildThreadRecordOptions = {
   threadResolution?: ThreadResolutionLike;
   currentUserId?: string;
   scheduledStatus?: ThreadScheduledStatus;
+  /** Reuse the thread's streaming state if the caller already read `roomActiveRuns(room)`. */
+  isStreaming?: boolean;
   cacheCoverage?: ThreadCacheCoverage;
   absoluteIndex?: number;
 };
@@ -352,6 +354,7 @@ export const buildThreadRecord = ({
   threadResolution,
   currentUserId,
   scheduledStatus = EMPTY_THREAD_SCHEDULED_STATUS,
+  isStreaming: providedIsStreaming,
   cacheCoverage,
   absoluteIndex,
 }: BuildThreadRecordOptions): ThreadRecord => {
@@ -449,7 +452,7 @@ export const buildThreadRecord = ({
   const snooze = parseThreadSnooze(
     threadResolution?.tags?.[SNOOZED_TAG] as TagMetadata | undefined
   );
-  const isStreaming = getThreadStreamingState(room, threadRootId);
+  const isStreaming = providedIsStreaming ?? getThreadStreamingState(room, threadRootId);
   const pendingReplyEvents = getPendingThreadEvents(room, threadRootId);
   const hasPendingSend = getThreadPendingSend(
     resolvedThreadRootEvent,

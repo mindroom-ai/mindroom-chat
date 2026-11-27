@@ -297,6 +297,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   const rootPreviewText =
     getContentText(getEffectiveEventContent(resolvedRootEvent)) ?? summaryInfo?.summaryText ?? '';
   const bundledPreviews = getBundledThreadPreviews(room, resolvedRootEvent);
+  const isStreaming = (activeRunThreads ?? roomActiveRuns(room).threads).has(threadRootId);
   const record = buildThreadRecord({
     room,
     threadRootId,
@@ -305,6 +306,7 @@ export const buildCrossRoomThreadIndexEntry = ({
     summaryInfo,
     rootPreviewText,
     scheduledStatus: scheduledStatus ?? getRoomThreadScheduledStatusMap(room).get(threadRootId),
+    isStreaming,
     threadResolution: resolvedTagSnapshot
       ? {
           isResolved: isThreadResolved(
@@ -332,7 +334,6 @@ export const buildCrossRoomThreadIndexEntry = ({
     status: {
       ...record.status,
       ...roomThreadBackgroundJobs(room).get(threadRootId),
-      isStreaming: (activeRunThreads ?? roomActiveRuns(room).threads).has(threadRootId),
       ...(pendingOwnFirstReplyTs !== undefined && { hasPendingSend: true }),
     },
   };
