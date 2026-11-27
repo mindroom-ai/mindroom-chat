@@ -17,8 +17,8 @@ The person's latest message picks a scenario by hashtag:
                thinking before the second
   #approve     a shell call that needs approval (the backend's approval script looks for needs-approval)
   #bidi        the same, its command holding a right-to-left override (U+202E ... U+202C)
-  #title       set_thread_summary      #tag     tag_thread      #resolve   resolve_thread (needs approval)
-  #expire      untag_thread, whose approval expires quickly
+  #title       set_thread_summary      #tag     tag_thread / thread_tags   #resolve   resolve_thread (needs approval)
+  #expire      untag_thread / thread_tags (action="untag"), whose approval expires quickly
   #schedule    a reminder in 150 s     #schedulesoon   a reminder in 20 s
   #canvas      show_canvas with a page that submits a color
   #canvasrtl   the same page, titled in Arabic around a Latin file name
@@ -146,6 +146,26 @@ def schedule_arguments(delay_seconds: int) -> Callable[[Turn], dict]:
     return build
 
 
+def thread_tags_tool_name(legacy_name: str) -> Callable[[Turn], str]:
+    """Return consolidated `thread_tags` when offered, otherwise its legacy tool name."""
+
+    def select(turn: Turn) -> str:
+        return "thread_tags" if "thread_tags" in turn.tools else legacy_name
+
+    return select
+
+
+def thread_tags_arguments(action: str, arguments: dict[str, object]) -> Callable[[Turn], dict[str, object]]:
+    """Arguments for consolidated `thread_tags` or legacy `tag_thread` / `untag_thread`."""
+
+    def build(turn: Turn) -> dict[str, object]:
+        if "thread_tags" in turn.tools:
+            return {"action": action, **arguments}
+        return dict(arguments)
+
+    return build
+
+
 TOOL_SCENARIOS: dict[str, list[Step]] = {
     "#shell": [("run_shell_command", {"args": "echo hello from the stub"})],
     "#multi": [
@@ -162,9 +182,19 @@ TOOL_SCENARIOS: dict[str, list[Step]] = {
     "#approve": [("run_shell_command", {"args": "echo needs-approval: deploy the stub"})],
     "#bidi": [("run_shell_command", {"args": "echo needs-approval hello \u202e; echo pwned-by-bidi #\u202c done"})],
     "#title": [("set_thread_summary", {"summary": "Stub picked this title from a tool call"})],
-    "#tag": [("tag_thread", {"tag": "stub-tag", "note": "tagged by the stub model"})],
+    "#tag": [
+        (
+            thread_tags_tool_name("tag_thread"),
+            thread_tags_arguments("tag", {"tag": "stub-tag", "note": "tagged by the stub model"}),
+        )
+    ],
     "#resolve": [("resolve_thread", {})],
-    "#expire": [("untag_thread", {"tag": "stub-tag"})],
+    "#expire": [
+        (
+            thread_tags_tool_name("untag_thread"),
+            thread_tags_arguments("untag", {"tag": "stub-tag"}),
+        )
+    ],
     "#schedulesoon": [(schedule_tool_name, schedule_arguments(20))],
     "#schedule": [(schedule_tool_name, schedule_arguments(150))],
     "#canvas": [("show_canvas", {"title": "Stub canvas", "html": CANVAS_PAGE})],

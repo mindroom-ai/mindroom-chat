@@ -54,6 +54,10 @@ export type AgentStack = {
   agents: { router: string; helper: string; scout?: string };
   rooms: { lobby: string; space: string };
   approvalExpirySeconds: number;
+  /** Whether the backend exposes consolidated `thread_tags` instead of `tag_thread` / `untag_thread`. */
+  consolidatedThreadTags?: boolean;
+  /** Tool name whose approval expires quickly in the expiry spec (`thread_tags` or `untag_thread`). */
+  expireApprovalTool?: string;
   /** The helper's voice calls (`--calls`), or null. */
   calls?: { serviceUrl: string; profile: 'realtime' | 'live'; model: string } | null;
   /**
