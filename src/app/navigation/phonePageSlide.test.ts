@@ -38,18 +38,17 @@ type MockAnimationRecord = {
   cancel: ReturnType<typeof vi.fn>;
 };
 
-const rectOf = (width: number, height = 800): DOMRect =>
-  ({
-    width,
-    height,
-    top: 0,
-    left: 0,
-    right: width,
-    bottom: height,
-    x: 0,
-    y: 0,
-    toJSON: () => ({}),
-  }) as DOMRect;
+const rectOf = (width: number, height = 800): DOMRect => ({
+  width,
+  height,
+  top: 0,
+  left: 0,
+  right: width,
+  bottom: height,
+  x: 0,
+  y: 0,
+  toJSON: () => ({}),
+});
 
 const createLiveStage = (width = 390) => {
   const stage = document.createElement('div');

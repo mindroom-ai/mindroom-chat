@@ -275,11 +275,10 @@ export function useCompactBlocks(options: Options) {
       savedScrollTopRef.current = undefined;
     }
     return () => {
-      const currentView = scrollRef.current;
       // Capture scrollTop before `<Activity mode="hidden">` sets `display: none` (which resets
       // scrollTop to 0 in WebKit); never overwrite from a zero-sized hidden element.
-      if (currentView && currentView.clientHeight > 0) {
-        savedScrollTopRef.current = { roomId, scrollTop: currentView.scrollTop };
+      if (view && view.clientHeight > 0) {
+        savedScrollTopRef.current = { roomId, scrollTop: view.scrollTop };
       }
     };
   }, [roomId, scrollRef]);

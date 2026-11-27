@@ -121,7 +121,7 @@ export function SectionIndex({
   return <>{useScreenSizeContext() === ScreenSize.Mobile ? phonePage : page}</>;
 }
 
-export { SpaceSectionPage } from '../spaces/SpaceSectionPage';
+export { SpaceSectionPage } from './SpaceSectionPage';
 
 export function CreateRoomPage() {
   const { t } = useTranslation();

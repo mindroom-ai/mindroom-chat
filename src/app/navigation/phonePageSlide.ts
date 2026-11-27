@@ -162,7 +162,6 @@ const handoffCommit = (
 
   activeHandoff?.complete(false);
   let released = false;
-  let timer: number | undefined;
   let observer: MutationObserver | undefined;
   const onHide = () => {
     if (document.visibilityState === 'hidden') complete(false);
@@ -170,7 +169,7 @@ const handoffCommit = (
   const complete = (committed: boolean) => {
     if (released) return;
     released = true;
-    if (timer !== undefined) window.clearTimeout(timer);
+    window.clearTimeout(timer);
     observer?.disconnect();
     document.removeEventListener('visibilitychange', onHide);
     shield.remove();
@@ -190,7 +189,7 @@ const handoffCommit = (
     });
     observer.observe(document, { childList: true, subtree: true });
   }
-  timer = window.setTimeout(() => complete(false), HANDOFF_TIMEOUT_MS);
+  const timer = window.setTimeout(() => complete(false), HANDOFF_TIMEOUT_MS);
   try {
     onCommit();
   } catch (error) {

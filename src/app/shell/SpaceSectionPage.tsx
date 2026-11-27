@@ -35,8 +35,8 @@ import {
   SpaceThreadsPassiveContext,
   SpaceUnderLayerContext,
   type SpaceUnderLayerContextValue,
-} from './spaceUnderLayerContext';
-import { SpaceThreadsPage } from './threads/SpaceThreadsPage';
+} from '../spaces/spaceUnderLayerContext';
+import { SpaceThreadsPage } from '../spaces/threads/SpaceThreadsPage';
 import * as css from './SpaceSectionPage.css';
 
 const isThisSpaceThreadsPath = (

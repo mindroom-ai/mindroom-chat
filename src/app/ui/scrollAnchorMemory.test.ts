@@ -402,11 +402,12 @@ describe('useScrollAnchorMemory', () => {
       return React.createElement('div', { 'data-mode': mode });
     }
 
+    const ActivityBoundary = Activity as React.ComponentType<{
+      mode: 'visible' | 'hidden';
+      children?: React.ReactNode;
+    }>;
     const renderActivity = (mode: 'visible' | 'hidden') =>
-      React.createElement(Activity, {
-        mode,
-        children: React.createElement(ActivityList, { mode }),
-      });
+      React.createElement(ActivityBoundary, { mode }, React.createElement(ActivityList, { mode }));
 
     act(() => {
       renderer = create(renderActivity('visible'));

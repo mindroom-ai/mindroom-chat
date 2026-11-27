@@ -32,7 +32,7 @@ import {
   useIsSpaceThreadsPassive,
   useSpaceUnderLayer,
   type SpaceUnderLayerContextValue,
-} from './spaceUnderLayerContext';
+} from '../spaces/spaceUnderLayerContext';
 import { SpaceSectionPage } from './SpaceSectionPage';
 
 const SPACE_A = '!spaceA:example.org';
@@ -71,7 +71,7 @@ vi.mock('../sidebar/ResizablePageNav', () => ({
 }));
 vi.mock('../sidebar/space/Space', () => ({ Space: () => null }));
 
-vi.mock('./threads/SpaceThreadsPage', () => ({
+vi.mock('../spaces/threads/SpaceThreadsPage', () => ({
   SpaceThreadsPage: () => {
     const passive = useIsSpaceThreadsPassive();
     const scrollRef = useRef<HTMLDivElement>(null);
