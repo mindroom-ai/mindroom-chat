@@ -331,4 +331,42 @@ describe('customHtmlSanitizerPolicy', () => {
       expect(sanitized).toContain('class="language-ts"');
     });
   });
+
+  describe('caching', () => {
+    it('reuses cached sanitized HTML across equivalent plain option objects without colliding with custom policy', () => {
+      const html = '<a href="obsidian://open?vault=notes" class="custom">Open</a>';
+      const first = sanitizeCustomHtml(html, { additionalAllowedUriSchemes: ['obsidian'] });
+      const second = sanitizeCustomHtml(html, { additionalAllowedUriSchemes: ['obsidian'] });
+      const withPolicy = sanitizeCustomHtml(html, {
+        additionalAllowedUriSchemes: ['obsidian'],
+        policy: { allowedClasses: { a: ['custom'] } },
+      });
+
+      expect(first).toBe(second);
+      expect(first).toContain('href="obsidian://open?vault=notes"');
+      expect(first).not.toContain('class="custom"');
+      expect(withPolicy).toContain('class="custom"');
+    });
+
+    it('does not serve stale cached HTML when imageSource changes', () => {
+      let current = 'https://cdn.example.org/a.png';
+      const imageSource = () => current;
+      const html = '<img src="relative/pic.png" alt="pic" />';
+
+      const first = sanitizeCustomHtml(html, { imageSource });
+      current = 'https://cdn.example.org/b.png';
+      const second = sanitizeCustomHtml(html, { imageSource });
+
+      expect(first).toContain('src="https://cdn.example.org/a.png"');
+      expect(second).toContain('src="https://cdn.example.org/b.png"');
+    });
+
+    it('keeps results accurate beyond the bounded LRU cache capacity', () => {
+      for (let i = 0; i < 80; i += 1) {
+        expect(sanitizeCustomHtml(`<p>entry-${i}</p>`)).toBe(`<p>entry-${i}</p>`);
+      }
+      expect(sanitizeCustomHtml('<p>entry-0</p>')).toBe('<p>entry-0</p>');
+      expect(sanitizeCustomHtml('<p>entry-79</p>')).toBe('<p>entry-79</p>');
+    });
+  });
 });

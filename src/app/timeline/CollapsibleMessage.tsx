@@ -47,20 +47,64 @@ export function CollapsibleMessageStateProvider({
   );
 }
 
+const MAX_HEIGHT_VALUE = Number.parseFloat(MAX_HEIGHT);
+
+const getRootFontCacheKey = (): string => {
+  if (typeof document === 'undefined') return '';
+  return `${document.documentElement.style.fontSize}|${document.documentElement.className}|${document.body?.className ?? ''}`;
+};
+
+type CachedFontSize = {
+  key: string;
+  compute: typeof globalThis.getComputedStyle;
+  fontSize: number | undefined;
+};
+
+let sharedFontSizeCache: CachedFontSize | undefined;
+const inlineFontSizeCache = new WeakMap<HTMLDivElement, CachedFontSize>();
+
+const getElementFontSize = (el: HTMLDivElement): number | undefined => {
+  const compute = globalThis.getComputedStyle;
+  if (typeof compute !== 'function') return undefined;
+  const rootKey = getRootFontCacheKey();
+  const inlineFontSize = el.style?.fontSize ?? '';
+  if (!inlineFontSize) {
+    if (
+      sharedFontSizeCache &&
+      sharedFontSizeCache.key === rootKey &&
+      sharedFontSizeCache.compute === compute
+    ) {
+      return sharedFontSizeCache.fontSize;
+    }
+    const parsed = Number.parseFloat(compute(el).fontSize);
+    const fontSize = Number.isFinite(parsed) ? parsed : undefined;
+    sharedFontSizeCache = { key: rootKey, compute, fontSize };
+    return fontSize;
+  }
+  const key = `${rootKey}|${inlineFontSize}`;
+  const cached = inlineFontSizeCache.get(el);
+  if (cached && cached.key === key && cached.compute === compute) {
+    return cached.fontSize;
+  }
+  const parsed = Number.parseFloat(compute(el).fontSize);
+  const fontSize = Number.isFinite(parsed) ? parsed : undefined;
+  inlineFontSizeCache.set(el, { key, compute, fontSize });
+  return fontSize;
+};
+
 const getCollapsedMaxHeight = (el: HTMLDivElement): number | undefined => {
   if (MAX_HEIGHT.endsWith('px')) {
-    const pixelHeight = Number.parseFloat(MAX_HEIGHT);
-    return Number.isFinite(pixelHeight) ? pixelHeight : undefined;
+    return Number.isFinite(MAX_HEIGHT_VALUE) ? MAX_HEIGHT_VALUE : undefined;
   }
 
-  if (!MAX_HEIGHT.endsWith('em') || typeof globalThis.getComputedStyle !== 'function') {
+  if (!MAX_HEIGHT.endsWith('em')) {
     return undefined;
   }
 
-  const fontSize = Number.parseFloat(globalThis.getComputedStyle(el).fontSize);
-  if (!Number.isFinite(fontSize)) return undefined;
+  const fontSize = getElementFontSize(el);
+  if (fontSize === undefined) return undefined;
 
-  return Number.parseFloat(MAX_HEIGHT) * fontSize;
+  return MAX_HEIGHT_VALUE * fontSize;
 };
 
 /**
@@ -110,15 +154,26 @@ const isContentOverflowing = (el: HTMLDivElement, expanded: boolean): boolean | 
 // by event id, redaction state, edit event id, and collapse mode
 // (see getCollapsibleMessageMeasurementKey), so content edits and
 // redactions produce a fresh key rather than a stale hit.
-const overflowVerdictCache = new Map<string, boolean>();
+type CachedOverflowVerdict = {
+  verdict: boolean;
+  width: number;
+  height: number;
+  expanded: boolean;
+  fontKey: string;
+};
+
+const overflowVerdictCache = new Map<string, CachedOverflowVerdict>();
 const OVERFLOW_VERDICT_CACHE_LIMIT = 4000;
-const rememberOverflowVerdict = (measurementKey: string | undefined, verdict: boolean) => {
+const rememberOverflowVerdict = (
+  measurementKey: string | undefined,
+  entry: CachedOverflowVerdict
+) => {
   if (measurementKey === undefined) return;
   // Bounded FIFO eviction rather than a full clear: dropping the whole
   // cache at the limit would make every currently-virtualized row lose
   // its hint at once (a re-measure cliff). Map preserves insertion
-  // order, so deleting from the front evicts the oldest keys — the ones
-  // least likely to be on screen — while keeping recent verdicts warm.
+  // order, so deleting from the front evicts the oldest keys (least
+  // likely to be on screen) while keeping recent verdicts warm.
   if (overflowVerdictCache.size >= OVERFLOW_VERDICT_CACHE_LIMIT) {
     const evictTo = Math.floor(OVERFLOW_VERDICT_CACHE_LIMIT * 0.75);
     for (const key of overflowVerdictCache.keys()) {
@@ -126,8 +181,25 @@ const rememberOverflowVerdict = (measurementKey: string | undefined, verdict: bo
       overflowVerdictCache.delete(key);
     }
   }
-  overflowVerdictCache.set(measurementKey, verdict);
+  overflowVerdictCache.set(measurementKey, entry);
 };
+
+const isCachedVerdictReusable = (
+  cached: CachedOverflowVerdict | undefined,
+  expanded: boolean,
+  width: number,
+  height: number,
+  fontKey: string
+): cached is CachedOverflowVerdict =>
+  cached !== undefined &&
+  cached.width > 0 &&
+  cached.height > 0 &&
+  width > 0 &&
+  height > 0 &&
+  (!cached.verdict || cached.expanded === expanded) &&
+  cached.fontKey === fontKey &&
+  Math.abs(cached.width - width) < 0.5 &&
+  Math.abs(cached.height - height) < 0.5;
 
 export type CollapsibleMessageCollapseMode = 'default' | 'always-expanded' | 'initially-expanded';
 
@@ -164,26 +236,37 @@ export function CollapsibleMessage({
   const onExpansionLayoutChange = useContext(ExpansionLayoutChangeContext);
   const previousExpandAllInitRef = useRef(expandAllInit);
   const manualExpansionState = useContext(ManualExpansionStateContext);
+  const lastMeasuredRef = useRef<
+    { key: string | undefined; entry: CachedOverflowVerdict } | undefined
+  >(undefined);
   const [overflowing, setOverflowing] = useState(() => {
     // forceOverflowing is a prop-driven override (lazily-hydrated
-    // collapsed content) and must win over any cached verdict — a row
+    // collapsed content) and must win over any cached verdict. A row
     // that previously cached `false` must still show the affordance
     // when forced. Not cached: it is not a measured verdict.
     if (forceOverflowing) return true;
     if (measurementKey !== undefined) {
       const remembered = overflowVerdictCache.get(measurementKey);
-      if (remembered !== undefined) return remembered;
+      if (remembered !== undefined) return remembered.verdict;
     }
     return true;
   });
-  useLayoutEffect(() => {
-    measurementKeyRef.current = measurementKey;
-  }, [measurementKey]);
-  const applyOverflowVerdict = useCallback((verdict: boolean) => {
-    countCacheProbe(verdict ? 'collapsibleVerdictOverflowing' : 'collapsibleVerdictNotOverflowing');
-    rememberOverflowVerdict(measurementKeyRef.current, verdict);
-    setOverflowing(verdict);
-  }, []);
+  const applyOverflowVerdict = useCallback(
+    (verdict: boolean, width: number, height: number, isExpanded: boolean, fontKey: string) => {
+      countCacheProbe(verdict ? 'collapsibleVerdictOverflowing' : 'collapsibleVerdictNotOverflowing');
+      const entry: CachedOverflowVerdict = {
+        verdict,
+        width,
+        height,
+        expanded: isExpanded,
+        fontKey,
+      };
+      lastMeasuredRef.current = { key: measurementKeyRef.current, entry };
+      rememberOverflowVerdict(measurementKeyRef.current, entry);
+      setOverflowing(verdict);
+    },
+    []
+  );
   const [expanded, setExpanded] = useState(() => {
     // Live-expand-once rows must mount expanded even under an active
     // collapse-all override; the mount effect would correct this anyway, but
@@ -210,18 +293,58 @@ export function CollapsibleMessage({
 
   initialExpandConsumedRef.current = onInitialExpandConsumed;
 
+  useLayoutEffect(() => {
+    measurementKeyRef.current = measurementKey;
+    // When an expanded edit keeps the same height, the persistent ResizeObserver
+    // will not emit a new entry. Carry the last measured verdict forward under
+    // the new key so virtualized remounts stay warm; if height changes, the
+    // observer overwrites it after layout.
+    if (
+      expanded &&
+      typeof ResizeObserver !== 'undefined' &&
+      !isExempt &&
+      !forceOverflowing &&
+      measurementKey !== undefined &&
+      lastMeasuredRef.current !== undefined &&
+      overflowVerdictCache.get(measurementKey) === undefined
+    ) {
+      rememberOverflowVerdict(measurementKey, lastMeasuredRef.current.entry);
+    }
+  }, [expanded, forceOverflowing, isExempt, measurementKey]);
+
   const checkOverflow = useCallback(() => {
     if (isExempt) return;
     if (forceOverflowing) {
-      // Prop-driven override, not a detected verdict — not cached.
+      // Prop-driven override, not a detected verdict. Not cached.
       setOverflowing(true);
       return;
     }
     const el = contentRef.current;
     if (!el) return;
+    const fontKey = getRootFontCacheKey();
+    const key = measurementKeyRef.current;
+    if (key !== undefined && typeof ResizeObserver !== 'undefined') {
+      const cached = overflowVerdictCache.get(key);
+      if (
+        cached &&
+        cached.width > 0 &&
+        (!cached.verdict || cached.expanded === expanded) &&
+        cached.fontKey === fontKey
+      ) {
+        lastMeasuredRef.current = { key, entry: cached };
+        setOverflowing(cached.verdict);
+        return;
+      }
+    }
     const result = isContentOverflowing(el, expanded);
     if (result !== null) {
-      applyOverflowVerdict(result);
+      applyOverflowVerdict(
+        result,
+        el.clientWidth || 0,
+        el.clientHeight || 0,
+        expanded,
+        fontKey
+      );
     }
   }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
@@ -283,22 +406,40 @@ export function CollapsibleMessage({
     expanded && typeof ResizeObserver !== 'undefined' ? undefined : measurementKey;
   useLayoutEffect(checkOverflow, [checkOverflow, synchronousMeasurementKey]);
 
-  // ResizeObserver for async layout shifts (lazy images, font loading, etc.).
-  // Re-observe edits even when height stays unchanged: the initial entry warms
-  // the new key's verdict for virtualized remounts without forcing layout here.
+  // Keep one ResizeObserver per mounted row and read measurementKeyRef.current
+  // inside its callback rather than recreating the observer on every edit.
   useEffect(() => {
     const el = contentRef.current;
     if (isExempt || forceOverflowing || !el || typeof ResizeObserver === 'undefined')
       return undefined;
-    const observer = new ResizeObserver(() => {
+    const observer = new ResizeObserver((entries) => {
+      const fontKey = getRootFontCacheKey();
+      const key = measurementKeyRef.current;
+      const rect = entries[0]?.contentRect;
+      const width = rect?.width ?? 0;
+      const height = rect?.height ?? 0;
+      if (key !== undefined) {
+        const cached = overflowVerdictCache.get(key);
+        if (isCachedVerdictReusable(cached, expanded, width, height, fontKey)) {
+          lastMeasuredRef.current = { key, entry: cached };
+          setOverflowing(cached.verdict);
+          return;
+        }
+      }
       const result = isContentOverflowing(el, expanded);
       if (result !== null) {
-        applyOverflowVerdict(result);
+        applyOverflowVerdict(
+          result,
+          width || el.clientWidth || 0,
+          height || el.clientHeight || 0,
+          expanded,
+          fontKey
+        );
       }
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt, measurementKey]);
+  }, [applyOverflowVerdict, expanded, forceOverflowing, isExempt]);
 
   // IntersectionObserver: re-check overflow when element enters the viewport.
   // Catches elements that had zero scrollHeight when first measured off-screen.
@@ -314,11 +455,22 @@ export function CollapsibleMessage({
       return undefined;
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0]?.isIntersecting) {
-          const result = isContentOverflowing(el, expanded);
-          if (result !== null) {
-            applyOverflowVerdict(result);
-          }
+        if (!entries[0]?.isIntersecting) return;
+        const fontKey = getRootFontCacheKey();
+        const key = measurementKeyRef.current;
+        const last = lastMeasuredRef.current;
+        if (last && last.key === key && last.entry.fontKey === fontKey) {
+          return;
+        }
+        const result = isContentOverflowing(el, expanded);
+        if (result !== null) {
+          applyOverflowVerdict(
+            result,
+            el.clientWidth || 0,
+            el.clientHeight || 0,
+            expanded,
+            fontKey
+          );
         }
       },
       { threshold: 0 }
@@ -351,8 +503,8 @@ export function CollapsibleMessage({
       const ownControl = (event.target as Element).closest(OWN_CLICK);
       if (ownControl && event.currentTarget.contains(ownControl)) return;
       if (globalThis.getSelection?.()?.isCollapsed === false) return;
-      const fontSize = Number.parseFloat(globalThis.getComputedStyle(content).fontSize);
-      if (event.clientY < content.getBoundingClientRect().bottom - FADE_EM * fontSize) return;
+      const fontSize = getElementFontSize(content);
+      if (fontSize !== undefined && event.clientY < content.getBoundingClientRect().bottom - FADE_EM * fontSize) return;
       setManualExpanded(true);
     },
     [setManualExpanded]

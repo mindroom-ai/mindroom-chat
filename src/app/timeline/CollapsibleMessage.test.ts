@@ -205,7 +205,7 @@ describe('CollapsibleMessage', () => {
     });
 
     expect(measured.getScrollHeightReads()).toBe(initialReads);
-    expect(resizeObserverConstructed).toHaveBeenCalledTimes(2);
+    expect(resizeObserverConstructed).toHaveBeenCalledTimes(1);
     act(() => {
       lastResizeCallback!([], {} as ResizeObserver);
     });
@@ -255,10 +255,10 @@ describe('CollapsibleMessage', () => {
         )
       );
     });
-    // With unchanged height, only a fresh observation will deliver an entry.
-    expect(lastResizeCallback).not.toBe(previousCallback);
+    // The persistent ResizeObserver stays attached, and the last measured
+    // verdict carries forward immediately to the new key without forcing layout.
+    expect(lastResizeCallback).toBe(previousCallback);
     act(() => {
-      lastResizeCallback!([], {} as ResizeObserver);
       renderer.unmount();
     });
     const remounted = renderCollapsibleMessage(
@@ -1170,5 +1170,79 @@ describe('CollapsibleMessage', () => {
       act(() => renderer.unmount());
       await i18next.changeLanguage('en');
     }
+  });
+
+  it('caches computed fontSize until root font size changes', () => {
+    const fakeDocument = {
+      documentElement: { style: { fontSize: '' }, className: '' },
+      body: { className: '' },
+    };
+    vi.stubGlobal('document', fakeDocument);
+    const getComputedStyleSpy = vi.fn(() => ({ fontSize: '16px' }));
+    vi.stubGlobal('getComputedStyle', getComputedStyleSpy);
+    const first = renderCollapsibleMessage(
+      { measurementKey: `font-cache-a-${Date.now()}` },
+      { clientHeight: 40, scrollHeight: 40 }
+    );
+    const second = renderCollapsibleMessage(
+      { measurementKey: `font-cache-b-${Date.now()}` },
+      { clientHeight: 40, scrollHeight: 40 }
+    );
+    expect(getComputedStyleSpy).toHaveBeenCalledTimes(1);
+
+    fakeDocument.documentElement.style.fontSize = '125%';
+    const third = renderCollapsibleMessage(
+      { measurementKey: `font-cache-c-${Date.now()}` },
+      { clientHeight: 40, scrollHeight: 40 }
+    );
+    expect(getComputedStyleSpy).toHaveBeenCalledTimes(2);
+    act(() => {
+      first.unmount();
+      second.unmount();
+      third.unmount();
+    });
+  });
+
+  it('skips redundant layout reads on remount when cached width and height match, and remeasures on width change', () => {
+    const key = `cached-width-skip-${Date.now()}`;
+    const first = renderCollapsibleMessage(
+      { measurementKey: key },
+      { clientWidth: 340, clientHeight: 40, scrollHeight: 40 } as MockContentElement
+    );
+    expect(findExpandButtons(first)).toHaveLength(0);
+    act(() => first.unmount());
+
+    let scrollHeightReads = 0;
+    const remountedEl = {
+      clientWidth: 340,
+      clientHeight: 40,
+      get scrollHeight() {
+        scrollHeightReads += 1;
+        return 320;
+      },
+    } as unknown as MockContentElement;
+    const second = renderCollapsibleMessage({ measurementKey: key }, remountedEl);
+    expect(scrollHeightReads).toBe(0);
+
+    // Identical width and height delivered by ResizeObserver reuses cached verdict.
+    act(() => {
+      lastResizeCallback!(
+        [{ contentRect: { width: 340, height: 40 } } as ResizeObserverEntry],
+        {} as ResizeObserver
+      );
+    });
+    expect(scrollHeightReads).toBe(0);
+    expect(findExpandButtons(second)).toHaveLength(0);
+
+    // Viewport width change invalidates cached verdict and remeasures.
+    act(() => {
+      lastResizeCallback!(
+        [{ contentRect: { width: 200, height: 176 } } as ResizeObserverEntry],
+        {} as ResizeObserver
+      );
+    });
+    expect(scrollHeightReads).toBeGreaterThan(0);
+    expect(findExpandButtons(second)).toHaveLength(1);
+    act(() => second.unmount());
   });
 });

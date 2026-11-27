@@ -19,8 +19,10 @@ vi.mock('./FallbackContent', () => ({
   MessageEmptyContent: () => React.createElement('span', { 'data-testid': 'empty-content' }),
 }));
 
+const renderTextWithLatexSpy = vi.fn((text: string) => React.createElement('span', null, text));
+
 vi.mock('../html/react-custom-html-parser', () => ({
-  renderTextWithLatex: (text: string) => React.createElement('span', null, text),
+  renderTextWithLatex: (text: string) => renderTextWithLatexSpy(text),
 }));
 
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
@@ -68,6 +70,7 @@ const renderBody = (body: string, customBody?: string, clientConfig: ClientConfi
 describe('RenderBody', () => {
   beforeEach(() => {
     sanitizeCustomHtmlSpy.mockClear();
+    renderTextWithLatexSpy.mockClear();
   });
 
   it('renders custom HTML content', () => {
@@ -211,5 +214,29 @@ describe('RenderBody', () => {
     });
 
     expect(sanitizeCustomHtmlSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('memoizes plain-text latex rendering across re-renders with unchanged body inputs', () => {
+    let renderer: ReactTestRenderer | undefined;
+    const renderPlain = (linkFavicons: boolean) => (
+      <ClientConfigProvider value={{ messageRendering: { linkFavicons } }}>
+        <RenderBody
+          body="plain text $x^2$"
+          htmlReactParserOptions={htmlReactParserOptions}
+          linkifyOpts={linkifyOpts}
+        />
+      </ClientConfigProvider>
+    );
+
+    act(() => {
+      renderer = create(renderPlain(false));
+    });
+    expect(renderTextWithLatexSpy).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      renderer?.update(renderPlain(true));
+    });
+    expect(renderTextWithLatexSpy).toHaveBeenCalledTimes(1);
+    act(() => renderer?.unmount());
   });
 });

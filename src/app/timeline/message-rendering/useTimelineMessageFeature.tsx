@@ -420,8 +420,17 @@ export const useTimelineMessageFeature = ({
   const { mark: markLiveExpansionCandidate, consume: consumeLiveExpansion } = liveExpansion;
   const liveExpansionIds = liveExpansion.ids;
   const restoreExpansionAnchor = useTimelineBulkExpansionAnchor(expandAll, scrollRef);
+  // Track rendered events per row so memoized rows that skip re-rendering keep
+  // their decryption and edit subscriptions in useDecryptionRepaint.
+  const prevRowEventsRef = useRef(new Map<string, MatrixEvent[]>());
+  const nextRowEventsRef = useRef(new Map<string, MatrixEvent[]>());
+  nextRowEventsRef.current = new Map();
+  const activeRowEventsRef = useRef<MatrixEvent[] | null>(null);
   const renderedEventsRef = useRef<MatrixEvent[]>([]);
-  renderedEventsRef.current = [];
+  const retainRenderedRow = useCallback((rowKey: string) => {
+    const previous = prevRowEventsRef.current.get(rowKey);
+    if (previous) nextRowEventsRef.current.set(rowKey, previous);
+  }, []);
   const openRoomSettings = useOpenRoomSettings();
   const openTitleSettings = useCallback(
     () => openRoomSettings(room.roomId, RoomSettingsPage.MindroomPage),
@@ -462,6 +471,14 @@ export const useTimelineMessageFeature = ({
   );
   useKeyDown(window, editLatestOnArrowUp);
 
+  useEffect(() => {
+    const events: MatrixEvent[] = [];
+    nextRowEventsRef.current.forEach((rowEvents) => {
+      events.push(...rowEvents);
+    });
+    renderedEventsRef.current = events;
+    prevRowEventsRef.current = nextRowEventsRef.current;
+  });
   const decryptions = useDecryptionRepaint(renderedEventsRef);
 
   const userId = client.getUserId();
@@ -567,7 +584,7 @@ export const useTimelineMessageFeature = ({
         kind === 'message' &&
         (!!editedEvent || !event.isDecryptionFailure?.()) &&
         hasUndecryptedNewerEdit(eventId, event, timelineSet, editedEvent);
-      renderedEventsRef.current?.push(...getPendingEdits(eventId, event, timelineSet));
+      activeRowEventsRef.current?.push(...getPendingEdits(eventId, event, timelineSet));
       const content = (
         kind === 'approval'
           ? getToolApprovalRenderContent(event.getOriginalContent(), editedEvent?.getContent())
@@ -590,7 +607,7 @@ export const useTimelineMessageFeature = ({
         // command, or an edit of it into another message, decrypts.
         const command = data.modelChanges.byAckId.get(eventId)?.command;
         if (command) {
-          renderedEventsRef.current?.push(
+          activeRowEventsRef.current?.push(
             command,
             ...getPendingEdits(command.getId() ?? '', command, timelineSet)
           );
@@ -604,7 +621,7 @@ export const useTimelineMessageFeature = ({
             data.forkPrefixEventIds
           );
           const markerRoom = rowEventRoom(client, room, marker.event, markerPrefixThreadId);
-          renderedEventsRef.current?.push(
+          activeRowEventsRef.current?.push(
             marker.event,
             ...getPendingEdits(
               marker.eventId,
@@ -715,7 +732,7 @@ export const useTimelineMessageFeature = ({
       const voiceEcho = data.voiceTranscripts.byVoiceId.get(eventId);
       const voiceEchoId = voiceEcho?.getId() ?? '';
       if (voiceEcho) {
-        renderedEventsRef.current?.push(
+        activeRowEventsRef.current?.push(
           voiceEcho,
           ...getPendingEdits(voiceEchoId, voiceEcho, timelineSet)
         );
@@ -743,7 +760,7 @@ export const useTimelineMessageFeature = ({
       ) : null;
       const cards = data.replyCards?.byReply.get(eventId);
       cards?.forEach(
-        (card) => 'canvas' in card && renderedEventsRef.current?.push(card.canvas.event)
+        (card) => 'canvas' in card && activeRowEventsRef.current?.push(card.canvas.event)
       );
       const relations = getEventReactions(timelineSet, eventId);
       const canDelete =
@@ -975,7 +992,6 @@ export const useTimelineMessageFeature = ({
 
   const renderEvent = useCallback(
     (row: TimelineMessageRow, data: TimelineMessageData): ReactNode | null => {
-      void decryptions;
       const { event, eventId, highlighted } = row;
       if (event.getStateKey?.() !== undefined) {
         if (!NOTICE_STATE_EVENT_TYPES.has(event.getType())) return null;
@@ -991,10 +1007,17 @@ export const useTimelineMessageFeature = ({
           />
         );
       }
-      renderedEventsRef.current?.push(event);
-      return renderMessageRow(row, data);
+      const rowKey = eventId || `__idx_${row.index}`;
+      const rowEvents: MatrixEvent[] = [event];
+      activeRowEventsRef.current = rowEvents;
+      try {
+        return renderMessageRow(row, data);
+      } finally {
+        activeRowEventsRef.current = null;
+        nextRowEventsRef.current.set(rowKey, rowEvents);
+      }
     },
-    [decryptions, messageSpacing, renderMessageRow, room]
+    [messageSpacing, renderMessageRow, room]
   );
 
   /**
@@ -1049,6 +1072,7 @@ export const useTimelineMessageFeature = ({
 
   return {
     renderEvent,
+    retainRenderedRow,
     rowRepaintRevision: decryptions,
     isQuietMarkerRow,
     joinsQuietMarkerRun,

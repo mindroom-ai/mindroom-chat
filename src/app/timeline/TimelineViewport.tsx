@@ -445,7 +445,8 @@ export type TimelineViewportProps = {
     | 'joinsQuietMarkerRun'
     | 'wrapExpansion'
     | 'forkToRoomDialog'
-  >;
+  > &
+    Partial<Pick<ReturnType<typeof useTimelineMessageFeature>, 'retainRenderedRow'>>;
   secretRequestPlan?: InlineSecretRequestPlan;
   minimap?: ReturnType<typeof useRoomTimelineMinimap>;
   atBottom: boolean;
@@ -482,6 +483,7 @@ export function TimelineViewport(p: TimelineViewportProps) {
     ignoredUsersSet: env.ignoredUsersSet,
     showHiddenEvents: env.settings.showHiddenEvents,
     renderEvent: feature.renderEvent,
+    retainRenderedRow: feature.retainRenderedRow,
     isQuietMarkerRow: feature.isQuietMarkerRow,
     joinsQuietMarkerRun: feature.joinsQuietMarkerRun,
     measureElement: list.ledger.measureElement,
