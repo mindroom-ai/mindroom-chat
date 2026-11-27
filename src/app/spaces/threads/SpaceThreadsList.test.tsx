@@ -908,6 +908,36 @@ describe('SpaceThreadsList', () => {
       emitShell({ type: 'scroll-gesture', phase: 'end' });
       expect(track.style.transform).toBe('');
 
+      // Re-park, then send a mostly-vertical scroll starting (14, 8) -> (0, 80) + end:
+      // even though +14px crosses the deep threshold from parked, cumulative diagonal drift cancels
+      // the claim so vertical scrolling never resolves the thread.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(90);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(14, { deltaY: 8 });
+      wheel(0, { deltaY: 80 });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('');
+      expect(sendStateEvent).not.toHaveBeenCalled();
+
+      // Clicking the explicit More button on a parked card closes the tray AND opens the menu,
+      // while clicking the card body closes the tray and swallows the click.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(90);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
+      menuProps.mockClear();
+      const moreBtn = shell.querySelector<HTMLButtonElement>('[data-compact-thread-more="true"]')!;
+      await act(async () => {
+        fireEvent.click(moreBtn, { detail: 1 });
+        await Promise.resolve();
+      });
+      expect(track.style.transform).toBe('');
+      expect(menuProps).toHaveBeenLastCalledWith(expect.objectContaining({ rootId: '$a1' }));
+      act(() => menuProps.mock.lastCall![0].onClose());
+
       // Re-park and confirm trackpad vertical scroll gesture closes the parked card cleanly.
       emitShell({ type: 'scroll-gesture', phase: 'begin' });
       wheel(90);

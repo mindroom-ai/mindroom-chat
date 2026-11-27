@@ -448,11 +448,25 @@ describe('installDesktopHistorySwipe', () => {
     expect(cancel).toHaveBeenCalledTimes(1);
     expect(onWindowHidden).toHaveBeenCalledTimes(1);
 
+    // Claimed gesture that turns mostly vertical cancels instead of committing.
+    move.mockClear();
+    end.mockClear();
+    cancel.mockClear();
+    readyToCommit = true;
+    phase('begin');
+    wheel({ deltaX: 14, deltaY: 8 });
+    wheel({ deltaX: 0, deltaY: 80 });
+    phase('end');
+    expect(move).not.toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(end).not.toHaveBeenCalled();
+    readyToCommit = false;
+
     // Momentum ends a claimed gesture cleanly without cancelling.
     phase('begin');
     wheel({ deltaX: 40 });
     wheel({ deltaX: 10, momentum: true });
-    expect(end).toHaveBeenCalledTimes(2);
+    expect(end).toHaveBeenCalledTimes(1);
 
     // Passing blockedByDom=true on a horizontal scroller.
     const scroller = addEl('div');

@@ -17,6 +17,7 @@ import * as css from './CompactCardSwipe.css';
 import { CompactCardSwipeStrip } from './CompactCardSwipeStrip';
 import {
   focusCompactCardButton,
+  isCardActionTarget,
   isNodeInside,
   useParkedCardDismissal,
   useTouchSwipeSafetyNet,
@@ -440,9 +441,14 @@ export function CompactCardSwipe({
       if (!isTray && parkedRef.current) closeParked();
       return;
     }
-    if (swipedRef.current) swipedRef.current = false;
-    else if (!isTray && parkedRef.current) closeParked();
-    else return;
+    if (swipedRef.current) {
+      swipedRef.current = false;
+    } else if (!isTray && parkedRef.current) {
+      closeParked();
+      if (isCardActionTarget(event.target)) return;
+    } else {
+      return;
+    }
     event.preventDefault();
     event.stopPropagation();
   };

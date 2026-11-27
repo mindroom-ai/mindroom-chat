@@ -13,6 +13,20 @@ export const isNodeInside = (el: HTMLElement | null, target: EventTarget | null)
         el.contains(target as Node)))
   );
 
+const CARD_ACTION_SELECTOR =
+  '[data-compact-thread-more],[data-compact-thread-pin],[data-compact-thread-resolve]';
+
+export const isCardActionTarget = (target: EventTarget | null): boolean => {
+  if (!target || typeof target !== 'object') return false;
+  const el =
+    'closest' in target && typeof target.closest === 'function'
+      ? (target as Element)
+      : 'parentElement' in target
+        ? (target as Node).parentElement
+        : null;
+  return Boolean(el?.closest?.(CARD_ACTION_SELECTOR));
+};
+
 export const focusCompactCardButton = (track: HTMLElement | null): void => {
   const cardButton =
     track?.querySelector?.<HTMLElement>('[data-thread-root-id]') ??

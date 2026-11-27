@@ -766,6 +766,24 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
     expect(tap.preventDefault).toHaveBeenCalled();
     expect(track.style.transform).toBe('');
     expect(actionStrip()[0]!.props['data-parked']).toBeUndefined();
+
+    // Clicking an explicit card action button (e.g. More) while parked closes the tray without swallowing the click.
+    swipe(300, 190);
+    pointer('onPointerDown', 80);
+    pointer('onPointerUp', 80);
+    const moreTarget = {
+      closest: (sel: string) => (sel.includes('[data-compact-thread-more]') ? {} : null),
+    };
+    const moreClick = {
+      detail: 1,
+      target: moreTarget,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+    };
+    await act(() => trackElement().props.onClickCapture(moreClick));
+    expect(track.style.transform).toBe('');
+    expect(moreClick.preventDefault).not.toHaveBeenCalled();
+    expect(moreClick.stopPropagation).not.toHaveBeenCalled();
   });
 
   it('closes a parked card when swiped back toward inline-end, and closes first card when swiping a second', () => {

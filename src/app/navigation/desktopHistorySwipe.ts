@@ -19,7 +19,7 @@ type NavWindow = Window & { navigation?: { canGoBack?: boolean; canGoForward?: b
 type SwipeGesture =
   | { kind: 'pending'; path: Element[]; x: number; y: number; n: number }
   | { kind: 'track'; dir: Dir; rtl: boolean; dist: number; x: number; y: number; n: number }
-  | { kind: 'claimed'; claim: TrackpadSwipeClaim }
+  | { kind: 'claimed'; claim: TrackpadSwipeClaim; x: number; y: number }
   | { kind: 'ignored' };
 
 const CFG = { lock: 12, ratio: 1.5, diag: 30, commit: 80, min: 3, dedup: 250 };
@@ -198,6 +198,10 @@ export const installDesktopHistorySwipe = (
     if (path.some((el) => el.hasAttribute('data-titlebar-drag'))) return reset(IGNORED);
     if (e.deltaX === 0 && e.deltaY === 0) return;
     if (gesture?.kind === 'claimed') {
+      gesture.x += Math.abs(e.deltaX);
+      gesture.y += Math.abs(e.deltaY);
+      if (gesture.x + gesture.y >= CFG.diag && gesture.x < gesture.y * CFG.ratio)
+        return reset(IGNORED);
       gesture.claim.move(e.deltaX, e.deltaY);
       return;
     }
@@ -224,7 +228,7 @@ export const installDesktopHistorySwipe = (
           blockedByDom,
         });
         if (claim) {
-          gesture = { kind: 'claimed', claim };
+          gesture = { kind: 'claimed', claim, x: Math.abs(g.x), y: Math.abs(g.y) };
           return;
         }
       }
