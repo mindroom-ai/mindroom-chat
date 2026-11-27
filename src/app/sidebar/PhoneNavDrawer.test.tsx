@@ -19,6 +19,7 @@ import {
   playLiveSlide,
   skipActiveLiveSlide,
 } from '../navigation/phonePageSlide';
+import { finishSwipeTransitions } from '../navigation/__tests__/swipeTransitions';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { NoticeSlot, drawerNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
@@ -408,8 +409,9 @@ const dispatchTouch = (
   target.dispatchEvent(event);
 };
 
-const flushMicrotasks = async () => {
+const flushMicrotasks = async (root: ParentNode = document.body) => {
   await domAct(async () => {
+    finishSwipeTransitions(root);
     await Promise.resolve();
     await Promise.resolve();
     await Promise.resolve();
@@ -988,21 +990,6 @@ describe('PhoneNavDrawer interactive swipes', () => {
       toJSON: () => ({}),
     });
 
-    const finishers: Array<() => void> = [];
-    const mockAnimate = () => {
-      let finish = () => {};
-      const finished = new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-      finishers.push(finish);
-      return { finished, cancel: vi.fn() } as unknown as Animation;
-    };
-    Object.defineProperty(drawer.panel, 'animate', { configurable: true, value: mockAnimate });
-    Object.defineProperty(drawer.scrim, 'animate', { configurable: true, value: mockAnimate });
-    const pendingAnim = () =>
-      ({ finished: new Promise<void>(() => undefined), cancel: vi.fn() }) as unknown as Animation;
-    Object.defineProperty(over, 'animate', { configurable: true, value: pendingAnim });
-    Object.defineProperty(under, 'animate', { configurable: true, value: pendingAnim });
     const onCommit = vi.fn();
     const exit = vi.fn();
 
@@ -1013,15 +1000,13 @@ describe('PhoneNavDrawer interactive swipes', () => {
         vi.advanceTimersToNextFrame();
         dispatchTouch(window, 'touchend', [], 220);
       });
-      expect(finishers).toHaveLength(2);
+      expect(drawer.panel.style.transition).toContain('translate');
+      expect(drawer.scrim.style.transition).toContain('opacity');
 
       playLiveSlide({ direction: 'back', stage, over, under, exit, onCommit });
       expect(isLiveSlideActive()).toBe(true);
 
-      domAct(() => {
-        finishers.forEach((finish) => finish());
-      });
-      await flushMicrotasks();
+      await flushMicrotasks(drawer.container);
 
       expect(isLiveSlideActive()).toBe(false);
       expect(onCommit).not.toHaveBeenCalled();

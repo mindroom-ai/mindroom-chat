@@ -21,6 +21,7 @@ import {
   SWIPE_UNDER_THREAD,
   type LiveThreadBackUnder,
 } from '../navigation/phonePageSlide';
+import { finishSwipeTransitions } from '../navigation/__tests__/swipeTransitions';
 import {
   SpaceUnderLayerContext,
   type SpaceUnderLayerContextValue,
@@ -1257,19 +1258,6 @@ it('live room peek forwards direct-exit and unsaved focused-entry targets while 
 
 it('plays live 2-layer forward push on Room -> Thread on phone and skips when SpaceSectionPage owns slide or on initial mount', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame'] });
-  const finishers: Array<() => void> = [];
-  const originalAnimate = HTMLElement.prototype.animate;
-  Object.defineProperty(HTMLElement.prototype, 'animate', {
-    configurable: true,
-    value() {
-      let finish: () => void = () => undefined;
-      const finished = new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-      finishers.push(finish);
-      return { finished, cancel: vi.fn() } as unknown as Animation;
-    },
-  });
   const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
     width: 390,
     height: 800,
@@ -1310,10 +1298,10 @@ it('plays live 2-layer forward push on Room -> Thread on phone and skips when Sp
       vi.advanceTimersToNextFrame();
       vi.advanceTimersToNextFrame();
     });
-    expect(finishers.length).toBeGreaterThan(0);
+    expect(screen.getByTestId('thread-column').style.transition).toContain('translate');
 
     await act(async () => {
-      finishers.splice(0).forEach((finish) => finish());
+      finishSwipeTransitions();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -1347,10 +1335,6 @@ it('plays live 2-layer forward push on Room -> Thread on phone and skips when Sp
     expect(screen.queryByTestId('messages')).toBeNull();
   } finally {
     rectSpy.mockRestore();
-    Object.defineProperty(HTMLElement.prototype, 'animate', {
-      configurable: true,
-      value: originalAnimate,
-    });
     vi.useRealTimers();
   }
 });

@@ -29,14 +29,7 @@ import {
   SWIPE_THREAD_STAGE,
   SWIPE_UNDER_THREAD,
 } from './phonePageSlide';
-
-type MockAnimationRecord = {
-  element: HTMLElement;
-  keyframes: Keyframe[];
-  options: KeyframeAnimationOptions | undefined;
-  finish: () => void;
-  cancel: ReturnType<typeof vi.fn>;
-};
+import { finishSwipeTransitions } from './__tests__/swipeTransitions';
 
 const rectOf = (width: number, height = 800): DOMRect => ({
   width,
@@ -76,38 +69,6 @@ const createPhoneStage = (width = 390, topBarHeight = 52) => {
   return { stage, topBar, page };
 };
 
-const installDeferredAnimate = () => {
-  const records: MockAnimationRecord[] = [];
-  const original = HTMLElement.prototype.animate;
-  Object.defineProperty(HTMLElement.prototype, 'animate', {
-    configurable: true,
-    value(this: HTMLElement, keyframes: Keyframe[], options?: KeyframeAnimationOptions) {
-      let finish: () => void = () => undefined;
-      const finished = new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-      const cancel = vi.fn();
-      records.push({ element: this, keyframes, options, finish, cancel });
-      return { finished, cancel } as unknown as Animation;
-    },
-  });
-  return {
-    records,
-    finishAll: async () => {
-      const current = records.splice(0, records.length);
-      current.forEach((record) => record.finish());
-      await Promise.resolve();
-      await Promise.resolve();
-    },
-    restore: () => {
-      Object.defineProperty(HTMLElement.prototype, 'animate', {
-        configurable: true,
-        value: original,
-      });
-    },
-  };
-};
-
 const flushMicrotasks = async () => {
   await Promise.resolve();
   await Promise.resolve();
@@ -144,265 +105,239 @@ afterEach(() => {
 });
 
 describe('playLiveSlide', () => {
+  const finishAll = async (stage: HTMLElement) => {
+    finishSwipeTransitions(stage);
+    await flushMicrotasks();
+  };
+
   it('waits double-rAF on forward push, animates 280 ms Standard curve with shield and deepTrace, then cleans up', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame'] });
-    const anim = installDeferredAnimate();
     traceState.recording = true;
     const { stage, under, over } = createLiveStage(390);
     const exit = vi.fn();
 
-    try {
-      const handle = playLiveSlide({ direction: 'forward', stage, over, under, exit });
-      expect(isLiveSlideActive()).toBe(true);
-      expect(over.hasAttribute(SWIPE_OVER_THREAD)).toBe(true);
-      expect(over.hasAttribute('data-swipe-shadow')).toBe(true);
-      expect(over.style.translate).toBe('390px');
-      expect(under.style.translate).toBe('0px');
-      expect(stage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
-      expect(stage.querySelector('[data-swipe-dim]')).not.toBeNull();
-      expect(traceState.events.map((e) => e.name)).toEqual([
-        'navigation.phone_slide.forward.start',
-      ]);
+    const handle = playLiveSlide({ direction: 'forward', stage, over, under, exit });
+    expect(isLiveSlideActive()).toBe(true);
+    expect(over.hasAttribute(SWIPE_OVER_THREAD)).toBe(true);
+    expect(over.hasAttribute('data-swipe-shadow')).toBe(true);
+    expect(over.style.translate).toBe('390px');
+    expect(under.style.translate).toBe('0px');
+    expect(stage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
+    const dim = stage.querySelector<HTMLElement>('[data-swipe-dim]')!;
+    expect(dim).not.toBeNull();
+    expect(traceState.events.map((e) => e.name)).toEqual(['navigation.phone_slide.forward.start']);
 
-      // First rAF: still waiting for second paint frame before starting 280 ms clock.
-      vi.advanceTimersToNextFrame();
-      expect(anim.records).toHaveLength(0);
+    // First rAF: still waiting for second paint frame before starting 280 ms clock.
+    vi.advanceTimersToNextFrame();
+    expect(over.style.transition).toBe('');
 
-      // Second rAF: animation starts with exact 280 ms Standard curve and iMessage parallax.
-      vi.advanceTimersToNextFrame();
-      expect(anim.records).toHaveLength(3);
-      const overAnim = anim.records.find((r) => r.element === over)!;
-      const underAnim = anim.records.find((r) => r.element === under)!;
-      const dimAnim = anim.records.find((r) => r.element.hasAttribute('data-swipe-dim'))!;
-      expect(overAnim.options).toMatchObject({
-        duration: 280,
-        easing: 'cubic-bezier(0.2, 0, 0, 1)',
-      });
-      expect(overAnim.keyframes).toEqual([{ translate: '390px 0' }, { translate: '0px 0' }]);
-      expect(underAnim.keyframes).toEqual([{ translate: '0px 0' }, { translate: '-117px 0' }]);
-      expect(dimAnim.keyframes).toEqual([{ opacity: '0' }, { opacity: '0.12' }]);
+    // Second rAF: CSS transition starts with exact 280 ms Standard curve and iMessage parallax.
+    vi.advanceTimersToNextFrame();
+    expect(over.style.transition).toBe('translate 280ms cubic-bezier(0.2, 0, 0, 1)');
+    expect(over.style.getPropertyPriority('transition')).toBe('important');
+    expect(under.style.transition).toBe('translate 280ms cubic-bezier(0.2, 0, 0, 1)');
+    expect(dim.style.transition).toBe('opacity 280ms cubic-bezier(0.2, 0, 0, 1)');
+    expect(over.style.translate).toBe('0px');
+    expect(under.style.translate).toBe('-117px');
+    expect(dim.style.opacity).toBe('0.12');
 
-      await anim.finishAll();
-      await handle.finished;
+    await finishAll(stage);
+    await handle.finished;
 
-      expect(isLiveSlideActive()).toBe(false);
-      expect(exit).toHaveBeenCalledWith(true);
-      expect(over.style.translate).toBe('');
-      expect(under.style.translate).toBe('');
-      expect(over.hasAttribute(SWIPE_OVER_THREAD)).toBe(false);
-      expect(over.hasAttribute('data-swipe-shadow')).toBe(false);
-      expect(stage.querySelector('[data-swipe-dim]')).toBeNull();
-      expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
-      expect(traceState.events.map((e) => e.name)).toEqual([
-        'navigation.phone_slide.forward.start',
-        'navigation.phone_slide.forward.end',
-      ]);
-    } finally {
-      anim.restore();
-    }
+    expect(isLiveSlideActive()).toBe(false);
+    expect(exit).toHaveBeenCalledWith(true);
+    expect(over.style.translate).toBe('');
+    expect(over.style.transition).toBe('');
+    expect(under.style.translate).toBe('');
+    expect(under.style.transition).toBe('');
+    expect(over.hasAttribute(SWIPE_OVER_THREAD)).toBe(false);
+    expect(over.hasAttribute('data-swipe-shadow')).toBe(false);
+    expect(stage.querySelector('[data-swipe-dim]')).toBeNull();
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    expect(traceState.events.map((e) => e.name)).toEqual([
+      'navigation.phone_slide.forward.start',
+      'navigation.phone_slide.forward.end',
+    ]);
   });
 
   it('mirrors forward and back slide keyframes in RTL', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame'] });
     document.documentElement.dir = 'rtl';
-    const anim = installDeferredAnimate();
     const { stage, under, over } = createLiveStage(400);
 
-    try {
-      const fwd = playLiveSlide({ direction: 'forward', stage, over, under, exit: vi.fn() });
-      vi.advanceTimersToNextFrame();
-      vi.advanceTimersToNextFrame();
-      expect(anim.records.find((r) => r.element === over)?.keyframes).toEqual([
-        { translate: '-400px 0' },
-        { translate: '0px 0' },
-      ]);
-      expect(anim.records.find((r) => r.element === under)?.keyframes).toEqual([
-        { translate: '0px 0' },
-        { translate: '120px 0' },
-      ]);
-      await anim.finishAll();
-      await fwd.finished;
+    const fwd = playLiveSlide({ direction: 'forward', stage, over, under, exit: vi.fn() });
+    expect(over.style.translate).toBe('-400px');
+    expect(under.style.translate).toBe('0px');
+    vi.advanceTimersToNextFrame();
+    vi.advanceTimersToNextFrame();
+    expect(over.style.transition).toBe('translate 280ms cubic-bezier(0.2, 0, 0, 1)');
+    expect(over.style.translate).toBe('0px');
+    expect(under.style.translate).toBe('120px');
+    await finishAll(stage);
+    await fwd.finished;
 
-      const back = playLiveSlide({ direction: 'back', stage, over, under, exit: vi.fn() });
-      expect(anim.records.find((r) => r.element === over)?.keyframes).toEqual([
-        { translate: '0px 0' },
-        { translate: '-400px 0' },
-      ]);
-      expect(anim.records.find((r) => r.element === under)?.keyframes).toEqual([
-        { translate: '120px 0' },
-        { translate: '0px 0' },
-      ]);
-      await anim.finishAll();
-      await back.finished;
-    } finally {
-      anim.restore();
-    }
+    const backStart: { over?: string; under?: string } = {};
+    vi.spyOn(over, 'getBoundingClientRect').mockImplementation(() => {
+      backStart.over = over.style.translate;
+      return rectOf(400);
+    });
+    vi.spyOn(under, 'getBoundingClientRect').mockImplementation(() => {
+      backStart.under = under.style.translate;
+      return rectOf(400);
+    });
+    const back = playLiveSlide({ direction: 'back', stage, over, under, exit: vi.fn() });
+    expect(backStart).toEqual({ over: '0px', under: '120px' });
+    expect(over.style.transition).toBe('translate 280ms cubic-bezier(0.2, 0, 0, 1)');
+    expect(over.style.translate).toBe('-400px');
+    expect(under.style.translate).toBe('0px');
+    await finishAll(stage);
+    await back.finished;
   });
 
   it('defers onCommit on back slide until over reaches offscreen and holds shield across async commit handoff', async () => {
-    const anim = installDeferredAnimate();
     traceState.recording = true;
     const { stage, under, over } = createLiveStage(390);
     const onCommit = vi.fn();
     const exit = vi.fn();
 
-    try {
-      const handle = playLiveSlide({ direction: 'back', stage, over, under, exit, onCommit });
-      expect(anim.records).toHaveLength(3);
-      expect(onCommit).not.toHaveBeenCalled();
-      expect(stage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
+    const handle = playLiveSlide({ direction: 'back', stage, over, under, exit, onCommit });
+    expect(over.style.transition).toBe('translate 280ms cubic-bezier(0.2, 0, 0, 1)');
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(stage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
 
-      await anim.finishAll();
-      expect(onCommit).toHaveBeenCalledTimes(1);
-      // Handoff keeps over hidden offscreen and shield mounted while async history.back() settles.
-      expect(over.style.visibility).toBe('hidden');
-      expect(over.style.translate).toBe('390px');
-      expect(stage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
-      expect(exit).not.toHaveBeenCalled();
+    await finishAll(stage);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    // Handoff keeps over hidden offscreen and shield mounted while async history.back() settles.
+    expect(over.style.visibility).toBe('hidden');
+    expect(over.style.translate).toBe('390px');
+    expect(stage.querySelector('[data-swipe-hold-shield]')).not.toBeNull();
+    expect(exit).not.toHaveBeenCalled();
 
-      completeLiveSlideHandoff();
-      await handle.finished;
+    completeLiveSlideHandoff();
+    await handle.finished;
 
-      expect(isLiveSlideActive()).toBe(false);
-      expect(exit).toHaveBeenCalledWith(true);
-      expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
-      expect(over.style.visibility).toBe('');
-      expect(traceState.events.map((e) => e.name)).toEqual([
-        'navigation.phone_slide.back.start',
-        'navigation.phone_slide.back.end',
-      ]);
-    } finally {
-      anim.restore();
-    }
+    expect(isLiveSlideActive()).toBe(false);
+    expect(exit).toHaveBeenCalledWith(true);
+    expect(stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    expect(over.style.visibility).toBe('');
+    expect(traceState.events.map((e) => e.name)).toEqual([
+      'navigation.phone_slide.back.start',
+      'navigation.phone_slide.back.end',
+    ]);
   });
 
   it('releases back commit handoff immediately when over disconnects, and falls back on timeout if stalled', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const anim = installDeferredAnimate();
 
-    try {
-      // 1. Over unmounts synchronously inside onCommit.
-      const first = createLiveStage(390);
-      const exit1 = vi.fn();
-      const h1 = playLiveSlide({
-        direction: 'back',
-        ...first,
-        exit: exit1,
-        onCommit: () => first.over.remove(),
-      });
-      await anim.finishAll();
-      await h1.finished;
-      expect(exit1).toHaveBeenCalledWith(true);
-      expect(first.stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    // 1. Over unmounts synchronously inside onCommit.
+    const first = createLiveStage(390);
+    const exit1 = vi.fn();
+    const h1 = playLiveSlide({
+      direction: 'back',
+      ...first,
+      exit: exit1,
+      onCommit: () => first.over.remove(),
+    });
+    await finishAll(first.stage);
+    await h1.finished;
+    expect(exit1).toHaveBeenCalledWith(true);
+    expect(first.stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
 
-      // 2. Stalled handoff (route never changes): releases after safety timeout with committed=false.
-      const second = createLiveStage(390);
-      const exit2 = vi.fn();
-      const h2 = playLiveSlide({
-        direction: 'back',
-        ...second,
-        exit: exit2,
-        onCommit: vi.fn(),
-      });
-      await anim.finishAll();
-      expect(exit2).not.toHaveBeenCalled();
-      vi.advanceTimersByTime(1000);
-      await h2.finished;
-      expect(exit2).toHaveBeenCalledWith(false);
-      expect(second.stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
-      expect(second.over.style.visibility).toBe('');
-    } finally {
-      anim.restore();
-    }
+    // 2. Stalled handoff (route never changes): releases after safety timeout with committed=false.
+    const second = createLiveStage(390);
+    const exit2 = vi.fn();
+    const h2 = playLiveSlide({
+      direction: 'back',
+      ...second,
+      exit: exit2,
+      onCommit: vi.fn(),
+    });
+    await finishAll(second.stage);
+    expect(exit2).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1000);
+    await h2.finished;
+    expect(exit2).toHaveBeenCalledWith(false);
+    expect(second.stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    expect(second.over.style.visibility).toBe('');
   });
 
   it('skipActiveLiveSlide and external popstate/visibilitychange cancel deferred onCommit immediately', async () => {
-    const anim = installDeferredAnimate();
+    // 1. skipActiveLiveSlide() mid-back-slide (e.g. drawer open or Universal Link).
+    const s1 = createLiveStage(390);
+    const onCommit1 = vi.fn();
+    const exit1 = vi.fn();
+    const h1 = playLiveSlide({ direction: 'back', ...s1, exit: exit1, onCommit: onCommit1 });
+    skipActiveLiveSlide();
+    await h1.finished;
+    expect(onCommit1).not.toHaveBeenCalled();
+    expect(exit1).toHaveBeenCalledWith(false);
+    expect(s1.over.style.transition).toBe('');
+    expect(s1.stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
 
-    try {
-      // 1. skipActiveLiveSlide() mid-back-slide (e.g. drawer open or Universal Link).
-      const s1 = createLiveStage(390);
-      const onCommit1 = vi.fn();
-      const exit1 = vi.fn();
-      const h1 = playLiveSlide({ direction: 'back', ...s1, exit: exit1, onCommit: onCommit1 });
-      skipActiveLiveSlide();
-      await h1.finished;
-      expect(onCommit1).not.toHaveBeenCalled();
-      expect(exit1).toHaveBeenCalledWith(false);
-      expect(s1.stage.querySelector('[data-swipe-hold-shield]')).toBeNull();
+    // 2. External popstate mid-back-slide cancels without firing deferred onCommit.
+    const s2 = createLiveStage(390);
+    const onCommit2 = vi.fn();
+    const exit2 = vi.fn();
+    const h2 = playLiveSlide({ direction: 'back', ...s2, exit: exit2, onCommit: onCommit2 });
+    window.dispatchEvent(new PopStateEvent('popstate'));
+    await h2.finished;
+    expect(onCommit2).not.toHaveBeenCalled();
+    expect(exit2).toHaveBeenCalledWith(false);
 
-      // 2. External popstate mid-back-slide cancels without firing deferred onCommit.
-      const s2 = createLiveStage(390);
-      const onCommit2 = vi.fn();
-      const exit2 = vi.fn();
-      const h2 = playLiveSlide({ direction: 'back', ...s2, exit: exit2, onCommit: onCommit2 });
-      window.dispatchEvent(new PopStateEvent('popstate'));
-      await h2.finished;
-      expect(onCommit2).not.toHaveBeenCalled();
-      expect(exit2).toHaveBeenCalledWith(false);
-
-      // 3. Tab hide mid-back-slide cancels without firing deferred onCommit.
-      const s3 = createLiveStage(390);
-      const onCommit3 = vi.fn();
-      const exit3 = vi.fn();
-      const h3 = playLiveSlide({ direction: 'back', ...s3, exit: exit3, onCommit: onCommit3 });
-      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
-      document.dispatchEvent(new Event('visibilitychange'));
-      await h3.finished;
-      expect(onCommit3).not.toHaveBeenCalled();
-      expect(exit3).toHaveBeenCalledWith(false);
-    } finally {
-      anim.restore();
-    }
+    // 3. Tab hide mid-back-slide cancels without firing deferred onCommit.
+    const s3 = createLiveStage(390);
+    const onCommit3 = vi.fn();
+    const exit3 = vi.fn();
+    const h3 = playLiveSlide({ direction: 'back', ...s3, exit: exit3, onCommit: onCommit3 });
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await h3.finished;
+    expect(onCommit3).not.toHaveBeenCalled();
+    expect(exit3).toHaveBeenCalledWith(false);
   });
 
   it('respects prefers-reduced-motion, hasUAVisualTransition, and blocking portal overlays', async () => {
-    const anim = installDeferredAnimate();
     createPhoneStage(390);
     const { stage, under, over } = createLiveStage(390);
 
-    try {
-      // 1. prefers-reduced-motion skips animation immediately.
-      setReducedMotion(true);
-      expect(canPlayLiveSlide()).toBe(false);
-      const exitReduced = vi.fn();
-      const commitReduced = vi.fn();
-      await playLiveSlide({
-        direction: 'back',
-        stage,
-        over,
-        under,
-        exit: exitReduced,
-        onCommit: commitReduced,
-      }).finished;
-      expect(anim.records).toHaveLength(0);
-      expect(commitReduced).toHaveBeenCalledTimes(1);
-      expect(exitReduced).toHaveBeenCalledWith(true);
+    // 1. prefers-reduced-motion skips animation immediately.
+    setReducedMotion(true);
+    expect(canPlayLiveSlide()).toBe(false);
+    const exitReduced = vi.fn();
+    const commitReduced = vi.fn();
+    await playLiveSlide({
+      direction: 'back',
+      stage,
+      over,
+      under,
+      exit: exitReduced,
+      onCommit: commitReduced,
+    }).finished;
+    expect(over.style.transition).toBe('');
+    expect(commitReduced).toHaveBeenCalledTimes(1);
+    expect(exitReduced).toHaveBeenCalledWith(true);
 
-      // 2. hasUAVisualTransition cancels any active slide and skips animation for that popstate.
-      setReducedMotion(false);
-      expect(canPlayLiveSlide()).toBe(true);
-      const uaEvent = new PopStateEvent('popstate');
-      Object.defineProperty(uaEvent, 'hasUAVisualTransition', { value: true });
-      window.dispatchEvent(uaEvent);
-      expect(canPlayLiveSlide()).toBe(false);
-      const exitUA = vi.fn();
-      await playLiveSlide({ direction: 'forward', stage, over, under, exit: exitUA }).finished;
-      expect(anim.records).toHaveLength(0);
-      expect(exitUA).toHaveBeenCalledWith(true);
-      await flushMicrotasks();
-      expect(canPlayLiveSlide()).toBe(true);
+    // 2. hasUAVisualTransition cancels any active slide and skips animation for that popstate.
+    setReducedMotion(false);
+    expect(canPlayLiveSlide()).toBe(true);
+    const uaEvent = new PopStateEvent('popstate');
+    Object.defineProperty(uaEvent, 'hasUAVisualTransition', { value: true });
+    window.dispatchEvent(uaEvent);
+    expect(canPlayLiveSlide()).toBe(false);
+    const exitUA = vi.fn();
+    await playLiveSlide({ direction: 'forward', stage, over, under, exit: exitUA }).finished;
+    expect(over.style.transition).toBe('');
+    expect(exitUA).toHaveBeenCalledWith(true);
+    await flushMicrotasks();
+    expect(canPlayLiveSlide()).toBe(true);
 
-      // 3. Blocking portal overlay suppresses slides.
-      overlay.open = true;
-      expect(canPlayLiveSlide()).toBe(false);
-      const exitOverlay = vi.fn();
-      await playLiveSlide({ direction: 'forward', stage, over, under, exit: exitOverlay }).finished;
-      expect(anim.records).toHaveLength(0);
-      expect(exitOverlay).toHaveBeenCalledWith(true);
-    } finally {
-      anim.restore();
-    }
+    // 3. Blocking portal overlay suppresses slides.
+    overlay.open = true;
+    expect(canPlayLiveSlide()).toBe(false);
+    const exitOverlay = vi.fn();
+    await playLiveSlide({ direction: 'forward', stage, over, under, exit: exitOverlay }).finished;
+    expect(over.style.transition).toBe('');
+    expect(exitOverlay).toHaveBeenCalledWith(true);
   });
 });
 

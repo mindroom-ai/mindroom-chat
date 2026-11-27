@@ -7,6 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
 import { useEdgeSwipeBack } from '../../navigation/useEdgeSwipeBack';
+import {
+  dispatchTransitionEnd,
+  finishSwipeTransitions,
+} from '../../navigation/__tests__/swipeTransitions';
 import { usePinchToZoom } from '../../theme/usePinchToZoom';
 import { ImageOverlay } from './ImageOverlay';
 
@@ -37,14 +41,6 @@ class TestPointerEvent extends MouseEvent {
     this.pointerType = init.pointerType ?? '';
   }
 }
-
-type RecordedAnimation = {
-  element: Element;
-  keyframes: Keyframe[];
-  options: KeyframeAnimationOptions | number | undefined;
-  resolve: () => void;
-  cancel: ReturnType<typeof vi.fn>;
-};
 
 const flushMicrotasks = async () => {
   for (let i = 0; i < 6; i += 1) {
@@ -79,9 +75,6 @@ const dispatchTouch = (
 describe('ImageOverlay interactive edge close', () => {
   let rafQueue: Array<{ id: number; cb: FrameRequestCallback }> = [];
   let nextRafId = 1;
-  let animations: RecordedAnimation[] = [];
-  let autoResolveAnimations = true;
-  let originalAnimate: typeof Element.prototype.animate | undefined;
   let originalInnerWidth: number;
   let originalDir: string;
   let historyStack: unknown[];
@@ -133,8 +126,6 @@ describe('ImageOverlay interactive edge close', () => {
   beforeEach(() => {
     rafQueue = [];
     nextRafId = 1;
-    animations = [];
-    autoResolveAnimations = true;
     originalInnerWidth = window.innerWidth;
     originalDir = document.documentElement.dir;
     document.documentElement.dir = 'ltr';
@@ -147,31 +138,6 @@ describe('ImageOverlay interactive edge close', () => {
     });
     vi.stubGlobal('cancelAnimationFrame', (id: number) => {
       rafQueue = rafQueue.filter((item) => item.id !== id);
-    });
-
-    originalAnimate = Element.prototype.animate;
-    Element.prototype.animate = vi.fn(function (
-      this: Element,
-      keyframes: Keyframe[] | PropertyIndexedKeyframes | null,
-      options?: number | KeyframeAnimationOptions
-    ) {
-      let resolve!: () => void;
-      const finished = new Promise<void>((res) => {
-        resolve = res;
-      });
-      const cancel = vi.fn();
-      const record: RecordedAnimation = {
-        element: this,
-        keyframes: Array.isArray(keyframes) ? keyframes : [],
-        options,
-        resolve,
-        cancel,
-      };
-      animations.push(record);
-      if (autoResolveAnimations) {
-        resolve();
-      }
-      return { finished, cancel } as unknown as Animation;
     });
 
     historyStack = [{ route: 'room' }];
@@ -201,11 +167,6 @@ describe('ImageOverlay interactive edge close', () => {
     cleanup();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    if (originalAnimate) {
-      Element.prototype.animate = originalAnimate;
-    } else {
-      delete (Element.prototype as Partial<Element>).animate;
-    }
     document.documentElement.dir = originalDir;
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth });
   });
@@ -297,15 +258,15 @@ describe('ImageOverlay interactive edge close', () => {
     // Release slowly below 35% threshold -> cancel and settle back to rest.
     dispatchTouch(modal, 'touchmove', [{ clientX: 118, clientY: 202 }], 500);
     dispatchTouch(modal, 'touchend', [], 550, [{ clientX: 118, clientY: 202 }]);
+    expect(modal.style.transition).toContain('translate');
+    expect(modal.style.translate).toBe('0px');
+    expect(backdrop.style.transition).toContain('opacity');
+    expect(backdrop.style.opacity).toBe('1');
+
     await act(async () => {
+      finishSwipeTransitions();
       await flushMicrotasks();
     });
-
-    expect(animations).toHaveLength(2);
-    expect(animations[0]?.element).toBe(modal);
-    expect(animations[0]?.keyframes).toEqual([{ translate: '100px 0' }, { translate: '0px 0' }]);
-    expect(animations[1]?.element).toBe(backdrop);
-    expect(animations[1]?.keyframes).toEqual([{ opacity: '0.75' }, { opacity: '1' }]);
 
     expect(onClose).not.toHaveBeenCalled();
     expect(backSpy).not.toHaveBeenCalled();
@@ -332,13 +293,15 @@ describe('ImageOverlay interactive edge close', () => {
     expect(Number(backdrop.style.opacity)).toBeCloseTo(0.5, 5);
 
     dispatchTouch(modal, 'touchend', [], 300, [{ clientX: 218, clientY: 202 }]);
+    expect(modal.style.transition).toContain('translate');
+    expect(modal.style.translate).toBe('400px');
+    expect(backdrop.style.transition).toContain('opacity');
+    expect(backdrop.style.opacity).toBe('0');
+
     await act(async () => {
+      finishSwipeTransitions();
       await flushMicrotasks();
     });
-
-    expect(animations).toHaveLength(2);
-    expect(animations[0]?.keyframes).toEqual([{ translate: '200px 0' }, { translate: '400px 0' }]);
-    expect(animations[1]?.keyframes).toEqual([{ opacity: '0.5' }, { opacity: '0' }]);
     expect(onClose).toHaveBeenCalledOnce();
     // scene.commit() invokes requestClose once, and FocusTrap's onDeactivate invokes it on unmount.
     expect(requestCloseSpy).toHaveBeenCalledTimes(2);
@@ -369,14 +332,13 @@ describe('ImageOverlay interactive edge close', () => {
     expect(Number(backdrop.style.opacity)).toBeCloseTo(0.5, 5);
 
     dispatchTouch(modal, 'touchend', [], 450, [{ clientX: 182, clientY: 200 }]);
+    expect(modal.style.transition).toContain('translate');
+    expect(modal.style.translate).toBe('-400px');
+
     await act(async () => {
+      finishSwipeTransitions();
       await flushMicrotasks();
     });
-
-    expect(animations[0]?.keyframes).toEqual([
-      { translate: '-200px 0' },
-      { translate: '-400px 0' },
-    ]);
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -473,7 +435,6 @@ describe('ImageOverlay interactive edge close', () => {
   });
 
   it('aborts an in-flight settle cleanly if popstate closes the viewer before animation completes', async () => {
-    autoResolveAnimations = false;
     const { onClose, requestCloseSpy, modal, backdrop } = mountViewer();
 
     dispatchTouch(modal, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
@@ -481,7 +442,8 @@ describe('ImageOverlay interactive edge close', () => {
     flushRaf();
     dispatchTouch(modal, 'touchend', [], 250, [{ clientX: 218, clientY: 200 }]);
 
-    expect(animations).toHaveLength(2);
+    expect(modal.style.transition).toContain('translate');
+    expect(backdrop.style.transition).toContain('opacity');
     expect(onClose).not.toHaveBeenCalled();
 
     // Browser Back closes the viewer while settle is still animating.
@@ -492,14 +454,15 @@ describe('ImageOverlay interactive edge close', () => {
 
     expect(onClose).toHaveBeenCalledOnce();
     const callsAfterPopState = requestCloseSpy.mock.calls.length;
-    expect(animations[0]?.cancel).toHaveBeenCalled();
-    expect(animations[1]?.cancel).toHaveBeenCalled();
+    expect(modal.style.transition).toBe('');
+    expect(backdrop.style.transition).toBe('');
     expect(modal.style.translate).toBe('');
     expect(backdrop.style.opacity).toBe('');
 
-    // Resolving the aborted animations later must not double-close.
+    // Dispatching late transitionend after abort must not double-close.
     await act(async () => {
-      animations.forEach((a) => a.resolve());
+      dispatchTransitionEnd(modal, 'translate');
+      dispatchTransitionEnd(backdrop, 'opacity');
       await flushMicrotasks();
     });
     expect(onClose).toHaveBeenCalledOnce();
@@ -515,6 +478,7 @@ describe('ImageOverlay interactive edge close', () => {
     flushRaf();
     dispatchTouch(modal, 'touchend', [], 250, [{ clientX: 218, clientY: 200 }]);
     await act(async () => {
+      finishSwipeTransitions();
       await flushMicrotasks();
     });
 
@@ -561,7 +525,6 @@ describe('ImageOverlay interactive edge close', () => {
   });
 
   it('does not commit close if a higher dialog opens while settle(true) is animating', async () => {
-    autoResolveAnimations = false;
     const { store, onClose, requestCloseSpy, modal, backdrop } = mountViewer();
 
     dispatchTouch(modal, 'touchstart', [{ clientX: 8, clientY: 200 }], 100);
@@ -569,7 +532,8 @@ describe('ImageOverlay interactive edge close', () => {
     flushRaf();
     dispatchTouch(modal, 'touchend', [], 220, [{ clientX: 218, clientY: 200 }]);
 
-    expect(animations).toHaveLength(2);
+    expect(modal.style.transition).toContain('translate');
+    expect(backdrop.style.transition).toContain('opacity');
     expect(onClose).not.toHaveBeenCalled();
 
     // A higher dialog opens over the viewer before settle(true) finishes.
@@ -578,7 +542,7 @@ describe('ImageOverlay interactive edge close', () => {
     document.body.append(higherDialog);
 
     await act(async () => {
-      animations.forEach((a) => a.resolve());
+      finishSwipeTransitions();
       await flushMicrotasks();
     });
 

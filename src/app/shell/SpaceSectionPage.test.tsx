@@ -20,6 +20,7 @@ import {
   SWIPE_UNDER_THREAD,
   type LiveThreadBackUnder,
 } from '../navigation/phonePageSlide';
+import { finishSwipeTransitions } from '../navigation/__tests__/swipeTransitions';
 import {
   SPACE_LOBBY_PATH,
   SPACE_PATH,
@@ -249,19 +250,6 @@ describe('SpaceSectionPage live 2-layer stack', () => {
 
   it('on phones mounts SpaceThreadsPage once, plays forward slide into Thread, preserves scrollTop across Activity hide/reveal, peeks passively, and commits continuously', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'requestAnimationFrame'] });
-    const finishers: Array<() => void> = [];
-    const originalAnimate = HTMLElement.prototype.animate;
-    Object.defineProperty(HTMLElement.prototype, 'animate', {
-      configurable: true,
-      value() {
-        let finish: () => void = () => undefined;
-        const finished = new Promise<void>((resolve) => {
-          finish = resolve;
-        });
-        finishers.push(finish);
-        return { finished, cancel: vi.fn() } as unknown as Animation;
-      },
-    });
     const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
       width: 390,
       height: 800,
@@ -314,11 +302,13 @@ describe('SpaceSectionPage live 2-layer stack', () => {
         vi.advanceTimersToNextFrame();
         vi.advanceTimersToNextFrame();
       });
-      expect(finishers.length).toBeGreaterThan(0);
+      expect(
+        document.querySelector<HTMLElement>('[data-space-outlet-layer]')?.style.transition
+      ).toContain('translate');
 
       probe.stageHadMarkerOnHide = [];
       await act(async () => {
-        finishers.splice(0).forEach((finish) => finish());
+        finishSwipeTransitions();
         await Promise.resolve();
         await Promise.resolve();
       });
@@ -376,10 +366,6 @@ describe('SpaceSectionPage live 2-layer stack', () => {
     } finally {
       router.dispose();
       rectSpy.mockRestore();
-      Object.defineProperty(HTMLElement.prototype, 'animate', {
-        configurable: true,
-        value: originalAnimate,
-      });
     }
   });
 
