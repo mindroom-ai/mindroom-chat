@@ -198,14 +198,18 @@ vi.mock('./CompactCardSwipe.css', () => ({
   TrayLabel: 'TrayLabel',
 }));
 
-// A room whose thread roots are not loaded: no card holds a call's row.
-const makeRoom = () =>
-  ({
+// A room whose thread roots are not loaded unless `loadedRootIds` are supplied.
+const makeRoom = (loadedRootIds: readonly string[] = []) => {
+  const roots = new Map(loadedRootIds.map((id) => [id, { getId: () => id, isThreadRoot: true }]));
+  return {
     roomId: '!room:server',
     getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
-    getThread: () => null,
+    getThread: (id: string) =>
+      roots.has(id) ? { rootEvent: roots.get(id), findEventById: () => undefined } : null,
+    findEventById: (id: string) => roots.get(id),
     getMember: () => null,
-  }) as unknown as Room;
+  } as unknown as Room;
+};
 
 describe('CompactRoomView', () => {
   it('opens thread actions on right click and navigates only after Open thread is chosen', async () => {
@@ -384,30 +388,34 @@ describe('CompactRoomView', () => {
     renderer.unmount();
   });
 
-  it('wires Snooze picker and Unsnooze from the split swipe tray on open cards only', async () => {
+  it('wires Snooze picker and Unsnooze from the split swipe tray on open loaded cards only', async () => {
     const futureTs = Date.now() + 3600_000;
     useCompactThreadCardViewModelsMock.mockReturnValue([
       makeViewModel('$open'),
       makeViewModel('$snoozed', { snoozedUntilTs: futureTs }),
+      makeViewModel('$unloaded'),
       makeViewModel('$done', { isResolved: true }),
     ]);
     let renderer!: ReturnType<typeof create>;
     act(() => {
       renderer = create(
         React.createElement(CompactRoomView, {
-          room: makeRoom(),
-          threadRootIds: ['$open', '$snoozed', '$done'],
+          room: makeRoom(['$open', '$snoozed', '$done']),
+          threadRootIds: ['$open', '$snoozed', '$unloaded', '$done'],
           threadRecordMap: new Map(),
           onThreadClick: vi.fn(),
           compactRoomScrollStateRef: { current: new Map() },
         })
       );
     });
-    const [open, snoozed, done] = renderer.root.findAllByType(CompactCardSwipe);
+    const [open, snoozed, unloaded, done] = renderer.root.findAllByType(CompactCardSwipe);
 
     expect(open!.props).toMatchObject({ snoozed: false, snoozeLabel: 'Snooze' });
     expect(snoozed!.props).toMatchObject({ snoozed: true, snoozeLabel: 'Unsnooze' });
+    expect(unloaded!.props.onSnooze).toBeUndefined();
+    expect(unloaded!.props.snoozeLabel).toBeUndefined();
     expect(done!.props.onSnooze).toBeUndefined();
+    expect(done!.props.snoozeLabel).toBeUndefined();
 
     // Clicking Unsnooze on a snoozed card calls unsnooze directly without opening the menu.
     await act(async () => snoozed!.props.onSnooze(true));

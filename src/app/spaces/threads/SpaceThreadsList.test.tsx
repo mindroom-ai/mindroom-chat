@@ -578,15 +578,59 @@ describe('SpaceThreadsList', () => {
       buildPerTagStateKey('$a-snoozed', 'snoozed')
     );
 
-    // Clicking Resolve in the parked tray resolves the thread.
+    // Activating keyboard-focused Unsnooze restores focus to [data-thread-root-id].
+    const snoozedCardBtn = snoozedShell.querySelector<HTMLButtonElement>(
+      '[data-thread-root-id="$a-snoozed"]'
+    )!;
+    const snoozedFocusSpy = vi.spyOn(snoozedCardBtn, 'focus');
+    swipeCard(snoozedShell, 165);
+    const focusedUnsnoozeBtn = snoozedShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="snooze"]'
+    )!;
+    focusedUnsnoozeBtn.focus();
+    await act(async () => {
+      fireEvent.click(focusedUnsnoozeBtn);
+      await Promise.resolve();
+    });
+    expect(snoozedFocusSpy).toHaveBeenCalledWith({ preventScroll: true });
+
+    // Touch return-swipe starting directly on the exposed Snooze button closes the tray cleanly.
+    swipeCard(openShell, 165);
+    const openTrack = openShell.querySelector<HTMLElement>('[data-compact-card-swipe="track"]')!;
+    const exposedSnoozeBtn = openShell.querySelector<HTMLButtonElement>(
+      '[data-compact-card-swipe-action="snooze"]'
+    )!;
+    expect(openTrack.style.transform).toBe('translateX(-156px)');
+    const trayTouch = (type: string, clientX: number) => {
+      const ev = new MouseEvent(type, { bubbles: true, clientX, clientY: 60 });
+      Object.assign(ev, { pointerId: 2, pointerType: 'touch', isPrimary: true });
+      fireEvent(exposedSnoozeBtn, ev);
+    };
+    sendStateEvent.mockClear();
+    menuProps.mockClear();
+    trayTouch('pointerdown', 220);
+    trayTouch('pointermove', 235);
+    trayTouch('pointermove', 300);
+    trayTouch('pointerup', 300);
+    expect(openTrack.style.transform).toBe('');
+    expect(menuProps).not.toHaveBeenCalled();
+    expect(sendStateEvent).not.toHaveBeenCalled();
+
+    // Activating keyboard-focused Resolve restores focus to [data-thread-root-id] and resolves.
+    const openCardBtn = openShell.querySelector<HTMLButtonElement>(
+      '[data-thread-root-id="$a-open"]'
+    )!;
+    const openFocusSpy = vi.spyOn(openCardBtn, 'focus');
     swipeCard(openShell, 165);
     const resolveBtn = openShell.querySelector<HTMLButtonElement>(
       '[data-compact-card-swipe-action="resolve"]'
     )!;
+    resolveBtn.focus();
     await act(async () => {
       fireEvent.click(resolveBtn);
       await Promise.resolve();
     });
+    expect(openFocusSpy).toHaveBeenCalledWith({ preventScroll: true });
     expect(sendStateEvent).toHaveBeenCalledWith(
       ROOM_A,
       MINDROOM_THREAD_TAGS_EVENT,
@@ -842,7 +886,33 @@ describe('SpaceThreadsList', () => {
       emitShell({ type: 'scroll-gesture', phase: 'end' });
       expect(track.style.transform).toBe('translateX(-156px)');
 
-      // Vertical scroll closes the parked card cleanly.
+      // Tiny <= 8px scrollTop drift right after parking does not dismiss the parked card,
+      // while real > 8px vertical scrolling closes it immediately.
+      const scrollEl = shell.closest<HTMLElement>('[data-space-threads-list="true"]')!;
+      Object.defineProperty(scrollEl, 'scrollTop', {
+        configurable: true,
+        writable: true,
+        value: 0,
+      });
+      scrollEl.scrollTop = 8;
+      fireEvent.scroll(scrollEl);
+      expect(track.style.transform).toBe('translateX(-156px)');
+      scrollEl.scrollTop = 9;
+      fireEvent.scroll(scrollEl);
+      expect(track.style.transform).toBe('');
+
+      // Sloppy diagonal scroll (|x| < 1.5 * |y|) does not claim or wiggle a closed card.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(12, { deltaY: 10 });
+      wheel(30, { deltaY: 10 });
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('');
+
+      // Re-park and confirm trackpad vertical scroll gesture closes the parked card cleanly.
+      emitShell({ type: 'scroll-gesture', phase: 'begin' });
+      wheel(90);
+      emitShell({ type: 'scroll-gesture', phase: 'end' });
+      expect(track.style.transform).toBe('translateX(-156px)');
       emitShell({ type: 'scroll-gesture', phase: 'begin' });
       wheel(0, { deltaY: 30 });
       emitShell({ type: 'scroll-gesture', phase: 'end' });

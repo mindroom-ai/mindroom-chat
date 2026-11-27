@@ -1,5 +1,4 @@
 import React, {
-  type CSSProperties,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -8,14 +7,22 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Icon, Icons, Text } from 'folds';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import {
   registerTrackpadSwipeClaimer,
   type TrackpadSwipeClaim,
-} from '../../navigation/desktopHistorySwipe';
+} from '../../navigation/trackpadSwipeClaim';
 import { EDGE_START_MAX_X } from '../../navigation/useEdgeSwipe';
 import * as css from './CompactCardSwipe.css';
+import { CompactCardSwipeStrip } from './CompactCardSwipeStrip';
+import {
+  focusCompactCardButton,
+  isNodeInside,
+  useParkedCardDismissal,
+  useTouchSwipeSafetyNet,
+} from './compactCardSwipeListeners';
+
+export { CompactCardSwipeStrip, type CompactCardSwipeStripProps } from './CompactCardSwipeStrip';
 
 // How far a touch moves before it counts as a swipe or a scroll.
 const AXIS_LOCK_DISTANCE = 10;
@@ -85,16 +92,6 @@ const closeActiveParked = (exceptTrack?: EventTarget | null) => {
   closing.close();
 };
 
-const isNodeInside = (el: HTMLElement | null, target: EventTarget | null): boolean =>
-  Boolean(
-    el &&
-    target &&
-    (el === target ||
-      (typeof el.contains === 'function' &&
-        (typeof Node === 'undefined' || target instanceof Node) &&
-        el.contains(target as Node)))
-  );
-
 const shouldPark = (swipe: Swipe): boolean =>
   swipe.parkWidth > 0 &&
   swipe.offset >= swipe.parkThreshold &&
@@ -137,102 +134,6 @@ export const useCompactCardSwipeList = (listRef: RefObject<HTMLElement | null>):
     };
   }, [listRef]);
 };
-
-export type CompactCardSwipeStripProps = {
-  resolved: boolean;
-  label: string;
-  armed?: boolean;
-  snoozed?: boolean;
-  snoozeLabel?: string;
-  parked?: boolean;
-  parkWidth?: number;
-  onSnoozeClick?: () => void;
-  onResolveClick?: () => void;
-  stripRef?: RefObject<HTMLDivElement | null>;
-  'data-tour-swipe'?: string;
-};
-
-/** The action strip or split tray revealed behind a swiped compact card; shared with the tour. */
-export function CompactCardSwipeStrip({
-  resolved,
-  label,
-  armed = false,
-  snoozed = false,
-  snoozeLabel,
-  parked = false,
-  parkWidth,
-  onSnoozeClick,
-  onResolveClick,
-  stripRef,
-  ...props
-}: CompactCardSwipeStripProps) {
-  if (snoozeLabel !== undefined) {
-    const tabIndex = parked ? 0 : -1;
-    const buttons = [
-      {
-        action: 'snooze',
-        className: css.SnoozeButton,
-        icon: Icons.Clock,
-        text: snoozeLabel,
-        onClick: onSnoozeClick,
-      },
-      {
-        action: 'resolve',
-        className: css.ResolveButton,
-        icon: Icons.Check,
-        text: label,
-        onClick: onResolveClick,
-      },
-    ] as const;
-    return (
-      <div
-        ref={stripRef}
-        className={css.SwipeTray}
-        style={
-          parkWidth !== undefined
-            ? ({ '--swipe-tray-width': `${parkWidth}px` } as CSSProperties)
-            : undefined
-        }
-        data-compact-card-swipe="action"
-        data-armed={armed ? 'true' : undefined}
-        data-parked={parked ? 'true' : undefined}
-        data-snoozed={snoozed ? 'true' : undefined}
-        aria-hidden={parked ? undefined : true}
-        {...props}
-      >
-        {buttons.map((btn) => (
-          <button
-            key={btn.action}
-            type="button"
-            className={`${css.TrayButton} ${btn.className}`}
-            data-compact-card-swipe-action={btn.action}
-            tabIndex={tabIndex}
-            onClick={btn.onClick}
-          >
-            <Icon size="200" src={btn.icon} />
-            <Text size="T200" className={css.TrayLabel}>
-              {btn.text}
-            </Text>
-          </button>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div
-      ref={stripRef}
-      className={css.SwipeAction}
-      data-compact-card-swipe="action"
-      data-armed={armed ? 'true' : undefined}
-      data-resolved={resolved ? 'true' : undefined}
-      aria-hidden
-      {...props}
-    >
-      <Icon size="200" src={resolved ? Icons.Reload : Icons.Check} />
-      <Text size="B300">{label}</Text>
-    </div>
-  );
-}
 
 export type CompactCardSwipeProps = {
   enabled: boolean;
@@ -453,7 +354,7 @@ export function CompactCardSwipe({
     };
   }, [actionsRef, propsRef]);
 
-  // Also map the mounted tray so swiping right over it closes the parked card.
+  // Also map the mounted tray so touch/trackpad swipes starting over it work smoothly.
   useEffect(() => {
     const el = stripRef.current;
     const handle = handleRef.current;
@@ -478,99 +379,11 @@ export function CompactCardSwipe({
     else if (resolved) actionsRef.current.closeParked();
   }, [actionsRef, enabled, resolved]);
 
-  // Document touch/visibility safety net: no swipe outlives its touch or a hidden page.
-  useEffect(() => {
-    const doc = trackRef.current?.ownerDocument;
-    if (!doc) return undefined;
-    const handleTouchStart = (event: TouchEvent) => {
-      const gesture = gestureRef.current;
-      if (gesture && (event.touches.length > 1 || gesture.swipe)) {
-        actionsRef.current.endSwipe('touch', false);
-      }
-    };
-    const handleTouchEnd = (event: TouchEvent) => {
-      const gesture = gestureRef.current;
-      if (!gesture?.swipe || event.touches.length > 0) return;
-      setTimeout(() => {
-        if (gestureRef.current === gesture) {
-          actionsRef.current.endSwipe('touch', event.type === 'touchend');
-        }
-      }, 0);
-    };
-    const handleVisibilityChange = () => {
-      if (doc.visibilityState === 'hidden') actionsRef.current.abortAll();
-    };
-    const early = { capture: true, passive: true };
-    doc.addEventListener('touchstart', handleTouchStart, early);
-    doc.addEventListener('touchend', handleTouchEnd, early);
-    doc.addEventListener('touchcancel', handleTouchEnd, early);
-    doc.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      doc.removeEventListener('touchstart', handleTouchStart, early);
-      doc.removeEventListener('touchend', handleTouchEnd, early);
-      doc.removeEventListener('touchcancel', handleTouchEnd, early);
-      doc.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [actionsRef]);
-
-  // Dismiss the single parked card on outside tap/click, Escape, contextmenu, or vertical scroll.
-  useEffect(() => {
-    if (!parked) return undefined;
-    const doc = trackRef.current?.ownerDocument;
-    if (!doc) return undefined;
-    const onPointerDown = (event: Event) => {
-      const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
-      if (
-        path.includes(trackRef.current!) ||
-        path.includes(stripRef.current!) ||
-        isNodeInside(trackRef.current, event.target) ||
-        isNodeInside(stripRef.current, event.target)
-      ) {
-        return;
-      }
-      actionsRef.current.closeParked();
-    };
-    const onKeyDown = (event: Event) => {
-      const { key, shiftKey } = event as KeyboardEvent;
-      if (key === 'Escape') {
-        const restoreFocus = isNodeInside(stripRef.current, doc.activeElement);
-        actionsRef.current.closeParked();
-        if (restoreFocus) {
-          const cardButton =
-            trackRef.current?.querySelector?.<HTMLElement>('[data-thread-root-id]') ??
-            trackRef.current?.querySelector?.<HTMLElement>('button');
-          cardButton?.focus({ preventScroll: true });
-        }
-        event.preventDefault();
-        event.stopPropagation();
-      } else if (key === 'ContextMenu' || (shiftKey && key === 'F10')) {
-        actionsRef.current.closeParked();
-      }
-    };
-    const onScroll = (event: Event) => {
-      const t = event.target;
-      if (
-        !t ||
-        t === doc ||
-        (doc.documentElement && t === doc.documentElement) ||
-        isNodeInside(t as HTMLElement, trackRef.current)
-      ) {
-        actionsRef.current.closeParked();
-      }
-    };
-    const onContextMenu = () => actionsRef.current.closeParked();
-    const listeners: Array<[string, EventListener, AddEventListenerOptions]> = [
-      ['pointerdown', onPointerDown, { capture: true, passive: true }],
-      ['keydown', onKeyDown, { capture: true }],
-      ['scroll', onScroll, { capture: true, passive: true }],
-      ['contextmenu', onContextMenu, { capture: true, passive: true }],
-    ];
-    listeners.forEach(([type, fn, opts]) => doc.addEventListener(type, fn, opts));
-    return () =>
-      listeners.forEach(([type, fn]) => doc.removeEventListener(type, fn, { capture: true }));
-  }, [actionsRef, parked]);
+  useTouchSwipeSafetyNet(trackRef, gestureRef, actionsRef);
+  useParkedCardDismissal(parked, trackRef, stripRef, actionsRef);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget === stripRef.current && !parkedRef.current) return;
     if (event.isPrimary) endSwipe('touch', false);
     swipedRef.current = false;
     if (!enabled || event.pointerType !== 'touch' || !event.isPrimary) return;
@@ -601,7 +414,8 @@ export function CompactCardSwipe({
         return;
       }
       gesture.swipe = swipe;
-      event.currentTarget.setPointerCapture(event.pointerId);
+      // Capture on the always-mounted track so hiding/unmounting the tray never drops capture.
+      trackRef.current?.setPointerCapture?.(event.pointerId);
     }
     const { swipe } = gesture;
     updateSwipe(swipe, swipe.startOffset + (swipe.originX - event.clientX) * swipe.towardStart);
@@ -611,9 +425,35 @@ export function CompactCardSwipe({
     if (event.pointerId === gestureRef.current?.pointerId) endSwipe('touch', commit);
   };
 
-  const runTrayAction = (action: () => void) => {
+  const pointerHandlers = {
+    onPointerDown: handlePointerDown,
+    onPointerMove: handlePointerMove,
+    onPointerUp: (event: React.PointerEvent<HTMLDivElement>) => handlePointerEnd(event, true),
+    onPointerCancel: (event: React.PointerEvent<HTMLDivElement>) => handlePointerEnd(event, false),
+    onLostPointerCapture: (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.target === event.currentTarget) handlePointerEnd(event, false);
+    },
+  };
+
+  const handleClickCapture = (event: React.MouseEvent<HTMLDivElement>, isTray: boolean) => {
+    if (event.detail === 0) {
+      if (!isTray && parkedRef.current) closeParked();
+      return;
+    }
+    if (swipedRef.current) swipedRef.current = false;
+    else if (!isTray && parkedRef.current) closeParked();
+    else return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const runTrayAction = (action: () => void, restoreFocusIfInTray: boolean) => {
     if (!parkedRef.current || !propsRef.current.enabled || !strip) return;
+    const doc = trackRef.current?.ownerDocument;
+    const shouldRestoreFocus =
+      restoreFocusIfInTray && isNodeInside(stripRef.current, doc?.activeElement ?? null);
     closeParked();
+    if (shouldRestoreFocus) focusCompactCardButton(trackRef.current);
     action();
   };
 
@@ -621,48 +461,27 @@ export function CompactCardSwipe({
     <>
       {strip && (
         <CompactCardSwipeStrip
+          {...strip}
           stripRef={stripRef}
-          resolved={strip.resolved}
-          label={strip.label}
           armed={armed}
-          snoozed={strip.snoozed}
-          snoozeLabel={strip.snoozeLabel}
           parked={parked}
-          parkWidth={strip.parkWidth}
-          onSnoozeClick={() => runTrayAction(() => propsRef.current.onSnooze?.(strip.snoozed))}
-          onResolveClick={() => runTrayAction(() => propsRef.current.onSwipe(strip.resolved))}
+          onSnoozeClick={() =>
+            runTrayAction(() => propsRef.current.onSnooze?.(strip.snoozed), strip.snoozed)
+          }
+          onResolveClick={() => runTrayAction(() => propsRef.current.onSwipe(strip.resolved), true)}
+          {...(strip.snoozeLabel !== undefined
+            ? { ...pointerHandlers, onClickCapture: (e) => handleClickCapture(e, true) }
+            : undefined)}
         />
       )}
       <div
         ref={trackRef}
         className={[css.SwipeTrack, settling && css.SwipeTrackSettling].filter(Boolean).join(' ')}
         data-compact-card-swipe="track"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={(event) => handlePointerEnd(event, true)}
-        onPointerCancel={(event) => handlePointerEnd(event, false)}
-        onLostPointerCapture={(event) => {
-          if (event.target === event.currentTarget) handlePointerEnd(event, false);
-        }}
-        onClickCapture={(event) => {
-          if (event.detail === 0) {
-            if (parkedRef.current) closeParked();
-            return;
-          }
-          if (swipedRef.current) {
-            swipedRef.current = false;
-            event.preventDefault();
-            event.stopPropagation();
-          } else if (parkedRef.current) {
-            closeParked();
-            event.preventDefault();
-            event.stopPropagation();
-          }
-        }}
-        onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && event.propertyName === 'transform') {
-            finishTransition();
-          }
+        {...pointerHandlers}
+        onClickCapture={(e) => handleClickCapture(e, false)}
+        onTransitionEnd={(e) => {
+          if (e.target === e.currentTarget && e.propertyName === 'transform') finishTransition();
         }}
       >
         {children}

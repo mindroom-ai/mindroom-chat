@@ -5,41 +5,14 @@ import { isMacOS } from '../lib/user-agent';
 import { isQuickCapturePath } from '../routes/pathUtils';
 import { documentIsRightToLeft } from '../ui/directional';
 import { SwipeChevron, SwipeIndicator } from './desktopHistorySwipe.css';
+import { trackpadSwipeClaimers, type TrackpadSwipeClaim } from './trackpadSwipeClaim';
 
-export type TrackpadSwipeClaim = {
-  move: (deltaX: number, deltaY: number) => void;
-  end: () => void;
-  cancel: () => void;
-  /** When true, `scroll-gesture: end` commits immediately without waiting 1 animation frame. */
-  isReadyToCommit?: () => boolean;
-};
-
-export type TrackpadSwipeCandidate = {
-  path: readonly Element[];
-  deltaX: number;
-  deltaY: number;
-  rtl: boolean;
-  blockedByDom: boolean;
-};
-
-export type TrackpadSwipeClaimer = {
-  /** Called when a horizontal trackpad gesture locks; return a claim to own the gesture. */
-  claim: (candidate: TrackpadSwipeCandidate) => TrackpadSwipeClaim | undefined;
-  /** Called when a trackpad gesture locks vertically over `path`. */
-  onVerticalScroll?: (path: readonly Element[]) => void;
-  /** Called when the desktop window hides. */
-  onWindowHidden?: () => void;
-};
-
-const claimers = new Set<TrackpadSwipeClaimer>();
-
-/** Registers a macOS Electron trackpad swipe claimer (arbitrated before Back/Forward history). */
-export const registerTrackpadSwipeClaimer = (claimer: TrackpadSwipeClaimer): (() => void) => {
-  claimers.add(claimer);
-  return () => {
-    claimers.delete(claimer);
-  };
-};
+export {
+  registerTrackpadSwipeClaimer,
+  type TrackpadSwipeCandidate,
+  type TrackpadSwipeClaim,
+  type TrackpadSwipeClaimer,
+} from './trackpadSwipeClaim';
 
 type Dir = 'back' | 'forward';
 type NavWindow = Window & { navigation?: { canGoBack?: boolean; canGoForward?: boolean } };
@@ -130,6 +103,7 @@ export const installDesktopHistorySwipe = (
   let pendingEndRaf: number | null = null;
   let lastCommitAt = -Infinity;
   let gesture: SwipeGesture | null = null;
+  const isActive = (): boolean => enabled || trackpadSwipeClaimers.size > 0;
   const clearPendingEnd = (): void => {
     if (pendingEndRaf !== null) {
       target.cancelAnimationFrame(pendingEndRaf);
@@ -167,13 +141,11 @@ export const installDesktopHistorySwipe = (
   const onShellEvent = (e: DesktopShellEvent): void => {
     if (e.type === 'swipe-tracking') {
       enabled = e.enabled;
-      if (!enabled) {
-        if (claimers.size === 0) abortTouch();
-        else if (gesture?.kind === 'track') reset(null);
-      }
+      if (!isActive()) abortTouch();
+      else if (!enabled && gesture?.kind === 'track') reset(null);
     } else if (e.type === 'window-hidden') {
       abortTouch();
-      claimers.forEach((c) => c.onWindowHidden?.());
+      trackpadSwipeClaimers.forEach((c) => c.onWindowHidden?.());
     } else if (e.type === 'swipe') {
       if (gesture?.kind === 'claimed') return;
       const dir: Dir = (e.direction === 'left') !== documentIsRightToLeft() ? 'back' : 'forward';
@@ -199,7 +171,7 @@ export const installDesktopHistorySwipe = (
         clearPendingEnd();
         inTouchGesture = false;
         finish(null);
-      } else if (gesture?.kind === 'ignored' || (!enabled && claimers.size === 0)) {
+      } else if (gesture?.kind === 'ignored' || !isActive()) {
         abortTouch();
       } else if (inTouchGesture && pendingEndRaf === null) {
         pendingEndRaf = target.requestAnimationFrame(() => {
@@ -213,7 +185,7 @@ export const installDesktopHistorySwipe = (
   const onWheel = (e: WheelEvent): void => {
     if (
       (!allowUntrusted && !e.isTrusted) ||
-      (!enabled && claimers.size === 0) ||
+      !isActive() ||
       !inTouchGesture ||
       e.deltaMode !== WheelEvent.DOM_DELTA_PIXEL
     )
@@ -237,12 +209,13 @@ export const installDesktopHistorySwipe = (
       if (Math.hypot(g.x, g.y) < CFG.lock) return;
       const combinedPath = [...new Set([...g.path, ...path])];
       if (Math.abs(g.y) >= Math.abs(g.x)) {
-        claimers.forEach((c) => c.onVerticalScroll?.(combinedPath));
+        trackpadSwipeClaimers.forEach((c) => c.onVerticalScroll?.(combinedPath));
         return reset(IGNORED);
       }
+      if (Math.abs(g.x) < Math.abs(g.y) * CFG.ratio) return reset(IGNORED);
       const rtl = documentIsRightToLeft();
       const blockedByDom = isBlockedByDom(target, combinedPath);
-      for (const claimer of claimers) {
+      for (const claimer of trackpadSwipeClaimers) {
         const claim = claimer.claim({
           path: combinedPath,
           deltaX: g.x,
@@ -256,13 +229,7 @@ export const installDesktopHistorySwipe = (
         }
       }
       const dir: Dir = g.x < 0 !== rtl ? 'back' : 'forward';
-      if (
-        !enabled ||
-        Math.abs(g.x) < Math.abs(g.y) * CFG.ratio ||
-        blockedByDom ||
-        !canGo(target, dir)
-      )
-        return reset(IGNORED);
+      if (!enabled || blockedByDom || !canGo(target, dir)) return reset(IGNORED);
       const x = Math.abs(g.x);
       gesture = { kind: 'track', dir, rtl, dist: x, x, y: Math.abs(g.y), n: g.n };
       return indicator.update(gesture);

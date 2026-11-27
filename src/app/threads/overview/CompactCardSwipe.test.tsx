@@ -34,6 +34,11 @@ type FakeTrack = {
   setPointerCapture: ReturnType<typeof vi.fn>;
   addEventListener: ReturnType<typeof vi.fn>;
   removeEventListener: () => void;
+  parentElement?: {
+    scrollTop: number;
+    contains: (node: unknown) => boolean;
+    parentElement?: null;
+  } | null;
   querySelector?: (selector: string) => { focus: ReturnType<typeof vi.fn> } | null;
   ownerDocument: {
     visibilityState: 'visible' | 'hidden';
@@ -968,5 +973,144 @@ describe('CompactCardSwipe split tray (Option A1)', () => {
     expect(track.addEventListener).not.toHaveBeenCalled();
     const types = list.addEventListener.mock.calls.map(([type]) => type);
     expect(types).toEqual(['touchmove']);
+  });
+
+  it('supports touch return-swipe starting on the parked tray while keeping plain taps working', async () => {
+    const { onSwipe, onSnooze, swipe, actionStrip, trayButton } = renderSplit();
+    const trayPointer = (
+      type: 'onPointerDown' | 'onPointerMove' | 'onPointerUp',
+      clientX: number,
+      clientY = 0
+    ) =>
+      act(() => {
+        actionStrip()[0]!.props[type]({
+          pointerId: 1,
+          pointerType: 'touch',
+          isPrimary: true,
+          clientX,
+          clientY,
+          currentTarget: strip,
+          target: strip,
+        });
+      });
+
+    // Park card, then start a rightward return-swipe directly on the exposed tray.
+    swipe(300, 190);
+    expect(track.style.transform).toBe('translateX(-156px)');
+    track.setPointerCapture.mockClear();
+
+    trayPointer('onPointerDown', 220);
+    trayPointer('onPointerMove', 232);
+    expect(track.setPointerCapture).toHaveBeenCalledWith(1);
+    const moveEvent = {
+      cancelable: true,
+      preventDefault: vi.fn(),
+      composedPath: () => [strip, list],
+    };
+    list.touchMoveListener!(moveEvent);
+    expect(moveEvent.preventDefault).toHaveBeenCalledTimes(1);
+    trayPointer('onPointerMove', 300);
+    trayPointer('onPointerUp', 300);
+    expect(track.style.transform).toBe('');
+    expect(onSnooze).not.toHaveBeenCalled();
+    expect(onSwipe).not.toHaveBeenCalled();
+
+    // Small horizontal wiggle on the parked tray re-parks and swallows the trailing click.
+    swipe(300, 190);
+    trayPointer('onPointerDown', 220);
+    trayPointer('onPointerMove', 232);
+    trayPointer('onPointerMove', 236);
+    trayPointer('onPointerUp', 236);
+    expect(track.style.transform).toBe('translateX(-156px)');
+    const trailingClick = { detail: 1, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    await act(() => actionStrip()[0]!.props.onClickCapture(trailingClick));
+    expect(trailingClick.preventDefault).toHaveBeenCalled();
+    expect(trailingClick.stopPropagation).toHaveBeenCalled();
+    expect(onSnooze).not.toHaveBeenCalled();
+
+    // Plain tap (no horizontal drag) on Snooze still clicks cleanly.
+    trayPointer('onPointerDown', 220);
+    trayPointer('onPointerUp', 220);
+    const tapClick = { detail: 1, preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    await act(() => actionStrip()[0]!.props.onClickCapture(tapClick));
+    expect(tapClick.stopPropagation).not.toHaveBeenCalled();
+    act(() => {
+      trayButton('snooze').props.onClick();
+    });
+    expect(onSnooze).toHaveBeenCalledWith(false);
+    expect(track.style.transform).toBe('');
+  });
+
+  it('restores focus to [data-thread-root-id] on focused Unsnooze/Resolve activation, but lets SnoozePicker manage focus for Snooze', () => {
+    const cardFocus = vi.fn();
+    track.querySelector = (selector) =>
+      selector === '[data-thread-root-id]' ? { focus: cardFocus } : null;
+
+    // Focused Unsnooze button restores focus to the card button with preventScroll.
+    const snoozedView = renderSplit({ snoozed: true, snoozeLabel: 'Unsnooze' });
+    snoozedView.swipe(300, 190);
+    track.ownerDocument.activeElement = strip;
+    act(() => {
+      snoozedView.trayButton('snooze').props.onClick();
+    });
+    expect(snoozedView.onSnooze).toHaveBeenCalledWith(true);
+    expect(cardFocus).toHaveBeenCalledWith({ preventScroll: true });
+
+    // Unsnooze when focus is NOT in the tray does not steal focus.
+    cardFocus.mockClear();
+    snoozedView.swipe(300, 190);
+    track.ownerDocument.activeElement = {};
+    act(() => {
+      snoozedView.trayButton('snooze').props.onClick();
+    });
+    expect(cardFocus).not.toHaveBeenCalled();
+
+    // Focused Resolve button restores focus to the card button with preventScroll.
+    cardFocus.mockClear();
+    const openView = renderSplit({ snoozed: false, snoozeLabel: 'Snooze' });
+    openView.swipe(300, 190);
+    track.ownerDocument.activeElement = strip;
+    act(() => {
+      openView.trayButton('resolve').props.onClick();
+    });
+    expect(openView.onSwipe).toHaveBeenCalledWith(false);
+    expect(cardFocus).toHaveBeenCalledWith({ preventScroll: true });
+
+    // Focused Snooze button opens SnoozePicker and does not steal focus onto the card button.
+    cardFocus.mockClear();
+    openView.swipe(300, 190);
+    track.ownerDocument.activeElement = strip;
+    act(() => {
+      openView.trayButton('snooze').props.onClick();
+    });
+    expect(openView.onSnooze).toHaveBeenCalledWith(false);
+    expect(cardFocus).not.toHaveBeenCalled();
+  });
+
+  it('ignores tiny <= 8px vertical scroll drift after parking and dismisses on > 8px scroll', () => {
+    const scroller = {
+      scrollTop: 100,
+      contains: (node: unknown) => node === track,
+      parentElement: null,
+    };
+    track.parentElement = scroller;
+    const { swipe } = renderSplit();
+
+    swipe(300, 190);
+    expect(track.style.transform).toBe('translateX(-156px)');
+
+    // Residual <= 8px drift in either direction keeps the tray parked.
+    scroller.scrollTop = 108;
+    tellDocument('scroll', { target: scroller });
+    expect(track.style.transform).toBe('translateX(-156px)');
+
+    scroller.scrollTop = 92;
+    tellDocument('scroll', { target: scroller });
+    expect(track.style.transform).toBe('translateX(-156px)');
+
+    // Real vertical scroll (> 8px) closes it immediately.
+    scroller.scrollTop = 109;
+    tellDocument('scroll', { target: scroller });
+    expect(track.style.transform).toBe('');
   });
 });

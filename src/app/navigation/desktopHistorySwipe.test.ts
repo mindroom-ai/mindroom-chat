@@ -418,6 +418,23 @@ describe('installDesktopHistorySwipe', () => {
     expect(end).toHaveBeenCalledTimes(1);
     expect(cancel).not.toHaveBeenCalled();
 
+    // Sloppy diagonal scroll (|x| < 1.5 * |y|) does not claim a card or fire onVerticalScroll.
+    claimFn.mockClear();
+    phase('begin');
+    wheel({ deltaX: 12, deltaY: 10 });
+    wheel({ deltaX: 30, deltaY: 10 });
+    phase('end');
+    expect(claimFn).not.toHaveBeenCalled();
+    expect(onVerticalScroll).not.toHaveBeenCalled();
+    expect(counts()).toEqual([0, 0]);
+
+    // Horizontal-dominant scroll (|x| >= 1.5 * |y|) claims cleanly.
+    phase('begin');
+    wheel({ deltaX: 18, deltaY: 10 });
+    phase('cancel');
+    expect(claimFn).toHaveBeenCalledTimes(1);
+    cancel.mockClear();
+
     // Vertical scroll notifies claimers without claiming; window-hidden cancels active claim & notifies.
     phase('begin');
     wheel({ deltaX: 1, deltaY: 20 });

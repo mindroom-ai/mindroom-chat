@@ -10,6 +10,7 @@ import React, {
 import type { RectCords } from 'folds';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
+import { getResolvableThreadRootEvent } from '../../event-store/threads/threadResolvableRoot';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { isSnoozedAt } from '../../event-store/threads/threadSnooze';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
@@ -130,6 +131,11 @@ export const CompactThreadCardRow = React.memo(
     );
     const snoozeNow = useSnoozeNow([viewModel.snoozedUntilTs]);
     const snoozed = !viewModel.isResolved && isSnoozedAt(viewModel.snoozedUntilTs, snoozeNow);
+    const rootLoaded =
+      typeof room.getThread === 'function' &&
+      typeof room.findEventById === 'function' &&
+      !!getResolvableThreadRootEvent(room, rootId);
+    const canSnooze = !viewModel.isResolved && rootLoaded;
     // A live call's row shows in its card as in the timeline: who is in the call, Join and
     // Transcript. Once the call ends the card is a thread like any other.
     const callRow = useThreadRootLiveCallRow(room, rootId);
@@ -229,9 +235,9 @@ export const CompactThreadCardRow = React.memo(
             resolved={viewModel.isResolved}
             label={viewModel.isResolved ? reopenLabel : resolveLabel}
             snoozed={snoozed}
-            snoozeLabel={snoozed ? unsnoozeLabel : snoozeLabel}
+            snoozeLabel={canSnooze ? (snoozed ? unsnoozeLabel : snoozeLabel) : undefined}
             onSwipe={(wasResolved) => onSetResolved(rootId, !wasResolved)}
-            onSnooze={viewModel.isResolved ? undefined : handleSnooze}
+            onSnooze={canSnooze ? handleSnooze : undefined}
           >
             <MessageRowBoundary
               render={() => (
