@@ -222,6 +222,7 @@ test('reply details show what a reply and the conversation so far cost', async (
   // each reply's input in the parts its usage splits it into.
   await rowOf('Done, v2.4 is tagged.').hover();
   await detailsOf('Done, v2.4 is tagged.').click();
+  await expect(dialog.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   const conversation = tokens.getByRole('button', { name: 'Conversation', exact: true });
   await conversation.focus();
   await page.keyboard.press('Space');

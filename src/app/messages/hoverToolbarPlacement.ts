@@ -135,8 +135,9 @@ export const toolbarOffset = (
     }
   }
   // When the tight sender line reaches horizontally under the toolbar (narrow viewport or long
-  // name), move below it so the name and timestamp stay readable and clickable, unless a fold
-  // button or content action group occupies that spot.
+  // name), move below it when that fits cleanly inside the row; otherwise float above the row edge
+  // when at rest with room above and clear, or fall back below it when a fold button or sticky
+  // header blocks going above so the name and timestamp stay readable and clickable.
   if (
     senderLine &&
     senderLine.bottom > covered &&
@@ -145,7 +146,14 @@ export const toolbarOffset = (
     top + height > senderLine.top
   ) {
     const below = senderLine.bottom + CONTROL_GAP_PX;
-    if (below + height <= rowHeight - ROW_END_GAP_PX && clearAt(below)) top = below;
+    const above = Math.min(0, senderLine.top) - height;
+    if (below + height <= rowHeight - ROW_END_GAP_PX && clearAt(below)) {
+      top = below;
+    } else if (top <= usual + 0.5 && above >= covered && clearAt(above)) {
+      top = above;
+    } else if (clearAt(below)) {
+      top = below;
+    }
   }
   return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
 };

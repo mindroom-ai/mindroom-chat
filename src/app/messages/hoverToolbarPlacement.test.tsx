@@ -333,14 +333,20 @@ describe('headered and collapsed compact toolbar placement', () => {
     expect(toolbarOffset(2, 390, 400, 32, [])).toBe(364);
   });
 
-  it('moves below a tight sender line only when it reaches horizontally under the headered pill and fits in the row', () => {
+  it('keeps clear of a tight sender line on tall and short narrow Modern headered rows', () => {
     const sender = { top: 4, bottom: 26 };
     // Normal wide row: sender line ends well left of the pill, so senderLine is undefined.
     expect(toolbarOffset(2, -10, 120, 32, [], undefined)).toBeUndefined();
     // Narrow viewport / long username with room below: moves 8 px below the sender line.
     expect(toolbarOffset(2, -10, 120, 32, [], sender)).toBe(34);
-    // Short 1-line row where below (34 + 32 = 66) would overflow past rowHeight - 4 (56): stays.
-    expect(toolbarOffset(2, -10, 60, 32, [], sender)).toBeUndefined();
+    // Short 1-line narrow row with room above: floats cleanly above the row edge at -height.
+    expect(toolbarOffset(2, -100, 60, 32, [], sender)).toBe(-32);
+    // Short 1-line narrow row with a fold button above blocking -height: moves below senderLine.
+    expect(toolbarOffset(2, -100, 60, 32, [{ top: -46, bottom: -14, ownRow: false }], sender)).toBe(
+      34
+    );
+    // Short 1-line narrow row right under the sticky header blocking -height: moves below senderLine.
+    expect(toolbarOffset(2, -10, 60, 32, [], sender)).toBe(34);
     // Bubble/Compact resting above the row (-26 px, 32 px tall -> ends at +6 px): stays clear.
     expect(toolbarOffset(-26, -100, 60, 32, [], sender)).toBeUndefined();
   });

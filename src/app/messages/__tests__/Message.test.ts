@@ -18,6 +18,7 @@ let lastMessageBaseNode: HostNodeMock | undefined;
 
 const domMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn(),
+  copyTextPromiseToClipboard: vi.fn(),
 }));
 const longTextMocks = vi.hoisted(() => ({
   getMindroomLongTextSource: vi.fn<typeof getLongTextSource>(() => undefined),
@@ -347,6 +348,7 @@ vi.mock('../../avatars/UserAvatar', () => ({
 
 vi.mock('../../lib/dom', () => ({
   copyToClipboard: domMocks.copyToClipboard,
+  copyTextPromiseToClipboard: domMocks.copyTextPromiseToClipboard,
 }));
 
 vi.mock('../../lib/keyboard', () => ({
@@ -431,6 +433,12 @@ beforeEach(() => {
   recentEmojiMocks.recent = [];
   vi.clearAllMocks();
   domMocks.copyToClipboard.mockResolvedValue(true);
+  domMocks.copyTextPromiseToClipboard.mockImplementation((textPromise: Promise<string>) =>
+    textPromise.then(
+      (text) => domMocks.copyToClipboard(text),
+      () => false
+    )
+  );
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
   longTextMocks.getCachedLongTextContent.mockReturnValue(undefined);
   longTextMocks.hydrateCachedLongText.mockReset();
@@ -1635,7 +1643,7 @@ describe('Message hover toolbar copy and RunStatsIcon order', () => {
     expect(compactRow.collapsedTimes).toHaveLength(0);
   });
 
-  it('starts a promise-backed ClipboardItem write synchronously on click for uncached long text', async () => {
+  it('starts copyTextPromiseToClipboard synchronously on click for uncached long text', async () => {
     const longTextSource = {
       previewContent: {
         msgtype: 'm.file',
@@ -1654,48 +1662,30 @@ describe('Message hover toolbar copy and RunStatsIcon order', () => {
       })
     );
 
-    const writtenItems: Array<{ items: Record<string, Blob | Promise<Blob>> }> = [];
-    class MockClipboardItem {
-      items: Record<string, Blob | Promise<Blob>>;
-      constructor(items: Record<string, Blob | Promise<Blob>>) {
-        this.items = items;
-      }
-    }
-    const write = vi.fn(async (items: MockClipboardItem[]) => {
-      writtenItems.push(...items);
-      const blob = await items[0]!.items['text/plain'];
-      expect(await blob.text()).toBe('Hydrated WebKit full body');
+    const { renderer } = await renderMessage(longTextSource.previewContent);
+
+    act(() => {
+      getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
     });
-    vi.stubGlobal('ClipboardItem', MockClipboardItem);
-    vi.stubGlobal('navigator', { clipboard: { write } });
 
-    try {
-      const { renderer } = await renderMessage(longTextSource.previewContent);
+    // Shared async clipboard helper starts synchronously inside the click gesture before hydration settles.
+    expect(domMocks.copyTextPromiseToClipboard).toHaveBeenCalledTimes(1);
+    expect(domMocks.copyToClipboard).not.toHaveBeenCalled();
+    expect(getButtonByAriaLabel(renderer, 'Copied')).toBeUndefined();
 
-      act(() => {
-        getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
-      });
+    await act(async () => {
+      resolveHydration({ msgtype: 'm.text', body: 'Hydrated WebKit full body' });
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
 
-      // Clipboard write starts synchronously inside the click gesture before hydration settles.
-      expect(write).toHaveBeenCalledTimes(1);
-      expect(writtenItems).toHaveLength(1);
-      expect(getButtonByAriaLabel(renderer, 'Copied')).toBeUndefined();
-
-      await act(async () => {
-        resolveHydration({ msgtype: 'm.text', body: 'Hydrated WebKit full body' });
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-
-      expect(getButtonByAriaLabel(renderer, 'Copied')).toBeDefined();
-      expect(getButtonByIcon(renderer, 'Check')).toBeDefined();
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Hydrated WebKit full body');
+    expect(getButtonByAriaLabel(renderer, 'Copied')).toBeDefined();
+    expect(getButtonByIcon(renderer, 'Check')).toBeDefined();
   });
 
-  it('does not flash Copied or copy truncated preview when long-text hydration falls back on error', async () => {
+  it('ignores menu preview fallback state and rejects hydration fallback without flashing Copied', async () => {
     const longTextSource = {
       previewContent: {
         msgtype: 'm.file',
@@ -1707,7 +1697,10 @@ describe('Message hover toolbar copy and RunStatsIcon order', () => {
       isV2ContentJson: true,
     };
     longTextMocks.getMindroomLongTextSource.mockReturnValue(longTextSource);
-    // Matches hydrateLongTextSource returning source.previewContent on download/parse errors.
+    // Simulate an earlier menu hydration failure leaving previewContent in resolvedLongTextContent
+    // while getCachedLongTextContent remains undefined.
+    longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(longTextSource.previewContent);
+    longTextMocks.getCachedLongTextContent.mockReturnValue(undefined);
     longTextMocks.hydrateCachedLongText.mockResolvedValue(longTextSource.previewContent);
 
     const { renderer } = await renderMessage(longTextSource.previewContent);
@@ -1718,32 +1711,28 @@ describe('Message hover toolbar copy and RunStatsIcon order', () => {
       await Promise.resolve();
     });
 
+    expect(longTextMocks.hydrateCachedLongText).toHaveBeenCalledTimes(1);
+    expect(domMocks.copyTextPromiseToClipboard).toHaveBeenCalledTimes(1);
+    await expect(domMocks.copyTextPromiseToClipboard.mock.calls[0]![0]).rejects.toThrow();
     expect(domMocks.copyToClipboard).not.toHaveBeenCalled();
     expect(getButtonByAriaLabel(renderer, 'Copied')).toBeUndefined();
     expect(getButtonByIcon(renderer, 'Check')).toBeUndefined();
     expect(getButtonByAriaLabel(renderer, 'Copy Text')).toBeDefined();
 
-    // Same guarantee under WebKit's ClipboardItem path: blob rejects and Check never flashes.
-    let capturedBlobPromise: Promise<Blob> | undefined;
-    class MockClipboardItem {
-      constructor(items: Record<string, Blob | Promise<Blob>>) {
-        capturedBlobPromise = items['text/plain'] as Promise<Blob>;
-      }
-    }
-    const write = vi.fn().mockResolvedValue(undefined);
-    vi.stubGlobal('ClipboardItem', MockClipboardItem);
-    vi.stubGlobal('navigator', { clipboard: { write } });
-    try {
-      await act(async () => {
-        getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
-        await Promise.resolve();
-        await Promise.resolve();
-      });
-      await expect(capturedBlobPromise).rejects.toThrow();
-      expect(getButtonByAriaLabel(renderer, 'Copied')).toBeUndefined();
-      expect(getButtonByIcon(renderer, 'Check')).toBeUndefined();
-    } finally {
-      vi.unstubAllGlobals();
-    }
+    // Once hydration succeeds on a retry, the full text copies and Check flashes.
+    longTextMocks.hydrateCachedLongText.mockResolvedValueOnce({
+      msgtype: 'm.text',
+      body: 'Recovered full body',
+    });
+    await act(async () => {
+      getButtonByAriaLabel(renderer, 'Copy Text')?.props.onClick();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(domMocks.copyToClipboard).toHaveBeenCalledWith('Recovered full body');
+    expect(getButtonByAriaLabel(renderer, 'Copied')).toBeDefined();
+    expect(getButtonByIcon(renderer, 'Check')).toBeDefined();
   });
 });

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon, IconButton, Icons, type IconSrc } from 'folds';
 import { IconTooltip } from '../ui/IconTooltip';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { copyToClipboard } from '../lib/dom';
+import { copyTextPromiseToClipboard, copyToClipboard } from '../lib/dom';
 import { getCachedLongTextContent, type LongTextSource } from '../matrix/protocol/longText';
 import { hydrateCachedLongText } from '../event-store/cache/attachmentRepository';
 import {
@@ -40,29 +40,6 @@ export const resolveMessageCopyTexts = (
   return getMessageCopyTexts(source, scan);
 };
 
-const writeAsyncCopy = (textPromise: Promise<string>): Promise<boolean> => {
-  const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
-  if (clipboard?.write && typeof ClipboardItem !== 'undefined') {
-    // Start the clipboard write synchronously inside the click gesture so WebKit preserves user
-    // activation while the long-text sidecar hydrates.
-    const blobPromise = textPromise.then((text) => new Blob([text], { type: 'text/plain' }));
-    blobPromise.catch(() => undefined);
-    try {
-      const written = clipboard.write([new ClipboardItem({ 'text/plain': blobPromise })]);
-      return Promise.all([textPromise, written]).then(
-        () => true,
-        () => false
-      );
-    } catch {
-      // Fall back to copyToClipboard when Promise-backed ClipboardItem is unsupported.
-    }
-  }
-  return textPromise.then(
-    (text) => copyToClipboard(text),
-    () => false
-  );
-};
-
 /**
  * One-click Copy Text button on the message hover toolbar. Copies normal and cached long-text
  * messages synchronously, and hydrates uncached long-text sidecars lazily on click (never on
@@ -72,13 +49,11 @@ export function MessageToolbarCopyButton({
   content,
   originalContent,
   longTextSource,
-  resolvedLongTextContent,
   toolRows,
 }: {
   content: Record<string, unknown>;
   originalContent: Record<string, unknown>;
   longTextSource?: LongTextSource;
-  resolvedLongTextContent?: Record<string, unknown>;
   toolRows: boolean;
 }) {
   const { t } = useTranslation();
@@ -108,9 +83,9 @@ export function MessageToolbarCopyButton({
 
   const handleClick = () => {
     if (copyBusyRef.current) return;
-    const cachedResolved =
-      resolvedLongTextContent ??
-      (longTextSource ? getCachedLongTextContent(longTextSource, client) : undefined);
+    const cachedResolved = longTextSource
+      ? getCachedLongTextContent(longTextSource, client)
+      : undefined;
 
     if (!longTextSource || cachedResolved) {
       const text = resolveMessageCopyTexts(
@@ -137,7 +112,7 @@ export function MessageToolbarCopyButton({
       return text;
     })();
 
-    void writeAsyncCopy(textPromise)
+    void copyTextPromiseToClipboard(textPromise)
       .then(showCopied)
       .finally(() => {
         copyBusyRef.current = false;

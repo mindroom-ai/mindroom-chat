@@ -585,6 +585,7 @@ type MessageMenuContentProps = Pick<
   resolvedLongTextContent?: Record<string, unknown>;
   longTextSource?: LongTextSource;
   longTextLoading: boolean;
+  toolRows: boolean;
   canEdit: boolean;
   imagePackRooms: Room[];
   onOpenAiRun?: () => void;
@@ -684,8 +685,7 @@ function MessageMenuContent(props: MessageMenuContentProps) {
             content={content}
             originalContent={mEvent.getContent()}
             resolvedContent={props.resolvedLongTextContent}
-            // As the message is drawn (RenderMessageContent): only an agent's markers are rows.
-            toolRows={isMindroomAgentUserIdForViewer(senderId, client.getUserId() ?? undefined)}
+            toolRows={props.toolRows}
             loading={props.longTextLoading}
             onClose={onClose}
           />
@@ -1162,6 +1162,7 @@ export function Message({
             resolvedLongTextContent={resolvedLongTextContent}
             longTextSource={longTextSource}
             longTextLoading={longTextLoading}
+            toolRows={toolRows}
             canSendReaction={canSendReaction}
             canReplyInThread={canReplyInThread}
             canEdit={canEdit}
@@ -1250,7 +1251,6 @@ export function Message({
                 content={content}
                 originalContent={mEvent.getContent<Record<string, unknown>>()}
                 longTextSource={longTextSource}
-                resolvedLongTextContent={resolvedLongTextContent}
                 toolRows={toolRows}
               />
             )}
