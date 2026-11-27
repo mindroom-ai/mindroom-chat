@@ -4,6 +4,7 @@ import { isRecord } from '../../lib/isRecord';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
 import { getStreamStatusFromContent, STREAM_STATUS_KEY } from '../../matrix/protocol/aiRun';
+import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import {
   isThinkingPlaceholderBody,
   MINDROOM_THINKING_PLACEHOLDER_BODY,
@@ -341,7 +342,11 @@ export const useLiveReplyContent = (
         extra[LIVE_REASONING_SEGMENTS_KEY] = enrichmentDocs.segments;
       }
     }
-    if (enrichmentDocs.compactions && enrichmentDocs.compactions.length > 0) {
+    if (
+      !(COMPACTIONS_CONTENT_KEY in covered) &&
+      enrichmentDocs.compactions &&
+      enrichmentDocs.compactions.length > 0
+    ) {
       extra[LIVE_COMPACTIONS_KEY] = enrichmentDocs.compactions;
     }
     return Object.keys(extra).length > 0 ? { ...covered, ...extra } : covered;

@@ -11,6 +11,7 @@ import {
   LIVE_REASONING_SEGMENTS_KEY,
   useLiveReplyContent,
 } from './useLiveReplyContent';
+import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 
@@ -797,5 +798,70 @@ describe('useLiveReplyContent', () => {
     expect(shown()).not.toHaveProperty('io.mindroom.live_reasoning');
     expect(shown()).not.toHaveProperty(LIVE_REASONING_SEGMENTS_KEY);
     expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
+  });
+
+  it('does not overwrite durable io.mindroom.compactions with an older live frame on wait or expiry', () => {
+    const runningCompaction = [
+      { id: 'c1', phase: 'pre_turn', after_tool: 0, status: 'running', before_tokens: 120000 },
+    ];
+    const finishedCompaction = [
+      {
+        id: 'c1',
+        phase: 'pre_turn',
+        after_tool: 0,
+        status: 'success',
+        before_tokens: 120000,
+        after_tokens: 42000,
+      },
+    ];
+    ingest(snapshot(4, 'Frame four', 'Weighing options', SEGMENTS, runningCompaction));
+
+    // Covering durable checkpoint carries updated compaction status: live compactions must not override it.
+    render(
+      durable('streaming', {
+        'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+        [COMPACTIONS_CONTENT_KEY]: finishedCompaction,
+      })
+    );
+    expect(shown()[COMPACTIONS_CONTENT_KEY]).toEqual(finishedCompaction);
+    expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
+
+    // Covering durable checkpoint carrying an explicit empty list [] is also preserved.
+    act(() => {
+      renderer?.update(
+        <Harness
+          mx={mx}
+          event={replyEvent()}
+          content={durable('streaming', {
+            'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+            [COMPACTIONS_CONTENT_KEY]: [],
+          })}
+        />
+      );
+    });
+    expect(shown()[COMPACTIONS_CONTENT_KEY]).toEqual([]);
+    expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
+
+    // After 12s expiry while still streaming, durable compactions remain untouched...
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    expect(shown()[COMPACTIONS_CONTENT_KEY]).toEqual([]);
+    expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
+
+    // ...while durable content omitting io.mindroom.compactions still receives the live compactions.
+    act(() => {
+      renderer?.update(
+        <Harness
+          mx={mx}
+          event={replyEvent()}
+          content={durable('streaming', {
+            'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+          })}
+        />
+      );
+    });
+    expect(shown()[LIVE_COMPACTIONS_KEY]).toEqual(runningCompaction);
   });
 });

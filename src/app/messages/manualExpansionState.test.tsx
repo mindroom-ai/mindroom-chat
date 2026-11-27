@@ -107,6 +107,33 @@ describe('manualExpansionState disclosure helpers', () => {
     expect(state.get(key1)).toBe(true);
   });
 
+  it('promotes a closed disclosure to open when newly joined keys are persisted open', () => {
+    const state = new Map<string, boolean>();
+    const scope = replyDisclosureScope('!room:example.org', '$reply')!;
+    const key1 = `${scope}tool-run:1`;
+    const key2 = `${scope}tool-run:2`;
+
+    mount(state, [key1]);
+    expect(isOpen()).toBe(false);
+    state.set(key2, true);
+
+    act(() => {
+      renderer!.update(
+        <ManualExpansionStateContext.Provider value={state}>
+          <DisclosureHarness keys={[key1, key2]} />
+        </ManualExpansionStateContext.Provider>
+      );
+    });
+    expect(isOpen()).toBe(true);
+    expect(state.get(key1)).toBe(true);
+    expect(state.get(key2)).toBe(true);
+
+    toggle();
+    expect(isOpen()).toBe(false);
+    expect(state.has(key1)).toBe(false);
+    expect(state.has(key2)).toBe(false);
+  });
+
   it('clearBulkExpansionOverrides clears outer keys while preserving disclosure keys', () => {
     const scope = replyDisclosureScope('!room:example.org', '$reply')!;
     const state = new Map<string, boolean>([
@@ -148,5 +175,16 @@ describe('manualExpansionState disclosure helpers', () => {
 
     state.set(`${scope}reasoning`, true);
     expect(hasOpenReplyDisclosure(state, scope, { toolsShown: false })).toBe(true);
+  });
+
+  it('hasOpenReplyDisclosure ignores nested tool-result entries even when tools are shown', () => {
+    const scope = replyDisclosureScope('!room:example.org', '$reply')!;
+    const state = new Map<string, boolean>([[`${scope}tool-result:1`, true]]);
+
+    expect(hasOpenReplyDisclosure(state, scope, { toolsShown: true })).toBe(false);
+    expect(hasOpenReplyDisclosure(state, scope, { toolsShown: false })).toBe(false);
+
+    state.set(`${scope}tool-run:1`, true);
+    expect(hasOpenReplyDisclosure(state, scope, { toolsShown: true })).toBe(true);
   });
 });

@@ -46,6 +46,15 @@ export const clearBulkExpansionOverrides = (state: Map<string, boolean>): void =
   }
 };
 
+const readPersistedOpen = (
+  state: ReadonlyMap<string, boolean> | undefined,
+  keys: string | readonly string[] | undefined
+): boolean => {
+  if (!state || keys === undefined) return false;
+  if (typeof keys === 'string') return state.get(keys) === true;
+  return keys.some((key) => state.get(key) === true);
+};
+
 const readPersistedDisclosure = (
   state: ReadonlyMap<string, boolean> | undefined,
   keys: string | readonly string[] | undefined,
@@ -54,7 +63,7 @@ const readPersistedDisclosure = (
   if (!state || keys === undefined) return defaultOpen;
   if (typeof keys === 'string') return state.get(keys) ?? defaultOpen;
   if (keys.length === 0) return defaultOpen;
-  return keys.some((key) => state.get(key) === true) || defaultOpen;
+  return readPersistedOpen(state, keys) || defaultOpen;
 };
 
 /**
@@ -75,6 +84,17 @@ export const usePersistedDisclosure = (
   const keysRef = useRef(keys);
   keysRef.current = keys;
   const keySignature = keys === undefined ? '' : typeof keys === 'string' ? keys : keys.join('\0');
+  const [prevKeySignature, setPrevKeySignature] = useState(keySignature);
+
+  // If a mounted disclosure gains keys (e.g. adjacent tool groups merging when thinking closes)
+  // and any member is already persisted open, promote the merged disclosure to open.
+  if (keySignature !== prevKeySignature) {
+    setPrevKeySignature(keySignature);
+    if (!open && readPersistedOpen(state, keys)) {
+      openRef.current = true;
+      setOpenState(true);
+    }
+  }
 
   // If a multi-key disclosure (e.g. a growing tool run) gains keys while open, persist the new
   // keys so a subsequent split keeps every member open.

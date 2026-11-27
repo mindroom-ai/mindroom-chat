@@ -1,8 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Spinner, Text as FText, config } from 'folds';
-import type { MatrixClient } from 'matrix-js-sdk';
-import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useMatrixClient, useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { trimReplyFromBody } from '../../matrix/room';
 
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
@@ -162,14 +161,6 @@ export const useLongTextResolvedContent = (
   return source ? getCachedLongTextContent(source, mx) : undefined;
 };
 
-const useOptionalLongTextMatrixClient = (): MatrixClient | undefined => {
-  try {
-    return useMatrixClient();
-  } catch {
-    return undefined;
-  }
-};
-
 export function LongTextText({
   kind,
   displayName,
@@ -185,25 +176,27 @@ export function LongTextText({
   hydrate = true,
 }: LongTextTextProps) {
   const { t } = useTranslation();
-  const mx = useOptionalLongTextMatrixClient();
-  const activeSource = mx ? longTextSource : undefined;
-  const hasActiveSource = activeSource !== undefined;
-  const hydrationIdentity = activeSource
-    ? getLongTextHydrationIdentity(content, activeSource)
+  const mx = useOptionalMatrixClient();
+  const activeSidecar = mx && longTextSource ? { mx, source: longTextSource } : undefined;
+  const hasActiveSource = activeSidecar !== undefined;
+  const hydrationIdentity = activeSidecar
+    ? getLongTextHydrationIdentity(content, activeSidecar.source)
     : undefined;
   const hydrationInputRef = useRef(
-    activeSource
+    activeSidecar
       ? {
           content,
-          encryptedFile: activeSource.encryptedFile,
-          isV2ContentJson: activeSource.isV2ContentJson,
-          mxcUri: activeSource.mxcUri,
-          owner: activeSource.owner,
+          encryptedFile: activeSidecar.source.encryptedFile,
+          isV2ContentJson: activeSidecar.source.isV2ContentJson,
+          mxcUri: activeSidecar.source.mxcUri,
+          owner: activeSidecar.source.owner,
         }
       : undefined
   );
   const [loading, setLoading] = useState(() =>
-    Boolean(activeSource && mx && hydrate && !getCachedLongTextContent(activeSource, mx))
+    Boolean(
+      activeSidecar && hydrate && !getCachedLongTextContent(activeSidecar.source, activeSidecar.mx)
+    )
   );
   const [settledHydrationIdentity, setSettledHydrationIdentity] = useState<string>();
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
@@ -213,8 +206,9 @@ export function LongTextText({
   // keep the cheap preview (PR #110's guard) even when their sidecar is
   // already warm.
   const [resolvedContent, setResolvedContent] = useState<Record<string, unknown> | undefined>(() =>
-    activeSource && mx
-      ? ((hydrate ? getCachedLongTextContent(activeSource, mx) : undefined) ?? content)
+    activeSidecar
+      ? ((hydrate ? getCachedLongTextContent(activeSidecar.source, activeSidecar.mx) : undefined) ??
+        content)
       : undefined
   );
 
@@ -229,13 +223,13 @@ export function LongTextText({
     setLoading(false);
   }
 
-  hydrationInputRef.current = activeSource
+  hydrationInputRef.current = activeSidecar
     ? {
         content,
-        encryptedFile: activeSource.encryptedFile,
-        isV2ContentJson: activeSource.isV2ContentJson,
-        mxcUri: activeSource.mxcUri,
-        owner: activeSource.owner,
+        encryptedFile: activeSidecar.source.encryptedFile,
+        isV2ContentJson: activeSidecar.source.isV2ContentJson,
+        mxcUri: activeSidecar.source.mxcUri,
+        owner: activeSidecar.source.owner,
       }
     : undefined;
 
@@ -342,8 +336,10 @@ export function LongTextText({
   // module cache for the current source; the effect converges state to the
   // same value.
   const warmResolvedContent =
-    activeSource && mx && hydrate ? getCachedLongTextContent(activeSource, mx) : undefined;
-  const rawDisplayContent = activeSource
+    activeSidecar && hydrate
+      ? getCachedLongTextContent(activeSidecar.source, activeSidecar.mx)
+      : undefined;
+  const rawDisplayContent = activeSidecar
     ? (warmResolvedContent ?? resolvedContent ?? content)
     : content;
   const displayContent = useMemo(

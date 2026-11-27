@@ -67,11 +67,17 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
   const scope = replyDisclosureScope(message?.roomId, message?.eventId);
   const manualExpansionState = useContext(ManualExpansionStateContext);
   const expandAllInit = useContext(ExpandAllInitContext);
-  const [open, setOpen] = useState(
-    () => manualExpansionState?.get(foldKey) ?? expandAllInit ?? false
-  );
-  const [wasFolded, setWasFolded] = useState(!!folded);
   const persistAutoOpenRef = useRef(false);
+  const [open, setOpen] = useState(() => {
+    const saved = manualExpansionState?.get(foldKey);
+    if (saved !== undefined) return saved;
+    if (folded && hasOpenReplyDisclosure(manualExpansionState, scope, { toolsShown })) {
+      persistAutoOpenRef.current = true;
+      return true;
+    }
+    return expandAllInit ?? false;
+  });
+  const [wasFolded, setWasFolded] = useState(!!folded);
   const previousExpandAllInitRef = useRef(expandAllInit);
   // While the work slides open or folds back; folding, it stays mounted until it has folded.
   const [moving, setMoving] = useState<'opening' | 'closing'>();
