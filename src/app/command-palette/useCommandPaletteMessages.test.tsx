@@ -2,7 +2,13 @@
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
-import { Direction, EventType, RelationType, type ISearchResponse } from 'matrix-js-sdk';
+import {
+  Direction,
+  EventType,
+  MatrixEvent,
+  RelationType,
+  type ISearchResponse,
+} from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -750,6 +756,207 @@ describe('useCommandPaletteMessages', () => {
       EventType.RoomMessage,
       { dir: Direction.Backward, limit: 50 }
     );
+  });
+
+  it('resolves bundled io.mindroom.title on long-thread /relations originalEvent and local root events', async () => {
+    const roomId = '!ops:example.org';
+    const makeBundledTitle = (rootId: string, summaryEventId: string, title: string) => ({
+      'm.relations': {
+        'm.thread': {
+          count: 80,
+          'io.mindroom.title': {
+            event_id: summaryEventId,
+            sender: '@mindroom_helper:example.org',
+            type: 'm.room.message',
+            origin_server_ts: 1_700_000_002_000,
+            content: {
+              msgtype: 'm.notice',
+              body: title,
+              'io.mindroom.thread_summary': { version: 1, summary: title },
+              'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+            },
+          },
+        },
+      },
+    });
+
+    // Long thread (>50 replies): /relations returns 0 summary notices in events, but originalEvent bundles io.mindroom.title.
+    client.relations.mockResolvedValue({
+      events: [],
+      originalEvent: new MatrixEvent({
+        event_id: '$longRoot',
+        room_id: roomId,
+        sender: '@alice:example.org',
+        origin_server_ts: 1_700_000_000_000,
+        type: 'm.room.message',
+        content: { msgtype: 'm.text', body: 'Opening long thread' },
+        unsigned: makeBundledTitle('$longRoot', '$longTitleEvt', 'Long thread bundled title'),
+      }),
+    });
+
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+
+    const longReplyRes = responseWith('$longReply', 'walrus reply #75');
+    const [longReplyHit] = longReplyRes.search_categories.room_events.results ?? [];
+    if (!longReplyHit) throw new Error('no hit');
+    longReplyHit.result.content = {
+      msgtype: 'm.text',
+      body: 'walrus reply #75',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$longRoot' },
+    };
+
+    // Direct root search hit carrying bundled io.mindroom.title resolves locally without /relations.
+    const localBundledRootRes = responseWith('$localBundledRoot', 'Local walrus root');
+    const [localBundledRootHit] = localBundledRootRes.search_categories.room_events.results ?? [];
+    if (!localBundledRootHit) throw new Error('no hit');
+    localBundledRootHit.result.unsigned = makeBundledTitle(
+      '$localBundledRoot',
+      '$localTitleEvt',
+      'Local bundled root title'
+    );
+
+    longReplyRes.search_categories.room_events.results = [longReplyHit, localBundledRootHit];
+    await act(async () => pending[0]?.resolve(longReplyRes));
+
+    await waitFor(() =>
+      expect(result.current.items).toMatchObject([
+        { id: 'message:!ops:example.org:$longReply', threadName: 'Long thread bundled title' },
+        {
+          id: 'message:!ops:example.org:$localBundledRoot',
+          threadName: 'Local bundled root title',
+        },
+      ])
+    );
+    expect(client.relations).toHaveBeenCalledTimes(1);
+    expect(client.relations).toHaveBeenCalledWith(
+      roomId,
+      '$longRoot',
+      RelationType.Thread,
+      EventType.RoomMessage,
+      { dir: Direction.Backward, limit: 50 }
+    );
+  });
+
+  it('ignores primarySummaryText root fallback on untitled crossRoomThreadIndex entries', async () => {
+    const roomId = '!ops:example.org';
+    const sessionId = 'session-idx-1';
+    activeSession.current = { sessionId };
+    storeThreadSummaryInState(sessionId, roomId, '$idxCachedTitledRoot', {
+      summaryText: 'Cached summary state title',
+    });
+    const untitledKey = getCrossRoomThreadIndexKey(roomId, '$idxUntitledRoot');
+    const cachedTitledKey = getCrossRoomThreadIndexKey(roomId, '$idxCachedTitledRoot');
+    const serverTitledKey = getCrossRoomThreadIndexKey(roomId, '$idxServerTitledRoot');
+    const makeUntitledIndexEntry = (key: string, rootId: string, rootText: string) =>
+      ({
+        key,
+        roomId,
+        threadRootId: rootId,
+        // Mirrors crossRoomThreadIndex: entry.summaryText falls back to primarySummaryText (root body)
+        // even when threadRecord.presentation.summaryText is undefined.
+        summaryText: rootText,
+        rootPreviewText: rootText,
+        threadRecord: {
+          presentation: {
+            summaryText: undefined,
+            primarySummaryText: rootText,
+            rootPreviewText: rootText,
+          },
+        },
+      }) as unknown as CrossRoomThreadIndexEntry;
+
+    store.set(crossRoomThreadIndexAtom, {
+      ...emptyCrossRoomThreadIndexSnapshot(),
+      entries: new Map([
+        [
+          untitledKey,
+          makeUntitledIndexEntry(untitledKey, '$idxUntitledRoot', 'Walrus opening note'),
+        ],
+        [
+          cachedTitledKey,
+          makeUntitledIndexEntry(
+            cachedTitledKey,
+            '$idxCachedTitledRoot',
+            'Walrus cached root text'
+          ),
+        ],
+        [
+          serverTitledKey,
+          makeUntitledIndexEntry(serverTitledKey, '$idxServerTitledRoot', 'Walrus stale root text'),
+        ],
+      ]),
+    });
+
+    client.relations.mockImplementation(async (_roomId: string, threadId: string) =>
+      threadId === '$idxServerTitledRoot'
+        ? {
+            events: [summaryMatrixEvent('$srvSum', 'Recovered server title')],
+            originalEvent: {
+              getContent: () => ({ msgtype: 'm.text', body: 'Walrus stale root text' }),
+            },
+          }
+        : {
+            events: [],
+            originalEvent: {
+              getContent: () => ({ msgtype: 'm.text', body: 'Walrus opening note' }),
+            },
+          }
+    );
+
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+
+    const untitledRootRes = responseWith('$idxUntitledRoot', 'Walrus opening note');
+    const untitledReplyRes = responseWith('$idxUntitledReply', 'walrus follow-up');
+    const cachedTitledRootRes = responseWith('$idxCachedTitledRoot', 'Walrus cached root text');
+    const serverTitledRootRes = responseWith('$idxServerTitledRoot', 'Walrus stale root text');
+    const serverTitledReplyRes = responseWith('$idxServerTitledReply', 'walrus detail');
+    const untitledReplyHit = untitledReplyRes.search_categories.room_events.results?.[0];
+    const serverTitledReplyHit = serverTitledReplyRes.search_categories.room_events.results?.[0];
+    if (!untitledReplyHit || !serverTitledReplyHit) throw new Error('no hit');
+    untitledReplyHit.result.content = {
+      msgtype: 'm.text',
+      body: 'walrus follow-up',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$idxUntitledRoot' },
+    };
+    serverTitledReplyHit.result.content = {
+      msgtype: 'm.text',
+      body: 'walrus detail',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$idxServerTitledRoot' },
+    };
+
+    untitledRootRes.search_categories.room_events.results?.push(
+      untitledReplyHit,
+      ...(cachedTitledRootRes.search_categories.room_events.results ?? []),
+      ...(serverTitledRootRes.search_categories.room_events.results ?? []),
+      serverTitledReplyHit
+    );
+    await act(async () => pending[0]?.resolve(untitledRootRes));
+
+    await waitFor(() =>
+      expect(result.current.items).toMatchObject([
+        // Truly untitled root never repeats its own text as the breadcrumb title.
+        { id: 'message:!ops:example.org:$idxUntitledRoot', threadName: '' },
+        // Truly untitled reply falls back to rootPreviewText.
+        { id: 'message:!ops:example.org:$idxUntitledReply', threadName: 'Walrus opening note' },
+        // Cached threadSummaryState title is not suppressed by entry.summaryText and skips /relations.
+        {
+          id: 'message:!ops:example.org:$idxCachedTitledRoot',
+          threadName: 'Cached summary state title',
+        },
+        // Both root and reply recover the true title via /relations instead of being suppressed.
+        {
+          id: 'message:!ops:example.org:$idxServerTitledRoot',
+          threadName: 'Recovered server title',
+        },
+        {
+          id: 'message:!ops:example.org:$idxServerTitledReply',
+          threadName: 'Recovered server title',
+        },
+      ])
+    );
+    expect(client.relations).toHaveBeenCalledTimes(2);
   });
 
   it('reports a failed search as an error', async () => {
