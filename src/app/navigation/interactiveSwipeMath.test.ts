@@ -6,9 +6,11 @@ import {
   MAX_VERTICAL_DRIFT,
   PANEL_DISCRETE_MIN_PX,
   SWIPE_COMMIT_RATIO,
+  SWIPE_DECELERATION_RATE,
   SWIPE_FLICK_MIN_PX,
   SWIPE_FLICK_VELOCITY,
   SWIPE_LOCK_SLOP_PX,
+  SWIPE_PROJECTION_MS,
   SWIPE_REVERSAL_VELOCITY,
   SWIPE_VELOCITY_WINDOW_MS,
 } from './interactiveSwipeMath';
@@ -20,6 +22,8 @@ describe('interactiveSwipeMath', () => {
     expect(SWIPE_COMMIT_RATIO).toBe(0.35);
     expect(SWIPE_FLICK_MIN_PX).toBe(24);
     expect(SWIPE_FLICK_VELOCITY).toBe(0.45);
+    expect(SWIPE_DECELERATION_RATE).toBe(0.998);
+    expect(SWIPE_PROJECTION_MS).toBeCloseTo(499);
     expect(SWIPE_REVERSAL_VELOCITY).toBe(-0.3);
     expect(SWIPE_VELOCITY_WINDOW_MS).toBe(100);
     expect(EDGE_DISCRETE_MIN_PX).toBe(72);
@@ -150,8 +154,8 @@ describe('interactiveSwipeMath', () => {
       discreteMinPx: EDGE_DISCRETE_MIN_PX,
     });
     shortTracker.move(10, 100, 20, extent);
-    shortTracker.move(149, 100, 500, extent); // offset 139 < 140 (35%)
-    expect(shortTracker.shouldCommit(extent)).toBe(false);
+    shortTracker.move(149, 100, 1520, extent); // offset 139 < 140 (35%), slow ~0.093 px/ms
+    expect(shortTracker.shouldCommit(extent, 1520)).toBe(false);
 
     const longTracker = createSwipeTracker({
       startX: 0,
@@ -161,8 +165,8 @@ describe('interactiveSwipeMath', () => {
       discreteMinPx: EDGE_DISCRETE_MIN_PX,
     });
     longTracker.move(10, 100, 20, extent);
-    longTracker.move(150, 100, 500, extent); // offset 140 === 35%
-    expect(longTracker.shouldCommit(extent)).toBe(true);
+    longTracker.move(150, 100, 1520, extent); // offset 140 === 35%
+    expect(longTracker.shouldCommit(extent, 1700)).toBe(true); // stationary >= 35% commits
   });
 
   it('commits on quick flick >= 24px and >= 0.45 px/ms, but not below 24px', () => {
@@ -224,6 +228,119 @@ describe('interactiveSwipeMath', () => {
     heldFar.move(310, 100, 50, extent); // offset 300, fast velocity 6.2 px/ms
     expect(heldFar.settleDurationMs(false, extent, 50)).toBe(120);
     expect(heldFar.settleDurationMs(false, extent, 300)).toBe(180);
+  });
+
+  const createEdgeTracker = () =>
+    createSwipeTracker({
+      startX: 0,
+      startY: 200,
+      startTimeMs: 0,
+      axisSign: 1,
+      discreteMinPx: EDGE_DISCRETE_MIN_PX,
+    });
+
+  it('preserves velocity on stationary touchend lift after a sparse flick', () => {
+    const tracker = createEdgeTracker();
+    tracker.move(12, 200, 20, 390);
+    tracker.move(64, 200, 110, 390);
+    tracker.move(64, 200, 126, 390); // stationary lift 16ms later
+    expect(tracker.offset).toBe(54);
+    expect(tracker.velocity).toBeCloseTo(52 / 90, 3);
+    expect(tracker.shouldCommit(390, 126)).toBe(true);
+  });
+
+  it('decays velocity to 0 and cancels when y-jitter arrives while holding past 100ms', () => {
+    const tracker = createEdgeTracker();
+    tracker.move(12, 200, 20, 390);
+    tracker.move(70, 200, 60, 390);
+    expect(tracker.velocity).toBeGreaterThanOrEqual(SWIPE_FLICK_VELOCITY);
+    tracker.move(70, 202, 110, 390);
+    tracker.move(70, 199, 170, 390);
+    expect(tracker.velocity).toBe(0);
+    expect(tracker.shouldCommit(390, 170)).toBe(false);
+  });
+
+  it('resets sample baseline after a >100ms hold so a resumed flick commits', () => {
+    const tracker = createSwipeTracker({
+      startX: 8,
+      startY: 200,
+      startTimeMs: 0,
+      axisSign: 1,
+      discreteMinPx: EDGE_DISCRETE_MIN_PX,
+    });
+    tracker.move(20, 200, 20, 390);
+    tracker.move(20, 202, 250, 390); // held >100ms with slight vertical drift
+    expect(tracker.velocity).toBe(0);
+    tracker.move(65, 202, 280, 390); // resumed flick: 45px in 30ms -> 1.5 px/ms, offset 47
+    tracker.move(65, 202, 296, 390); // stationary lift 16ms later
+    expect(tracker.offset).toBe(47);
+    expect(tracker.velocity).toBeCloseTo(1.5);
+    expect(tracker.shouldCommit(390, 296)).toBe(true);
+  });
+
+  it('updates offset and cancels when lift coordinates reverse backward', () => {
+    const tracker = createEdgeTracker();
+    tracker.move(10, 200, 20, 400);
+    tracker.move(180, 200, 300, 400); // offset 170 (42.5% >= 35%)
+    expect(tracker.shouldCommit(400, 300)).toBe(true);
+    tracker.move(160, 200, 340, 400); // reversal on lift: -20px / 40ms = -0.5 px/ms
+    expect(tracker.offset).toBe(150);
+    expect(tracker.velocity).toBeCloseTo(-0.5);
+    expect(tracker.shouldCommit(400, 340)).toBe(false);
+  });
+
+  it('cancels a pull-back reversal followed by a stationary lift below 50% extent', () => {
+    const tracker = createSwipeTracker({
+      startX: 8,
+      startY: 200,
+      startTimeMs: 0,
+      axisSign: 1,
+      discreteMinPx: EDGE_DISCRETE_MIN_PX,
+    });
+    const xs = [40, 72, 104, 136, 168, 200, 208, 198, 188, 178, 168];
+    xs.forEach((x, index) => {
+      tracker.move(x, 200, (index + 1) * 16, 390);
+    });
+    expect(tracker.offset).toBe(150); // 38.5% (>= 35%, < 50%)
+    expect(tracker.velocity).toBe(0); // cached at t=176 still includes {168, 80}
+
+    tracker.move(168, 200, 192, 390); // stationary lift prunes {168, 80} -> -0.40 px/ms
+    expect(tracker.shouldCommit(390, 192)).toBe(false);
+  });
+
+  it('does not dilute initial flick velocity after resting stationary at the edge', () => {
+    const tracker = createEdgeTracker();
+    tracker.move(0, 201, 250, 390);
+    tracker.move(0, 200, 500, 390);
+    tracker.move(50, 200, 550, 390); // 50px in 50ms -> 1.0 px/ms, offset 40
+    expect(tracker.offset).toBe(40);
+    expect(tracker.velocity).toBeCloseTo(1.0);
+    expect(tracker.shouldCommit(390, 566)).toBe(true);
+  });
+
+  it('commits relaxed swipes via iOS momentum projection and cancels tiny brushes/peeks', () => {
+    // Offset 90 (< 35%) at 0.25 px/ms (< 0.45): projects to 90 + 124.75 = 214.75 >= 195 (50%).
+    const relaxed = createEdgeTracker();
+    relaxed.move(80, 200, 320, 390);
+    relaxed.move(100, 200, 400, 390);
+    expect(relaxed.offset).toBe(90);
+    expect(relaxed.velocity).toBeCloseTo(0.25);
+    expect(relaxed.shouldCommit(390, 416)).toBe(true);
+
+    // Tiny brush (< 24px) cancels even though projection would cross 50%.
+    const tinyBrush = createEdgeTracker();
+    tinyBrush.move(10, 200, 25, 390);
+    tinyBrush.move(33, 200, 85, 390); // offset 23, v ~0.388 px/ms
+    expect(tinyBrush.offset).toBe(23);
+    expect(tinyBrush.shouldCommit(390, 95)).toBe(false);
+
+    // Slow peek (< 35%) whose projection stays under 50% still cancels.
+    const slowPeek = createEdgeTracker();
+    slowPeek.move(80, 200, 500, 390);
+    slowPeek.move(90, 200, 600, 390); // offset 80, v = 0.1 px/ms -> projects to 129.9 < 195
+    expect(slowPeek.offset).toBe(80);
+    expect(slowPeek.velocity).toBeCloseTo(0.1);
+    expect(slowPeek.shouldCommit(390, 616)).toBe(false);
   });
 
   it('cancels on decisive reversal below 50% extent, but commits at >= 50%', () => {
