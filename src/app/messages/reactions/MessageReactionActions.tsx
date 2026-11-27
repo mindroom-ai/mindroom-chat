@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Relations, Room } from 'matrix-js-sdk';
-import { Box, IconButton, Icons, Text } from 'folds';
+import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { Modal } from '../../ui/glass/GlassPrimitives';
 import { MenuEntry } from '../../ui/MenuEntry';
 import { ModalLayer } from '../../ui/ModalLayer';
@@ -60,21 +60,34 @@ const unicodeEmojiName = (emoji: RecentEmoji): string => {
 export function MessageQuickReactions({
   imagePackRooms,
   onReaction,
+  onAddReaction,
 }: {
   imagePackRooms: Room[];
   /** Called with the chosen emoji; custom emoji come from the packs of `imagePackRooms`. */
   onReaction: ReactionHandler;
+  /** Opens the full emoji picker at the strip's end, or as a fallback row when recent is empty. */
+  onAddReaction?: () => void;
 }) {
+  const { t } = useTranslation();
   const client = useMatrixClient();
   // Custom emoji load through authenticated media when the server supports it.
   const authenticatedMedia = useMediaAuthentication();
   const packs = useRelevantImagePacks(ImageUsage.Emoticon, imagePackRooms);
   const recent = useRecentEmoji(client, QUICK_REACTION_COUNT, packs);
 
-  if (recent.length === 0) return null;
+  if (recent.length === 0) {
+    if (!onAddReaction) return null;
+    return (
+      <MenuEntry
+        label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+        icon={Icons.SmilePlus}
+        onSelect={onAddReaction}
+      />
+    );
+  }
 
   return (
-    <Box alignItems="Center" justifyContent="Center" gap="200" style={{ padding: '0.25rem' }}>
+    <Box alignItems="Center" justifyContent="Center" gap="100">
       {recent.map((emoji) => {
         if (isCustomEmoji(emoji)) {
           const src = mxcUrlToHttp(client, emoji.url, authenticatedMedia) ?? emoji.url;
@@ -105,6 +118,14 @@ export function MessageQuickReactions({
           </QuickReaction>
         );
       })}
+      {onAddReaction && (
+        <QuickReaction
+          label={t('mindroomUi.messages.mindroomMessage.addReaction')}
+          onSelect={onAddReaction}
+        >
+          <Icon size="100" src={Icons.SmilePlus} />
+        </QuickReaction>
+      )}
     </Box>
   );
 }

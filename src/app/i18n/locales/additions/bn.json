@@ -1130,6 +1130,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "কপি",
+        "copyAndForkSection": "কপি ও শাখা তৈরি"
+      },
       "mindroomReasoning": {
         "hide": "চিন্তা লুকান",
         "thought": "ভেবেছে"

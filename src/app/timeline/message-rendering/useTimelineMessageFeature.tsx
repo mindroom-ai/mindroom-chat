@@ -855,6 +855,7 @@ export const useTimelineMessageFeature = ({
             messageLayout={messageLayout}
             messageSpacing={messageSpacing}
             onReplyClick={readOnly ? undefined : handleReplyClick}
+            canReplyInThread={!threadId}
             onOpenInOriginalThread={
               prefixThreadId
                 ? () => navigateRoomThread(eventRoom.roomId, prefixThreadId, eventId)

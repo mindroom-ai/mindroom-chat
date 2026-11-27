@@ -1112,6 +1112,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "コピー",
+        "copyAndForkSection": "コピーと分岐"
+      },
       "mindroomReasoning": {
         "hide": "思考を隠す",
         "thought": "考えました"

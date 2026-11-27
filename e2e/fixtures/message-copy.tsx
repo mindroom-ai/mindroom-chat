@@ -1,5 +1,4 @@
 import { createRoot } from 'react-dom/client';
-import { Box } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource-variable/inter';
 import '../../src/index.css';
@@ -7,8 +6,9 @@ import '../../src/app/i18n/i18n';
 import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { Menu } from '../../src/app/ui/glass/GlassPrimitives';
+import { MenuGroup } from '../../src/app/ui/MenuEntry';
 import { MessageCopyTextItem } from '../../src/app/messages/Message';
-import { MessageMenuGroup } from '../../src/app/messages/styles.css';
+import { MessageMenuRows } from '../../src/app/messages/styles.css';
 import { showToolCalls } from '../../src/test/utils/showToolCalls';
 
 // The page shows agent replies' tool calls, which the app hides until the reader shows them.
@@ -50,9 +50,11 @@ const content: Record<string, unknown> = plain
 createRoot(document.getElementById('root')!).render(
   <div style={{ padding: 16 }}>
     <Menu style={{ width: 'min(100%, 16rem)' }}>
-      <Box direction="Column" gap="100" className={MessageMenuGroup}>
-        <MessageCopyTextItem content={content} toolRows />
-      </Box>
+      <div className={MessageMenuRows}>
+        <MenuGroup>
+          <MessageCopyTextItem content={content} toolRows />
+        </MenuGroup>
+      </div>
     </Menu>
   </div>
 );

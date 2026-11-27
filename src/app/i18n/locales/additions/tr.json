@@ -1130,6 +1130,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "Kopyala",
+        "copyAndForkSection": "Kopyala ve ayır"
+      },
       "mindroomReasoning": {
         "hide": "Düşünmeyi gizle",
         "thought": "Düşündü"

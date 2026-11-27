@@ -1,4 +1,5 @@
 import {
+  Fragment,
   useCallback,
   useMemo,
   useRef,
@@ -22,10 +23,10 @@ import {
   IconButton,
   Icons,
   Line,
-  Scroll,
   Text,
   color,
   config,
+  toRem,
   type IconSrc,
   type RectCords,
 } from 'folds';
@@ -33,7 +34,7 @@ import { PopOut } from '../ui/directional';
 import { DialogOpenerContext } from '../ui/ModalLayer';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { ActionDialog } from '../ui/ActionDialog';
-import { MenuEntry } from '../ui/MenuEntry';
+import { MenuEntry, MenuGroup } from '../ui/MenuEntry';
 import { ForkIcon } from './ForkIcon';
 import { IconTooltip } from '../ui/IconTooltip';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
@@ -64,7 +65,7 @@ import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity
 import type { LongTextSource } from '../matrix/protocol/longText';
 import { getViaServers } from '../matrix/via-servers';
 import { MessageEditor } from './edit/MessageEditor';
-import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
+import { MessageBugReportItem, useCanReportMessageBug } from '../bug-reports/MessageBugReportItem';
 import { useThreadPinning } from '../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { AvatarModelMark, ModelBadge } from './agent-run/ModelBadge';
@@ -105,28 +106,6 @@ type ToolbarActionProps = {
   /** Moves a glyph that is drawn off-centre in its box back to the middle of the button. */
   iconClassName?: string;
 };
-
-/** Message menu actions kept behind Developer Tools, mounted only while the menu is open. */
-function DeveloperMessageMenuItems({
-  room,
-  mEvent,
-  longTextSource,
-  onClose,
-}: {
-  room: Room;
-  mEvent: MatrixEvent;
-  longTextSource?: LongTextSource;
-  onClose: () => void;
-}) {
-  const [developerTools] = useSetting(settingsAtom, 'developerTools');
-  if (!developerTools) return null;
-  return (
-    <>
-      {longTextSource && <DownloadOriginalMenuItem source={longTextSource} onClose={onClose} />}
-      <MessageSourceCodeItem room={room} mEvent={mEvent} onClose={onClose} />
-    </>
-  );
-}
 
 /** An icon button of the hover toolbar, which shows its name in a tooltip above it. */
 function ToolbarAction({
@@ -371,22 +350,22 @@ function MessageCopyLinkItem({
 }
 
 function MessagePinItem({
-  room,
-  mEvent,
+  eventId,
+  pinned,
+  updating,
+  onTogglePin,
   onClose,
 }: {
-  room: Room;
-  mEvent: MatrixEvent;
+  eventId: string;
+  pinned: boolean;
+  updating: boolean;
+  onTogglePin: (eventId: string, pinned: boolean) => Promise<boolean>;
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
-  const { pinnedEventIds, canPin, setPinned, updating } = useThreadPinning(room);
   const [failed, setFailed] = useState(false);
-  const eventId = mEvent.getId();
-  if (!eventId || !canPin) return null;
-  const pinned = pinnedEventIds.includes(eventId);
   const handlePin = async () => {
-    const saved = await setPinned(eventId, !pinned);
+    const saved = await onTogglePin(eventId, !pinned);
     setFailed(!saved);
     if (saved) onClose?.();
   };
@@ -567,6 +546,8 @@ export type MessageProps = MessageSubject &
     onUsernameClick?: MouseEventHandler<HTMLButtonElement>;
     /** Reply to this message, or start (or continue) its thread. */
     onReplyClick?: (eventId: string, startThread?: boolean) => void;
+    /** Whether "Reply in Thread" is offered (false when already viewing inside a thread). */
+    canReplyInThread?: boolean;
     /** A message shown in a thread it does not belong to (a fork's prefix): opens it in its own. */
     onOpenInOriginalThread?: () => void;
     /** Starts a fork of the message's thread that holds the thread up to this message. */
@@ -584,6 +565,223 @@ export type MessageProps = MessageSubject &
     'data-message-id'?: string;
     ref?: Ref<HTMLDivElement>;
   };
+
+type MessageMenuContentProps = Pick<
+  MessageProps,
+  | 'room'
+  | 'mEvent'
+  | 'canDelete'
+  | 'canPinEvent'
+  | 'canSendReaction'
+  | 'canReplyInThread'
+  | 'hideReadReceipts'
+  | 'relations'
+  | 'onReplyClick'
+  | 'onOpenInOriginalThread'
+  | 'onForkClick'
+  | 'onForkToRoomClick'
+  | 'onReactionToggle'
+> & {
+  content: Record<string, unknown>;
+  resolvedLongTextContent?: Record<string, unknown>;
+  longTextSource?: LongTextSource;
+  longTextLoading: boolean;
+  canEdit: boolean;
+  imagePackRooms: Room[];
+  onOpenAiRun?: () => void;
+  onAddReaction: () => void;
+  onEdit: () => void;
+  onClose: () => void;
+};
+
+/**
+ * Grouped message context menu body, mounted only while the menu is open so its hooks
+ * (developer tools, pinning, bug-report visibility) add zero per-row overhead.
+ */
+function MessageMenuContent(props: MessageMenuContentProps) {
+  const { room, mEvent, content, longTextSource, onClose } = props;
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const [developerTools] = useSetting(settingsAtom, 'developerTools');
+  const pinning = useThreadPinning(room);
+  const canReportBug = useCanReportMessageBug();
+  const eventId = mEvent.getId() ?? '';
+  const senderId = mEvent.getSender() ?? '';
+  const confirmed = isConfirmedMatrixEventId(eventId);
+  const runAndClose = (action: () => void) => () => {
+    action();
+    onClose();
+  };
+
+  const hasForkActions = Boolean(
+    props.onOpenInOriginalThread || (confirmed && (props.onForkClick || props.onForkToRoomClick))
+  );
+  const groups: Array<{ id: string; label?: string; items: ReactNode[] }> = [
+    {
+      id: 'reactions',
+      items: [
+        props.canSendReaction && confirmed && props.onReactionToggle && (
+          <MessageQuickReactions
+            key="quick-reactions"
+            imagePackRooms={props.imagePackRooms}
+            onReaction={(key, shortcode) => {
+              props.onReactionToggle?.(key, shortcode);
+              onClose();
+            }}
+            onAddReaction={props.onAddReaction}
+          />
+        ),
+      ],
+    },
+    {
+      id: 'primary',
+      items: [
+        confirmed && props.onReplyClick && (
+          <MenuEntry
+            key="reply"
+            label={t('mindroomUi.messages.mindroomMessage.reply')}
+            icon={Icons.ReplyArrow}
+            directional
+            onSelect={runAndClose(() => props.onReplyClick?.(eventId))}
+          />
+        ),
+        confirmed && props.onReplyClick && props.canReplyInThread && (
+          <MenuEntry
+            key="reply-in-thread"
+            label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
+            icon={Icons.ThreadPlus}
+            onSelect={runAndClose(() => props.onReplyClick?.(eventId, true))}
+          />
+        ),
+        props.canEdit && (
+          <MenuEntry
+            key="edit"
+            label={t('mindroomUi.messages.mindroomMessage.editMessage')}
+            icon={Icons.Pencil}
+            onSelect={runAndClose(props.onEdit)}
+          />
+        ),
+        confirmed && props.canPinEvent && pinning.canPin && (
+          <MessagePinItem
+            key="pin"
+            eventId={eventId}
+            pinned={pinning.pinnedEventIds.includes(eventId)}
+            updating={pinning.updating}
+            onTogglePin={pinning.setPinned}
+            onClose={onClose}
+          />
+        ),
+      ],
+    },
+    {
+      id: 'copy',
+      label: hasForkActions
+        ? t('mindroomUi.messages.mindroomMessage.copyAndForkSection')
+        : t('mindroomUi.messages.mindroomMessage.copySection'),
+      items: [
+        (longTextSource || isCopyTextMessageContent(content)) && (
+          <MessageCopyTextItem
+            key="copy-text"
+            content={content}
+            originalContent={mEvent.getContent()}
+            resolvedContent={props.resolvedLongTextContent}
+            // As the message is drawn (RenderMessageContent): only an agent's markers are rows.
+            toolRows={isMindroomAgentUserIdForViewer(senderId, client.getUserId() ?? undefined)}
+            loading={props.longTextLoading}
+            onClose={onClose}
+          />
+        ),
+        confirmed && (
+          <MessageCopyLinkItem key="copy-link" room={room} eventId={eventId} onClose={onClose} />
+        ),
+        props.onOpenInOriginalThread && (
+          <MenuEntry
+            key="open-in-original-thread"
+            label={t('threadFork.openInOriginalThread')}
+            icon={Icons.Thread}
+            onSelect={runAndClose(props.onOpenInOriginalThread)}
+          />
+        ),
+        confirmed && props.onForkClick && (
+          <MenuEntry
+            key="fork"
+            label={t('threadFork.forkFromHere')}
+            icon={ForkIcon}
+            onSelect={runAndClose(() => props.onForkClick?.(eventId))}
+          />
+        ),
+        confirmed && props.onForkToRoomClick && (
+          <MenuEntry
+            key="fork-to-room"
+            label={t('threadFork.forkToRoom')}
+            icon={ForkIcon}
+            onSelect={runAndClose(() => props.onForkToRoomClick?.(eventId))}
+          />
+        ),
+      ],
+    },
+    {
+      id: 'details',
+      label: t('threadActions.detailsSection'),
+      items: [
+        props.onOpenAiRun && <AiRunMenuItem key="ai-run" onOpen={props.onOpenAiRun} />,
+        confirmed && props.relations && (
+          <MessageAllReactionItem
+            key="reactions"
+            room={room}
+            relations={props.relations}
+            onClose={onClose}
+          />
+        ),
+        !props.hideReadReceipts && confirmed && (
+          <MessageReadReceiptItem
+            key="read-receipts"
+            room={room}
+            eventId={eventId}
+            onClose={onClose}
+          />
+        ),
+        developerTools && longTextSource && (
+          <DownloadOriginalMenuItem
+            key="download-original"
+            source={longTextSource}
+            onClose={onClose}
+          />
+        ),
+        developerTools && (
+          <MessageSourceCodeItem key="view-source" room={room} mEvent={mEvent} onClose={onClose} />
+        ),
+        canReportBug && (
+          <MessageBugReportItem key="bug-report" room={room} mEvent={mEvent} onClose={onClose} />
+        ),
+      ],
+    },
+    {
+      id: 'critical',
+      items: [
+        confirmed && props.canDelete && (
+          <MessageDeleteItem key="delete" room={room} mEvent={mEvent} onClose={onClose} />
+        ),
+        confirmed && senderId !== client.getUserId() && (
+          <MessageReportItem key="report" room={room} mEvent={mEvent} onClose={onClose} />
+        ),
+      ],
+    },
+  ]
+    .map((group) => ({ ...group, items: group.items.filter(Boolean) }))
+    .filter((group) => group.items.length > 0);
+
+  return (
+    <div className={css.MessageMenuRows}>
+      {groups.map((group, index) => (
+        <Fragment key={group.id}>
+          {index > 0 && <Line variant="Surface" size="300" />}
+          <MenuGroup label={group.label}>{group.items}</MenuGroup>
+        </Fragment>
+      ))}
+    </div>
+  );
+}
 
 const getAnchor = (evt: MouseEvent<HTMLElement>): RectCords => {
   const target = evt.currentTarget.parentElement?.parentElement ?? evt.currentTarget;
@@ -674,6 +872,7 @@ export function Message({
   onUsernameClick,
   // Replying and reacting.
   onReplyClick,
+  canReplyInThread = true,
   onOpenInOriginalThread,
   onForkClick,
   onForkToRoomClick,
@@ -954,135 +1153,41 @@ export function Message({
         {/* The entries scroll inside the menu's rim, which stays put around them. */}
         <Menu
           style={{
+            minWidth: `min(${toRem(220)}, calc(100vw - 1rem))`,
+            maxWidth: 'calc(100vw - 1rem)',
             maxHeight: popOutMaxHeight(menuAnchor, menuSide),
             display: menuShown ? 'flex' : 'none',
             flexDirection: 'column',
           }}
         >
-          <Scroll size="300" hideTrack visibility="Hover" style={{ overflowY: 'auto' }}>
-            <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
-              {canSendReaction && confirmed && onReactionToggle && (
-                <MessageQuickReactions
-                  imagePackRooms={imagePackRooms}
-                  onReaction={(key, shortcode) => {
-                    onReactionToggle(key, shortcode);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {confirmed && relations && (
-                <MessageAllReactionItem room={room} relations={relations} onClose={dismissMenu} />
-              )}
-              {confirmed && onReplyClick && (
-                <MenuEntry
-                  label={t('mindroomUi.messages.mindroomMessage.reply')}
-                  icon={Icons.ReplyArrow}
-                  directional
-                  onSelect={() => {
-                    onReplyClick(eventId);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {confirmed && onReplyClick && (
-                <MenuEntry
-                  label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
-                  icon={Icons.ThreadPlus}
-                  onSelect={() => {
-                    onReplyClick(eventId, true);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {onOpenInOriginalThread && (
-                <MenuEntry
-                  label={t('threadFork.openInOriginalThread')}
-                  icon={Icons.Thread}
-                  onSelect={() => {
-                    onOpenInOriginalThread();
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {confirmed && onForkClick && (
-                <MenuEntry
-                  label={t('threadFork.forkFromHere')}
-                  icon={ForkIcon}
-                  onSelect={() => {
-                    onForkClick(eventId);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {confirmed && onForkToRoomClick && (
-                <MenuEntry
-                  label={t('threadFork.forkToRoom')}
-                  icon={ForkIcon}
-                  onSelect={() => {
-                    onForkToRoomClick(eventId);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {canEdit && (
-                <MenuEntry
-                  label={t('mindroomUi.messages.mindroomMessage.editMessage')}
-                  icon={Icons.Pencil}
-                  onSelect={() => {
-                    startEdit();
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {canSendReaction && confirmed && (
-                <MenuEntry
-                  label={t('mindroomUi.messages.mindroomMessage.addReaction')}
-                  icon={Icons.SmilePlus}
-                  onSelect={() => {
-                    setEmojiAnchor(menuAnchor);
-                    dismissMenu();
-                  }}
-                />
-              )}
-              {longTextSource || isCopyTextMessageContent(content) ? (
-                <MessageCopyTextItem
-                  content={content}
-                  originalContent={mEvent.getContent()}
-                  resolvedContent={resolvedLongTextContent}
-                  // As the message is drawn (RenderMessageContent): only an agent's markers are rows.
-                  toolRows={isMindroomAgentUserIdForViewer(
-                    senderId,
-                    client.getUserId() ?? undefined
-                  )}
-                  loading={longTextLoading}
-                  onClose={dismissMenu}
-                />
-              ) : null}
-              {confirmed && (
-                <MessageCopyLinkItem room={room} eventId={eventId} onClose={dismissMenu} />
-              )}
-              {confirmed && canPinEvent && (
-                <MessagePinItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              )}
-              {controls && <AiRunMenuItem onOpen={openAiRun} />}
-              {!hideReadReceipts && confirmed && (
-                <MessageReadReceiptItem room={room} eventId={eventId} onClose={dismissMenu} />
-              )}
-              <DeveloperMessageMenuItems
-                room={room}
-                mEvent={mEvent}
-                longTextSource={longTextSource}
-                onClose={dismissMenu}
-              />
-              <MessageBugReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              {confirmed && canDelete && (
-                <MessageDeleteItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              )}
-              {confirmed && senderId !== client.getUserId() && (
-                <MessageReportItem room={room} mEvent={mEvent} onClose={dismissMenu} />
-              )}
-            </Box>
-          </Scroll>
+          <MessageMenuContent
+            room={room}
+            mEvent={mEvent}
+            content={content}
+            resolvedLongTextContent={resolvedLongTextContent}
+            longTextSource={longTextSource}
+            longTextLoading={longTextLoading}
+            canSendReaction={canSendReaction}
+            canReplyInThread={canReplyInThread}
+            canEdit={canEdit}
+            canPinEvent={canPinEvent}
+            canDelete={canDelete}
+            hideReadReceipts={hideReadReceipts}
+            imagePackRooms={imagePackRooms}
+            relations={relations}
+            onOpenAiRun={controls ? openAiRun : undefined}
+            onReactionToggle={onReactionToggle}
+            onAddReaction={() => {
+              setEmojiAnchor(menuAnchor);
+              dismissMenu();
+            }}
+            onReplyClick={onReplyClick}
+            onEdit={startEdit}
+            onOpenInOriginalThread={onOpenInOriginalThread}
+            onForkClick={onForkClick}
+            onForkToRoomClick={onForkToRoomClick}
+            onClose={dismissMenu}
+          />
         </Menu>
       </FocusTrap>
     );
@@ -1141,7 +1246,7 @@ export function Message({
                 onClick={() => onReplyClick(eventId)}
               />
             )}
-            {confirmed && onReplyClick && (
+            {confirmed && onReplyClick && canReplyInThread && (
               <ToolbarAction
                 label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
                 icon={Icons.ThreadPlus}

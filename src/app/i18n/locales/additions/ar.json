@@ -1202,6 +1202,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "النسخ",
+        "copyAndForkSection": "النسخ والتفريع"
+      },
       "mindroomReasoning": {
         "hide": "إخفاء التفكير",
         "thought": "فكّر"

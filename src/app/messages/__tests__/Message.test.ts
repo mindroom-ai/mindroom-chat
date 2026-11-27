@@ -27,12 +27,23 @@ const settingsMocks = vi.hoisted(() => ({
   developerTools: false,
   useSetting: vi.fn(() => [settingsMocks.developerTools, vi.fn()]),
 }));
+const pinningMocks = vi.hoisted(() => ({
+  canPin: true,
+  pinnedEventIds: [] as string[],
+}));
+const bugReportMocks = vi.hoisted(() => ({
+  canReport: true,
+}));
+const recentEmojiMocks = vi.hoisted(() => ({
+  recent: [] as Array<{ unicode: string; label?: string }>,
+}));
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('../styles.css', () => ({
   MessageAvatarWithModel: 'MessageAvatarWithModel',
   MessageBase: 'MessageBase',
-  MessageMenuGroup: 'MessageMenuGroup',
+  MessageMenuRows: 'MessageMenuRows',
+  MessageQuickReaction: 'MessageQuickReaction',
   MessageOptionsBar: 'MessageOptionsBar',
   MessageOptionsBase: 'MessageOptionsBase',
   MessageOptionsButton: 'MessageOptionsButton',
@@ -113,6 +124,7 @@ vi.mock('folds', async () => {
       [key: string]: unknown;
     }) => createElement('button', { ...props, onClick, type: 'button' }, children),
     Icons: {
+      BlockCode: 'BlockCode',
       CheckTwice: 'CheckTwice',
       Cross: 'Cross',
       Delete: 'Delete',
@@ -122,9 +134,11 @@ vi.mock('folds', async () => {
       Pencil: 'Pencil',
       Pin: 'Pin',
       ReplyArrow: 'ReplyArrow',
+      Smile: 'Smile',
       SmilePlus: 'SmilePlus',
       Terminal: 'Terminal',
       Text: 'Text',
+      Thread: 'Thread',
       ThreadPlus: 'ThreadPlus',
       User: 'User',
       VerticalDots: 'VerticalDots',
@@ -180,6 +194,7 @@ vi.mock('folds', async () => {
         B300: '1px',
       },
       space: {
+        S100: '4px',
         S200: '8px',
         S400: '16px',
       },
@@ -275,7 +290,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../../emoji/useRecentEmoji', () => ({
-  useRecentEmoji: () => [],
+  useRecentEmoji: () => recentEmojiMocks.recent,
 }));
 
 vi.mock('../../emoji/useImagePacks', () => ({
@@ -341,10 +356,10 @@ vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
 }));
 
 vi.mock('../../event-store/threads/useThreadPinning', () => ({
-  usePinnedEventIds: () => [],
+  usePinnedEventIds: () => pinningMocks.pinnedEventIds,
   useThreadPinning: () => ({
-    pinnedEventIds: [],
-    canPin: true,
+    pinnedEventIds: pinningMocks.pinnedEventIds,
+    canPin: pinningMocks.canPin,
     setPinned: vi.fn(),
     updating: false,
     error: undefined,
@@ -363,6 +378,7 @@ vi.mock('../../bug-reports/MessageBugReportItem', async () => {
   return {
     MessageBugReportItem: () =>
       createElement('button', null, createElement('span', null, 'Report a bug')),
+    useCanReportMessageBug: () => bugReportMocks.canReport,
   };
 });
 
@@ -394,6 +410,10 @@ beforeEach(() => {
   lastMessageBaseNode = undefined;
   messageSender = '@alice:example.org';
   settingsMocks.developerTools = false;
+  pinningMocks.canPin = true;
+  pinningMocks.pinnedEventIds = [];
+  bugReportMocks.canReport = true;
+  recentEmojiMocks.recent = [];
   vi.clearAllMocks();
   longTextMocks.getMindroomLongTextSource.mockReturnValue(undefined);
   longTextMocks.useMindroomLongTextResolvedContent.mockReturnValue(undefined);
@@ -734,12 +754,12 @@ describe('Message Fork from here', () => {
     return { renderer, onForkClick, onForkToRoomClick };
   };
 
-  it('comes right after Reply in Thread, followed by Fork to room…, and forks at this message', async () => {
+  it('comes right after Copy Link in Copy & Fork, followed by Fork to room…, and forks at this message', async () => {
     const { renderer, onForkClick, onForkToRoomClick } = await renderForkable('$event');
 
     const texts = buttonTexts(renderer);
-    expect(texts.indexOf('Reply in Thread')).toBeGreaterThan(-1);
-    expect(texts.indexOf('Fork from here')).toBe(texts.indexOf('Reply in Thread') + 1);
+    expect(texts.indexOf('Copy Link')).toBeGreaterThan(-1);
+    expect(texts.indexOf('Fork from here')).toBe(texts.indexOf('Copy Link') + 1);
     expect(texts.indexOf('Fork to room…')).toBe(texts.indexOf('Fork from here') + 1);
     await act(async () => {
       getButtonByText(renderer, 'Fork from here')?.props.onClick();
@@ -1235,5 +1255,186 @@ describe('Message copy text tool markers', () => {
 
     expect(getButtonByText(renderer, 'Copy Text')).toBeDefined();
     expect(getButtonByAriaLabel(renderer, 'Copy Text with Tool Calls')).toBeUndefined();
+  });
+});
+
+describe('Grouped message menu & Reply in Thread gating', () => {
+  const renderCustom = async (
+    content: Record<string, unknown>,
+    props: Record<string, unknown> = {}
+  ) => {
+    const Message = await getMessageComponent();
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Message,
+          {
+            room: createRoom(),
+            mEvent: createMessageEvent(content),
+            collapse: true,
+            highlight: false,
+            ...props,
+          },
+          React.createElement('div', null, 'body')
+        )
+      );
+    });
+    return renderer;
+  };
+
+  const hostChild = (node: ReactTestInstance): ReactTestInstance =>
+    typeof node.type === 'string'
+      ? node
+      : hostChild(
+          node.children.find((child): child is ReactTestInstance => typeof child !== 'string')!
+        );
+
+  const inspectMenu = (renderer: ReactTestRenderer) => {
+    const rows = renderer.root.find(
+      (node) => node.type === 'div' && node.props.className === 'MessageMenuRows'
+    );
+    const children = rows.children
+      .filter((child): child is ReactTestInstance => typeof child !== 'string')
+      .map(hostChild);
+    const kinds = children.map((child) => (child.type === 'hr' ? 'line' : 'group'));
+    const groups = children
+      .filter((child) => child.type !== 'hr')
+      .map((group) => {
+        const headingId = group.props['aria-labelledby'] as string | undefined;
+        const label = headingId
+          ? group
+              .findAllByType('span')
+              .find((span) => span.props.id === headingId)
+              ?.children.join('')
+          : undefined;
+        const items = group.findAllByType('button').map((button) => {
+          const text = button
+            .findAllByType('span')
+            .map((span) => span.children.join(''))
+            .join('');
+          return (button.props['aria-label'] as string | undefined) ?? text;
+        });
+        return { label, items };
+      });
+    return { kinds, groups };
+  };
+
+  it('orders groups with Copy & Fork / Copy and Details headings and dividers strictly between groups', async () => {
+    recentEmojiMocks.recent = [{ unicode: '👍', label: 'thumbs up' }];
+    messageSender = '@bob:example.org';
+    const renderer = await renderCustom(aiRunContent, {
+      canDelete: true,
+      canPinEvent: true,
+      canSendReaction: true,
+      relations: {},
+      onReplyClick: vi.fn(),
+      onForkClick: vi.fn(),
+      onForkToRoomClick: vi.fn(),
+      onReactionToggle: vi.fn(),
+    });
+
+    await openContextMenu(renderer);
+    expect(inspectMenu(renderer)).toEqual({
+      kinds: ['group', 'line', 'group', 'line', 'group', 'line', 'group', 'line', 'group'],
+      groups: [
+        { label: undefined, items: ['thumbs up', 'Add Reaction'] },
+        { label: undefined, items: ['Reply', 'Reply in Thread', 'Pin Message'] },
+        {
+          label: 'Copy & Fork',
+          items: ['Copy Text', 'Copy Link', 'Fork from here', 'Fork to room…'],
+        },
+        {
+          label: 'Details',
+          items: ['Reply details', 'View Reactions', 'Read Receipts', 'Report a bug'],
+        },
+        { label: undefined, items: ['Delete', 'Report Message'] },
+      ],
+    });
+
+    // Clicking Add Reaction in the top quick-reactions strip opens the emoji board and closes the menu.
+    const addButton = renderer.root
+      .find((node) => node.type === 'div' && node.props.className === 'MessageMenuRows')
+      .findAllByType('button')
+      .find((button) => button.props['aria-label'] === 'Add Reaction');
+    await act(async () => {
+      addButton?.props.onClick();
+    });
+    expect(
+      renderer.root.findAll(
+        (node) => node.type === 'div' && node.children.join('') === 'emoji-board'
+      )
+    ).toHaveLength(1);
+    expect(
+      renderer.root.findAll(
+        (node) => node.type === 'div' && node.props.className === 'MessageMenuRows'
+      )
+    ).toHaveLength(0);
+
+    // Without fork actions and with no recent emojis, Copy uses "Copy" and top falls back to Add Reaction.
+    recentEmojiMocks.recent = [];
+    const plain = await renderMessage(
+      { msgtype: 'm.text', body: 'plain' },
+      { serverActions: true }
+    );
+    await openContextMenu(plain.renderer);
+    expect(inspectMenu(plain.renderer).groups).toEqual([
+      { label: undefined, items: ['Add Reaction'] },
+      { label: undefined, items: ['Reply', 'Reply in Thread', 'Pin Message'] },
+      { label: 'Copy', items: ['Copy Text', 'Copy Link'] },
+      { label: 'Details', items: ['Read Receipts', 'Report a bug'] },
+      { label: undefined, items: ['Delete', 'Report Message'] },
+    ]);
+  });
+
+  it('omits empty groups and never renders leading, trailing, or consecutive dividers', async () => {
+    const prefix = await renderCustom(
+      { msgtype: 'm.text', body: 'prefix' },
+      { onOpenInOriginalThread: vi.fn(), onForkClick: vi.fn() }
+    );
+    await openContextMenu(prefix);
+    expect(inspectMenu(prefix)).toEqual({
+      kinds: ['group', 'line', 'group'],
+      groups: [
+        {
+          label: 'Copy & Fork',
+          items: ['Copy Text', 'Copy Link', 'Open in original thread', 'Fork from here'],
+        },
+        { label: 'Details', items: ['Read Receipts', 'Report a bug'] },
+      ],
+    });
+
+    // canPin=false despite canPinEvent=true and no Details items omits Group 1 and Details.
+    pinningMocks.canPin = false;
+    bugReportMocks.canReport = false;
+    const minimal = await renderCustom(
+      { msgtype: 'm.text', body: 'minimal' },
+      { canPinEvent: true, hideReadReceipts: true }
+    );
+    await openContextMenu(minimal);
+    expect(inspectMenu(minimal)).toEqual({
+      kinds: ['group'],
+      groups: [{ label: 'Copy', items: ['Copy Text', 'Copy Link'] }],
+    });
+  });
+
+  it('hides Reply in Thread from both hover toolbar and menu when canReplyInThread is false', async () => {
+    const hidden = await renderCustom(
+      { msgtype: 'm.text', body: 'in thread' },
+      { onReplyClick: vi.fn(), canReplyInThread: false }
+    );
+    expect(getButtonByIcon(hidden, 'ReplyArrow')).toBeDefined();
+    expect(getButtonByIcon(hidden, 'ThreadPlus')).toBeUndefined();
+    await openContextMenu(hidden);
+    expect(getButtonByText(hidden, 'Reply')).toBeDefined();
+    expect(getButtonByText(hidden, 'Reply in Thread')).toBeUndefined();
+
+    const shown = await renderCustom(
+      { msgtype: 'm.text', body: 'in room' },
+      { onReplyClick: vi.fn(), canReplyInThread: true }
+    );
+    expect(getButtonByIcon(shown, 'ThreadPlus')).toBeDefined();
+    await openContextMenu(shown);
+    expect(getButtonByText(shown, 'Reply in Thread')).toBeDefined();
   });
 });

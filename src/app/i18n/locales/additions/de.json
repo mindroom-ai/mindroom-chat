@@ -1130,6 +1130,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "Kopieren",
+        "copyAndForkSection": "Kopieren & Abzweigen"
+      },
       "mindroomReasoning": {
         "hide": "Gedankengang ausblenden",
         "thought": "Nachgedacht"

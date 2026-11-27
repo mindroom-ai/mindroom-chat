@@ -1166,6 +1166,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "Копировать",
+        "copyAndForkSection": "Копировать и ответвить"
+      },
       "mindroomReasoning": {
         "hide": "Скрыть размышления",
         "thought": "Подумал"

@@ -1148,6 +1148,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "Copia",
+        "copyAndForkSection": "Copia e dirama"
+      },
       "mindroomReasoning": {
         "hide": "Nascondi ragionamento",
         "thought": "Ha pensato"

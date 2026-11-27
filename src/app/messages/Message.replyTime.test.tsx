@@ -24,7 +24,10 @@ vi.mock('../matrix/room', () => ({
 vi.mock('../event-store/threads/useThreadPinning', () => ({
   useThreadPinning: () => ({ canPin: false, setPinned: vi.fn(), updating: false }),
 }));
-vi.mock('../bug-reports/MessageBugReportItem', () => ({ MessageBugReportItem: () => null }));
+vi.mock('../bug-reports/MessageBugReportItem', () => ({
+  MessageBugReportItem: () => null,
+  useCanReportMessageBug: () => false,
+}));
 vi.mock('../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
 // The dialog needs a layout jsdom lacks; the info button's aria-expanded says it opened.
 vi.mock('../ui/ModalLayer', async (importOriginal) => ({

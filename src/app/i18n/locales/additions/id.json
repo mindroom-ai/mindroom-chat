@@ -1112,6 +1112,10 @@
   },
   "mindroomUi": {
     "messages": {
+      "mindroomMessage": {
+        "copySection": "Salin",
+        "copyAndForkSection": "Salin & Cabangkan"
+      },
       "mindroomReasoning": {
         "hide": "Sembunyikan pemikiran",
         "thought": "Selesai berpikir"
