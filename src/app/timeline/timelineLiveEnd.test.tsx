@@ -10,6 +10,7 @@ import { READER_INTENT_EVENTS } from './roomTimelineScroll';
 import {
   computeHeldEndSpacer,
   useHeldRowsLayout,
+  useThreadOpeningPin,
   useTimelineLiveEnd,
   type HeldRowsLayout,
   type HeldRowsLayoutLedger,
@@ -471,6 +472,117 @@ describe('useHeldRowsLayout', () => {
         totalSizeCalls: 1,
       },
     ]);
+
+    act(() => renderer?.unmount());
+  });
+});
+
+describe('useThreadOpeningPin', () => {
+  it('skips scrolling into a held shrink tail and stays pinned once the hold clears', () => {
+    let topPos = 500;
+    const scrollTo = vi.fn(({ top }: { top: number }) => {
+      topPos = top;
+    });
+    const scroller = {
+      scrollHeight: 1000,
+      clientHeight: 500,
+      get scrollTop() {
+        return topPos;
+      },
+      set scrollTop(value: number) {
+        topPos = value;
+      },
+      scrollTo,
+    };
+    const scrollRef = { current: scroller as unknown as HTMLDivElement };
+    const setAtBottom = () => undefined;
+    const isThreadOpenBottomPinSuppressed = () => false;
+    const requestThreadOpenBottomPin = vi.fn(() => true);
+    let correction = 0;
+    let listHeightHeld = false;
+    let pendingShrink = 0;
+    const readMeasurementCorrectionPx = () => correction;
+    const pendingListShrinkPx = () => pendingShrink;
+
+    function Harness({
+      latestOpenPending = false,
+      tick,
+    }: {
+      latestOpenPending?: boolean;
+      tick: number;
+    }) {
+      void tick;
+      useThreadOpeningPin({
+        scrollRef,
+        setAtBottom,
+        threadId: '$thread-1',
+        threadEventsLength: 10,
+        threadInitialRenderMode: 'live',
+        threadLatestOpenPending: latestOpenPending,
+        threadOpenedAtLatest: true,
+        threadUserScrolled: false,
+        isThreadOpenBottomPinSuppressed,
+        requestThreadOpenBottomPin,
+        readMeasurementCorrectionPx,
+        listHeightHeld,
+        pendingListShrinkPx,
+      });
+      return null;
+    }
+
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(<Harness tick={0} />);
+    });
+    expect(scroller.scrollTop).toBe(500);
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    scrollTo.mockClear();
+    requestThreadOpenBottomPin.mockClear();
+
+    // Newest row shrinks 35 px before paint: scrollTop clamps to 465 while listHeight stays held.
+    correction = -35;
+    scroller.scrollTop = 465;
+    listHeightHeld = true;
+    pendingShrink = 35;
+    act(() => {
+      renderer?.update(<Harness tick={1} />);
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(requestThreadOpenBottomPin).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(465);
+
+    // Follow-up commit releases the hold at the new shorter height (965 px): stays at 465.
+    listHeightHeld = false;
+    pendingShrink = 0;
+    scroller.scrollHeight = 965;
+    act(() => {
+      renderer?.update(<Harness tick={2} />);
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(requestThreadOpenBottomPin).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(465);
+
+    // Subsequent growth below the view still re-pins because opening ownership was preserved.
+    scroller.scrollHeight = 1020;
+    act(() => {
+      renderer?.update(<Harness tick={3} />);
+    });
+    expect(scrollTo).toHaveBeenCalledWith({ top: 520, behavior: 'instant' });
+    expect(scroller.scrollTop).toBe(520);
+
+    // Even if an opening-pin dependency updates during a held commit, do not scroll into the tail.
+    scrollTo.mockClear();
+    requestThreadOpenBottomPin.mockClear();
+    correction = -70;
+    scroller.scrollTop = 485;
+    listHeightHeld = true;
+    pendingShrink = 35;
+    act(() => {
+      renderer?.update(<Harness latestOpenPending tick={4} />);
+    });
+    expect(scrollTo).not.toHaveBeenCalled();
+    expect(requestThreadOpenBottomPin).not.toHaveBeenCalled();
+    expect(scroller.scrollTop).toBe(485);
 
     act(() => renderer?.unmount());
   });

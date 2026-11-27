@@ -61,6 +61,10 @@ export type ScrollToBottomState = {
 export type RoomFocusScrollControllerOptions = {
   /** Scroll movement owned by row measurement, including already rendered corrections. */
   readMeasurementCorrectionPx?: () => number;
+  /** Whether this commit keeps the list's old height over rows that changed size. */
+  listHeightHeld?: boolean;
+  /** Unrendered row shrink still included in the held list height (`listShrinkNotRendered`). */
+  pendingListShrinkPx?: () => number;
   cancelThreadBottomSettle?: () => void;
   alive: () => boolean;
   atBottomAnchorRef: MutableRefObject<HTMLElement | null>;

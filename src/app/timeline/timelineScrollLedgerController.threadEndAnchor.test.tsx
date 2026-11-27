@@ -48,6 +48,27 @@ const appendMeasuredRow = (el: HTMLElement, index: number, height: number) => {
   return node;
 };
 
+const setRect = (element: HTMLElement, top: number, height: number) => {
+  Object.defineProperty(element, 'offsetHeight', { configurable: true, value: height });
+  element.getBoundingClientRect = () =>
+    ({ top, bottom: top + height, height, left: 0, right: 0, width: 0 }) as DOMRect;
+};
+
+const mountShrunkNewestTile = (
+  scrollElement: HTMLElement,
+  listHeight: number,
+  newestIndex: number,
+  shrunkHeight: number
+) => {
+  const inner = scrollElement.firstElementChild;
+  if (!(inner instanceof HTMLElement)) throw new Error('Virtual inner element never mounted');
+  setRect(inner, 0, listHeight);
+  const tile = document.createElement('div');
+  tile.dataset.index = String(newestIndex);
+  setRect(tile, newestIndex * ROW_HEIGHT, shrunkHeight);
+  inner.replaceChildren(tile);
+};
+
 const stubUserAgent = (userAgent: string, platform: string, maxTouchPoints: number) => {
   Object.defineProperty(navigator, 'userAgent', { value: userAgent, configurable: true });
   Object.defineProperty(navigator, 'platform', { value: platform, configurable: true });
@@ -267,7 +288,7 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     };
   };
 
-  const mountIOSThread = async (initialScrollTop: number) => {
+  const mountIOSThread = async (initialScrollTop?: number) => {
     stubUserAgent(IPHONE_UA, 'iPhone', 5);
     const mountedThread = await mountThread(initialScrollTop);
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
@@ -365,6 +386,57 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     const visualTopAfter = HEADER_PX + 4800 - clampedTop;
     expect(scrollElement.scrollTop).toBe(4800);
     expect(visualTopAfter).toBe(280);
+  });
+
+  it('clamps scrollTop by exact shrink before paint when a thread newest row shrinks in place at bottom', async () => {
+    const { scrollElement, getVirtualizer } = await mountThread();
+    expect(scrollElement.scrollTop).toBe(REAL_BOTTOM);
+
+    mountShrunkNewestTile(scrollElement, 50 * ROW_HEIGHT, 49, ROW_HEIGHT - 35);
+    getVirtualizer().resizeItem(49, ROW_HEIGHT - 35);
+    expect(scrollElement.scrollTop).toBe(REAL_BOTTOM - 35);
+
+    await Promise.resolve();
+    expect(scrollElement.scrollTop).toBe(REAL_BOTTOM - 35);
+  });
+
+  it('leaves scrollTop unchanged when a thread newest row shrinks while scrolled well above bottom', async () => {
+    const readerTop = REAL_BOTTOM - 120;
+    const { scrollElement, getVirtualizer } = await mountThread(readerTop);
+    expect(scrollElement.scrollTop).toBe(readerTop);
+
+    mountShrunkNewestTile(scrollElement, 50 * ROW_HEIGHT, 49, ROW_HEIGHT - 35);
+    getVirtualizer().resizeItem(49, ROW_HEIGHT - 35);
+    expect(scrollElement.scrollTop).toBe(readerTop);
+
+    await Promise.resolve();
+    expect(scrollElement.scrollTop).toBe(readerTop);
+  });
+
+  it('applies pastEndCorrection on iOS at rest, and skips it during an active touch gesture', async () => {
+    const { scrollElement, getVirtualizer } = await mountIOSThread();
+    const v = getVirtualizer();
+    const canWriteScroll = () =>
+      (v as unknown as { _canWriteScroll: () => boolean })._canWriteScroll();
+
+    // At rest on iOS (_canWriteScroll() === true), newest-row shrink clamps scrollTop before paint.
+    expect(scrollElement.scrollTop).toBe(REAL_BOTTOM);
+    expect(canWriteScroll()).toBe(true);
+    mountShrunkNewestTile(scrollElement, 50 * ROW_HEIGHT, 49, ROW_HEIGHT - 35);
+    v.resizeItem(49, ROW_HEIGHT - 35);
+    expect(scrollElement.scrollTop).toBe(REAL_BOTTOM - 35);
+    expect(readVirtualizerHoldOffset(v)).toBe(0);
+    await Promise.resolve();
+    expect(scrollElement.scrollTop).toBe(REAL_BOTTOM - 35);
+
+    // During an active touch gesture (_canWriteScroll() === false), skip pastEndCorrection
+    // instead of writing scrollTop or banking a negative _holdOffset.
+    mountShrunkNewestTile(scrollElement, 50 * ROW_HEIGHT - 35, 49, ROW_HEIGHT - 65);
+    dragTouchTo(scrollElement, REAL_BOTTOM - 35);
+    expect(canWriteScroll()).toBe(false);
+    v.resizeItem(49, ROW_HEIGHT - 65);
+    expect(scrollElement.scrollTop).toBe(REAL_BOTTOM - 35);
+    expect(readVirtualizerHoldOffset(v)).toBe(0);
   });
 
   it('keeps iOS _holdOffset open while fling moves scrollTop without scroll events, then flushes from live', async () => {
