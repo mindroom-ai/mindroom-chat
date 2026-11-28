@@ -6,6 +6,7 @@ import React, {
   useReducer,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
   type RefObject,
 } from 'react';
@@ -36,6 +37,7 @@ import { isEmptyEditor } from '../../editor/utils';
 import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
+import { hasTextFilePreview } from '../../messages/content/MsgTypeRenderers';
 import { VoiceTranscript, VoiceTranscriptPending } from '../../messages/content/VoiceTranscript';
 import { ReplyCards } from '../../messages/content/ReplyCards';
 import { ModelChangeMarker } from '../../messages/ModelChangeMarker';
@@ -59,6 +61,7 @@ import {
   hasUndecryptedNewerEdit,
 } from '../../matrix/room';
 import { MessageEvent } from '../../matrix/types/room';
+import { getLongTextMxcUri } from '../../matrix/protocol/longText';
 import { MessageEditNotDecryptedContent } from '../../messages/content/FallbackContent';
 import { Event, Message } from '../../messages/Message';
 import { getReplyTiming } from '../../messages/replyTiming';
@@ -674,6 +677,23 @@ export const useTimelineMessageFeature = ({
               liveExpansionIds,
               isMindroomAgentUserId(event.getSender() ?? undefined)
             );
+      // A text drawer owns its fold; keep the message fold on its caption, not the whole file.
+      const foldCaptionOnly =
+        collapseMode !== 'always-expanded' &&
+        msgType === 'm.file' &&
+        !getLongTextMxcUri(content) &&
+        hasTextFilePreview(content);
+      const wrapInFold = (children: ComponentProps<typeof CollapsibleMessage>['children']) => (
+        <CollapsibleMessage
+          expansionKey={eventId}
+          collapseMode={collapseMode}
+          forceOverflowing={shouldForceCollapsibleMessageOverflow(content)}
+          measurementKey={getCollapsibleMessageMeasurementKey(event, collapseMode, editedEvent)}
+          onInitialExpandConsumed={() => consumeLiveExpansion(eventId)}
+        >
+          {children}
+        </CollapsibleMessage>
+      );
       const isAgentReply = isMindroomAgentUserIdForViewer(
         event.getSender() ?? undefined,
         userId ?? undefined
@@ -710,10 +730,16 @@ export const useTimelineMessageFeature = ({
         failedSend,
         getContent: (() => content) as <T>() => T,
         mediaAutoLoad: !!mediaAutoLoad,
+        autoPreview: Boolean(mediaAutoLoad),
+        wrapFileCaption: foldCaptionOnly ? wrapInFold : undefined,
         urlPreview: !!eventShowUrlPreview,
         htmlReactParserOptions: rowHtmlReactParserOptions,
         linkifyOpts: rowLinkifyOpts,
       };
+      const Content = isAgentReply ? LiveReplyMessageContent : RenderMessageContent;
+      const renderContent = (hydrateLongText: boolean) => (
+        <Content {...contentProps} hydrateLongText={hydrateLongText} />
+      );
       // A voice message's echo shows under it, as its latest version says.
       const voiceEcho = data.voiceTranscripts.byVoiceId.get(eventId);
       const voiceEchoId = voiceEcho?.getId() ?? '';
@@ -894,25 +920,9 @@ export const useTimelineMessageFeature = ({
                 collapseMode !== 'always-expanded' && TEXT_MSGTYPES.has(msgType) ? 'text' : 'block'
               }
             >
-              <CollapsibleMessage
-                expansionKey={eventId}
-                collapseMode={collapseMode}
-                forceOverflowing={shouldForceCollapsibleMessageOverflow(content)}
-                measurementKey={getCollapsibleMessageMeasurementKey(
-                  event,
-                  collapseMode,
-                  editedEvent
-                )}
-                onInitialExpandConsumed={() => consumeLiveExpansion(eventId)}
-              >
-                {({ loadFullContent }) =>
-                  isAgentReply ? (
-                    <LiveReplyMessageContent {...contentProps} hydrateLongText={loadFullContent} />
-                  ) : (
-                    <RenderMessageContent {...contentProps} hydrateLongText={loadFullContent} />
-                  )
-                }
-              </CollapsibleMessage>
+              {foldCaptionOnly
+                ? renderContent(true)
+                : wrapInFold(({ loadFullContent }) => renderContent(loadFullContent))}
               {voiceTranscript}
               {cards && <ReplyCards cards={cards} />}
               {editNotDecrypted && (

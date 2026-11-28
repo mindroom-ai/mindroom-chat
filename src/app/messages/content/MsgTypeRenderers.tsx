@@ -41,6 +41,7 @@ import {
 import { MAX_HEIC_BYTES } from './imageOriginal';
 import { isRecord } from '../../lib/isRecord';
 import { isVoiceMessageContent } from './voiceMessageContent';
+import { isTextPreviewableFile } from './fileTextPreview';
 
 type MessageContent = Record<string, unknown>;
 
@@ -363,15 +364,21 @@ type RenderFileContentArgs = {
   mimeType: string;
   url: string;
   encInfo?: EncryptedAttachmentInfo;
+  size?: number;
 };
+
+/** Whether a file attachment can show a text drawer. */
+export const hasTextFilePreview = (content: MessageContent): boolean =>
+  isTextPreviewableFile(readFileName(content), readMimeType(readInfo<IFileInfo>(content))) &&
+  readMediaSource(content) !== undefined;
 
 const useFileTypeLabel = () => {
   const { t } = useTranslation();
-  return (mimeType: string): string => {
+  return (fileName: string, mimeType: string): string => {
     const base = getMimeTypeBase(mimeType);
     if (base === 'application/pdf') return t('sharedUi.msgTypeRenderers.pdfDocument');
-    if (base.startsWith('text/')) return t('sharedUi.msgTypeRenderers.textFile');
     if (base.startsWith('image/')) return t('mindroomUi.message-search.searchResultPreview.image');
+    if (isTextPreviewableFile(fileName, mimeType)) return t('sharedUi.msgTypeRenderers.textFile');
     if (base.startsWith('video/')) return t('mindroomUi.message-search.searchResultPreview.video');
     if (base.startsWith('audio/')) return t('mindroomUi.message-search.searchResultPreview.audio');
     return t('sharedUi.msgTypeRenderers.file');
@@ -380,11 +387,14 @@ const useFileTypeLabel = () => {
 
 type MFileProps = {
   content: MessageContent;
-  renderFileContent: (args: RenderFileContentArgs) => ReactNode;
+  renderFileContent: (
+    args: RenderFileContentArgs,
+    renderRow: (actions: ReactNode) => ReactNode
+  ) => ReactNode;
   outlined?: boolean;
 };
 
-/** A file as one row: type tile, name, type and size, then the caller's actions. */
+/** A file card with a metadata row and room for an optional drawer below it. */
 export function MFile(props: MFileProps) {
   const { content, renderFileContent, outlined } = props;
   const { t } = useTranslation();
@@ -398,16 +408,17 @@ export function MFile(props: MFileProps) {
   // The name shows its direction controls, so `report<U+202E>fdp.exe` cannot pass for a PDF.
   const shownName = revealDirectionControls(fileName);
   const extension = getFileNameExt(fileName).slice(0, 4).toUpperCase();
+  const size = typeof info.size === 'number' && Number.isFinite(info.size) ? info.size : undefined;
   const detail =
-    typeof info.size === 'number'
+    size !== undefined
       ? t('sharedUi.msgTypeRenderers.fileMeta', {
-          type: typeLabel(mimeType),
-          size: bytesToSize(info.size),
+          type: typeLabel(fileName, mimeType),
+          size: bytesToSize(size),
         })
-      : typeLabel(mimeType);
+      : typeLabel(fileName, mimeType);
 
-  return (
-    <div ref={cardRef} className={classNames(fileCss.FileRow, outlined && fileCss.FileRowOutlined)}>
+  const renderRow = (actions: ReactNode) => (
+    <div className={fileCss.FileRow}>
       <div className={fileCss.FileTile} aria-hidden="true">
         {extension || <Icon size="100" src={Icons.File} />}
       </div>
@@ -419,7 +430,16 @@ export function MFile(props: MFileProps) {
           {detail}
         </Text>
       </div>
-      {renderFileContent({ body: fileName, mimeType, url: source.url, encInfo: source.encInfo })}
+      {actions}
+    </div>
+  );
+
+  return (
+    <div
+      ref={cardRef}
+      className={classNames(fileCss.FileCard, outlined && fileCss.FileRowOutlined)}
+    >
+      {renderFileContent({ body: fileName, mimeType, ...source, size }, renderRow)}
     </div>
   );
 }

@@ -5,8 +5,6 @@ import React, {
   ReactElement,
   ReactNode,
   SyntheticEvent,
-  useEffect,
-  useRef,
   useState,
   type JSX,
 } from 'react';
@@ -23,7 +21,6 @@ import type { ChildNode, Element } from 'domhandler';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs';
 import { Text } from 'folds';
-import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
 import * as footnoteCss from '../../rich-text/Footnote.css';
 import * as taskListCss from '../../rich-text/TaskList.css';
@@ -31,34 +28,22 @@ import { renderCustomHtmlElement } from './customHtmlRenderers';
 import { InlineImage } from './InlineImage';
 import { MermaidBlock } from './MermaidBlock';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
-import {
-  CheckIcon,
-  CodeBlockLanguageIcon,
-  CollapseIcon,
-  CopyIcon,
-  ExpandIcon,
-  WrapTextIcon,
-} from '../../rich-text/code/CodeBlockIcons';
-import {
-  getCodeBlockLanguage,
-  getCodeBlockLanguageIconToken,
-} from '../../rich-text/code/codeBlockLanguage';
+import { CodeBlockView } from '../../rich-text/code/CodeBlockView';
+import { getCodeBlockLanguage } from '../../rich-text/code/codeBlockLanguage';
 import { FootnoteItem, FootnoteLink } from '../../rich-text/Footnote';
 import { isFootnoteHref, isFootnoteId } from '../../rich-text/sanitize';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
 import { Callout, extractCallout } from '../../rich-text/Callout';
 import { TaskListItem, extractTaskListItem, hasTaskListMarker } from '../../rich-text/TaskList';
-import { useDetailsRevealOnOpen, useRevealOnOpen } from '../../ui/disclosureReveal';
+import { useDetailsRevealOnOpen } from '../../ui/disclosureReveal';
 import { stripBidiControls } from '../../rich-text/linkDestination';
 import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
-import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
 import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
-import { PrismCode } from '../../rich-text/code/ReactPrism';
 import { WithKatex } from '../../rich-text/lazyKatex';
 import {
   parseMatrixToRoom,
@@ -365,24 +350,6 @@ const textContent = (nodes: ChildNode[]): string =>
     })
     .join('');
 
-// A code block longer than this many lines, as shown, starts collapsed to `COLLAPSED_LINES`.
-const LONG_CODE_BLOCK_LINES = 16;
-const COLLAPSED_LINES = 12;
-// Wrapped lines are estimated from their length; message columns fit about this many characters.
-const WRAPPED_LINE_CHARACTERS = 80;
-const COPIED_FEEDBACK_MS = 2000;
-// The code element of every block; the id repeats per block, so look it up inside its <pre>.
-const CODE_BLOCK_CONTENT_ID = 'code-block-content';
-
-const countShownLines = (code: string, wrap: boolean): number =>
-  code
-    .split('\n')
-    .reduce(
-      (lines, line) =>
-        lines + (wrap ? Math.max(1, Math.ceil(line.length / WRAPPED_LINE_CHARACTERS)) : 1),
-      0
-    );
-
 type CodeBlockProps = {
   /** The DOM children of the `<pre>`: usually one `<code>`, with the language in its class. */
   children?: ChildNode[];
@@ -402,208 +369,35 @@ const revealingText = (opts: HTMLReactParserOptions): HTMLReactParserOptions => 
   },
 });
 
-/**
- * A fenced code block: a header with the language (as an icon when there is one) or the block's
- * `data-label`, and buttons to wrap lines, expand a long block and copy the code; then the code,
- * syntax highlighted by Prism.
- */
+/** Adapts parsed message HTML to the shared source view. */
 export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProps) {
-  const { t } = useTranslation();
-  const [wrap, setWrap] = useState(true);
-  const [expanded, setExpanded] = useState(false);
-  const expandButtonRef = useRef<HTMLButtonElement>(null);
-  const codeScrollRef = useRef<HTMLDivElement>(null);
-  const armReveal = useRevealOnOpen(expanded, expandButtonRef, codeScrollRef);
-  const [copied, setCopied] = useState(false);
-  const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(copiedTimer.current), []);
-  // The view (collapse, wrap, code length) whose last line the reader scrolled to, if any.
-  const [endView, setEndView] = useState<string>();
-
   const codeElement = children.find(
     (child): child is Element => isTag(child) && child.name === 'code'
   );
   const language = getCodeBlockLanguage(codeElement?.attribs.class);
   const label = codeElement?.attribs['data-label'] || undefined;
-  const labelExtension = label?.includes('.') ? label.split('.').pop() : undefined;
-  const iconToken =
-    (language && getCodeBlockLanguageIconToken(language)) ||
-    (labelExtension && getCodeBlockLanguageIconToken(labelExtension)) ||
-    undefined;
-  // The block shows its direction controls as code points; Copy copies the code as it is.
   const source = textContent(codeElement ? codeElement.children : children).replace(/\n$/, '');
-  const code = revealDirectionControls(source);
   const formatted = !codeElement && opts !== undefined && children.some((child) => isTag(child));
-  const searchMatch = highlightRegex !== undefined && toGlobal(highlightRegex).test(code);
-
-  const long = countShownLines(code, wrap) > LONG_CODE_BLOCK_LINES;
-  const collapsed = long && !expanded;
-  // Collapsed, the code overflows its box; unwrapped, its lines may overflow sideways. Neither
-  // is measured: mounting a block reads no layout.
-  const scrollable = collapsed || !wrap;
-  const view = `${collapsed}:${wrap}:${code.length}`;
-  const atEnd = endView === view;
-  const onScroll = (event: SyntheticEvent<HTMLDivElement>) => {
-    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
-    // At fractional zoom the native maximum sits just below scrollHeight - clientHeight.
-    setEndView(scrollTop >= scrollHeight - clientHeight - 1 ? view : undefined);
-  };
-
-  const copy = async () => {
-    const done = await copyToClipboard(source);
-    setCopied(done);
-    clearTimeout(copiedTimer.current);
-    if (done) copiedTimer.current = setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
-  };
-
-  const codeStyle: React.CSSProperties = {
-    display: 'block',
-    whiteSpace: wrap ? 'pre-wrap' : 'pre',
-    overflowWrap: wrap ? 'anywhere' : 'normal',
-  };
-  let body: ReactNode;
-  if (formatted && opts) {
-    body = (
-      <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
-        {domToReact(children as DOMNode[], revealingText(opts))}
-      </code>
-    );
-  } else if (searchMatch) {
-    body = (
-      <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
-        {renderStyledText(code, highlightRegex)}
-      </code>
-    );
-  } else {
-    body = (
-      <ErrorBoundary
-        fallback={
-          <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
-            {code}
-          </code>
-        }
-      >
-        <PrismCode
-          code={code}
-          language={language}
-          id={CODE_BLOCK_CONTENT_ID}
-          className={css.CodeBlockInternal}
-          style={codeStyle}
-        />
-      </ErrorBoundary>
-    );
-  }
-
-  const headerLabel = (
-    <div className={css.CodeBlockLabel}>
-      {iconToken && (
-        <span
-          role="img"
-          aria-label={t('messageCodeBlock.language', {
-            language: language ?? labelExtension,
-          })}
-        >
-          <CodeBlockLanguageIcon token={iconToken} />
-        </span>
-      )}
-      {(label || !iconToken) && (
-        <span className={css.CodeBlockLabelText}>{label ?? language ?? 'text'}</span>
-      )}
-    </div>
-  );
-
-  const sourceActions = (
-    <>
-      <button
-        type="button"
-        className={css.CodeBlockAction}
-        aria-label={t('messageCodeBlock.wrap')}
-        title={t('messageCodeBlock.wrap')}
-        aria-pressed={wrap}
-        onClick={() => setWrap((value) => !value)}
-      >
-        <WrapTextIcon />
-      </button>
-      {long && (
-        <button
-          ref={expandButtonRef}
-          type="button"
-          className={css.CodeBlockAction}
-          aria-label={expanded ? t('messageCodeBlock.collapse') : t('messageCodeBlock.expand')}
-          aria-expanded={expanded}
-          onClick={() => {
-            if (!expanded) armReveal();
-            setExpanded((value) => !value);
-          }}
-        >
-          {expanded ? <CollapseIcon /> : <ExpandIcon />}
-        </button>
-      )}
-    </>
-  );
-
-  const copyAction = (
-    <button
-      type="button"
-      className={css.CodeBlockAction}
-      aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
-      onClick={() => void copy()}
-    >
-      {copied ? <CheckIcon /> : <CopyIcon />}
-    </button>
-  );
-
-  const sourceBody = (
-    <>
-      {/* Native scroll areas need a tab stop for keyboard scrolling. */}
-      {/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
-      <div
-        ref={codeScrollRef}
-        className={css.CodeBlockScroll}
-        // Collapsed, the block shows its first lines and scrolls through the rest in place.
-        style={collapsed ? { maxHeight: `${COLLAPSED_LINES * 1.5}em` } : undefined}
-        role={scrollable ? 'region' : undefined}
-        aria-label={scrollable ? t('messageCodeBlock.code') : undefined}
-        tabIndex={scrollable ? 0 : undefined}
-        onScroll={onScroll}
-      >
-        {body}
-        {collapsed && !atEnd && <div className={css.CodeBlockBottomShadow} />}
-      </div>
-      {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
-    </>
-  );
-
-  if (!formatted && language?.toLowerCase() === 'mermaid') {
-    return (
-      <MermaidBlock
-        source={source}
-        searchMatch={searchMatch}
-        wrap={wrap}
-        headerLabel={headerLabel}
-        sourceActions={sourceActions}
-        copyAction={copyAction}
-        sourceBody={sourceBody}
-      />
-    );
-  }
+  const searchSource = highlightRegex ? revealDirectionControls(source) : '';
+  const searchMatch = highlightRegex !== undefined && toGlobal(highlightRegex).test(searchSource);
+  const customBody = formatted
+    ? domToReact(children as DOMNode[], revealingText(opts))
+    : searchMatch
+      ? renderStyledText(searchSource, highlightRegex)
+      : undefined;
 
   return (
-    <pre className={classNames(css.CodeBlock, css.MarginSpaced)} data-wrap={wrap}>
-      <div className={css.CodeBlockHeader}>
-        {headerLabel}
-        <div
-          className={css.CodeBlockActions}
-          role="group"
-          aria-label={t('messageCodeBlock.actions')}
-          data-code-block-actions=""
-        >
-          {sourceActions}
-          {copyAction}
-        </div>
-      </div>
-      {sourceBody}
-    </pre>
+    <CodeBlockView
+      source={source}
+      language={language}
+      label={label}
+      customBody={customBody}
+      renderLayout={
+        !formatted && language?.toLowerCase() === 'mermaid'
+          ? (layout) => <MermaidBlock {...layout} source={source} searchMatch={searchMatch} />
+          : undefined
+      }
+    />
   );
 }
 

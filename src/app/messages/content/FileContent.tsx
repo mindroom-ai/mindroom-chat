@@ -19,7 +19,7 @@ import { revealDirectionControls } from '../../ui/directional';
 import { useViewerFrame } from './viewerFrame';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { bytesToSize } from '../../lib/common';
-import { getFileNameExt, getMimeTypeBase } from '../../lib/mimeTypes';
+import { getMimeTypeBase } from '../../lib/mimeTypes';
 import { stopPropagation } from '../../lib/keyboard';
 import type { IFileInfo } from '../../matrix/types/common';
 import { isNativeFileOpenAvailable } from '../../native/nativeFileSave';
@@ -29,27 +29,9 @@ import {
   useAttachmentObjectUrl,
   useAttachmentSave,
 } from './attachmentDownload';
+import { getFileLanguageName } from './fileTextPreview';
 
-const TEXT_MIME_TYPES = new Set([
-  'application/json',
-  'application/ld+json',
-  'application/xml',
-  'application/x-yaml',
-  'application/yaml',
-  'application/javascript',
-  'application/x-javascript',
-  'application/typescript',
-  'application/x-sh',
-  'application/toml',
-  'application/sql',
-]);
-
-/** Whether a file can be shown in the text viewer. */
-const isTextFileMimeType = (mimeType: unknown): boolean => {
-  if (typeof mimeType !== 'string') return false;
-  const base = getMimeTypeBase(mimeType);
-  return base.startsWith('text/') || TEXT_MIME_TYPES.has(base);
-};
+export { getFileLanguageName, isTextPreviewableFile } from './fileTextPreview';
 
 const isPdfFileMimeType = (mimeType: unknown): boolean =>
   typeof mimeType === 'string' && getMimeTypeBase(mimeType) === 'application/pdf';
@@ -59,41 +41,6 @@ const isPdfFileMimeType = (mimeType: unknown): boolean =>
 // viewer, so there a PDF offers only its download. Browsers that predate the flag keep the viewer.
 const browserShowsPdfInline = (): boolean =>
   typeof navigator === 'undefined' || navigator.pdfViewerEnabled !== false;
-
-const LANGUAGE_BY_EXTENSION = new Map<string, string>([
-  ['json', 'json'],
-  ['js', 'javascript'],
-  ['mjs', 'javascript'],
-  ['ts', 'typescript'],
-  ['tsx', 'typescript'],
-  ['py', 'python'],
-  ['md', 'markdown'],
-  ['yaml', 'yaml'],
-  ['yml', 'yaml'],
-  ['html', 'html'],
-  ['xml', 'xml'],
-  ['css', 'css'],
-  ['sh', 'bash'],
-  ['sql', 'sql'],
-  ['toml', 'toml'],
-]);
-
-/** Highlighting language for the text viewer, from the file name and type. */
-export const getFileLanguageName = (fileName: string, mimeType: string): string => {
-  const fromExtension = LANGUAGE_BY_EXTENSION.get(getFileNameExt(fileName).toLowerCase());
-  if (fromExtension) return fromExtension;
-  const base = getMimeTypeBase(mimeType);
-  if (base.endsWith('json')) return 'json';
-  if (base.endsWith('xml')) return 'xml';
-  if (base.endsWith('yaml')) return 'yaml';
-  if (base.endsWith('javascript')) return 'javascript';
-  if (base.endsWith('typescript')) return 'typescript';
-  if (base.endsWith('sql')) return 'sql';
-  if (base.endsWith('python')) return 'python';
-  if (base === 'text/css') return 'css';
-  if (base === 'text/html') return 'html';
-  return 'plaintext';
-};
 
 type AttachmentProps = {
   owner?: EventAttachmentOwner;
@@ -386,37 +333,19 @@ export function DownloadFile({
   );
 }
 
-/** Renders one open action; FileContent calls it only for the file types it suits. */
-type RenderOpenAction = () => ReactNode;
-
 type FileActionsProps = {
-  /** The file name; callers pass it on to the actions they render. */
-  body: string;
   mimeType: string;
-  /** The open action for text files, such as a ReadTextFile. */
-  renderAsTextFile: RenderOpenAction;
-  /** The open action for PDF files, such as a ReadPdfFile. */
-  renderAsPdfFile: RenderOpenAction;
+  renderAsPdfFile?: () => ReactNode;
   children?: ReactNode;
 };
 
-/**
- * A file attachment's actions: open (text and PDF files) and whatever the caller adds. The hover
- * toolbar keeps clear of them (`data-file-actions`, hoverToolbarPlacement).
- */
-export function FileContent({
-  mimeType,
-  renderAsTextFile,
-  renderAsPdfFile,
-  children,
-}: FileActionsProps) {
-  const opensAsText = isTextFileMimeType(mimeType);
+/** The hover toolbar keeps clear of the attachment's row actions. */
+export function FileContent({ mimeType, renderAsPdfFile, children }: FileActionsProps) {
   const opensAsPdf =
     isPdfFileMimeType(mimeType) && (browserShowsPdfInline() || isNativeFileOpenAvailable());
   return (
     <Box alignItems="Center" gap="100" shrink="No" data-file-actions="">
-      {opensAsText && renderAsTextFile()}
-      {opensAsPdf && renderAsPdfFile()}
+      {opensAsPdf && renderAsPdfFile?.()}
       {children}
     </Box>
   );

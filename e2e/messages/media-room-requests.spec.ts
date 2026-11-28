@@ -9,9 +9,8 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
-// Opening a room full of pictures and files fetches only what the person can see: thumbnails for
-// the pictures near the viewport, and files only when someone opens or saves them. Checked against
-// the slot's Tuwunel with real uploads. Set MEDIA_ROOM_SHOTS=<directory> to save the room.
+// Opening a room fetches thumbnails near the viewport but no bytes for collapsed file previews.
+// Checked against the slot's Tuwunel with real uploads. Set MEDIA_ROOM_SHOTS=<directory> for shots.
 const PASSWORD = 'media-room-requests-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.MEDIA_ROOM_SHOTS;
@@ -98,7 +97,8 @@ const seedMediaRoom = async () => {
       msgtype: 'm.file',
       body: `notes-${String(index).padStart(3, '0')}.txt`,
       url,
-      info: { mimetype: 'text/plain', size: text.length },
+      // Without a declared size, even a small text file waits for Preview.
+      info: { mimetype: 'text/plain' },
     });
   }
   return { reader, kinds };
@@ -138,9 +138,7 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test('a media room loads thumbnails near the viewport and files only on request @webkit', async ({
-  page,
-}) => {
+test('a media room loads nearby thumbnails but not collapsed files @webkit', async ({ page }) => {
   test.setTimeout(180_000);
   const { reader, kinds } = await seedMediaRoom();
   const requests = recordMediaRequests(page, kinds);
@@ -150,13 +148,18 @@ test('a media room loads thumbnails near the viewport and files only on request 
     password: PASSWORD,
   });
   await page.getByText('Media Room', { exact: true }).first().click();
-  await expect(page.getByText('notes-039.txt', { exact: true })).toBeVisible({ timeout: 20_000 });
+  const timeline = page.getByText('notes-039.txt', { exact: true });
+  await expect(timeline).toBeVisible({ timeout: 20_000 });
+  const lastFile = page.locator('[data-message-id]').filter({ has: timeline });
+  await expect(lastFile.getByRole('button', { name: 'Preview', exact: true })).toHaveAttribute(
+    'aria-expanded',
+    'false'
+  );
   await settle(requests);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/media-room-open.png` });
   const atOpen = requests.slice();
 
   // Up to the pictures: each one near the viewport loads once, as a thumbnail.
-  const timeline = page.getByText('notes-039.txt', { exact: true });
   const box = (await timeline.boundingBox())!;
   await page.mouse.move(box.x, box.y);
   await expect

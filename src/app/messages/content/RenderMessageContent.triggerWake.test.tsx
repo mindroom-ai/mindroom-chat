@@ -96,6 +96,7 @@ describe('RenderMessageContent trigger wake', () => {
     });
     const mx = {
       getUserId: () => VIEWER,
+      getHomeserverUrl: () => 'https://matrix.example.org',
       getRoom: () => null,
       on: () => undefined,
       removeListener: () => undefined,

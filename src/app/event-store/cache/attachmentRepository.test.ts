@@ -21,6 +21,7 @@ import {
 import { downloadLongTextSidecarBlob } from '../../messages/content/longTextDownload';
 import { downloadSidecarBlob } from './sidecarDownload';
 import {
+  AttachmentByteLimitError,
   clearAttachmentRepositoryMemory,
   downloadCachedAttachment,
   getCachedAttachmentCacheMetadata,
@@ -749,7 +750,7 @@ describe('bounded attachment transport', () => {
         { mxcUri: 'mxc://test/bounded' },
         { maxBytes: 2048 }
       )
-    ).rejects.toThrow('limit');
+    ).rejects.toBeInstanceOf(AttachmentByteLimitError);
     expect(reads).toBeLessThan(20);
     expect(cancel).toHaveBeenCalledOnce();
   });
@@ -763,7 +764,7 @@ describe('bounded attachment transport', () => {
       downloadCachedAttachment(mx, source, { maxBytes: 2048 }),
       downloadCachedAttachment(mx, source),
     ]);
-    expect(automatic.status).toBe('rejected');
+    expect(automatic).toEqual({ status: 'rejected', reason: expect.any(AttachmentByteLimitError) });
     expect(explicit.status === 'fulfilled' && explicit.value.size).toBe(4096);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

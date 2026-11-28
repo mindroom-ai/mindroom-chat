@@ -87,6 +87,8 @@ export const Code = style({
   overflowWrap: 'anywhere',
 });
 
+const codeBlockBorder = `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`;
+
 /** A fenced code block: a header with the language and actions above a scrolling body. */
 export const CodeBlock = style({
   ...surfaceOf(color.SurfaceVariant),
@@ -94,16 +96,24 @@ export const CodeBlock = style({
   display: 'flex',
   flexFlow: 'column',
   overflow: 'hidden',
-  border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  border: codeBlockBorder,
   borderRadius: config.radii.R400,
   whiteSpace: 'normal',
+  selectors: {
+    '&[data-code-block-embedded]': {
+      border: 0,
+      borderBlockStart: codeBlockBorder,
+      borderRadius: 0,
+      margin: 0,
+    },
+  },
 });
 
 export const CodeBlockHeader = style({
   ...centeredRow(config.space.S200),
   justifyContent: 'space-between',
   padding: `${config.space.S100} ${config.space.S200}`,
-  borderBottom: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+  borderBlockEnd: codeBlockBorder,
 });
 
 export const CodeBlockLabel = style({
@@ -175,6 +185,7 @@ export const CodeBlockScroll = style({
   // otherwise go back in the browser history.
   overscrollBehaviorInline: 'contain',
   selectors: {
+    '[data-code-block-embedded] &': { borderEndStartRadius: 0, borderEndEndRadius: 0 },
     // Inside the box: the block clips anything drawn outside it.
     '&:focus-visible': {
       outline: 'none',
@@ -193,6 +204,26 @@ export const CodeBlockInternal = style({
   whiteSpace: 'pre',
   tabSize: 4,
 });
+
+export const CodeBlockDiff = style([
+  CodeBlockInternal,
+  {
+    paddingInline: 0,
+    selectors: {
+      // Every row fills the same width, even when the longest row scrolls sideways.
+      '[data-wrap="false"] &': { inlineSize: 'max-content', minInlineSize: '100%' },
+    },
+  },
+]);
+
+export const DiffLine = style({
+  display: 'block',
+  minBlockSize: '1.5em',
+  paddingInline: config.space.S300,
+});
+export const DiffAdded = style(surfaceOf(color.Success));
+export const DiffRemoved = style(surfaceOf(color.Critical));
+export const DiffMeta = style({ opacity: config.opacity.P300 });
 
 // Fades a collapsed block's last visible lines into the block's background.
 const SHADOW_HEIGHT = toRem(24);

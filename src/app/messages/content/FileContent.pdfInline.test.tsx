@@ -35,12 +35,7 @@ const renderActions = (mimeType: string): ReactTestRenderer => {
   let renderer: ReactTestRenderer | undefined;
   act(() => {
     renderer = create(
-      <FileContent
-        body="report"
-        mimeType={mimeType}
-        renderAsTextFile={() => <i data-action="open-text" />}
-        renderAsPdfFile={() => <i data-action="open-pdf" />}
-      >
+      <FileContent mimeType={mimeType} renderAsPdfFile={() => <i data-action="open-pdf" />}>
         <i data-action="download" />
       </FileContent>
     );
@@ -80,12 +75,6 @@ describe('FileContent PDF open action', () => {
     browserReports(false);
 
     expect(actionsOf(renderActions('application/pdf; charset=binary'))).toEqual(['download']);
-  });
-
-  it('still opens text files where the browser cannot show PDFs inline', () => {
-    browserReports(false);
-
-    expect(actionsOf(renderActions('text/plain'))).toEqual(['open-text', 'download']);
   });
 
   it('offers Open PDF on native Android when MindRoomFileSave can open files externally', () => {

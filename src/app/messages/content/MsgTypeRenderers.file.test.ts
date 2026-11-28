@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
 import { MAudio, MFile, MImage, MVideo } from './MsgTypeRenderers';
 import { MAX_HEIC_BYTES } from './imageOriginal';
-import { FileContent, ReadTextFile } from './FileContent';
+import { FileContent } from './FileContent';
 import { FileDownloadButton } from './FileHeader';
 
 vi.mock('./FallbackContent', () => ({
@@ -25,6 +25,7 @@ vi.mock('./VoiceAudioContent', () => ({
 }));
 
 vi.mock('./FileRow.css', () => ({
+  FileCard: 'FileCard',
   FileRow: 'FileRow',
   FileTile: 'FileTile',
   FileInfo: 'FileInfo',
@@ -55,13 +56,8 @@ describe('file renderers', () => {
     const file = renderText(
       React.createElement(MFile, {
         content: { ...fields, msgtype: MsgType.File, info: { mimetype: 5 } },
-        renderFileContent: ({ body, mimeType }) =>
-          React.createElement(FileContent, {
-            body,
-            mimeType,
-            renderAsTextFile: () => null,
-            renderAsPdfFile: () => null,
-          }),
+        renderFileContent: ({ mimeType }, renderRow) =>
+          renderRow(React.createElement(FileContent, { mimeType })),
       })
     );
     expect(file).toContain('Unnamed File');
@@ -87,7 +83,7 @@ describe('file renderers', () => {
 });
 
 describe('MFile', () => {
-  it('shows a text file as one row with its type, size, and Open and Download buttons', () => {
+  it('shows the file metadata and its actions in one row without a drawer', () => {
     let renderer!: ReturnType<typeof create>;
     act(() => {
       renderer = create(
@@ -98,25 +94,16 @@ describe('MFile', () => {
             url: 'mxc://example.org/notes',
             info: { mimetype: 'text/plain', size: 2400 },
           },
-          renderFileContent: ({ body, mimeType, url, encInfo }) =>
-            React.createElement(
-              FileContent,
-              {
-                body,
-                mimeType,
-                renderAsTextFile: () =>
-                  React.createElement(ReadTextFile, {
-                    body,
-                    mimeType,
-                    url,
-                    encInfo,
-                    iconOnly: true,
-                    renderViewer: () => null,
-                  }),
-                renderAsPdfFile: () => null,
-              },
-              React.createElement(FileDownloadButton, { filename: body, url, mimeType, encInfo })
-            ),
+          renderFileContent: ({ body, mimeType, url, encInfo, size }, renderRow) => {
+            expect(size).toBe(2400);
+            return renderRow(
+              React.createElement(
+                FileContent,
+                { mimeType },
+                React.createElement(FileDownloadButton, { filename: body, url, mimeType, encInfo })
+              )
+            );
+          },
         })
       );
     });
@@ -126,7 +113,7 @@ describe('MFile', () => {
     expect(text).toContain('"TXT"');
     expect(
       renderer.root.findAllByType('button').map((button) => button.props['aria-label'])
-    ).toEqual(['Open release-notes.txt', 'Download release-notes.txt']);
+    ).toEqual(['Download release-notes.txt']);
     renderer.unmount();
   });
 
@@ -143,9 +130,9 @@ describe('MFile', () => {
             url: 'mxc://example.org/invoice',
             info: { mimetype: 'application/octet-stream', size: 2400 },
           },
-          renderFileContent: ({ body }) => {
+          renderFileContent: ({ body }, renderRow) => {
             passedOn.push(body);
-            return null;
+            return renderRow(null);
           },
         })
       );
