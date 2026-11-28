@@ -603,3 +603,48 @@ it('updates the typing strip in place when an already-mounted tile transitions i
     vi.unstubAllGlobals();
   }
 });
+
+it('does not observe the enclosing room container with a subtree MutationObserver in Compact mode', () => {
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      observe = vi.fn();
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    }
+  );
+  const observeSpy = vi.spyOn(MutationObserver.prototype, 'observe');
+  const area = document.createElement('div');
+  document.body.append(area);
+  try {
+    const store = createStore();
+    typing(store, HELPER);
+    container = document.createElement('div');
+    area.append(container);
+    act(() => {
+      root = createRoot(container!);
+      root.render(
+        <Provider store={store}>
+          <RoomViewTyping room={room} containerRef={{ current: area }} />
+        </Provider>
+      );
+    });
+
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+    expect(observeSpy).not.toHaveBeenCalled();
+
+    // Mounting [data-timeline-rows] later and receiving a timeline event binds a direct-children observer only.
+    const rows = document.createElement('div');
+    rows.setAttribute('data-timeline-rows', '');
+    area.append(rows);
+    const roomEvent = { getRoomId: () => ROOM_ID, isRelation: () => false };
+    act(() => mockRoomEmitter.emit(RoomEvent.Timeline, roomEvent, room));
+
+    expect(observeSpy).toHaveBeenCalledWith(rows, { childList: true });
+    expect(observeSpy).not.toHaveBeenCalledWith(area, expect.anything());
+  } finally {
+    area.remove();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  }
+});

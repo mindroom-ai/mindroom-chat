@@ -1,6 +1,7 @@
 import './interactiveSwipe.css';
 import { type MutableRefObject, type RefObject, useEffect, useLayoutEffect, useRef } from 'react';
-import { hasOpenOverlay } from '../lib/openOverlay';
+import { hasOpenOverlay, OVERLAY_SELECTOR } from '../lib/openOverlay';
+import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { isIOSStandaloneWebApp } from '../native/nativeSso';
 import {
   createSwipeTracker,
@@ -90,8 +91,6 @@ type ActiveGesture = {
   sceneBegun: boolean;
   lockedOnce: boolean;
   cleanedUp: boolean;
-  rafId: number | null;
-  pendingFrame: { offset: number; progress: number } | null;
 };
 
 type ActiveSettle = {
@@ -379,21 +378,6 @@ const isInEdgeBand = (x: number, isPhysicalLeftEdge: boolean): boolean => {
 const sortByPriorityDesc = (entries: Iterable<SwipeRegistration>): SwipeRegistration[] =>
   Array.from(entries).sort((a, b) => b.priority - a.priority || b.id - a.id);
 
-const scheduleAnimationFrame = (cb: () => void): number | null => {
-  if (typeof requestAnimationFrame === 'function') {
-    return requestAnimationFrame(cb);
-  }
-  cb();
-  return null;
-};
-
-const cancelScheduledAnimationFrame = (id: number | null) => {
-  if (id === null) return;
-  if (typeof cancelAnimationFrame === 'function') {
-    cancelAnimationFrame(id);
-  }
-};
-
 const armClickSuppressor = () => {
   clearPendingClickSuppressor?.();
   if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return;
@@ -425,9 +409,6 @@ const armClickSuppressor = () => {
 };
 
 const cleanupGestureImmediate = (gesture: ActiveGesture) => {
-  cancelScheduledAnimationFrame(gesture.rafId);
-  gesture.rafId = null;
-  gesture.pendingFrame = null;
   if (gesture.scene && !gesture.cleanedUp) {
     gesture.cleanedUp = true;
     gesture.scene.cleanup(false);
@@ -448,12 +429,12 @@ const connectBlockerObserver = () => {
   ) {
     return;
   }
-  activeBlockerObserver = new MutationObserver(() => {
+  activeBlockerObserver = new MutationObserver((records) => {
     if (activeGesture) {
       const { startTarget } = activeGesture;
       if (
         (startTarget instanceof Node && !startTarget.isConnected) ||
-        isEntryBlocked(activeGesture.entry, activeGesture.overlayScope)
+        isEntryBlockedByMutations(activeGesture.entry, activeGesture.overlayScope, records)
       ) {
         abortActiveGesture();
       }
@@ -462,7 +443,11 @@ const connectBlockerObserver = () => {
     // Through the settle too: a dialog that opens and closes again before it ends still cancels it.
     if (
       activeSettle &&
-      isEntryBlocked(activeSettle.gesture.entry, activeSettle.gesture.overlayScope)
+      isEntryBlockedByMutations(
+        activeSettle.gesture.entry,
+        activeSettle.gesture.overlayScope,
+        records
+      )
     ) {
       abortActiveSettle();
     }
@@ -541,8 +526,6 @@ const startGesture = (
     sceneBegun: false,
     lockedOnce: false,
     cleanedUp: false,
-    rafId: null,
-    pendingFrame: null,
   };
   connectBlockerObserver();
 };
@@ -583,10 +566,43 @@ const isEntryBlocked = (
   return hasOpenOverlay(overlayScope);
 };
 
+const isEntryFastBlocked = (entry: SwipeRegistration): boolean => {
+  const customBlocked = entry.isBlockedRef.current;
+  if (customBlocked) return customBlocked();
+  return hasBlockingPortalOverlay();
+};
+
+const recordsMayAddOverlay = (records: readonly MutationRecord[]): boolean => {
+  for (const record of records) {
+    if (record.type === 'attributes') return true;
+    if (record.type === 'childList') {
+      for (const node of record.addedNodes) {
+        if (
+          node instanceof Element &&
+          (node.matches(OVERLAY_SELECTOR) || node.querySelector(OVERLAY_SELECTOR) !== null)
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+};
+
+const isEntryBlockedByMutations = (
+  entry: SwipeRegistration,
+  overlayScope: Element | null | undefined,
+  records: readonly MutationRecord[]
+): boolean => {
+  if (isEntryFastBlocked(entry)) return true;
+  if (entry.isBlockedRef.current) return false;
+  return recordsMayAddOverlay(records) && hasOpenOverlay(overlayScope);
+};
+
 const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => {
   if (gesture.entry.zone === 'edge' && event[HANDLED_EVENT_FLAG]) return;
 
-  if (event.touches.length !== 1 || isEntryBlocked(gesture.entry, gesture.overlayScope)) {
+  if (event.touches.length !== 1 || isEntryFastBlocked(gesture.entry)) {
     abortActiveGesture();
     return;
   }
@@ -617,8 +633,17 @@ const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => 
     return;
   }
 
+  let prevented = false;
   if (prevState === 'pending' && nextState === 'locked' && !gesture.sceneBegun) {
     gesture.sceneBegun = true;
+    if (event.cancelable !== false) {
+      event.preventDefault?.();
+      prevented = true;
+    }
+    const sel = typeof window !== 'undefined' ? window.getSelection?.() : null;
+    if (sel && !sel.isCollapsed) {
+      sel.removeAllRanges();
+    }
     if (!isReducedMotion() && gesture.entry.beginRef.current) {
       const created = gesture.entry.beginRef.current({
         axisSign: gesture.axisSign,
@@ -638,7 +663,7 @@ const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => 
 
   gesture.lockedOnce = true;
 
-  if (gesture.scene || gesture.tracker.maxDriftY <= MAX_VERTICAL_DRIFT) {
+  if (!prevented && (gesture.scene || gesture.tracker.maxDriftY <= MAX_VERTICAL_DRIFT)) {
     if (event.cancelable !== false) {
       event.preventDefault?.();
     }
@@ -649,20 +674,7 @@ const handleActiveMove = (event: TouchEventWithFlag, gesture: ActiveGesture) => 
   }
 
   if (gesture.scene) {
-    gesture.pendingFrame = {
-      offset: gesture.tracker.offset,
-      progress: gesture.tracker.progress,
-    };
-    if (gesture.rafId === null) {
-      gesture.rafId = scheduleAnimationFrame(() => {
-        if (activeGesture !== gesture) return;
-        gesture.rafId = null;
-        if (gesture.cleanedUp || !gesture.scene || !gesture.pendingFrame) return;
-        const { offset, progress } = gesture.pendingFrame;
-        gesture.pendingFrame = null;
-        gesture.scene.update(offset, progress);
-      });
-    }
+    gesture.scene.update(gesture.tracker.offset, gesture.tracker.progress);
   }
 };
 
@@ -681,8 +693,6 @@ const handleActiveEnd = (
 
   activeGesture = null;
   disconnectBlockerObserver();
-  cancelScheduledAnimationFrame(gesture.rafId);
-  gesture.rafId = null;
 
   if (gesture.lockedOnce) {
     armClickSuppressor();
@@ -707,16 +717,7 @@ const handleActiveEnd = (
     Number.isFinite(liftTouch.clientY)
   ) {
     gesture.tracker.move(liftTouch.clientX, liftTouch.clientY, endTimeMs, gesture.scene.extent);
-    gesture.pendingFrame = {
-      offset: gesture.tracker.offset,
-      progress: gesture.tracker.progress,
-    };
-  }
-
-  if (gesture.pendingFrame) {
-    const { offset, progress } = gesture.pendingFrame;
-    gesture.pendingFrame = null;
-    gesture.scene.update(offset, progress);
+    gesture.scene.update(gesture.tracker.offset, gesture.tracker.progress);
   }
 
   const extent = gesture.scene.extent;

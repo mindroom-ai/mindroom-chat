@@ -384,6 +384,7 @@ describe('createLiveBackSwipeScene & createLiveForwardSwipeScene', () => {
     })!;
     expect(cancelScene.extent).toBe(390);
     expect(over.hasAttribute('data-swipe-shadow')).toBe(true);
+    expect(over.style.translate).toBe('0px');
     expect(under.style.translate).toBe('-117px');
 
     cancelScene.update(195, 0.5);

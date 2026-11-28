@@ -372,8 +372,7 @@ describe('interactiveSwipe', () => {
       expect(onCommit).not.toHaveBeenCalled();
     });
 
-    it('coalesces touchmoves via rAF, flushes on touchend, settles, then commits and cleans up', async () => {
-      vi.useFakeTimers();
+    it('updates synchronously on each locked touchmove, settles, then commits and cleans up', async () => {
       const mock = createMockScene(400);
       mock.deferSettle();
       const begin = vi.fn(() => mock.scene);
@@ -383,28 +382,21 @@ describe('interactiveSwipe', () => {
 
       act(() => {
         window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
-        // Lock move + two more moves within one animation frame
         window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 20, clientY: 200 }], 10));
         window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 100, clientY: 200 }], 20));
         window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 200, clientY: 200 }], 30));
       });
 
       expect(begin).toHaveBeenCalledOnce();
-      expect(mock.update).not.toHaveBeenCalled();
-
-      act(() => {
-        vi.advanceTimersByTime(20);
-      });
-      expect(mock.update).toHaveBeenCalledTimes(1);
+      expect(mock.update).toHaveBeenCalledTimes(3);
       expect(mock.update).toHaveBeenLastCalledWith(180, 180 / 400);
 
-      // Final move + immediate lift before next rAF -> flushed synchronously before settle
       act(() => {
         window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 220, clientY: 200 }], 50));
         window.dispatchEvent(createTouchEvent('touchend', [], 60));
       });
 
-      expect(mock.update).toHaveBeenCalledTimes(2);
+      expect(mock.update).toHaveBeenCalledTimes(4);
       expect(mock.update).toHaveBeenLastCalledWith(200, 0.5);
       expect(mock.settle).toHaveBeenCalledOnce();
       expect(mock.settle.mock.calls[0]?.[0]).toBe(true);
@@ -1404,5 +1396,143 @@ describe('interactiveSwipe', () => {
 
     expect(mock.commit).not.toHaveBeenCalled();
     expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('avoids full-DOM overlay scans on steady-state touchmoves and unrelated DOM mutations, while aborting on overlay mount or custom isBlocked', async () => {
+    const mock = createMockScene(400);
+    let customBlocked = false;
+    function SwipeHarness({ useCustomBlocker }: { useCustomBlocker?: boolean }) {
+      useInteractiveSwipe({
+        zone: 'edge',
+        edge: 'start',
+        direction: 'inward',
+        priority: SWIPE_PRIORITY.PAGE,
+        enabled: true,
+        isBlocked: useCustomBlocker ? () => customBlocked : undefined,
+        onCommit: vi.fn(),
+        begin: () => mock.scene,
+      });
+      return null;
+    }
+
+    const view = render(<SwipeHarness />);
+
+    act(() => {
+      window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
+    });
+
+    const querySpy = vi.spyOn(document, 'querySelectorAll');
+    try {
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 25, clientY: 200 }], 16));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 120, clientY: 200 }], 32));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 220, clientY: 200 }], 48));
+      });
+
+      // Unrelated DOM mutations (streaming text, typing dots, dim layer) must not trigger document-wide overlay scans.
+      const unrelated = document.createElement('span');
+      unrelated.textContent = 'streaming token';
+      document.body.append(unrelated);
+      await flushMicrotasks();
+
+      expect(querySpy).not.toHaveBeenCalled();
+      expect(mock.cleanup).not.toHaveBeenCalled();
+      unrelated.remove();
+
+      // Mounting an actual blocking overlay still triggers the scan and aborts immediately.
+      const wrapper = document.createElement('div');
+      const dialog = document.createElement('div');
+      dialog.setAttribute('role', 'dialog');
+      wrapper.append(dialog);
+      document.body.append(wrapper);
+      await flushMicrotasks();
+
+      expect(mock.cleanup).toHaveBeenCalledWith(false);
+      wrapper.remove();
+
+      // Custom cheap isBlocked callback still aborts synchronously on touchmove without full-DOM scans.
+      mock.cleanup.mockClear();
+      querySpy.mockClear();
+      view.rerender(<SwipeHarness useCustomBlocker />);
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 100));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 60, clientY: 200 }], 116));
+      });
+      customBlocked = true;
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 120, clientY: 200 }], 132));
+      });
+      expect(mock.cleanup).toHaveBeenCalledWith(false);
+      expect(querySpy).not.toHaveBeenCalled();
+    } finally {
+      querySpy.mockRestore();
+    }
+  });
+
+  it('prevents default and clears non-collapsed selection before calling begin() on lock, while preserving collapsed carets', () => {
+    const events: string[] = [];
+    const mock = createMockScene(400);
+    const begin = vi.fn(() => {
+      events.push('begin');
+      return mock.scene;
+    });
+    const removeAllRanges = vi.fn(() => {
+      events.push('clearSelection');
+    });
+    let collapsed = false;
+    const getSelectionSpy = vi.spyOn(window, 'getSelection').mockImplementation(
+      () =>
+        ({
+          get isCollapsed() {
+            return collapsed;
+          },
+          removeAllRanges,
+        }) as unknown as Selection
+    );
+
+    function LockHarness() {
+      useInteractiveSwipe({
+        zone: 'edge',
+        edge: 'start',
+        direction: 'inward',
+        priority: SWIPE_PRIORITY.PAGE,
+        enabled: true,
+        onCommit: vi.fn(),
+        begin,
+      });
+      return null;
+    }
+
+    try {
+      render(<LockHarness />);
+
+      const lockMove = createTouchEvent('touchmove', [{ clientX: 25, clientY: 200 }], 16);
+      const origPreventDefault = lockMove.preventDefault.bind(lockMove);
+      lockMove.preventDefault = () => {
+        events.push('preventDefault');
+        origPreventDefault();
+      };
+
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 0));
+        window.dispatchEvent(lockMove);
+        window.dispatchEvent(createTouchEvent('touchcancel', [], 32));
+      });
+
+      expect(events).toEqual(['preventDefault', 'clearSelection', 'begin']);
+
+      // Collapsed caret (e.g. inside an input) is preserved on lock.
+      events.length = 0;
+      removeAllRanges.mockClear();
+      collapsed = true;
+      act(() => {
+        window.dispatchEvent(createTouchEvent('touchstart', [{ clientX: 10, clientY: 200 }], 100));
+        window.dispatchEvent(createTouchEvent('touchmove', [{ clientX: 25, clientY: 200 }], 116));
+        window.dispatchEvent(createTouchEvent('touchcancel', [], 132));
+      });
+      expect(removeAllRanges).not.toHaveBeenCalled();
+    } finally {
+      getSelectionSpy.mockRestore();
+    }
   });
 });

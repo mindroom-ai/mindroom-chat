@@ -70,3 +70,12 @@ globalStyle('[data-phone-stage][data-swipe-stage] > [data-phone-page][data-swipe
   overflowInline: 'visible',
   overflowBlock: 'clip',
 });
+
+// Promote sliding layers and dim veil to compositor layers during active swipes and slides.
+globalStyle('[data-swipe-over-thread][data-swiping], [data-swipe-under-thread][data-swiping]', {
+  willChange: 'translate',
+});
+
+globalStyle('[data-swipe-dim][data-swiping]', {
+  willChange: 'opacity',
+});

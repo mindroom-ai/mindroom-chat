@@ -21,3 +21,13 @@ globalStyle('[data-swipe-shadow]::before', {
 globalStyle('[dir="rtl"] [data-swipe-shadow]::before, [data-swipe-shadow][dir="rtl"]::before', {
   background: 'linear-gradient(to right, rgb(0 0 0 / 0.16), transparent)',
 });
+
+// Suppress iOS text selection and Copy/Look Up/Translate callouts while swiping the upper layer.
+globalStyle(
+  '[data-swipe-over-thread][data-swiping], [data-swipe-over-thread][data-swiping] .selectable',
+  {
+    userSelect: 'none',
+    WebkitUserSelect: 'none',
+    WebkitTouchCallout: 'none',
+  }
+);

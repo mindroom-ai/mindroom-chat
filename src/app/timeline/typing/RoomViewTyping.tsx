@@ -144,6 +144,10 @@ const useStreamingRepliesOnScreen = (
     const typingSet = new Set(agentsTyping.split(' ').filter(Boolean));
     const scopeRoot = containerRef?.current ?? document.body;
     const timelineRows = scopeRoot.querySelector<HTMLElement>('[data-timeline-rows]');
+    if (!timelineRows && containerRef) {
+      setOnScreen((previous) => (previous.size === 0 ? previous : NOBODY));
+      return;
+    }
     const scrollRoot = timelineRows
       ? findScrollRoot(timelineRows, containerRef?.current?.parentElement ?? null)
       : null;
@@ -191,7 +195,6 @@ const useStreamingRepliesOnScreen = (
     let ioRoot: Element | null | undefined;
     let mo: MutationObserver | undefined;
     let moTarget: Element | null = null;
-    let moSubtree = false;
 
     const publish = () => {
       const next = new Set(visible.values());
@@ -205,6 +208,20 @@ const useStreamingRepliesOnScreen = (
         cachedScrollRoot = timelineRows
           ? findScrollRoot(timelineRows, containerRef?.current?.parentElement ?? null)
           : null;
+      }
+      if (!timelineRows && containerRef) {
+        if (mo) {
+          mo.disconnect();
+          mo = undefined;
+          moTarget = null;
+        }
+        if (observed.size > 0 || visible.size > 0) {
+          for (const el of observed.keys()) io?.unobserve(el);
+          observed.clear();
+          visible.clear();
+          publish();
+        }
+        return;
       }
       if (!io || ioRoot !== cachedScrollRoot) {
         io?.disconnect();
@@ -255,19 +272,13 @@ const useStreamingRepliesOnScreen = (
       }
       publish();
 
-      const nextMoTarget = timelineRows ?? containerRef?.current ?? null;
-      const nextMoSubtree = !timelineRows;
-      if (nextMoTarget !== moTarget || nextMoSubtree !== moSubtree) {
+      if (timelineRows !== moTarget) {
         mo?.disconnect();
         mo = undefined;
-        moTarget = nextMoTarget;
-        moSubtree = nextMoSubtree;
-        if (nextMoTarget) {
+        moTarget = timelineRows;
+        if (timelineRows) {
           mo = new MutationObserver(syncTargets);
-          mo.observe(
-            nextMoTarget,
-            nextMoSubtree ? { childList: true, subtree: true } : { childList: true }
-          );
+          mo.observe(timelineRows, { childList: true });
         }
       }
     };
