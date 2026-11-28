@@ -71,7 +71,11 @@ import { MessageBugReportItem, useCanReportMessageBug } from '../bug-reports/Mes
 import { useThreadPinning } from '../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { AvatarModelMark, ModelBadge } from './agent-run/ModelBadge';
-import { isKeyboardFocus, useToolbarClearance } from './hoverToolbarPlacement';
+import {
+  isKeyboardFocus,
+  MessageInlineCanvasContext,
+  useToolbarClearance,
+} from './hoverToolbarPlacement';
 import { getSenderNameTone } from './senderNameTone';
 import {
   AiRunControls,
@@ -902,6 +906,8 @@ export function Message({
   // its emulated mouse, and never ends that hover, so the toolbar stayed there.
   const [pointerInside, setPointerInside] = useState(false);
   const [focusInside, setFocusInside] = useState(false);
+  const [inlineCanvasCount, setInlineCanvasCount] = useState(0);
+  const hasInlineCanvas = inlineCanvasCount > 0;
   const { hoverProps } = useHover({
     onHoverChange: (hovered: boolean) => setPointerInside(hovered && canHover()),
   });
@@ -923,7 +929,7 @@ export function Message({
     // A press that starts on selected text ends that selection: the browser clears it before the
     // click, so the click can no longer tell.
     tapWhileShown.current =
-      evt.pointerType !== 'mouse' && focusInside && !edit && !hasSelectedText();
+      !hasInlineCanvas && evt.pointerType !== 'mouse' && focusInside && !edit && !hasSelectedText();
     const opensMenu = evt.button === 2 || (evt.button === 0 && evt.ctrlKey);
     selectedAtMenuPress.current = opensMenu ? hasSelectedText() : undefined;
   };
@@ -941,7 +947,9 @@ export function Message({
     pressedPointer.current = undefined;
     const tapped = evt.target === evt.currentTarget || !!toolbarRef.current?.contains(evt.target);
     setFocusInside(
-      isKeyboardFocus(evt.target) || pointer === undefined || (pointer !== 'mouse' && tapped)
+      isKeyboardFocus(evt.target) ||
+        pointer === undefined ||
+        (pointer !== 'mouse' && tapped && !hasInlineCanvas)
     );
   };
   // A tap on the message itself hides the toolbar its focus showed: the row keeps the focus, so
@@ -969,8 +977,8 @@ export function Message({
     const focused = document.activeElement;
     if (focused instanceof HTMLElement && row.contains(focused)) focused.blur();
   };
-  // The inline editor has its own buttons, so the toolbar stays away while it is open.
-  const toolbarVisible = !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
+  const rowActive = !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
+  const toolbarVisible = rowActive && !hasInlineCanvas;
   const useAuthentication = useMediaAuthentication();
   const baseRef = useRef<HTMLDivElement | null>(null);
   const setBaseRef = useCallback(
@@ -1187,6 +1195,15 @@ export function Message({
         </Menu>
       </FocusTrap>
     );
+    const menuPopOut = menuAnchor && (
+      <PopOut
+        anchor={menuAnchor}
+        position={menuSide}
+        align="End"
+        offset={POP_OUT_OFFSET}
+        content={<DialogOpenerContext value={hideMenu}>{menu}</DialogOpenerContext>}
+      />
+    );
     const emojiBoard = emojiAnchor && onReactionToggle && (
       <PopOut
         anchor={emojiAnchor}
@@ -1285,27 +1302,19 @@ export function Message({
                 onClick={startEdit}
               />
             )}
-            <PopOut
-              anchor={menuAnchor}
-              position={menuSide}
-              align="End"
-              offset={POP_OUT_OFFSET}
-              content={<DialogOpenerContext value={hideMenu}>{menu}</DialogOpenerContext>}
-            >
-              <ToolbarAction
-                label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
-                icon={Icons.VerticalDots}
-                pressed={!!menuAnchor}
-                onClick={(evt: MouseEvent<HTMLButtonElement>) => setMenuAnchor(getAnchor(evt))}
-              />
-            </PopOut>
+            <ToolbarAction
+              label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
+              icon={Icons.VerticalDots}
+              pressed={!!menuAnchor}
+              onClick={(evt: MouseEvent<HTMLButtonElement>) => setMenuAnchor(getAnchor(evt))}
+            />
           </Box>
         </Menu>
       </div>
     );
 
     const collapsedTime =
-      !showHeader && toolbarVisible ? (
+      !showHeader && rowActive ? (
         <div className={css.CollapsedTime}>
           <Time
             ts={mEvent.getTs()}
@@ -1352,8 +1361,11 @@ export function Message({
         {...props}
       >
         {toolbarVisible && options}
+        {menuPopOut}
         {emojiBoard}
-        {layout}
+        <MessageInlineCanvasContext value={setInlineCanvasCount}>
+          {layout}
+        </MessageInlineCanvasContext>
       </MessageBase>
     );
   };

@@ -1,4 +1,12 @@
-import { type RefObject, useLayoutEffect, useRef, useState } from 'react';
+import {
+  createContext,
+  type Dispatch,
+  type RefObject,
+  type SetStateAction,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { readTopInset } from '../ui/styles/threadHeaderInset';
 
 /**
@@ -30,17 +38,21 @@ const findScroller = (row: HTMLElement): HTMLElement | undefined => {
 
 /** Marks a control right above a timeline's first row, such as the `[+all]` toggle. */
 export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
+/** Marks the card of an inline canvas, not its fallback notice. */
+export const INLINE_CANVAS_ATTRIBUTE = 'data-inline-canvas';
+export const MessageInlineCanvasContext = createContext<Dispatch<SetStateAction<number>> | undefined>(
+  undefined
+);
 /**
  * The Show full message / Show less button of a long message (CollapsibleMessage). It sits at the
  * end of the message's bottom edge, the corner the toolbar of the row below floats over.
  */
 const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > button';
 /**
- * Buttons at the end side of a message's content: a code block's (Wrap lines, Expand, Copy code),
- * at the end of its top edge, a file card's (View, Download), and an inline canvas's update
- * notice (Load update). They sit under a toolbar that moves down into a row.
+ * Buttons at the end side of a message's content: a code block's (Wrap lines, Expand, Copy code)
+ * and a file card's (View, Download). They sit under a toolbar that moves down into a row.
  */
-const CONTENT_ACTIONS = '[data-code-block-actions], [data-file-actions], [data-canvas-actions]';
+const CONTENT_ACTIONS = '[data-code-block-actions], [data-file-actions]';
 /**
  * The tight wrapper around a message's sender name and timestamp at the start of its header row.
  * When wide enough to reach under the toolbar (narrow viewports or long names), the toolbar keeps
@@ -73,15 +85,15 @@ const coveredUntilY = (scroller: HTMLElement, left: number, right: number): numb
 /** A control's top and bottom, relative to the top of the toolbar's row. */
 type Span = { top: number; bottom: number };
 
-/** A fold button beside the toolbar, relative to the top of the toolbar's row. */
+/** A fold button or preceding inline canvas, relative to the top of the toolbar's row. */
 type FoldSpan = Span & { ownRow: boolean };
 
 /**
  * Where the toolbar's top goes, relative to the top of its row, or `undefined` for its usual
  * place. `usual` is that place, `covered` where what floats over the top of the timeline ends,
- * `height` the toolbar's own height, `folds` the fold buttons under its span, `senderLine`
- * the row's sender line where it is under the span, and `contentActions` the buttons of the row's
- * code blocks, files, and canvases under the span.
+ * `height` the toolbar's own height, `folds` the fold buttons and preceding inline canvases under
+ * its span, `senderLine` the row's sender line where it is under the span, and `contentActions`
+ * the buttons of the row's code blocks and files under the span.
  */
 export const toolbarOffset = (
   usual: number,
@@ -108,14 +120,14 @@ export const toolbarOffset = (
     .sort((a, b) => a.top - b.top)
     .forEach((fold) => {
       if (nearControl(top, fold)) {
-        // The fold button of the long message above pushes the toolbar down into its row; the
-        // row's own, at its bottom, pushes it up.
+        // A fold button or canvas of a row above pushes the toolbar down; the row's own fold
+        // button, at its bottom, pushes it up.
         top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
       }
     });
-  // Where the toolbar would cover the buttons of a code block, file, or canvas (either when
-  // traveling into a row or when its resting edge overlaps them), move to the nearest clear spot
-  // below them inside the row; if still at rest and too short below, step above them when clear.
+  // Where the toolbar would cover the buttons of a code block or file (either when traveling
+  // into a row or when its resting edge overlaps them), move to the nearest clear spot below them
+  // inside the row; if still at rest and too short below, step above them when clear.
   const movedDown = top > usual + 0.5;
   const blockingActions = contentActions.filter((actions) =>
     movedDown ? nearControl(top, actions) : overlapsControl(top, actions)
@@ -162,8 +174,9 @@ export const toolbarOffset = (
  * How far below the top of its row the hover toolbar sits, in pixels, or `undefined` in its usual
  * place. Headered rows dock inside the empty end half of their header row; follow-up rows straddle
  * their top-end edge. When a tall row scrolls under the floating room header or sticky thread
- * banner, or collides with `[+all]`, fold buttons, content action buttons, or a wide sender line,
- * the toolbar travels smoothly to stay clear. Measured while shown and updated on scroll/resize.
+ * banner, or collides with `[+all]`, fold buttons, an inline canvas above, content action buttons,
+ * or a wide sender line, the toolbar travels to stay clear. Measured while shown and updated on
+ * scroll/resize.
  */
 export const useToolbarClearance = (
   rowRef: RefObject<HTMLElement | null>,
@@ -201,6 +214,13 @@ export const useToolbarClearance = (
       const folds = Array.from(scroller.querySelectorAll(FOLD_BUTTON)).flatMap((button) =>
         underBar(button).map((span) => ({ ...span, ownRow: row.contains(button) }))
       );
+      const canvases = Array.from(scroller.querySelectorAll(`[${INLINE_CANVAS_ATTRIBUTE}]`))
+        .filter(
+          (card) =>
+            !row.contains(card) &&
+            Boolean(card.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING)
+        )
+        .flatMap((card) => underBar(card).map((span) => ({ ...span, ownRow: false })));
       const contentActions = Array.from(row.querySelectorAll(CONTENT_ACTIONS)).flatMap(underBar);
       const sender = row.querySelector(SENDER_LINE);
       const [senderLine] = sender ? underBar(sender) : [];
@@ -209,7 +229,7 @@ export const useToolbarClearance = (
         coveredUntilY(scroller, bar.left, bar.right) - rowRect.top,
         rowRect.height,
         bar.height,
-        folds,
+        [...folds, ...canvases],
         senderLine,
         contentActions
       );

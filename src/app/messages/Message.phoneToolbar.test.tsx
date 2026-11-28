@@ -1,24 +1,19 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import type { MatrixEvent, Room } from 'matrix-js-sdk';
+import { use, useLayoutEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { MessageLayout } from '../preferences/settings';
+import { makeUiEvent, makeUiRoom, viewerId } from '../ui-actions/testUtils';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
+import { MessageInlineCanvasContext } from './hoverToolbarPlacement';
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test/utils/i18n');
-  return { useTranslation: () => ({ t: translateFromEn }) };
+  return { useTranslation: () => ({ t: translateFromEn, i18n: { language: 'en' } }) };
 });
-vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
-}));
 vi.mock('../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
-}));
-vi.mock('../matrix/room', () => ({
-  canEditEvent: () => false,
-  getMemberAvatarMxc: () => undefined,
-  getMemberDisplayName: () => 'Alice',
 }));
 vi.mock('../event-store/threads/useThreadPinning', () => ({
   useThreadPinning: () => ({ canPin: false, setPinned: vi.fn(), updating: false }),
@@ -28,43 +23,49 @@ vi.mock('../bug-reports/MessageBugReportItem', () => ({
   useCanReportMessageBug: () => false,
 }));
 vi.mock('../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
-vi.mock('./Time', () => ({ Time: () => null }));
+vi.mock('../emoji/board/LazyEmojiBoard', () => ({ EmojiBoard: () => 'Emoji board' }));
 
 const loadMessage = async () => (await import('./Message')).Message;
 importBeforeTests(loadMessage);
 
-const createEvent = () =>
-  ({
-    threadRootId: undefined,
-    getContent: () => ({ msgtype: 'm.text', body: 'plain reply' }),
-    getId: () => '$event',
-    getSender: () => '@alice:example.org',
-    getTs: () => 1,
-    isRedacted: () => false,
-  }) as unknown as MatrixEvent;
+function RegisteredCanvas() {
+  const register = use(MessageInlineCanvasContext);
+  useLayoutEffect(() => {
+    register?.((count) => count + 1);
+    return () => register?.((count) => count - 1);
+  }, [register]);
+  return null;
+}
 
-const createRoom = () =>
-  ({ roomId: '!room:example.org', getTimelineForEvent: () => undefined }) as unknown as Room;
-
-/** Renders one confirmed message whose body is a plain paragraph, and returns that paragraph. */
-const renderMessage = async () => {
+const mountMessage = async (withCanvas = false) => {
   const Message = await loadMessage();
-  render(
+  const { mx, room } = makeUiRoom();
+  const content = { msgtype: 'm.text', body: 'plain reply' };
+  const mEvent = makeUiEvent({}, { event_id: '$event', sender: viewerId, content });
+  const message = (canvas: boolean) => (
     <Message
-      room={createRoom()}
-      mEvent={createEvent()}
-      collapse={false}
+      room={room}
+      mEvent={mEvent}
+      collapse={withCanvas}
       highlight={false}
       messageLayout={MessageLayout.Modern}
       messageSpacing="400"
+      canSendReaction={withCanvas}
+      onReactionToggle={vi.fn()}
       onReplyClick={vi.fn()}
       data-message-id="$event"
     >
       <p>plain reply</p>
+      {canvas && <RegisteredCanvas />}
     </Message>
   );
-  return screen.getByText('plain reply');
+  const { rerender } = render(message(withCanvas), {
+    wrapper: ({ children }) => <MatrixClientProvider value={mx}>{children}</MatrixClientProvider>,
+  });
+  return { text: screen.getByText('plain reply'), removeCanvas: () => rerender(message(false)) };
 };
+
+const renderMessage = async () => (await mountMessage()).text;
 
 const row = (): HTMLElement => {
   const element = document.querySelector<HTMLElement>('[data-message-id="$event"]');
@@ -72,7 +73,8 @@ const row = (): HTMLElement => {
   return element;
 };
 
-const toolbarShown = (): boolean => screen.queryByRole('button', { name: 'Reply' }) !== null;
+const toolbarShown = (): boolean =>
+  row().querySelector('button[aria-label="Reply"], button[aria-label="Add Reaction"]') !== null;
 
 /**
  * A press on `target` with `pointerType`, as a browser sends it: a pointerdown, the focus the
@@ -108,6 +110,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('Message toolbar on a phone', () => {
@@ -165,5 +168,52 @@ describe('Message toolbar on a phone', () => {
     await press(text, 'mouse');
     expect(toolbarShown()).toBe(afterFirst);
     expect(document.activeElement).toBe(row());
+  });
+});
+
+describe('Message toolbar with an inline canvas', () => {
+  it('keeps only the collapsed time on hover until the canvas is removed', async () => {
+    vi.stubGlobal('matchMedia', undefined); // Without matchMedia, Message allows hover.
+    const { removeCanvas } = await mountMessage(true);
+    fireEvent.pointerEnter(row(), { pointerType: 'mouse' });
+    fireEvent.mouseEnter(row());
+    expect(toolbarShown()).toBe(false);
+    expect(row().querySelector('time')).not.toBeNull();
+    removeCanvas();
+    expect(toolbarShown()).toBe(true);
+  });
+
+  it('hides the toolbar on focus without blurring or activating it on a second tap', async () => {
+    const { text, removeCanvas } = await mountMessage(true);
+    const element = row();
+    act(() => element.focus());
+    expect(toolbarShown()).toBe(false);
+    await press(text, 'touch');
+    expect(document.activeElement).toBe(element);
+
+    act(() => element.blur());
+    // jsdom does not distinguish a tap's focus from the keyboard's.
+    const matches = element.matches.bind(element);
+    vi.spyOn(element, 'matches').mockImplementation((selector) =>
+      selector !== ':focus-visible' && matches(selector)
+    );
+    await press(text, 'touch', element);
+    await press(text, 'touch');
+    expect(document.activeElement).toBe(element);
+    removeCanvas();
+    expect(toolbarShown()).toBe(false);
+  });
+
+  it('opens the right-click menu and Add Reaction without a toolbar', async () => {
+    // The focus trap needs visible menu items; jsdom gives them no layout.
+    const rects = [new DOMRect()] as unknown as DOMRectList;
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue(rects);
+    const { text } = await mountMessage(true);
+    fireEvent.contextMenu(text, { button: 2, clientX: 24, clientY: 24 });
+    expect(toolbarShown()).toBe(false);
+    fireEvent.click(screen.getByText('Add Reaction', { exact: true }));
+    expect(screen.queryByText('Add Reaction', { exact: true })).toBeNull();
+    expect(screen.getByText('Emoji board')).toBeTruthy();
+    expect(toolbarShown()).toBe(false);
   });
 });

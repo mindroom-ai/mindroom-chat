@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createRoot, type Root } from 'react-dom/client';
-import { act, type ReactNode } from 'react';
+import { act, type ReactNode, type SetStateAction } from 'react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
@@ -10,6 +10,7 @@ import { readChatUiAction, type ChatUiAction } from '../../matrix/protocol/chatU
 import { PAGE_ZOOM_DEFAULT, settingsAtom } from '../../preferences/settings';
 import { ChatUiActionContext } from '../../ui-actions/ChatUiActionProvider';
 import { makeUiEvent, makeUiRoom } from '../../ui-actions/testUtils';
+import { INLINE_CANVAS_ATTRIBUTE, MessageInlineCanvasContext } from '../hoverToolbarPlacement';
 import { InlineCanvasFrame, inlineCanvasScale } from './InlineCanvasFrame';
 import { canvasFrameWindow, CANVAS_WRAPPER_SANDBOX, type CanvasSaved } from './canvasDocument';
 import { CANVAS_RESPONSE_KEY } from './canvasMessages';
@@ -61,7 +62,12 @@ vi.mock('../../theme/useTheme', () => ({
 let root: Root;
 let container: HTMLDivElement;
 let fixture: ReturnType<typeof makeUiRoom>;
+let cardCount = 0;
+const registerCard = (update: SetStateAction<number>) => {
+  cardCount = typeof update === 'function' ? update(cardCount) : update;
+};
 const canvas = { title: 'A mockup', html: '<p>Preview</p>' };
+const inlineCard = `[${INLINE_CANVAS_ATTRIBUTE}]`;
 const event = () => makeUiEvent({ action: 'show_canvas', inline: true, canvas });
 const store = getDefaultStore();
 const setZoom = (pageZoom: number) =>
@@ -101,13 +107,19 @@ const render = (
               openCanvasId,
             }}
           >
-            <InlineCanvasFrame event={request} readOnly={readOnly} fallback={fallback} />
+            <MessageInlineCanvasContext value={registerCard}>
+              <InlineCanvasFrame event={request} readOnly={readOnly} fallback={fallback} />
+            </MessageInlineCanvasContext>
           </ChatUiActionContext>
         </ClientConfigProvider>
       </MatrixClientProvider>
     )
   );
 const frame = () => container.querySelector('iframe')!;
+const expectCard = (body: string) => {
+  expect(cardCount).toBe(1);
+  expect(container.querySelector(`${inlineCard} ${body}`)).not.toBeNull();
+};
 /** The canvas page, which the wrapper document carries as a script string. */
 const pageSource = () => {
   const literal = /frame\.srcdoc = ("(?:[^"\\]|\\.)*");/.exec(frame().getAttribute('srcdoc') ?? '');
@@ -120,6 +132,7 @@ const post = (data: unknown, source = canvasFrameWindow(frame()), origin = 'null
 const buttonNamed = (name: string) =>
   [...container.querySelectorAll('button')].find((candidate) => candidate.textContent === name);
 beforeEach(() => {
+  cardCount = 0;
   saved.ready = true;
   saved.value = {};
   shares.enabled = [];
@@ -521,6 +534,7 @@ describe('InlineCanvasFrame', () => {
     const activate = vi.fn();
     const read = (e: MatrixEvent) => readChatUiAction(e, fixture.mx.getSafeUserId(), fixture.room);
     render(request, true, false, { read, activate });
+    expectCard('iframe');
 
     const titleWrap = container.querySelector('[data-canvas-notice-title]')!;
     expect(titleWrap.textContent).toBe(canvas.title);
@@ -529,7 +543,6 @@ describe('InlineCanvasFrame', () => {
 
     const open = buttonNamed('Open canvas')!;
     expect(open).toBeDefined();
-    expect(open.closest('[data-canvas-actions]')).not.toBeNull();
     // Both title and Open canvas sit in the header above the iframe.
     expect(
       titleWrap.compareDocumentPosition(frame()) & Node.DOCUMENT_POSITION_FOLLOWING
@@ -560,9 +573,26 @@ describe('InlineCanvasFrame', () => {
       activate,
       unavailable: () => 'End the call to open interactive panels.',
     });
+    expectCard('iframe');
     expect(container.querySelector('[data-canvas-notice-title]')?.textContent).toBe(canvas.title);
     expect(container.querySelector('button')).toBeNull();
     expect(container.querySelector('[role="note"]')).toBeNull();
+  });
+
+  it.each(['replacement', 'redaction'])('unregisters the card on %s', async (change) => {
+    const request = event();
+    const fallback = 'Plain notice fallback';
+    render(request, true, false, { fallback });
+    expectCard('iframe');
+    if (change === 'replacement') {
+      render(makeUiEvent({}, { event_id: '$other' }), true, false, { fallback });
+    } else {
+      const redaction = makeUiEvent({}, { type: 'm.room.redaction', event_id: '$redact' });
+      await act(async () => request.makeRedacted(redaction, fixture.room));
+    }
+    expect(cardCount).toBe(0);
+    expect(container.querySelector(inlineCard)).toBeNull();
+    expect(container.textContent).toBe(fallback);
   });
 
   it('renders the fallback notice when canvases are off, non-inline, or for another member', () => {
@@ -814,7 +844,6 @@ describe('InlineCanvasFrame as a host', () => {
     expect(container.textContent).toContain('updated this page.');
     // The staged answer was for the page before the update.
     expect(sendButton()).toBeNull();
-    expect(buttonNamed('Load update')?.hasAttribute('data-canvas-actions')).toBe(true);
     act(() => buttonNamed('Load update')!.click());
     expect(frame()).not.toBe(shown);
     expect(frame().srcdoc).toContain('Latest');
@@ -822,6 +851,7 @@ describe('InlineCanvasFrame as a host', () => {
 
   it('names the panel instead of running a second copy while the panel shows the canvas', () => {
     render(event(), true, false, { openCanvasId: '$request' });
+    expectCard('[data-canvas-in-panel]');
     expect(container.querySelector('iframe')).toBeNull();
     expect(container.querySelector('[data-canvas-in-panel]')?.textContent).toBe(
       'Shown in the panel'

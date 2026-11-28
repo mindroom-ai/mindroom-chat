@@ -3,6 +3,7 @@ import { act, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  INLINE_CANVAS_ATTRIBUTE,
   TIMELINE_OVERLAY_ATTRIBUTE,
   isKeyboardFocus,
   toolbarOffset,
@@ -76,8 +77,9 @@ const renderRow = (
   senderRight?: number,
   codeActionsAt?: number,
   actionsAttribute = 'data-code-block-actions',
-  rowHeight = 80
+  options: { rowHeight?: number; toolbar?: [number, number]; card?: Rect; cardBelow?: boolean } = {}
 ) => {
+  const { rowHeight = 80, toolbar: [offset, height] = [-30, 36], card, cardBelow } = options;
   unmountRow();
   const seen: Array<number | undefined> = [];
   function Row() {
@@ -85,9 +87,11 @@ const renderRow = (
     const toolbarRef = useRef<HTMLDivElement>(null);
     const clearance = useToolbarClearance(rowRef, toolbarRef, true);
     seen.push(clearance);
+    const canvas = card && <div {...{ [INLINE_CANVAS_ATTRIBUTE]: '' }} data-testid="canvas" />;
     return (
       <div data-testid="scroller" style={{ overflowY: 'auto', scrollPaddingTop: '100px' }}>
         <div {...{ [TIMELINE_OVERLAY_ATTRIBUTE]: '' }} data-testid="overlay" />
+        {!cardBelow && canvas}
         <div ref={rowRef} data-testid="row">
           <div ref={toolbarRef} data-testid="toolbar" />
           {senderRight !== undefined && <div data-message-sender-line="" data-testid="sender" />}
@@ -95,6 +99,7 @@ const renderRow = (
             <div {...{ [actionsAttribute]: '' }} data-testid="code" />
           )}
         </div>
+        {cardBelow && canvas}
       </div>
     );
   }
@@ -103,9 +108,10 @@ const renderRow = (
     scroller: { top: 0, bottom: 800, left: 0, right: 1000 },
     overlay: { top: 110, bottom: 130, left: overlayLeft, right: overlayLeft + 50 },
     row: { top: rowTop, bottom: rowTop + rowHeight, left: 0, right: 1000 },
-    toolbar: { top: rowTop - 30, bottom: rowTop + 6, left: 850, right: 1000 },
+    toolbar: { top: rowTop + offset, bottom: rowTop + offset + height, left: 850, right: 1000 },
     sender: { top: rowTop + 4, bottom: rowTop + 26, left: 60, right: senderRight ?? 0 },
     code: { top: codeTop, bottom: codeTop + 24, left: 900, right: 980 },
+    ...(card && { canvas: card }),
   };
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rect(
     this: HTMLElement
@@ -177,14 +183,6 @@ describe('useToolbarClearance', () => {
     expect(renderRow(140, 900, 1000, 46, 'data-file-actions')).toBe(-2);
   });
 
-  it('moves below a canvas update action when a scrolled row puts it under the sticky header', () => {
-    // Scrolled tall row: visible rows start at y=100 (offset 109 into rowTop=-9), and the canvas
-    // Load update button sits at 111 to 135 into the row; the toolbar clears it at 135 + 8 = 143.
-    expect(renderRow(-9, 100, undefined, 111, 'data-canvas-actions', 495)).toBe(143);
-    // Below the sender line it also keeps clear of a canvas action.
-    expect(renderRow(140, 900, 1000, 46, 'data-canvas-actions')).toBe(-2);
-  });
-
   it('places the toolbar again when the sender line changes size', () => {
     const observed: Element[] = [];
     vi.stubGlobal(
@@ -208,6 +206,28 @@ describe('useToolbarClearance', () => {
   it('moves the toolbar of a row under the sticky header into the visible part of the row', () => {
     // No overlay over the toolbar; the visible rows start at 100, plus a 6 px breathing gap.
     expect(renderRow(90, 100)).toBe(16);
+  });
+
+  const card = { top: 158, bottom: 388, left: 650, right: 980 };
+  const nearCanvas = (top: number, options: Parameters<typeof renderRow>[5], sender?: number) =>
+    renderRow(400, 900, sender, undefined, undefined, { ...options, toolbar: [top, 32] });
+
+  // Modern follow-ups rest at -14 px; Bubble and Compact rest at -26 px.
+  it.each([-14, -26])('clears a preceding canvas from a resting offset of %i px', (top) => {
+    expect(nearCanvas(top, { card })).toBe(-4);
+  });
+
+  it('refuses to float a short narrow headered row above its sender line onto the canvas', () => {
+    expect(nearCanvas(2, { rowHeight: 60 }, 1000)).toBe(-32);
+    expect(nearCanvas(2, { rowHeight: 60, card }, 1000)).toBe(34);
+  });
+
+  it('ignores cards that do not reach the toolbar or belong to a later row', () => {
+    expect(nearCanvas(-14, { card: { ...card, right: 800 } })).toBeUndefined();
+    expect(nearCanvas(-14, { card: { ...card, bottom: 360 } })).toBeUndefined();
+    expect(
+      nearCanvas(-14, { rowHeight: 16, cardBelow: true, card: { ...card, top: 416, bottom: 500 } })
+    ).toBeUndefined();
   });
 });
 

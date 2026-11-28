@@ -26,6 +26,7 @@ import { ownDirectionLine } from '../../ui/directional';
 import { TipButton } from '../../ui/TipButton';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { ChatUiActionContext } from '../../ui-actions/ChatUiActionProvider';
+import { INLINE_CANVAS_ATTRIBUTE, MessageInlineCanvasContext } from '../hoverToolbarPlacement';
 import { useCanvasPage } from './useCanvasPage';
 import { useCanvasSavedState } from './useCanvasSavedState';
 import { useCanvasStateShare } from './useCanvasStateShare';
@@ -382,6 +383,20 @@ function InteractiveInlineCanvas({
   );
 }
 
+function InlineCanvasCard({ children }: { children: ReactNode }) {
+  const setInlineCanvasCount = use(MessageInlineCanvasContext);
+  useLayoutEffect(() => {
+    if (!setInlineCanvasCount) return undefined;
+    setInlineCanvasCount((count) => count + 1);
+    return () => setInlineCanvasCount((count) => count - 1);
+  }, [setInlineCanvasCount]);
+  return (
+    <div className={css.InlineCard} {...{ [INLINE_CANVAS_ATTRIBUTE]: '' }}>
+      {children}
+    </div>
+  );
+}
+
 /**
  * The latest accepted inline canvas. It runs only for the member who asked for it; another member
  * opens it with the notice's button, so a page made for someone else never runs (or loads remote
@@ -443,7 +458,7 @@ export function InlineCanvasFrame({
   const unavailableReason = headerAction ? actions?.unavailable(headerAction) : undefined;
 
   return (
-    <div className={css.InlineCard}>
+    <InlineCanvasCard>
       <div className={css.InlineCardHeader}>
         <div className={css.InlineCardTitle} data-canvas-notice-title>
           <Icon size="100" src={Icons.Category} style={{ flexShrink: 0 }} />
@@ -462,7 +477,7 @@ export function InlineCanvasFrame({
               <Icon size="50" src={Icons.Info} />
             </TipButton>
             {headerAction && (
-              <div className={css.InlineCardAction} data-canvas-actions="">
+              <div className={css.InlineCardAction}>
                 <ChatUiActionButton event={event} compact />
               </div>
             )}
@@ -477,6 +492,6 @@ export function InlineCanvasFrame({
         </div>
       )}
       <div className={css.InlineCardBody}>{body}</div>
-    </div>
+    </InlineCanvasCard>
   );
 }
