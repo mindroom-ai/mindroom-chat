@@ -12,7 +12,12 @@ import {
   useRoomSubagentRuns,
   type SubagentRun,
 } from '../live/subagentRunStore';
-import { ToolCallWaitingStatusContext, type ToolCallWaitingStatus } from './toolCallStatus';
+import {
+  ToolCallMessageContext,
+  ToolCallWaitingStatusContext,
+  type ToolCallWaitingStatus,
+} from './toolCallStatus';
+import { replyDisclosureScope } from '../manualExpansionState';
 import {
   extractPrimaryArg,
   extractStepDetail,
@@ -69,13 +74,26 @@ const unfinishedStepState = (status: SubagentStatus): StepState => {
 const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
   const unfinishedState = unfinishedStepState(run.meta.status);
   const seen = new Map<string, number>();
+  // Key and deduplicate across the full `run.docs.tools` array before slicing the 4-step window
+  // so advancing the window or late-arriving fields never shift or mutate an open step's key.
   return run.docs.tools
-    .flatMap((event) => {
+    .flatMap((event, originalIndex) => {
       const rawName = typeof event.tool_name === 'string' ? event.tool_name.trim() : '';
-      return rawName ? [{ event, toolName: revealDirectionControls(rawName) }] : [];
+      if (!rawName) return [];
+      const toolName = revealDirectionControls(rawName);
+      const startedAt = toolStartedAt(event);
+      const callId = typeof event.tool_call_id === 'string' ? event.tool_call_id.trim() : '';
+      const baseKey = callId
+        ? `id:${callId}`
+        : startedAt !== undefined
+          ? `at:${toolName}:${startedAt}`
+          : `step:${originalIndex}:${toolName}`;
+      const count = seen.get(baseKey) ?? 0;
+      seen.set(baseKey, count + 1);
+      return [{ event, toolName, startedAt, key: count === 0 ? baseKey : `${baseKey}#${count}` }];
     })
     .slice(-SUBAGENT_STEP_LIMIT)
-    .map(({ event, toolName }) => {
+    .map(({ event, toolName, startedAt, key }) => {
       const state: StepState =
         event.type === 'tool_call_started'
           ? unfinishedState
@@ -84,19 +102,8 @@ const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
             : 'done';
       const rawArgs = typeof event.args_preview === 'string' ? event.args_preview : undefined;
       const arg = extractPrimaryArg(rawArgs);
-      const startedAt = toolStartedAt(event);
-      const callId = typeof event.tool_call_id === 'string' ? event.tool_call_id.trim() : '';
-      const baseKey = callId
-        ? startedAt !== undefined
-          ? `id:${callId}:${startedAt}`
-          : `id:${callId}`
-        : startedAt !== undefined
-          ? `at:${toolName}:${startedAt}`
-          : `step:${toolName}:${arg ?? ''}`;
-      const count = seen.get(baseKey) ?? 0;
-      seen.set(baseKey, count + 1);
       return {
-        key: count === 0 ? baseKey : `${baseKey}#${count}`,
+        key,
         state,
         toolName,
         arg,
@@ -115,7 +122,15 @@ const recentSubagentSteps = (run: SubagentRun): SubagentStep[] => {
     });
 };
 
-function SubagentPreviewCard({ tool, run }: { tool: LiveToolItem; run: SubagentRun }) {
+function SubagentPreviewCard({
+  tool,
+  run,
+  disclosureScope,
+}: {
+  tool: LiveToolItem;
+  run: SubagentRun;
+  disclosureScope?: string;
+}) {
   const { t } = useTranslation();
   const jotaiStore = useStore();
   const steps = recentSubagentSteps(run);
@@ -160,6 +175,11 @@ function SubagentPreviewCard({ tool, run }: { tool: LiveToolItem; run: SubagentR
           {steps.map((step) => (
             <LiveStepRow
               key={step.key}
+              disclosureKey={
+                disclosureScope
+                  ? `${disclosureScope}live-subagent:${run.run}:${step.key}`
+                  : undefined
+              }
               state={step.state}
               waitingStatus={waitingStatus}
               toolName={step.toolName}
@@ -186,6 +206,8 @@ function SubagentPreviewCard({ tool, run }: { tool: LiveToolItem; run: SubagentR
  * keeping a single stable component tree so parallel rows never lose local UI state.
  */
 export function LiveToolPreview({ running, roomId, threadId, sender }: LiveToolPreviewProps) {
+  const message = useContext(ToolCallMessageContext);
+  const scope = replyDisclosureScope(message?.roomId, message?.eventId);
   const waitingStatus = useContext(ToolCallWaitingStatusContext);
   const shellState: StepState = waitingStatus !== undefined ? 'waiting' : 'running';
   const needsSubagents =
@@ -197,12 +219,20 @@ export function LiveToolPreview({ running, roomId, threadId, sender }: LiveToolP
     if (roomId && sender && isSubagentTool(tool.toolName)) {
       const run = findLinkedSubagentRun(subagentRuns, tool.toolCallId, threadId, sender);
       if (run)
-        return [<SubagentPreviewCard key={`subagent-${tool.index}`} tool={tool} run={run} />];
+        return [
+          <SubagentPreviewCard
+            key={`subagent-${tool.index}`}
+            tool={tool}
+            run={run}
+            disclosureScope={scope}
+          />,
+        ];
     }
     if (isShellTool(tool.toolName)) {
       return [
         <div key={`shell-${tool.index}`} className={css.Card} data-live-shell={tool.index}>
           <LiveStepRow
+            disclosureKey={scope ? `${scope}live-shell:${tool.index}` : undefined}
             state={shellState}
             waitingStatus={waitingStatus}
             toolName={tool.toolName}

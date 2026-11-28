@@ -8,9 +8,11 @@ import { loadLiveMarkdown } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS } from './liveReplyStore';
 import {
   LIVE_COMPACTIONS_KEY,
+  LIVE_REASONING_KEY,
   LIVE_REASONING_SEGMENTS_KEY,
   useLiveReplyContent,
 } from './useLiveReplyContent';
+import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
 import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 import { getEditedEvent, getLatestMessageContent } from '../../matrix/room';
 
@@ -720,5 +722,214 @@ describe('useLiveReplyContent', () => {
     render(durable('streaming'));
 
     expect(shown().body).toBe('Early');
+  });
+
+  it('normalizes msgtype from m.file to m.text when showing a live frame over a long-text checkpoint', () => {
+    ingest(snapshot(5, 'Live text over sidecar'));
+    render(
+      durable('streaming', {
+        msgtype: 'm.file',
+        url: 'mxc://example.org/sidecar',
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      })
+    );
+
+    expect(shown().msgtype).toBe('m.text');
+    expect(shown().body).toBe('Live text over sidecar');
+    expect(shown()).not.toHaveProperty('io.mindroom.long_text');
+    expect(live()).toBe(true);
+  });
+
+  it('retains live reasoning, segments, compactions, and running tool progress across 12s expiry until completion', () => {
+    const compactions = [
+      { id: 'c1', phase: 'pre_turn', after_tool: 0, status: 'running', before_tokens: 120000 },
+    ];
+    const runningTool = { type: 'tool_call_started', tool_name: 'run_shell_command' };
+    const completedTool = { type: 'tool_call_completed', tool_name: 'read_file' };
+    const frame = snapshot(4, 'Frame four', 'Weighing\n\noptions', SEGMENTS, compactions);
+    ingest({
+      ...frame,
+      snapshot: {
+        ...frame.snapshot,
+        tools: [
+          { ...runningTool, progress: 'building...', started_at: 1762790010 },
+          { type: 'tool_call_started', tool_name: 'read_file', progress: 'stale' },
+        ],
+      },
+    });
+    const checkpointed = durable('streaming', {
+      'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+      'io.mindroom.tool_trace': { version: 2, events: [runningTool, completedTool] },
+    });
+    render(checkpointed);
+
+    // Covering wait checkpoint preserves compactions alongside reasoning and running output.
+    expect(shown()).toMatchObject({
+      'io.mindroom.live_reasoning': 'Weighing\n\noptions',
+      [LIVE_REASONING_SEGMENTS_KEY]: SEGMENTS,
+      [LIVE_COMPACTIONS_KEY]: compactions,
+    });
+
+    // Freshness timeout expires the entry while durable is still streaming.
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    expect(live()).toBe(false);
+    expect(shown()).toMatchObject({
+      'io.mindroom.live_reasoning': 'Weighing\n\noptions',
+      [LIVE_REASONING_SEGMENTS_KEY]: SEGMENTS,
+      [LIVE_COMPACTIONS_KEY]: compactions,
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          { ...runningTool, progress: 'building...', started_at: 1762790010 },
+          completedTool,
+        ],
+      },
+    });
+
+    // Once the reply completes, all live enrichment is cleared.
+    const finished = durable('completed', {
+      'io.mindroom.tool_trace': { version: 2, events: [completedTool] },
+    });
+    act(() => {
+      renderer?.update(<Harness mx={mx} event={replyEvent()} content={finished} />);
+    });
+    expect(shown()).not.toHaveProperty('io.mindroom.live_reasoning');
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_SEGMENTS_KEY);
+    expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
+  });
+
+  it('does not overwrite durable io.mindroom.compactions with an older live frame on wait or expiry', () => {
+    const runningCompaction = [
+      { id: 'c1', phase: 'pre_turn', after_tool: 0, status: 'running', before_tokens: 120000 },
+    ];
+    const finishedCompaction = [
+      {
+        id: 'c1',
+        phase: 'pre_turn',
+        after_tool: 0,
+        status: 'success',
+        before_tokens: 120000,
+        after_tokens: 42000,
+      },
+    ];
+    ingest(snapshot(4, 'Frame four', 'Weighing options', SEGMENTS, runningCompaction));
+
+    // Covering durable checkpoint carries updated compaction status: live compactions must not override it.
+    render(
+      durable('streaming', {
+        'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+        [COMPACTIONS_CONTENT_KEY]: finishedCompaction,
+      })
+    );
+    expect(shown()[COMPACTIONS_CONTENT_KEY]).toEqual(finishedCompaction);
+    expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
+
+    // Covering durable checkpoint carrying an explicit empty list [] is also preserved.
+    act(() => {
+      renderer?.update(
+        <Harness
+          mx={mx}
+          event={replyEvent()}
+          content={durable('streaming', {
+            'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+            [COMPACTIONS_CONTENT_KEY]: [],
+          })}
+        />
+      );
+    });
+    expect(shown()[COMPACTIONS_CONTENT_KEY]).toEqual([]);
+    expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
+
+    // After 12s expiry while still streaming, durable compactions remain untouched...
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    expect(shown()[COMPACTIONS_CONTENT_KEY]).toEqual([]);
+    expect(shown()).not.toHaveProperty(LIVE_COMPACTIONS_KEY);
+
+    // ...while durable content omitting io.mindroom.compactions still receives the live compactions.
+    act(() => {
+      renderer?.update(
+        <Harness
+          mx={mx}
+          event={replyEvent()}
+          content={durable('streaming', {
+            'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+          })}
+        />
+      );
+    });
+    expect(shown()[LIVE_COMPACTIONS_KEY]).toEqual(runningCompaction);
+  });
+
+  it('prefers live reasoning over an inherited prior-turn io.mindroom.reasoning while regenerating until completed', () => {
+    const inheritedReasoning = { text: 'Previous turn thought', duration_ms: 5000 };
+    const finalReasoning = { text: 'Final turn thought', duration_ms: 6000 };
+    ingest(snapshot(4, 'Frame four', 'Current turn thought', SEGMENTS));
+
+    // A regenerating reply inherits the prior turn's io.mindroom.reasoning on progress edits:
+    // live reasoning must still win on wait checkpoints...
+    render(
+      durable('streaming', {
+        'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+        'io.mindroom.reasoning': inheritedReasoning,
+      })
+    );
+    expect(shown()[LIVE_REASONING_KEY]).toBe('Current turn thought');
+    expect(shown()[LIVE_REASONING_SEGMENTS_KEY]).toEqual(SEGMENTS);
+
+    // ...and across 12s freshness expiry while still streaming...
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    expect(shown()[LIVE_REASONING_KEY]).toBe('Current turn thought');
+    expect(shown()[LIVE_REASONING_SEGMENTS_KEY]).toEqual(SEGMENTS);
+
+    // ...and clears once the regenerated reply completes.
+    act(() => {
+      renderer?.update(
+        <Harness
+          mx={mx}
+          event={replyEvent()}
+          content={durable('completed', { 'io.mindroom.reasoning': finalReasoning })}
+        />
+      );
+    });
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_KEY);
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_SEGMENTS_KEY);
+    expect(shown()['io.mindroom.reasoning']).toEqual(finalReasoning);
+  });
+
+  it('preserves a fresh matching live snapshot before stream_status arrives so subsequent deltas apply', () => {
+    const plainContent: IContent = {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+    };
+    ingest(snapshot(0, 'Hello'));
+    render(plainContent);
+
+    // Durable content renders while stream_status is absent, and the early snapshot stays in store.
+    expect(shown().body).toBe('Thinking...');
+    expect(live()).toBe(false);
+    expect(store().get(ROOM, REPLY)).toBeDefined();
+
+    // Once the first streaming status edit and a delta arrive, the delta applies on top of the snapshot.
+    act(() => {
+      renderer?.update(<Harness mx={mx} event={replyEvent()} content={durable('streaming')} />);
+    });
+    ingest({
+      reply: REPLY,
+      sid: SID,
+      seq: 1,
+      delta: { md: { at: 5, del: 0, ins: ' world', len: 11 } },
+    });
+
+    expect(shown().body).toBe('Hello world');
+    expect(live()).toBe(true);
   });
 });

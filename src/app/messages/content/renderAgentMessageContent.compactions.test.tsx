@@ -27,8 +27,8 @@ const sidecars = vi.hoisted(() => new Map<string, Record<string, unknown>>());
 
 vi.mock('./LongTextText', () => ({
   LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  LongTextText: ({ content, renderBody }: any) => {
-    const resolved = sidecars.get(content.url) ?? content;
+  LongTextText: ({ content, longTextSource, renderBody }: any) => {
+    const resolved = longTextSource ? (sidecars.get(content.url) ?? content) : content;
     return renderBody(resolved, { body: resolved.body, customBody: resolved.formatted_body });
   },
 }));

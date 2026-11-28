@@ -733,4 +733,50 @@ describe('LiveToolPreview', () => {
     expect(container.querySelector('[data-live-subagent]')).toBeNull();
     expect(container.textContent).toContain('fallback progress');
   });
+
+  it('keeps an expanded subagent step open when started_at arrives late or the 4-step window rolls', () => {
+    const meta = { title: 'Rolling check', callerToolCallId: 'call_roll' };
+    const baseTools: ToolTraceEvent[] = [
+      { type: 'tool_call_completed', tool_name: 'bash', args_preview: 'command=ls' },
+      { type: 'tool_call_completed', tool_name: 'bash', args_preview: 'command=ls' },
+      { type: 'tool_call_completed', tool_name: 'bash', args_preview: 'command=ls' },
+      {
+        type: 'tool_call_started',
+        tool_call_id: 'call_late_ts',
+        tool_name: 'bash',
+        args_preview: 'command=npm test',
+        progress: 'running...',
+      },
+    ];
+    ingestRun('del-roll', meta, baseTools, 0);
+    render([subagentItem('call_roll')]);
+
+    const toggles = () => [
+      ...container.querySelectorAll<HTMLButtonElement>(
+        '[data-live-subagent="del-roll"] button[aria-expanded]'
+      ),
+    ];
+    // Open both a bare step (index 1) and the call_id step before started_at arrives.
+    act(() => {
+      toggles()[1]?.click();
+      toggles()[3]?.click();
+    });
+    expect(toggles()[1]?.getAttribute('aria-expanded')).toBe('true');
+    expect(toggles()[3]?.getAttribute('aria-expanded')).toBe('true');
+
+    // started_at arrives on call_late_ts and a 5th tool rolls index 0 off the 4-step slice.
+    ingestRun(
+      'del-roll',
+      meta,
+      [
+        ...baseTools.slice(0, 3),
+        { ...baseTools[3]!, started_at: NOW - 2 },
+        { type: 'tool_call_started', tool_name: 'grep', args_preview: 'pattern=ok' },
+      ],
+      1
+    );
+    expect(toggles()[0]?.getAttribute('aria-expanded')).toBe('true');
+    expect(toggles()[2]?.getAttribute('aria-expanded')).toBe('true');
+    expect(toggles()[3]?.getAttribute('aria-expanded')).toBe('false');
+  });
 });

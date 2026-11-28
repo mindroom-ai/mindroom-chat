@@ -731,12 +731,15 @@ const renderCustomElement = (
   name: string,
   attribs: Record<string, string>,
   children: ChildNode[],
-  options: HTMLReactParserOptions
+  options: HTMLReactParserOptions,
+  domNode?: ChildNode
 ): ReactElement | undefined =>
   isMatrixMath(name, attribs) ? (
-    <WithKatex render={() => renderCustomHtmlElement(name, attribs, children, options) ?? null} />
+    <WithKatex
+      render={() => renderCustomHtmlElement(name, attribs, children, options, domNode) ?? null}
+    />
   ) : (
-    renderCustomHtmlElement(name, attribs, children, options)
+    renderCustomHtmlElement(name, attribs, children, options, domNode)
   );
 
 export const getReactCustomHtmlParser = (
@@ -768,13 +771,13 @@ export const getReactCustomHtmlParser = (
         const inner = withoutAttribute(attribs, 'data-mx-spoiler');
         return (
           <Spoiler reason={attribs['data-mx-spoiler'] || undefined}>
-            {renderCustomElement(name, inner, children, parserOptions) ??
+            {renderCustomElement(name, inner, children, parserOptions, domNode) ??
               domToReact(children as DOMNode[], parserOptions)}
           </Spoiler>
         );
       }
 
-      const customElement = renderCustomElement(name, attribs, children, parserOptions);
+      const customElement = renderCustomElement(name, attribs, children, parserOptions, domNode);
       if (customElement) return customElement;
 
       const props = attributesToProps(attribs);

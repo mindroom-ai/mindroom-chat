@@ -117,13 +117,48 @@ vi.mock('./LongTextText', () => ({
     Emote: 'emote',
     Notice: 'notice',
   },
-  LongTextText: ({ content, hydrate, kind, renderBody }: any) => {
+  LongTextText: ({
+    content,
+    displayName,
+    hydrate,
+    kind,
+    longTextSource,
+    renderAfterBody,
+    renderBody,
+    renderStateSuffix,
+  }: any) => {
+    const bodyProps = { body: typeof content.body === 'string' ? content.body : '' };
+    if (!longTextSource) {
+      if (kind === 'emote') {
+        return React.createElement(
+          'div',
+          { 'data-renderer': 'emote' },
+          displayName,
+          ' ',
+          renderBody(content, bodyProps, undefined)
+        );
+      }
+      if (kind === 'notice') {
+        return React.createElement(
+          'div',
+          { 'data-renderer': 'notice' },
+          renderBody(content, bodyProps, undefined),
+          renderAfterBody?.(content)
+        );
+      }
+      return React.createElement(
+        'div',
+        { 'data-renderer': 'text' },
+        renderBody(content, bodyProps, undefined),
+        renderStateSuffix?.()
+      );
+    }
     longTextTextMock({ hydrate, kind });
     return React.createElement(
       'div',
       { 'data-renderer': 'long-text' },
       kind,
-      renderBody(content, { body: typeof content.body === 'string' ? content.body : '' })
+      renderBody(content, bodyProps, 'unavailable')
     );
   },
 }));

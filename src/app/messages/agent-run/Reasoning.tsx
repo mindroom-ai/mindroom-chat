@@ -36,7 +36,12 @@ import {
   placeReasoningSegments,
   readReasoningSegments,
 } from './reasoningSegments';
-import { ReasoningSegmentsContext, ToolCallsCogContext } from './toolCallStatus';
+import {
+  ReasoningSegmentsContext,
+  ToolCallMessageContext,
+  ToolCallsCogContext,
+} from './toolCallStatus';
+import { replyDisclosureScope, usePersistedDisclosure } from '../manualExpansionState';
 import { CogRipple } from './ToolCallsFold.css';
 import { MINDROOM_TOOL_REF_ICON } from '../html/blocks';
 import { readRenderedToolCalls } from '../html/HtmlBlocks';
@@ -236,7 +241,9 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   // The bulb starts closed on every reply, as the cog does, and stays as the reader left it when
   // the reply finishes. A closed bulb shows no reasoning, also while the model writes it: the label
   // and the comet say it thinks.
-  const [open, setOpen] = useState(false);
+  const message = useContext(ToolCallMessageContext);
+  const scope = replyDisclosureScope(message?.roomId, message?.eventId);
+  const [open, setOpen] = usePersistedDisclosure(scope ? `${scope}reasoning` : undefined, false);
   const bulbRef = useRef<HTMLButtonElement>(null);
   const { register: registerSegment, getTargets } = useRevealTargets();
   const armReveal = useRevealOnOpen(open, bulbRef, getTargets);
@@ -246,7 +253,7 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const hide = useCallback(() => {
     bulbRef.current?.focus();
     setOpen(false);
-  }, []);
+  }, [setOpen]);
 
   const text = live ?? final?.text;
   const segments = useMemo(

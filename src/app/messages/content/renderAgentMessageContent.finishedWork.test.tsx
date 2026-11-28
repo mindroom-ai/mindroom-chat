@@ -4,13 +4,19 @@ import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import {
+  ExpandAllInitContext,
+  ManualExpansionStateContext,
+  clearBulkExpansionOverrides,
+} from '../manualExpansionState';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { getDefaultStore } from 'jotai';
 import { getSettings, settingsAtom } from '../../preferences/settings';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
-import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
+import { LIVE_REASONING_KEY, LIVE_REASONING_SEGMENTS_KEY } from '../live/useLiveReplyContent';
 import {
   InlineSecretRequestsContext,
   NO_INLINE_SECRET_REQUESTS,
@@ -60,6 +66,16 @@ vi.mock('../../approvals/ToolApprovalCard', () => ({ ToolApprovalCard: () => nul
 vi.mock('../../approvals/SecretRequestLine', () => ({ SecretRequestLine: () => 'secret line' }));
 vi.mock('./PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({ ThinkingPlaceholder: () => null }));
+vi.mock('../question/QuestionCard', () => ({
+  QuestionCard: () => React.createElement('div', { 'data-question-card': true }, 'question card'),
+}));
+const sidecarHydrations = vi.hoisted(() => new Map<string, Record<string, unknown>>());
+vi.mock('../../event-store/cache/attachmentRepository', () => ({
+  hydrateCachedLongText: async (
+    _mx: unknown,
+    source: { mxcUri?: string; previewContent: Record<string, unknown> }
+  ) => (source.mxcUri ? sidecarHydrations.get(source.mxcUri) : undefined) ?? source.previewContent,
+}));
 
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
   Arguments: 'Arguments',
@@ -162,33 +178,43 @@ let replyCount = 0;
 let replyId = '$reply';
 
 let renderer: ReactTestRenderer | undefined;
+let manualExpansionState = new Map<string, boolean>();
+const mockMx = { getUserId: () => '@reader:example.org' } as unknown as MatrixClient;
 // The deployment's configuration, as a test sets it.
 let clientConfig: ClientConfig = {};
 const render = (
   content: Record<string, unknown>,
   fromMindroomAgent = true,
   highlightRegex?: RegExp,
-  secrets: InlineSecretRequestPlan = NO_INLINE_SECRET_REQUESTS
+  secrets: InlineSecretRequestPlan = NO_INLINE_SECRET_REQUESTS,
+  expandAllInit?: boolean
 ) =>
   act(() => {
+    const msgType = typeof content.msgtype === 'string' ? content.msgtype : 'm.text';
     const tree = (
-      <ClientConfigProvider value={clientConfig}>
-        <InlineSecretRequestsContext value={secrets}>
-          <ToolCallMessageContext value={{ eventId: replyId, roomId: '!room:example.org' }}>
-            {renderAgentMessageContent({
-              mEvent,
-              eventId: replyId,
-              fromMindroomAgent,
-              highlightRegex,
-              displayName: 'Agent',
-              msgType: 'm.text',
-              content,
-              htmlReactParserOptions,
-              linkifyOpts,
-            })}
-          </ToolCallMessageContext>
-        </InlineSecretRequestsContext>
-      </ClientConfigProvider>
+      <MatrixClientProvider value={mockMx}>
+        <ExpandAllInitContext.Provider value={expandAllInit}>
+          <ManualExpansionStateContext.Provider value={manualExpansionState}>
+            <ClientConfigProvider value={clientConfig}>
+              <InlineSecretRequestsContext value={secrets}>
+                <ToolCallMessageContext value={{ eventId: replyId, roomId: '!room:example.org' }}>
+                  {renderAgentMessageContent({
+                    mEvent,
+                    eventId: replyId,
+                    fromMindroomAgent,
+                    highlightRegex,
+                    displayName: 'Agent',
+                    msgType,
+                    content,
+                    htmlReactParserOptions,
+                    linkifyOpts,
+                  })}
+                </ToolCallMessageContext>
+              </InlineSecretRequestsContext>
+            </ClientConfigProvider>
+          </ManualExpansionStateContext.Provider>
+        </ExpandAllInitContext.Provider>
+      </MatrixClientProvider>
     );
     if (renderer) renderer.update(tree);
     else renderer = create(tree);
@@ -211,6 +237,8 @@ describe('finished agent work', () => {
   beforeEach(() => {
     replyCount += 1;
     replyId = `$reply${replyCount}`;
+    manualExpansionState = new Map<string, boolean>();
+    sidecarHydrations.clear();
   });
 
   afterEach(() => {
@@ -497,5 +525,372 @@ describe('finished agent work', () => {
     );
     expect(order).not.toContain(-1);
     expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('keeps thinking, tool run, and finished work open across sidecar, trailing text, question, completion, and remount', async () => {
+    const toolRunButtons = () =>
+      renderer!.root.findAll(
+        (node) => node.type === 'button' && textOf(node).includes('web_search')
+      );
+    const baseStreaming = (extra: Record<string, unknown> = {}) => ({
+      ...reply('streaming', `<p>Let me look.</p>${marker('web_search', 1)}`),
+      'io.mindroom.tool_trace': toolTrace('web_search'),
+      [LIVE_REASONING_KEY]: 'Checking the sources.',
+      ...extra,
+    });
+
+    render(baseStreaming());
+    act(() => {
+      reasoningToggle().props.onClick();
+      toolRunButtons()[0]!.props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Transition to an m.file long-text sidecar checkpoint and hydrate it.
+    const sidecarUrl = 'mxc://example.org/streaming-checkpoint-1';
+    const hydratedSidecar = baseStreaming();
+    sidecarHydrations.set(sidecarUrl, hydratedSidecar);
+    await act(async () => {
+      render({
+        msgtype: 'm.file',
+        body: 'Let me look.',
+        url: sidecarUrl,
+        'io.mindroom.ai_run': { version: 1, status: 'streaming' },
+        'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+        [LIVE_REASONING_KEY]: 'Checking the sources.',
+      });
+      await Promise.resolve();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Live frame returns over the sidecar with trailing text inside the marker paragraph.
+    render(
+      baseStreaming({
+        formatted_body: '<p>Let me look.</p><p>🔧 <code>web_search</code> [1]<br/>After call</p>',
+      })
+    );
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Trailing text disappears and an interactive question appears on the reply.
+    render(
+      baseStreaming({
+        'io.mindroom.question': {
+          version: 1,
+          question: 'Continue?',
+          options: [{ label: 'Yes', emoji: '✅' }],
+        },
+      })
+    );
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Stream completes: Worked for X stays open with thinking and tool run still open.
+    const completed = {
+      ...reply('completed'),
+      'io.mindroom.reasoning': {
+        text: 'Checking the sources.',
+        duration_ms: 4000,
+        segments: [{ start: 0, after_tool: 0, duration_ms: 4000 }],
+      },
+    };
+    render(completed);
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    const thoughtToggle = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node).startsWith('Thought'));
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Virtualization unmount + remount preserves all three open disclosures.
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    render(completed);
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+    expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
+  });
+
+  it('still folds finished work when the reader opened and then closed thinking before completion', () => {
+    render({
+      ...reply('streaming'),
+      [LIVE_REASONING_KEY]: 'Initial thought.',
+    });
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+
+    render(reply('completed'));
+    expect(workedRow().props['aria-expanded']).toBe(false);
+    expect(text()).not.toContain('Let me look.');
+  });
+
+  it('keeps both halves of an open tool run open when opening thinking splits it', () => {
+    const html = `${marker('web_search', 1)}${marker('read_file', 2)}`;
+    render({
+      ...reply('streaming', html),
+      [LIVE_REASONING_KEY]: 'First thought.\n\nSecond thought.',
+      [LIVE_REASONING_SEGMENTS_KEY]: [
+        { start: 0, after_tool: 0 },
+        { start: 16, after_tool: 1 },
+      ],
+    });
+    const runButtons = () =>
+      renderer!.root.findAll(
+        (node) =>
+          node.type === 'button' &&
+          (textOf(node).includes('web_search') || textOf(node).includes('read_file'))
+      );
+
+    expect(runButtons()).toHaveLength(1);
+    act(() => {
+      runButtons()[0]!.props.onClick();
+    });
+    expect(runButtons()[0]!.props['aria-expanded']).toBe(true);
+
+    // Opening thinking introduces splitAfter=1, splitting [1, 2] into [1] and [2].
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    const splitRuns = runButtons();
+    expect(splitRuns).toHaveLength(2);
+    expect(splitRuns[0]!.props['aria-expanded']).toBe(true);
+    expect(splitRuns[1]!.props['aria-expanded']).toBe(true);
+  });
+
+  it('keeps merged tool run open when only the second split call was expanded before closing thinking', () => {
+    const html = `${marker('web_search', 1)}${marker('read_file', 2)}`;
+    render({
+      ...reply('streaming', html),
+      [LIVE_REASONING_KEY]: 'First thought.\n\nSecond thought.',
+      [LIVE_REASONING_SEGMENTS_KEY]: [
+        { start: 0, after_tool: 0 },
+        { start: 16, after_tool: 1 },
+      ],
+    });
+    const runButtons = () =>
+      renderer!.root.findAll(
+        (node) =>
+          node.type === 'button' &&
+          (textOf(node).includes('web_search') || textOf(node).includes('read_file'))
+      );
+
+    // Open thinking first so [1] and [2] render as separate tool groups.
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    const splitRuns = runButtons();
+    expect(splitRuns).toHaveLength(2);
+    expect(splitRuns[0]!.props['aria-expanded']).toBe(false);
+    expect(splitRuns[1]!.props['aria-expanded']).toBe(false);
+
+    // Expand only the second call, leaving the first closed.
+    act(() => {
+      splitRuns[1]!.props.onClick();
+    });
+    expect(runButtons()[0]!.props['aria-expanded']).toBe(false);
+    expect(runButtons()[1]!.props['aria-expanded']).toBe(true);
+
+    // Closing thinking merges [1] and [2] back onto tool 1's mounted ThreadActivity: it must stay open.
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    const mergedRuns = runButtons();
+    expect(mergedRuns).toHaveLength(1);
+    expect(mergedRuns[0]!.props['aria-expanded']).toBe(true);
+  });
+
+  it('mounts FinishedWorkFold open when a reply finishes offscreen after thinking was opened, and respects explicit collapse', () => {
+    const renderInThread = (content: Record<string, unknown>) =>
+      render(content, true, undefined, NO_INLINE_SECRET_REQUESTS, false);
+
+    renderInThread({
+      ...reply('streaming'),
+      [LIVE_REASONING_KEY]: 'Checking the sources.',
+    });
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+
+    // Unmount before completion (row scrolled offscreen in a virtualized thread with expandAllInit=false).
+    act(() => renderer?.unmount());
+    renderer = undefined;
+
+    // Remount after the reply has completed offscreen.
+    const completed = {
+      ...reply('completed'),
+      'io.mindroom.reasoning': {
+        text: 'Checking the sources.',
+        duration_ms: 4000,
+        segments: [{ start: 0, after_tool: 0, duration_ms: 4000 }],
+      },
+    };
+    renderInThread(completed);
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    const thoughtToggle = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node).startsWith('Thought'));
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+
+    // Explicitly collapsing Worked for X is remembered across a subsequent unmount and remount.
+    act(() => {
+      workedRow().props.onClick();
+    });
+    expect(workedRow().props['aria-expanded']).toBe(false);
+
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    renderInThread(completed);
+    expect(workedRow().props['aria-expanded']).toBe(false);
+  });
+
+  it('folds finished work when only a collapsed tool group has an expanded result, and remembers the result on reopen', () => {
+    const traceWithResult = {
+      version: 2,
+      events: [
+        {
+          type: 'tool_call_completed',
+          tool_name: 'web_search',
+          tool_call_id: 'call_1',
+          result_preview: 'Found 42 matches',
+        },
+        {
+          type: 'tool_call_completed',
+          tool_name: 'read_file',
+          tool_call_id: 'call_2',
+        },
+      ],
+    };
+    const searchRunButton = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node).includes('web_search'));
+    const resultButton = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node) === 'Found 42 matches');
+
+    render({
+      ...reply('streaming'),
+      'io.mindroom.tool_trace': traceWithResult,
+    });
+
+    // Expand tool group 1, expand its result, then collapse tool group 1 so nothing is visibly open.
+    act(() => {
+      searchRunButton().props.onClick();
+    });
+    expect(searchRunButton().props['aria-expanded']).toBe(true);
+    expect(resultButton().props['aria-expanded']).toBe(false);
+
+    act(() => {
+      resultButton().props.onClick();
+    });
+    expect(resultButton().props['aria-expanded']).toBe(true);
+
+    act(() => {
+      searchRunButton().props.onClick();
+    });
+    expect(searchRunButton().props['aria-expanded']).toBe(false);
+
+    // Reply completes: FinishedWorkFold should fold closed because the result is hidden inside the closed tool group.
+    render({
+      ...reply('completed'),
+      'io.mindroom.tool_trace': traceWithResult,
+    });
+    expect(workedRow().props['aria-expanded']).toBe(false);
+
+    // Reopening Worked for X and the tool group still remembers the expanded tool result.
+    act(() => {
+      workedRow().props.onClick();
+    });
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    act(() => {
+      searchRunButton().props.onClick();
+    });
+    expect(searchRunButton().props['aria-expanded']).toBe(true);
+    expect(resultButton().props['aria-expanded']).toBe(true);
+  });
+
+  it('keeps a finished reply closed across remount after Collapse All even with open thinking and tools, and restores them on reopen', () => {
+    const completed = {
+      ...reply('completed'),
+      'io.mindroom.reasoning': {
+        text: 'Checking the sources.',
+        duration_ms: 4000,
+        segments: [{ start: 0, after_tool: 0, duration_ms: 4000 }],
+      },
+    };
+    const renderWithExpandAll = (expandAllInit: boolean | undefined) =>
+      render(completed, true, undefined, NO_INLINE_SECRET_REQUESTS, expandAllInit);
+    const thoughtToggle = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node).startsWith('Thought'));
+    const searchRunButton = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node).includes('web_search'));
+
+    renderWithExpandAll(false);
+    expect(workedRow().props['aria-expanded']).toBe(false);
+
+    // Room Expand All opens the finished work; the reader opens thinking and a tool inside it.
+    clearBulkExpansionOverrides(manualExpansionState);
+    renderWithExpandAll(true);
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    act(() => {
+      thoughtToggle().props.onClick();
+      searchRunButton().props.onClick();
+    });
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+    expect(searchRunButton().props['aria-expanded']).toBe(true);
+
+    // Room Collapse All clears outer overrides and collapses the finished work.
+    clearBulkExpansionOverrides(manualExpansionState);
+    renderWithExpandAll(false);
+    expect(workedRow().props['aria-expanded']).toBe(false);
+
+    // Scrolling offscreen and back must keep Worked for X closed.
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    renderWithExpandAll(false);
+    expect(workedRow().props['aria-expanded']).toBe(false);
+
+    // Manually opening Worked for X restores the previously unfolded thinking and tool.
+    act(() => {
+      workedRow().props.onClick();
+    });
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+    expect(searchRunButton().props['aria-expanded']).toBe(true);
+  });
+
+  it('folds finished work when the reader scrolled out and back while streaming and then closed thinking before completion', () => {
+    const renderInThread = (content: Record<string, unknown>) =>
+      render(content, true, undefined, NO_INLINE_SECRET_REQUESTS, false);
+    const streaming = {
+      ...reply('streaming'),
+      [LIVE_REASONING_KEY]: 'Checking the sources.',
+    };
+
+    renderInThread(streaming);
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+
+    // Scroll offscreen while streaming (snapshots open disclosure), then scroll back still streaming.
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    renderInThread(streaming);
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+
+    // Reader closes thinking before the reply finishes.
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+
+    renderInThread(reply('completed'));
+    expect(workedRow().props['aria-expanded']).toBe(false);
   });
 });

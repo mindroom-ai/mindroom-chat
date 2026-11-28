@@ -10,8 +10,7 @@ import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { INLINE_MEDIA_CONTENT_KEY, readInlineMedia } from '../../matrix/protocol/inlineMedia';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
-import { MEmote, MNotice, MText } from './MsgTypeRenderers';
-import { FootnoteScopeProvider } from '../../rich-text/Footnote';
+import { MNotice, MText } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
 import { BrokenContent } from './BrokenContent';
@@ -234,19 +233,17 @@ function AgentWorkBody({
     [finished, waiting, html, htmlReactParserOptions, sanitizeOptions]
   );
   return (
-    <FootnoteScopeProvider>
-      <FinishedWorkFold
-        foldKey={foldKey}
-        durationMs={durationMs}
-        whole={wrapWithReasoning(renderHtml(html))}
-        folded={
-          split && {
-            work: wrapWithReasoning(renderHtml(split.head)),
-            answer: renderHtml(split.tail),
-          }
+    <FinishedWorkFold
+      foldKey={foldKey}
+      durationMs={durationMs}
+      whole={wrapWithReasoning(renderHtml(html))}
+      folded={
+        split && {
+          work: wrapWithReasoning(renderHtml(split.head)),
+          answer: renderHtml(split.tail),
         }
-      />
-    </FootnoteScopeProvider>
+      }
+    />
   );
 }
 
@@ -434,9 +431,7 @@ export const renderAgentMessageContent = ({
       );
     };
 
-    return !question || !renderQuestionCard ? (
-      wrap(renderEffectiveHtml)
-    ) : (
+    return (
       <QuestionReply
         html={prepared.html}
         question={question}
@@ -690,64 +685,7 @@ export const renderAgentMessageContent = ({
 
     const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
-    if (isTextMessage && isStreaming && isThinkingPlaceholderBody(content) && !longTextSource) {
-      return (
-        <MText
-          content={content}
-          renderStateSuffix={getMessageStateSuffix()}
-          renderBody={() =>
-            // In the reply's own tree, so its reasoning stays as the first text replaces this.
-            wrapAgentBody(
-              content,
-              undefined,
-              () => <ThinkingPlaceholder startedAt={mEvent?.getTs()} />,
-              false
-            )
-          }
-          renderAfterBody={renderRunErrorCard(content)}
-        />
-      );
-    }
-
-    if (longTextSource) {
-      const suppressLongTriggerUrls =
-        !highlightRegex &&
-        fromMindroomAgent &&
-        (readTriggerWake(content) !== null || readTodoPoke(content) !== null);
-      const longText = (
-        <LongTextText
-          kind={LongTextKind.Text}
-          edited={edited}
-          renderStateSuffix={getMessageStateSuffix(
-            isStreaming ? renderStreamingIndicator : undefined
-          )}
-          content={longTextSource.previewContent}
-          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
-          hydrate={hydrateLongText}
-          transformContent={transformLongTextContent}
-          renderBody={renderLongTextBody}
-          renderAfterBody={renderLongTextAfterBody}
-          renderOverride={renderLongTextWakeMarker}
-          renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
-        />
-      );
-      // A canvas answer too large for one event arrives as a sidecar; its receipt waits for the file.
-      if (isFileMessage && content[CANVAS_RESPONSE_KEY]) {
-        return (
-          <CanvasResponseSidecarReceipt
-            source={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
-            relation={content['m.relates_to']}
-            hydrate={hydrateLongText}
-            delivered={!pendingSend && !failedSend}
-            renderStateSuffix={getMessageStateSuffix()}
-            fallback={longText}
-          />
-        );
-      }
-      return longText;
-    }
-
-    if (isFileMessage) {
+    if (!longTextSource && isFileMessage) {
       const pasteAttachment = getPasteAttachmentFile(content);
       if (pasteAttachment) {
         return (
@@ -757,59 +695,97 @@ export const renderAgentMessageContent = ({
           />
         );
       }
+      return undefined;
     }
 
-    if (isTextMessage) {
-      const renderableContent = withToolRefFormattedBodyFallback(content);
+    const isThinkingPlaceholder =
+      !longTextSource && isTextMessage && isStreaming && isThinkingPlaceholderBody(content);
+    const renderableContent = longTextSource
+      ? longTextSource.previewContent
+      : isThinkingPlaceholder
+        ? content
+        : withToolRefFormattedBodyFallback(content);
+    const suppressLongTriggerUrls =
+      !!longTextSource &&
+      !highlightRegex &&
+      fromMindroomAgent &&
+      (readTriggerWake(content) !== null || readTodoPoke(content) !== null);
+    const textContent = (
+      <LongTextText
+        kind={LongTextKind.Text}
+        edited={isThinkingPlaceholder ? undefined : edited}
+        renderStateSuffix={getMessageStateSuffix(
+          isStreaming && !isThinkingPlaceholder ? renderStreamingIndicator : undefined
+        )}
+        content={renderableContent}
+        longTextSource={
+          longTextSource ? { ...longTextSource, owner: getEventAttachmentOwner(mEvent) } : undefined
+        }
+        hydrate={hydrateLongText}
+        transformContent={longTextSource ? transformLongTextContent : undefined}
+        renderBody={
+          longTextSource
+            ? renderLongTextBody
+            : isThinkingPlaceholder
+              ? () =>
+                  // In the reply's own tree, so its reasoning stays as the first text replaces this.
+                  wrapAgentBody(
+                    content,
+                    undefined,
+                    () => <ThinkingPlaceholder startedAt={mEvent?.getTs()} />,
+                    false
+                  )
+              : (_content, props) => renderBody(renderableContent)(props)
+        }
+        renderAfterBody={longTextSource ? renderLongTextAfterBody : renderRunErrorCard}
+        renderOverride={longTextSource ? renderLongTextWakeMarker : undefined}
+        renderUrlsPreview={
+          isThinkingPlaceholder || suppressLongTriggerUrls ? undefined : renderUrlsPreview
+        }
+      />
+    );
+    // A canvas answer too large for one event arrives as a sidecar; its receipt waits for the file.
+    if (longTextSource && isFileMessage && content[CANVAS_RESPONSE_KEY]) {
       return (
-        <MText
-          edited={edited}
-          renderStateSuffix={getMessageStateSuffix(
-            isStreaming ? renderStreamingIndicator : undefined
-          )}
-          content={renderableContent}
-          renderBody={renderBody(renderableContent)}
-          renderAfterBody={renderRunErrorCard(renderableContent)}
-          renderUrlsPreview={renderUrlsPreview}
+        <CanvasResponseSidecarReceipt
+          source={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
+          relation={content['m.relates_to']}
+          hydrate={hydrateLongText}
+          delivered={!pendingSend && !failedSend}
+          renderStateSuffix={getMessageStateSuffix()}
+          fallback={textContent}
         />
       );
     }
+    return textContent;
   }
 
   if (matchesEnum(msgType, MsgType.Emote)) {
     const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
-    if (longTextSource) {
-      return (
-        <LongTextText
-          kind={LongTextKind.Emote}
-          displayName={displayName}
-          edited={edited}
-          renderStateSuffix={getMessageStateSuffix(
-            isStreaming ? renderStreamingIndicator : undefined
-          )}
-          content={longTextSource.previewContent}
-          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
-          hydrate={hydrateLongText}
-          transformContent={transformLongTextContent}
-          renderBody={renderLongTextBody}
-          renderAfterBody={renderLongTextAfterBody}
-          renderUrlsPreview={renderUrlsPreview}
-        />
-      );
-    }
-
-    const renderableContent = withToolRefFormattedBodyFallback(content);
+    const renderableContent = longTextSource
+      ? longTextSource.previewContent
+      : withToolRefFormattedBodyFallback(content);
     return (
-      <MEmote
+      <LongTextText
+        kind={LongTextKind.Emote}
         displayName={displayName}
         edited={edited}
         renderStateSuffix={getMessageStateSuffix(
           isStreaming ? renderStreamingIndicator : undefined
         )}
         content={renderableContent}
-        renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderRunErrorCard(renderableContent)}
+        longTextSource={
+          longTextSource ? { ...longTextSource, owner: getEventAttachmentOwner(mEvent) } : undefined
+        }
+        hydrate={hydrateLongText}
+        transformContent={longTextSource ? transformLongTextContent : undefined}
+        renderBody={
+          longTextSource
+            ? renderLongTextBody
+            : (_content, props) => renderBody(renderableContent)(props)
+        }
+        renderAfterBody={longTextSource ? renderLongTextAfterBody : renderRunErrorCard}
         renderUrlsPreview={renderUrlsPreview}
       />
     );
@@ -863,41 +839,35 @@ export const renderAgentMessageContent = ({
     }
     const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
-    if (longTextSource) {
-      const suppressLongTriggerUrls =
-        !highlightRegex &&
-        fromMindroomAgent &&
-        (readTriggerWake(content) !== null || readTodoPoke(content) !== null);
-      return (
-        <LongTextText
-          kind={LongTextKind.Notice}
-          edited={edited}
-          renderStateSuffix={getMessageStateSuffix(
-            isStreaming ? renderStreamingIndicator : undefined
-          )}
-          content={longTextSource.previewContent}
-          longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
-          hydrate={hydrateLongText}
-          transformContent={transformLongTextContent}
-          renderBody={renderLongTextBody}
-          renderAfterBody={renderLongTextAfterBody}
-          renderOverride={renderLongTextWakeMarker}
-          renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
-        />
-      );
-    }
-
-    const renderableContent = withToolRefFormattedBodyFallback(content);
+    const renderableContent = longTextSource
+      ? longTextSource.previewContent
+      : withToolRefFormattedBodyFallback(content);
+    const suppressLongTriggerUrls =
+      !!longTextSource &&
+      !highlightRegex &&
+      fromMindroomAgent &&
+      (readTriggerWake(content) !== null || readTodoPoke(content) !== null);
     return (
-      <MNotice
+      <LongTextText
+        kind={LongTextKind.Notice}
         edited={edited}
         renderStateSuffix={getMessageStateSuffix(
           isStreaming ? renderStreamingIndicator : undefined
         )}
         content={renderableContent}
-        renderBody={renderBody(renderableContent)}
-        renderAfterBody={renderRunErrorCard(renderableContent)}
-        renderUrlsPreview={renderUrlsPreview}
+        longTextSource={
+          longTextSource ? { ...longTextSource, owner: getEventAttachmentOwner(mEvent) } : undefined
+        }
+        hydrate={hydrateLongText}
+        transformContent={longTextSource ? transformLongTextContent : undefined}
+        renderBody={
+          longTextSource
+            ? renderLongTextBody
+            : (_content, props) => renderBody(renderableContent)(props)
+        }
+        renderAfterBody={longTextSource ? renderLongTextAfterBody : renderRunErrorCard}
+        renderOverride={longTextSource ? renderLongTextWakeMarker : undefined}
+        renderUrlsPreview={suppressLongTriggerUrls ? undefined : renderUrlsPreview}
       />
     );
   }

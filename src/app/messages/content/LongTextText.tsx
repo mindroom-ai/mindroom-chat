@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Spinner, Text as FText, config } from 'folds';
-import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useMatrixClient, useOptionalMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { trimReplyFromBody } from '../../matrix/room';
 
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
@@ -33,12 +33,12 @@ type LongTextTextProps = {
   edited?: boolean;
   renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
-  longTextSource: LongTextSource;
+  longTextSource?: LongTextSource;
   transformContent?: (content: Record<string, unknown>) => Record<string, unknown>;
   renderBody: (
     content: Record<string, unknown>,
     props: RenderBodyProps,
-    toolMetadataStatus: ToolMetadataStatus
+    toolMetadataStatus: ToolMetadataStatus | undefined
   ) => ReactNode;
   /** Renders sibling content outside MessageTextBody (e.g. RunErrorCard at full opacity). */
   renderAfterBody?: (content: Record<string, unknown>) => ReactNode;
@@ -176,18 +176,27 @@ export function LongTextText({
   hydrate = true,
 }: LongTextTextProps) {
   const { t } = useTranslation();
-  const mx = useMatrixClient();
-  const { encryptedFile, isV2ContentJson, mxcUri, owner } = longTextSource;
-  const hydrationIdentity = getLongTextHydrationIdentity(content, longTextSource);
-  const hydrationInputRef = useRef({
-    content,
-    encryptedFile,
-    isV2ContentJson,
-    mxcUri,
-    owner,
-  });
-  const [loading, setLoading] = useState(
-    () => hydrate && !getCachedLongTextContent(longTextSource, mx)
+  const mx = useOptionalMatrixClient();
+  const activeSidecar = mx && longTextSource ? { mx, source: longTextSource } : undefined;
+  const hasActiveSource = activeSidecar !== undefined;
+  const hydrationIdentity = activeSidecar
+    ? getLongTextHydrationIdentity(content, activeSidecar.source)
+    : undefined;
+  const hydrationInputRef = useRef(
+    activeSidecar
+      ? {
+          content,
+          encryptedFile: activeSidecar.source.encryptedFile,
+          isV2ContentJson: activeSidecar.source.isV2ContentJson,
+          mxcUri: activeSidecar.source.mxcUri,
+          owner: activeSidecar.source.owner,
+        }
+      : undefined
+  );
+  const [loading, setLoading] = useState(() =>
+    Boolean(
+      activeSidecar && hydrate && !getCachedLongTextContent(activeSidecar.source, activeSidecar.mx)
+    )
   );
   const [settledHydrationIdentity, setSettledHydrationIdentity] = useState<string>();
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
@@ -196,32 +205,55 @@ export function LongTextText({
   // post-paint hydration effect runs. Gated on `hydrate` so overscan rows
   // keep the cheap preview (PR #110's guard) even when their sidecar is
   // already warm.
-  const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(
-    () => (hydrate ? getCachedLongTextContent(longTextSource, mx) : undefined) ?? content
+  const [resolvedContent, setResolvedContent] = useState<Record<string, unknown> | undefined>(() =>
+    activeSidecar
+      ? ((hydrate ? getCachedLongTextContent(activeSidecar.source, activeSidecar.mx) : undefined) ??
+        content)
+      : undefined
   );
 
-  hydrationInputRef.current = {
-    content,
-    encryptedFile,
-    isV2ContentJson,
-    mxcUri,
-    owner,
-  };
+  // Reset sidecar state as soon as `activeSource` disappears so a later
+  // `defined -> undefined -> defined` transition never flashes stale sidecar data.
+  if (
+    !hasActiveSource &&
+    (resolvedContent !== undefined || loading || settledHydrationIdentity !== undefined)
+  ) {
+    setResolvedContent(undefined);
+    setSettledHydrationIdentity(undefined);
+    setLoading(false);
+  }
+
+  hydrationInputRef.current = activeSidecar
+    ? {
+        content,
+        encryptedFile: activeSidecar.source.encryptedFile,
+        isV2ContentJson: activeSidecar.source.isV2ContentJson,
+        mxcUri: activeSidecar.source.mxcUri,
+        owner: activeSidecar.source.owner,
+      }
+    : undefined;
 
   useEffect(() => {
+    if (!hydrationIdentity || !mx) {
+      setLoading(false);
+      return undefined;
+    }
+
     let cancelled = false;
     const hydrateContent = async () => {
+      const currentInput = hydrationInputRef.current;
+      if (!currentInput) return;
       const {
         content: currentContent,
         encryptedFile: currentEncryptedFile,
         isV2ContentJson: currentIsV2ContentJson,
         mxcUri: currentMxcUri,
         owner: currentOwner,
-      } = hydrationInputRef.current;
+      } = currentInput;
 
       if (hydrate) {
-        // Warm cache: resolve synchronously — no preview reset, no async
-        // round-trip, no loading state.
+        // Warm cache: resolve synchronously (no preview reset, no async
+        // round-trip, no loading state).
         const cachedContent = getCachedLongTextContent(
           {
             previewContent: currentContent,
@@ -246,11 +278,13 @@ export function LongTextText({
         }
       }
 
-      setResolvedContent((currentResolvedContent) =>
-        !hydrate || shouldResetResolvedContentToPreview(currentContent, currentResolvedContent)
+      setResolvedContent((currentResolvedContent) => {
+        if (!currentResolvedContent) return currentContent;
+        return !hydrate ||
+          shouldResetResolvedContentToPreview(currentContent, currentResolvedContent)
           ? withToolTraceFallback(currentContent, currentResolvedContent)
-          : currentResolvedContent
-      );
+          : currentResolvedContent;
+      });
 
       if (!hydrate) {
         setLoading(false);
@@ -301,16 +335,24 @@ export function LongTextText({
   // hydration effect only cover mount and post-paint). Pure read of the
   // module cache for the current source; the effect converges state to the
   // same value.
-  const warmResolvedContent = hydrate ? getCachedLongTextContent(longTextSource, mx) : undefined;
-  const rawDisplayContent = warmResolvedContent ?? resolvedContent;
+  const warmResolvedContent =
+    activeSidecar && hydrate
+      ? getCachedLongTextContent(activeSidecar.source, activeSidecar.mx)
+      : undefined;
+  const rawDisplayContent = activeSidecar
+    ? (warmResolvedContent ?? resolvedContent ?? content)
+    : content;
   const displayContent = useMemo(
-    () => (transformContent ? transformContent(rawDisplayContent) : rawDisplayContent),
-    [rawDisplayContent, transformContent]
+    () =>
+      hasActiveSource && transformContent ? transformContent(rawDisplayContent) : rawDisplayContent,
+    [hasActiveSource, rawDisplayContent, transformContent]
   );
-  const toolMetadataStatus: ToolMetadataStatus =
-    !warmResolvedContent && (loading || !hydrate || settledHydrationIdentity !== hydrationIdentity)
+  const toolMetadataStatus: ToolMetadataStatus | undefined = hasActiveSource
+    ? !warmResolvedContent &&
+      (loading || !hydrate || settledHydrationIdentity !== hydrationIdentity)
       ? 'loading'
-      : 'unavailable';
+      : 'unavailable'
+    : undefined;
 
   // Until the whole message is in, the preview shows on its own: link previews come from the
   // full body, and the loading line only stands in for a preview with no plain text of its own.
@@ -318,7 +360,7 @@ export function LongTextText({
   const urlsPreview = toolMetadataStatus === 'loading' ? undefined : renderUrlsPreview;
   const previewHasText = !!trimReplyFromBody(getStringValue(displayContent, 'body') ?? '').trim();
 
-  const override = renderOverride?.(displayContent);
+  const override = hasActiveSource ? renderOverride?.(displayContent) : undefined;
   let textContent: ReactNode;
   if (override !== undefined && override !== null) {
     textContent = override;
@@ -361,7 +403,7 @@ export function LongTextText({
   return (
     <>
       {textContent}
-      {override == null && showLoadingIndicator && !previewHasText && (
+      {hasActiveSource && override == null && showLoadingIndicator && !previewHasText && (
         <Box alignItems="Center" gap="100" style={{ marginTop: config.space.S100 }}>
           <Spinner size="100" variant="Secondary" />
           <FText size="T200">

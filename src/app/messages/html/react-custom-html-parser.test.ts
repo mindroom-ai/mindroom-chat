@@ -29,6 +29,7 @@ import { markerParserOptions } from '../../../test/utils/markerParserOptions';
 import { readRenderedToolCalls, useToolTraceMarkerParserOptions } from './HtmlBlocks';
 import { resolveHtmlReactParserOptions } from '../../rich-text/htmlReactParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
+import { ManualExpansionStateContext } from '../manualExpansionState';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
 import { withReasoning } from '../agent-run/Reasoning';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
@@ -2229,5 +2230,59 @@ describe('direction controls in tool calls and code', () => {
     const formatted = renderCustomHtmlMarkup(`<p>Rename <b>${text}</b> first</p>`);
     expect(formatted).toContain(`<b>${shown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`);
     expect(formatted).not.toMatch(CONTROL);
+  });
+});
+
+describe('nested named HTML blocks disclosure persistence', () => {
+  it('persists nested <plan> blocks in separate list items independently across remount', () => {
+    const manualExpansionState = new Map<string, boolean>();
+    const mx = { mxcUrlToHttp: () => undefined } as unknown as MatrixClient;
+    const html = sanitizeCustomHtml(
+      '<ul><li><plan>First plan</plan></li><li><plan>Second plan</plan></li></ul>'
+    );
+    const parserOptions = getReactCustomHtmlParser(mx, '!room:example.org', {
+      linkifyOpts: LINKIFY_OPTS,
+    });
+    const mount = () => {
+      let renderer!: ReactTestRenderer;
+      act(() => {
+        renderer = create(
+          React.createElement(
+            ManualExpansionStateContext.Provider,
+            { value: manualExpansionState },
+            React.createElement(
+              ToolCallMessageContext,
+              { value: { roomId: '!room:example.org', eventId: '$reply-plans' } },
+              parse(html, parserOptions)
+            )
+          )
+        );
+      });
+      return renderer;
+    };
+
+    const expandedStates = (renderer: ReactTestRenderer) =>
+      renderer.root
+        .findAll(
+          (node) => node.type === 'button' && typeof node.props['aria-expanded'] === 'boolean'
+        )
+        .map((button) => button.props['aria-expanded'] as boolean);
+
+    const firstMount = mount();
+    const buttons = firstMount.root.findAll(
+      (node) => node.type === 'button' && typeof node.props['aria-expanded'] === 'boolean'
+    );
+    expect(buttons).toHaveLength(2);
+    expect(expandedStates(firstMount)).toEqual([false, false]);
+
+    act(() => {
+      buttons[0]!.props.onClick();
+    });
+    expect(expandedStates(firstMount)).toEqual([true, false]);
+    act(() => firstMount.unmount());
+
+    const secondMount = mount();
+    expect(expandedStates(secondMount)).toEqual([true, false]);
+    act(() => secondMount.unmount());
   });
 });

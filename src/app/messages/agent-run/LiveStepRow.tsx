@@ -21,6 +21,7 @@ import { isRecord } from '../../lib/isRecord';
 import { formatWorkDuration } from '../../lib/time';
 import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { useRevealOnOpen } from '../../ui/disclosureReveal';
+import { usePersistedDisclosure } from '../manualExpansionState';
 import {
   TOOL_STATE_ICON,
   ToolCallClockContext,
@@ -273,6 +274,7 @@ export function LiveStepRow({
   output,
   result,
   outputLines = 'subagent',
+  disclosureKey,
 }: {
   state: StepState;
   waitingStatus?: ToolCallWaitingStatus;
@@ -284,10 +286,11 @@ export function LiveStepRow({
   output?: string;
   result?: string;
   outputLines?: TerminalLines;
+  disclosureKey?: string;
 }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = usePersistedDisclosure(disclosureKey, false);
   const drawerId = useId();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const drawerRef = useRef<HTMLDivElement>(null);
