@@ -174,7 +174,9 @@ vi.mock('./CompactThreadCard', () => ({
 }));
 
 vi.mock('./CompactRoomView.css', () => ({
+  Host: 'Host',
   View: 'View',
+  ViewColumns: 'ViewColumns',
   EmptyState: 'EmptyState',
   CardAction: 'CardAction',
   CardQuickAction: 'CardQuickAction',

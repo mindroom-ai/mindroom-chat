@@ -2513,6 +2513,12 @@
     "emptyForMe": "No threads for you yet",
     "group": "Group",
     "groupHint": "Group by status",
+    "columns": "Columns",
+    "columnsHint": "Show status columns",
+    "collapseColumn": "Collapse {{section}} ({{count}})",
+    "expandColumn": "Expand {{section}} ({{count}})",
+    "foldColumn": "Fold",
+    "showMoreInColumn": "Show {{count}} more",
     "sections": {
       "working": "Working",
       "later": "Later",

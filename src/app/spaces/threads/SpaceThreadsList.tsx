@@ -38,11 +38,7 @@ import type {
 } from '../../threads/overview/compactThreadSections';
 import * as compactCss from '../../threads/overview/CompactRoomView.css';
 import { findCompactCard } from '../../threads/overview/compactCardKeys';
-import {
-  CompactCardList,
-  renderCompactSections,
-  sectionBlockGroups,
-} from '../../threads/overview/CompactThreadCardChrome';
+import { sectionBlockGroups } from '../../threads/overview/CompactThreadCardChrome';
 import {
   CompactThreadCardRow,
   getCompactCardRowActions,
@@ -52,13 +48,14 @@ import {
   buildCompactThreadCardViewModelFromRecord,
   getForkedFrom,
 } from '../../threads/overview/compactThreadCardViewModel';
-import { useVirtualCompactList } from '../../threads/overview/useVirtualCompactList';
 import { setThreadResolved, unsnoozeThread } from '../../threads/tags/useMutateThreadTags';
 import { ownDirectionLine } from '../../ui/directional';
-import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { RoomDot } from './RoomDot';
 import { useIsSpaceThreadsPassive } from '../spaceUnderLayerContext';
 import type { SpaceRoomItem } from './spaceThreadsModel';
+import { SpaceThreadsColumnsBody } from './SpaceThreadsColumnsBody';
+import { SpaceThreadsVerticalBody } from './SpaceThreadsVerticalBody';
 import * as css from './SpaceThreads.css';
 
 const ThreadActionsMenu = lazy(() =>
@@ -291,8 +288,11 @@ export type SpaceThreadsListProps = {
   entryByKey: ReadonlyMap<string, CrossRoomThreadIndexEntry>;
   sections?: readonly CompactThreadSection[];
   foldedSections: readonly CompactThreadSectionId[];
+  sectionOrder?: readonly CompactThreadSectionId[];
+  columns?: boolean;
   singleBucketTab?: ThreadWorkflowBucket;
   onToggleSectionFold: (id: CompactThreadSectionId) => void;
+  onReorderSections?: (order: CompactThreadSectionId[]) => void;
   roomsById: ReadonlyMap<string, SpaceRoomItem>;
   pinnedByRoom?: ReadonlyMap<string, readonly string[]>;
   showRoomBadge: boolean;
@@ -311,8 +311,11 @@ export function SpaceThreadsList({
   entryByKey,
   sections,
   foldedSections,
+  sectionOrder,
+  columns = false,
   singleBucketTab,
   onToggleSectionFold,
+  onReorderSections,
   roomsById,
   pinnedByRoom,
   showRoomBadge,
@@ -330,7 +333,6 @@ export function SpaceThreadsList({
   const myUserId = mx.getSafeUserId();
   const passive = useIsSpaceThreadsPassive();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
   const fallbackMemoryRef = useRef<ScrollAnchorMemory>(new Map());
   const roomsByIdRef = useRef(roomsById);
   useLayoutEffect(() => {
@@ -419,6 +421,9 @@ export function SpaceThreadsList({
   const menuSummaryText = menuEntry
     ? getThreadPrimarySummaryText(menuEntry.threadRecord.presentation)
     : menu?.viewModel.primarySummaryText;
+  const columnsShown = Boolean(
+    columns && sections && !singleBucketTab && !showLoading && !emptyKey && entryKeys.length > 0
+  );
   const groups = useMemo(
     () =>
       sections
@@ -426,25 +431,14 @@ export function SpaceThreadsList({
         : { all: [...entryKeys] },
     [entryKeys, foldedSections, sections, singleBucketTab]
   );
-  const blocks = useVirtualCompactList({
-    groups,
-    scrollRef,
-    contentRef,
-    memory: scrollMemory ?? fallbackMemoryRef.current,
-    roomId: scrollMemoryKey,
-    protectedId: menuKey,
-    records: entryByKey,
-    indexPending,
-    getRowId: getSpaceRowId,
-  });
-  useScrollAnchorMemory({
-    ...blocks.scrollAnchorProps,
-    ready:
-      blocks.placeReady &&
-      blocks.liveIds.some((key) => roomsById.has(entryByKey.get(key)?.roomId ?? '')),
-  });
+  const resolvedMemory = scrollMemory ?? fallbackMemoryRef.current;
+  const spaceCardIdOf = useCallback(
+    (card: HTMLElement) =>
+      getSpaceRowId(card.closest('[data-scroll-anchor]') ?? card) ?? card.dataset.threadRootId,
+    []
+  );
 
-  const renderCard = (key: string) => {
+  const renderCard = (key: string, rowScrollRef: RefObject<HTMLDivElement | null> = scrollRef) => {
     const entry = entryByKey.get(key);
     const roomItem = entry ? roomsById.get(entry.roomId) : undefined;
     if (!entry || !roomItem) return null;
@@ -457,7 +451,7 @@ export function SpaceThreadsList({
         room={roomItem.room}
         roomName={roomItem.name}
         accentColor={roomItem.accentColor}
-        scrollRootRef={scrollRef}
+        scrollRootRef={rowScrollRef}
         showRoomBadge={showRoomBadge}
         pinned={pinned}
         canToggle={permissions?.canToggle ?? false}
@@ -478,34 +472,47 @@ export function SpaceThreadsList({
   };
 
   return (
-    <div
-      ref={scrollRef}
-      className={css.ThreadListScroll}
-      data-space-threads-list="true"
-      data-compact-card-count={blocks.ids.length}
-      data-cards-pending={!blocks.extentComplete || undefined}
-      tabIndex={-1}
-    >
-      <CompactCardList ref={contentRef} scrollRef={scrollRef} liveIds={blocks.liveIds}>
-        {pinError && (
-          <Text role="alert" size="T200">
-            {t('thread.pinFailed')}
-          </Text>
-        )}
-        {showLoading && <SpaceThreadsNotice message={t('spaceThreads.loading')} loading />}
-        {emptyKey && (
-          <SpaceThreadsNotice message={t(EMPTY_MESSAGE_KEYS[emptyKey])} emptyKey={emptyKey} />
-        )}
-        {renderCompactSections({
-          sections,
-          rows: blocks.rows,
-          folded: foldedSections,
-          singleBucketTab,
-          onToggle: onToggleSectionFold,
-          scrollRef,
-          renderCard,
-        })}
-      </CompactCardList>
+    <div ref={scrollRef} className={css.ThreadListHost}>
+      {columnsShown && sections ? (
+        <SpaceThreadsColumnsBody
+          sections={sections}
+          foldedSections={foldedSections}
+          sectionOrder={sectionOrder}
+          entryByKey={entryByKey}
+          scrollMemory={resolvedMemory}
+          scrollMemoryKey={scrollMemoryKey}
+          pinError={pinError}
+          cardIdOf={spaceCardIdOf}
+          onToggleSectionFold={onToggleSectionFold}
+          onReorderSections={onReorderSections}
+          renderCard={renderCard}
+        />
+      ) : (
+        <SpaceThreadsVerticalBody
+          groups={groups}
+          sections={sections}
+          foldedSections={foldedSections}
+          singleBucketTab={singleBucketTab}
+          entryByKey={entryByKey}
+          roomsById={roomsById}
+          scrollMemory={resolvedMemory}
+          scrollMemoryKey={scrollMemoryKey}
+          menuKey={menuKey}
+          indexPending={indexPending}
+          pinError={pinError}
+          getRowId={getSpaceRowId}
+          notice={
+            <>
+              {showLoading && <SpaceThreadsNotice message={t('spaceThreads.loading')} loading />}
+              {emptyKey && (
+                <SpaceThreadsNotice message={t(EMPTY_MESSAGE_KEYS[emptyKey])} emptyKey={emptyKey} />
+              )}
+            </>
+          }
+          onToggleSectionFold={onToggleSectionFold}
+          renderCard={renderCard}
+        />
+      )}
       {menu && menuRoom && (
         <RoomThreadActionsMenu
           key={`${menu.roomId}:${menu.rootId}:${menu.initialDialog ?? ''}`}
@@ -520,7 +527,9 @@ export function SpaceThreadsList({
             const trigger = menu.trigger?.isConnected
               ? menu.trigger
               : menuKey && findCompactCard(scrollRef.current, menuKey);
-            (trigger || scrollRef.current)?.focus();
+            (
+              trigger || scrollRef.current?.querySelector<HTMLElement>('[data-space-threads-list]')
+            )?.focus();
           }}
           onOpenThread={() => {
             if (clearMenu(menu)) onOpenThread(menu.roomId, menu.rootId);

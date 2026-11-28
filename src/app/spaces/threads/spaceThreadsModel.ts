@@ -13,6 +13,7 @@ import type { ThreadSignals } from '../../threads/cross-room/threadSignals';
 import {
   buildCompactThreadSections,
   type CompactThreadSection,
+  type CompactThreadSectionId,
 } from '../../threads/overview/compactThreadSections';
 import { isZeroReplyStandaloneThreadRootEvent } from '../../event-store/threads/compactThreadRootData';
 import {
@@ -306,6 +307,7 @@ export type FilterAndSortSpaceThreadsOptions = {
   quietNow?: number;
   hasMindroomAgents: boolean;
   groupSections?: boolean;
+  sectionOrder?: readonly CompactThreadSectionId[];
   pinnedKeys?: readonly string[];
   signalsOf?: (entry: CrossRoomThreadIndexEntry) => ThreadSignals | undefined;
 };
@@ -335,6 +337,7 @@ export const filterAndSortSpaceThreads = ({
   quietNow = snoozeNow,
   hasMindroomAgents,
   groupSections = false,
+  sectionOrder,
   pinnedKeys = [],
   signalsOf,
 }: FilterAndSortSpaceThreadsOptions): SpaceThreadsResult => {
@@ -411,6 +414,7 @@ export const filterAndSortSpaceThreads = ({
         pinnedRootIds: pinnedKeys,
         now: snoozeNow,
         quietNow,
+        sectionOrder,
       })
     : undefined;
 

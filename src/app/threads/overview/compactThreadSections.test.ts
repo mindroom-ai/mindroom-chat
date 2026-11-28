@@ -284,4 +284,17 @@ describe('buildCompactThreadSections', () => {
     expect(result.nextQuietWakeTs).toBe(now + 50);
     expect(signalReads).toBe(1);
   });
+
+  it('orders non-empty sections by custom sectionOrder and appends any omitted buckets', () => {
+    const custom = buildCompactThreadSections({
+      threadRootIds: everyKindIds,
+      recordMap: everyKind,
+      entryOf: () => undefined,
+      signalsOf: () => undefined,
+      pinnedRootIds: [],
+      now: NOW,
+      sectionOrder: ['done', 'working'],
+    });
+    expect(custom.sections.map(({ id }) => id)).toEqual(['done', 'working', 'needsYou', 'later']);
+  });
 });

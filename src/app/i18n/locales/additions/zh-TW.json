@@ -2432,6 +2432,12 @@
     "emptyForMe": "目前沒有與你相關的討論串",
     "group": "分組",
     "groupHint": "依狀態分組",
+    "columns": "分欄",
+    "columnsHint": "依狀態分欄顯示",
+    "collapseColumn": "摺疊{{section}} ({{count}})",
+    "expandColumn": "展開{{section}} ({{count}})",
+    "foldColumn": "摺疊",
+    "showMoreInColumn": "再顯示 {{count}} 項",
     "sections": {
       "working": "進行中",
       "later": "稍後",

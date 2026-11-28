@@ -59,6 +59,7 @@ export function CompactRoomSurface({
         focusScope={threadIndex.threadSortControlSignature}
         filterBarShown={state.filterBarShown}
         sectionsNow={state.threadSectionsShown ? threadIndex.snoozeNow : undefined}
+        columnsMode={state.threadColumnsShown}
         singleBucketTab={
           state.threadSectionsShown && threadFilterState.tab && threadFilterState.tab !== 'all'
             ? threadFilterState.tab

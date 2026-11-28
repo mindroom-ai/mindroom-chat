@@ -54,6 +54,10 @@ export type RoomTimelineProps = {
   threadSections?: boolean;
   /** The Compact filter bar's switch for `threadSections`. */
   onToggleThreadSections?: () => void;
+  /** Compact transposes workflow sections into side-by-side columns when wide enough. */
+  threadColumns?: boolean;
+  /** The Compact filter bar's switch for `threadColumns`; omitted when the pane is narrow. */
+  onToggleThreadColumns?: () => void;
   viewMode: RoomViewMode;
   compactRoomScrollStateRef?: MutableRefObject<ScrollAnchorMemory>;
   /** Where the room's rows were when a thread opened over them (`useThreadReturnPlace`). */

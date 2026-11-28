@@ -6,27 +6,42 @@ import {
 } from '../../lib/state/atomWithLocalStorage';
 import { isRecord } from '../../lib/isRecord';
 import { createUserScopedAtomRegistry } from '../../lib/state/userScopedAtomRegistry';
-import { COMPACT_THREAD_SECTION_ORDER, type CompactThreadSectionId } from './compactThreadSections';
+import {
+  COMPACT_THREAD_SECTION_ORDER,
+  normalizeCompactSectionOrder,
+  type CompactThreadSectionId,
+} from './compactThreadSections';
 
 const COMPACT_ROOM_SECTIONS = 'compactRoomSections';
-const COMPACT_ROOM_SECTIONS_VERSION = 2;
+const COMPACT_ROOM_SECTIONS_VERSION = 3;
 
 /**
- * Whether Compact rooms show their cards in sections (Needs you, Working, Later, Quiet, Done), and
- * which sections are folded. One choice for the account in every room, where the filters and the
- * sort the filter bar sets are kept per room.
+ * Whether Compact rooms show their cards in sections (Needs you, Working, Later, Quiet, Done),
+ * whether wide views transpose those sections into columns, which sections are folded, and their
+ * display order. One choice for the account in every room, where the filters and the sort the
+ * filter bar sets are kept per room.
  */
-export type CompactRoomSections = { on: boolean; folded: CompactThreadSectionId[] };
+export type CompactRoomSections = {
+  on: boolean;
+  columns: boolean;
+  folded: CompactThreadSectionId[];
+  order: CompactThreadSectionId[];
+};
 
 export type CompactRoomSectionsAction =
-  { type: 'SET_ON'; on: boolean } | { type: 'TOGGLE_FOLD'; id: CompactThreadSectionId };
+  | { type: 'SET_ON'; on: boolean }
+  | { type: 'SET_COLUMNS'; columns: boolean }
+  | { type: 'TOGGLE_FOLD'; id: CompactThreadSectionId }
+  | { type: 'REORDER_SECTIONS'; order: readonly CompactThreadSectionId[] };
 
 type CompactRoomSectionsAtom = WritableAtom<CompactRoomSections, [CompactRoomSectionsAction], void>;
 
 /** Off, as the cards always showed; Quiet and Done start folded, as in the sidebar. */
 export const DEFAULT_COMPACT_ROOM_SECTIONS: CompactRoomSections = {
   on: false,
+  columns: false,
   folded: ['quiet', 'done'],
+  order: [...COMPACT_THREAD_SECTION_ORDER],
 };
 
 const storeKey = (userId: string): string => `${COMPACT_ROOM_SECTIONS}:${userId}`;
@@ -40,13 +55,18 @@ const readSections = (key: string): CompactRoomSections => {
   const validFolded = Array.isArray(stored.folded)
     ? stored.folded.filter(isSectionId)
     : DEFAULT_COMPACT_ROOM_SECTIONS.folded;
+  // v2 introduced explicit Quiet folding; v1 storage folds Quiet by default on migration.
+  const version = typeof stored.v === 'number' ? stored.v : 1;
   const folded =
-    stored.v === COMPACT_ROOM_SECTIONS_VERSION
+    version >= 2
       ? [...new Set(validFolded)]
       : [...new Set<CompactThreadSectionId>(['quiet', ...validFolded])];
+  const on = stored.on === true;
   return {
-    on: stored.on === true,
+    on,
+    columns: on && stored.columns === true,
     folded,
+    order: normalizeCompactSectionOrder(stored.order),
   };
 };
 
@@ -54,7 +74,15 @@ const reduce = (
   current: CompactRoomSections,
   action: CompactRoomSectionsAction
 ): CompactRoomSections => {
-  if (action.type === 'SET_ON') return { ...current, on: action.on };
+  if (action.type === 'SET_ON') return { ...current, on: action.on, columns: false };
+  if (action.type === 'SET_COLUMNS') {
+    return action.columns
+      ? { ...current, on: true, columns: true }
+      : { ...current, on: false, columns: false };
+  }
+  if (action.type === 'REORDER_SECTIONS') {
+    return { ...current, order: normalizeCompactSectionOrder(action.order) };
+  }
   const folded = current.folded.includes(action.id)
     ? current.folded.filter((id) => id !== action.id)
     : [...current.folded, action.id];

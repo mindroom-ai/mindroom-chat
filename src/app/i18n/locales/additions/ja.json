@@ -2432,6 +2432,12 @@
     "emptyForMe": "自分向けのスレッドはまだありません",
     "group": "グループ",
     "groupHint": "状態ごとにグループ化",
+    "columns": "カラム",
+    "columnsHint": "ステータス別のカラムを表示",
+    "collapseColumn": "{{section}}を折りたたむ ({{count}})",
+    "expandColumn": "{{section}}を展開する ({{count}})",
+    "foldColumn": "折りたたむ",
+    "showMoreInColumn": "さらに{{count}}件表示",
     "sections": {
       "working": "作業中",
       "later": "後で",

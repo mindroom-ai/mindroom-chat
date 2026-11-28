@@ -11,6 +11,17 @@ import { transition } from '../../ui/styles/transition';
 
 const touchActions = '(max-width: 480px), (hover: none)';
 
+export const Host = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 auto',
+  minWidth: 0,
+  minBlockSize: 0,
+  width: '100%',
+  blockSize: '100%',
+  position: 'relative',
+});
+
 export const View = style([
   Scroll,
   {
@@ -29,6 +40,21 @@ export const View = style([
     width: '100%',
   },
 ]);
+
+export const ViewColumns = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 auto',
+  minWidth: 0,
+  minBlockSize: 0,
+  blockSize: '100%',
+  width: '100%',
+  paddingBlockStart: topInset,
+  paddingBlockEnd: `calc(${footerInset} + ${config.space.S300})`,
+  paddingInline: config.space.S300,
+  overflow: 'hidden',
+  isolation: 'isolate',
+});
 
 export const EmptyState = style({
   display: 'flex',

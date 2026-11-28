@@ -2594,6 +2594,12 @@
     "emptyForMe": "Pas encore de fils pour vous",
     "group": "Grouper",
     "groupHint": "Grouper par statut",
+    "columns": "Colonnes",
+    "columnsHint": "Afficher les colonnes de statut",
+    "collapseColumn": "Replier {{section}} ({{count}})",
+    "expandColumn": "Déplier {{section}} ({{count}})",
+    "foldColumn": "Replier",
+    "showMoreInColumn": "Afficher {{count}} de plus",
     "sections": {
       "working": "En cours",
       "later": "Plus tard",

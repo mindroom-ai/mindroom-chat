@@ -104,6 +104,8 @@ export const RoomDot = style({
   flexShrink: 0,
 });
 
+export const ThreadListHost = style([FlexColumn, { overflow: 'hidden' }]);
+
 export const ThreadListScroll = style([
   FlexColumn,
   {
@@ -111,6 +113,17 @@ export const ThreadListScroll = style([
     overflowX: 'hidden',
     paddingBlockStart: config.space.S100,
     paddingBlockEnd: config.space.S400,
+    paddingInline: config.space.S300,
+    isolation: 'isolate',
+  },
+]);
+
+export const ThreadListColumns = style([
+  FlexColumn,
+  {
+    overflow: 'hidden',
+    paddingBlockStart: config.space.S100,
+    paddingBlockEnd: config.space.S300,
     paddingInline: config.space.S300,
     isolation: 'isolate',
   },

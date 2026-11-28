@@ -2594,6 +2594,12 @@
     "emptyForMe": "Aún no hay hilos para ti",
     "group": "Agrupar",
     "groupHint": "Agrupar por estado",
+    "columns": "Columnas",
+    "columnsHint": "Mostrar columnas de estado",
+    "collapseColumn": "Contraer {{section}} ({{count}})",
+    "expandColumn": "Expandir {{section}} ({{count}})",
+    "foldColumn": "Plegar",
+    "showMoreInColumn": "Mostrar {{count}} más",
     "sections": {
       "working": "En curso",
       "later": "Más tarde",

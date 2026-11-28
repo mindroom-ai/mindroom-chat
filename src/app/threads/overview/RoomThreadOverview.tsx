@@ -24,6 +24,7 @@ import * as css from './RoomThreadOverview.css';
 import { ThreadTagFilter } from './ThreadTagFilter';
 import { useKeepInsideToolbar } from './useKeepInsideToolbar';
 import { WorkflowTabs } from './WorkflowTabs';
+import { ColumnsThreadsIcon } from './ColumnsThreadsIcon';
 import { GroupThreadsIcon } from './GroupThreadsIcon';
 import { localDigits } from '../../lib/localDigits';
 import type {
@@ -297,6 +298,10 @@ export type RoomThreadOverviewProps = {
   threadSections?: boolean;
   /** Turns the sections on or off; the switch shows beside the sort only when given (Compact). */
   onToggleThreadSections?: () => void;
+  /** The cards transpose workflow sections into side-by-side columns (wide Compact views). */
+  threadColumns?: boolean;
+  /** Turns Columns mode on or off; shown right beside Group only when provided. */
+  onToggleThreadColumns?: () => void;
   /** Suppress the toolbar's inline empty-filter row when the room canvas renders its own empty state. */
   hideEmptyState?: boolean;
   /** Overrides the stored `simpleThreadFilters` preference when defined (used by the tour). */
@@ -311,6 +316,7 @@ function ThreadBarToggle({
   on,
   onToggle,
   sections,
+  columns,
 }: {
   label: string;
   hint: string;
@@ -318,6 +324,7 @@ function ThreadBarToggle({
   on: boolean;
   onToggle: () => void;
   sections?: boolean;
+  columns?: boolean;
 }) {
   return (
     <TooltipProvider
@@ -337,7 +344,8 @@ function ThreadBarToggle({
           aria-pressed={on}
           onClick={onToggle}
           aria-label={label}
-          data-thread-sections={sections ? 'true' : undefined}
+          {...(sections ? { 'data-thread-sections': 'true' } : undefined)}
+          {...(columns ? { 'data-thread-columns': 'true' } : undefined)}
         >
           <Icon size="100" src={icon} aria-hidden="true" />
           <Text size="T200" className={css.BarToggleLabel}>
@@ -426,6 +434,8 @@ export function RoomThreadOverview({
   peopleFilter,
   threadSections = false,
   onToggleThreadSections,
+  threadColumns = false,
+  onToggleThreadColumns,
   hideEmptyState = false,
   simpleModeOverride,
 }: RoomThreadOverviewProps) {
@@ -590,15 +600,27 @@ export function RoomThreadOverview({
     </TooltipProvider>
   );
 
-  // Sections order their cards themselves, so the sort and its lock make way for the switch.
+  const columnsActive = Boolean(onToggleThreadColumns && threadColumns);
+  const grouped = threadSections || columnsActive;
+  // Sections order their cards themselves, so the sort and its lock make way for the switches.
   const sectionsSwitch = onToggleThreadSections && (
     <ThreadBarToggle
       sections
       label={t('threadNav.group')}
       hint={t('threadNav.groupHint')}
       icon={GroupThreadsIcon}
-      on={threadSections}
+      on={threadSections && !columnsActive}
       onToggle={onToggleThreadSections}
+    />
+  );
+  const columnsSwitch = onToggleThreadColumns && (
+    <ThreadBarToggle
+      columns
+      label={t('threadNav.columns')}
+      hint={t('threadNav.columnsHint')}
+      icon={ColumnsThreadsIcon}
+      on={columnsActive}
+      onToggle={onToggleThreadColumns}
     />
   );
   const forMeSwitch = onToggleForMe && (
@@ -661,8 +683,9 @@ export function RoomThreadOverview({
             </>
           )}
           {roomsFilter}
-          {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
+          {!grouped && <ThreadSortControl state={state} onChange={handleSort} />}
           {sectionsSwitch}
+          {columnsSwitch}
           {forMeSwitch}
           {filterModeSwitch}
         </div>
@@ -723,15 +746,16 @@ export function RoomThreadOverview({
           />
         )}
 
-        {!threadSections && <ThreadSortControl state={state} onChange={handleSort} />}
+        {!grouped && <ThreadSortControl state={state} onChange={handleSort} />}
         {sectionsSwitch}
+        {columnsSwitch}
         {forMeSwitch}
         <ThreadSearchBar
           searchQuery={searchQueryDraft}
           filtering={hasSearchOnlyThreadFilters(state)}
           onSearchQueryChange={handleSearch}
         />
-        {hasMindroomAgents && !threadSections && state.sortBy !== 'natural' && (
+        {hasMindroomAgents && !grouped && state.sortBy !== 'natural' && (
           <TooltipProvider
             position="Bottom"
             align="Center"
