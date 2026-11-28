@@ -10,13 +10,17 @@ import {
 type TxnSummaryState = {
   byteDelta: number;
   countDelta: number;
-  onlyAdds: boolean;
   deletedKeys: Set<string>;
-  // undefined = read/count in flight; null = unseeded non-empty store.
+  // undefined = summary read in flight; null = absent or invalidated on quota failure.
   base: CachedAttachmentBytesSummaryRecord | null | undefined;
 };
 
 const summaryStateByTransaction = new WeakMap<IDBTransaction, TxnSummaryState>();
+
+const isQuotaExceededError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  (error as { name?: unknown }).name === 'QuotaExceededError';
 
 const isValidSummary = (value: unknown): value is CachedAttachmentBytesSummaryRecord => {
   if (typeof value !== 'object' || value === null) return false;
@@ -37,19 +41,52 @@ const resolveSummaryBytes = (summary: unknown, indexCount: number): number | und
   return isValidSummary(summary) && summary.count === indexCount ? summary.totalBytes : undefined;
 };
 
-const putSummary = (
+const tryDeleteSummary = (blobs: IDBObjectStore): void => {
+  try {
+    const req = blobs.delete(ATTACHMENT_BYTES_SUMMARY_KEY);
+    req.onerror = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    };
+  } catch {
+    /* Best-effort invalidation when storage is full or the transaction already aborted. */
+  }
+};
+
+/**
+ * Persists the derived summary record without letting a QuotaExceededError abort the
+ * enclosing write or deletion transaction; on quota failure it drops any stale summary.
+ */
+const putSummaryQuotaSafe = (
   blobs: IDBObjectStore,
   totalBytes: number,
-  count: number
-): CachedAttachmentBytesSummaryRecord => {
+  count: number,
+  onQuotaError?: () => void
+): CachedAttachmentBytesSummaryRecord | null => {
   const safeCount = Math.max(0, Math.trunc(count));
   const record: CachedAttachmentBytesSummaryRecord = {
     mxcUri: ATTACHMENT_BYTES_SUMMARY_KEY,
     totalBytes: safeCount === 0 ? 0 : Math.max(0, totalBytes),
     count: safeCount,
   };
-  blobs.put(record);
-  return record;
+  const handleQuota = () => {
+    onQuotaError?.();
+    tryDeleteSummary(blobs);
+  };
+  try {
+    const request = blobs.put(record);
+    request.onerror = (event) => {
+      if (!isQuotaExceededError(request.error)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      handleQuota();
+    };
+    return record;
+  } catch (error) {
+    if (!isQuotaExceededError(error)) throw error;
+    handleQuota();
+    return null;
+  }
 };
 
 /** Writes the exact attachment byte/count summary inside an active readwrite transaction. */
@@ -58,18 +95,22 @@ export const writeAttachmentBytesSummary = (
   totalBytes: number,
   count: number
 ): void => {
-  summaryStateByTransaction.set(blobs.transaction, {
+  const state: TxnSummaryState = {
     byteDelta: 0,
     countDelta: 0,
-    onlyAdds: false,
     deletedKeys: new Set(),
-    base: putSummary(blobs, totalBytes, count),
+    base: null,
+  };
+  summaryStateByTransaction.set(blobs.transaction, state);
+  state.base = putSummaryQuotaSafe(blobs, totalBytes, count, () => {
+    state.base = null;
   });
 };
 
 /**
  * Coalesces attachment byte/count deltas inside the caller's readwrite transaction on
- * `attachments`; `deletedKey` prevents double-subtracting concurrent prunes of one shared key.
+ * `attachments`. Leaves a missing summary absent so the first admission seeds it lazily;
+ * `deletedKey` prevents double-subtracting concurrent prunes of one shared key.
  */
 export const adjustAttachmentBytesSummary = (
   blobs: IDBObjectStore,
@@ -80,17 +121,18 @@ export const adjustAttachmentBytesSummary = (
   if (byteDelta === 0 && countDelta === 0) return;
   const existing = summaryStateByTransaction.get(blobs.transaction);
   if (deletedKey !== undefined && existing?.deletedKeys.has(deletedKey)) return;
-  const isAdd = countDelta > 0 && byteDelta >= 0;
   if (existing) {
     if (deletedKey !== undefined) existing.deletedKeys.add(deletedKey);
     existing.byteDelta += byteDelta;
     existing.countDelta += countDelta;
-    if (!isAdd) existing.onlyAdds = false;
     if (existing.base) {
-      putSummary(
+      putSummaryQuotaSafe(
         blobs,
         existing.base.totalBytes + existing.byteDelta,
-        existing.base.count + existing.countDelta
+        existing.base.count + existing.countDelta,
+        () => {
+          existing.base = null;
+        }
       );
     }
     return;
@@ -98,7 +140,6 @@ export const adjustAttachmentBytesSummary = (
   const state: TxnSummaryState = {
     byteDelta,
     countDelta,
-    onlyAdds: isAdd,
     deletedKeys: deletedKey !== undefined ? new Set([deletedKey]) : new Set(),
     base: undefined,
   };
@@ -106,39 +147,53 @@ export const adjustAttachmentBytesSummary = (
   const summaryRequest = blobs.get(ATTACHMENT_BYTES_SUMMARY_KEY);
   summaryRequest.onsuccess = () => {
     const summary: unknown = summaryRequest.result;
-    if (isValidSummary(summary)) {
-      state.base = summary;
-      putSummary(blobs, summary.totalBytes + state.byteDelta, summary.count + state.countDelta);
-      return;
-    }
-    if (!state.onlyAdds) {
+    if (!isValidSummary(summary)) {
       state.base = null;
       return;
     }
-    const countRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).count();
-    countRequest.onsuccess = () => {
-      // Seed immediately only when every indexed attachment came from this transaction's adds.
-      if (state.onlyAdds && countRequest.result === state.countDelta) {
-        state.base = { mxcUri: ATTACHMENT_BYTES_SUMMARY_KEY, totalBytes: 0, count: 0 };
-        putSummary(blobs, state.byteDelta, state.countDelta);
-      } else {
+    state.base = summary;
+    putSummaryQuotaSafe(
+      blobs,
+      summary.totalBytes + state.byteDelta,
+      summary.count + state.countDelta,
+      () => {
         state.base = null;
       }
-    };
+    );
   };
 };
 
 const sumLedgerBytes = (rows: readonly CachedRoomLedgerRecord[]): number =>
   rows.reduce((sum, row) => sum + row.approxBytes, 0);
 
-const runTransaction = <T>(
-  db: IDBDatabase,
-  stores: string | string[],
-  mode: IDBTransactionMode,
-  setup: (transaction: IDBTransaction, fail: (error: unknown) => void) => () => T
-): Promise<T> =>
-  new Promise<T>((resolve, reject) => {
-    const transaction = db.transaction(stores, mode);
+const scanAttachmentsReadonly = (db: IDBDatabase): Promise<number> =>
+  new Promise<number>((resolve, reject) => {
+    const transaction = db.transaction(ATTACHMENTS_STORE, 'readonly');
+    const cursorRequest = transaction
+      .objectStore(ATTACHMENTS_STORE)
+      .index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX)
+      .openKeyCursor();
+    let totalBytes = 0;
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) return;
+      totalBytes += (cursor.key as [number, number])[1];
+      cursor.continue();
+    };
+    transaction.oncomplete = () => resolve(totalBytes);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+
+const seedAttachmentBytesSummary = (db: IDBDatabase): Promise<number> =>
+  new Promise<number>((resolve, reject) => {
+    const transaction = db.transaction(ATTACHMENTS_STORE, 'readwrite');
+    const blobs = transaction.objectStore(ATTACHMENTS_STORE);
+    const summaryRequest = blobs.get(ATTACHMENT_BYTES_SUMMARY_KEY);
+    const countRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).count();
+    let totalBytes = 0;
+    let scanned = false;
+    let remaining = 2;
     const fail = (error: unknown) => {
       try {
         transaction.abort();
@@ -147,47 +202,6 @@ const runTransaction = <T>(
       }
       reject(error);
     };
-    let readResult: () => T;
-    try {
-      readResult = setup(transaction, fail);
-    } catch (error) {
-      fail(error);
-      return;
-    }
-    transaction.oncomplete = () => resolve(readResult());
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
-
-const scanAttachments = (db: IDBDatabase, persist: boolean): Promise<number> =>
-  runTransaction(db, ATTACHMENTS_STORE, persist ? 'readwrite' : 'readonly', (txn, fail) => {
-    const blobs = txn.objectStore(ATTACHMENTS_STORE);
-    let totalBytes = 0;
-    const walk = () => {
-      const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
-      let count = 0;
-      cursorRequest.onsuccess = () => {
-        try {
-          const cursor = cursorRequest.result;
-          if (!cursor) {
-            if (persist) writeAttachmentBytesSummary(blobs, totalBytes, count);
-            return;
-          }
-          totalBytes += (cursor.key as [number, number])[1];
-          count += 1;
-          cursor.continue();
-        } catch (error) {
-          fail(error);
-        }
-      };
-    };
-    if (!persist) {
-      walk();
-      return () => totalBytes;
-    }
-    const summaryRequest = blobs.get(ATTACHMENT_BYTES_SUMMARY_KEY);
-    const countRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).count();
-    let remaining = 2;
     const onCheckReady = () => {
       remaining -= 1;
       if (remaining > 0) return;
@@ -196,46 +210,76 @@ const scanAttachments = (db: IDBDatabase, persist: boolean): Promise<number> =>
         const resolved = resolveSummaryBytes(summaryRequest.result as unknown, indexCount);
         if (resolved !== undefined) {
           totalBytes = resolved;
+          scanned = true;
           if (indexCount === 0) writeAttachmentBytesSummary(blobs, 0, 0);
           return;
         }
-        walk();
+        const cursorRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).openKeyCursor();
+        let count = 0;
+        cursorRequest.onsuccess = () => {
+          try {
+            const cursor = cursorRequest.result;
+            if (!cursor) {
+              scanned = true;
+              writeAttachmentBytesSummary(blobs, totalBytes, count);
+              return;
+            }
+            totalBytes += (cursor.key as [number, number])[1];
+            count += 1;
+            cursor.continue();
+          } catch (error) {
+            fail(error);
+          }
+        };
       } catch (error) {
         fail(error);
       }
     };
     summaryRequest.onsuccess = onCheckReady;
     countRequest.onsuccess = onCheckReady;
-    return () => totalBytes;
+    transaction.oncomplete = () => resolve(totalBytes);
+    const onFailure = () => {
+      // Cursor finished and only persisting the summary hit quota: return the scanned total.
+      if (scanned && isQuotaExceededError(transaction.error)) {
+        resolve(totalBytes);
+        return;
+      }
+      reject(transaction.error);
+    };
+    transaction.onerror = onFailure;
+    transaction.onabort = onFailure;
   });
 
 /**
  * Reads total cached text and attachment bytes without scanning `attachments` when the
- * persisted summary matches the index count. Pre-existing databases without a summary run
- * one atomic seed scan on `attachments` only (leaving `room_ledger` unlocked), falling
- * back to a readonly scan if storage is full.
+ * persisted summary matches the index count. Unseeded databases run one atomic seed scan
+ * on `attachments` only (leaving `room_ledger` unlocked); if persisting the summary hits
+ * quota after scanning, the already-computed total is returned without a second walk.
  */
 export const readTotalCachedBytes = async (db: IDBDatabase): Promise<number> => {
-  const fast = await runTransaction(
-    db,
-    [ATTACHMENTS_STORE, ROOM_LEDGER_STORE],
-    'readonly',
-    (txn) => {
-      const ledgerRequest = txn.objectStore(ROOM_LEDGER_STORE).getAll();
-      const blobs = txn.objectStore(ATTACHMENTS_STORE);
+  const fast = await new Promise<{ ledgerBytes: number; attachmentBytes: number | undefined }>(
+    (resolve, reject) => {
+      const transaction = db.transaction([ATTACHMENTS_STORE, ROOM_LEDGER_STORE], 'readonly');
+      const ledgerRequest = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
+      const blobs = transaction.objectStore(ATTACHMENTS_STORE);
       const summaryRequest = blobs.get(ATTACHMENT_BYTES_SUMMARY_KEY);
       const countRequest = blobs.index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX).count();
-      return () => ({
-        ledgerBytes: sumLedgerBytes(ledgerRequest.result as CachedRoomLedgerRecord[]),
-        attachmentBytes: resolveSummaryBytes(summaryRequest.result as unknown, countRequest.result),
-      });
+      transaction.oncomplete = () =>
+        resolve({
+          ledgerBytes: sumLedgerBytes(ledgerRequest.result as CachedRoomLedgerRecord[]),
+          attachmentBytes: resolveSummaryBytes(
+            summaryRequest.result as unknown,
+            countRequest.result
+          ),
+        });
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error);
     }
   );
   if (fast.attachmentBytes !== undefined) return fast.ledgerBytes + fast.attachmentBytes;
-  const attachmentBytes = await scanAttachments(db, true).catch(() => scanAttachments(db, false));
-  const ledgerBytes = await runTransaction(db, ROOM_LEDGER_STORE, 'readonly', (txn) => {
-    const ledgerRequest = txn.objectStore(ROOM_LEDGER_STORE).getAll();
-    return () => sumLedgerBytes(ledgerRequest.result as CachedRoomLedgerRecord[]);
+  const attachmentBytes = await seedAttachmentBytesSummary(db).catch((error: unknown) => {
+    if (isQuotaExceededError(error)) return scanAttachmentsReadonly(db);
+    throw error;
   });
-  return ledgerBytes + attachmentBytes;
+  return fast.ledgerBytes + attachmentBytes;
 };

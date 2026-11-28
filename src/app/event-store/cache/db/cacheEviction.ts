@@ -372,9 +372,7 @@ const reclaimOptionalMedia = (
             evictedMxcUris.push(record.mxcUri);
           }
         }
-        if (evictedMxcUris.length > 0) {
-          writeAttachmentBytesSummary(blobs, attachmentBytes, attachmentCount);
-        }
+        writeAttachmentBytesSummary(blobs, attachmentBytes, attachmentCount);
         result = { bytesAfter, evictedMxcUris, protectedBytes };
       } catch (error) {
         reject(error);

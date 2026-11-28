@@ -6,7 +6,9 @@ import { saveAttachmentOwner } from '../../__tests__/attachmentFixtures';
 import { loadCachedScaledPicture, putCachedScaledPicture } from '../cacheStoreScaledPictures';
 import {
   ATTACHMENTS_STORE,
+  ATTACHMENT_BYTES_SUMMARY_KEY,
   EVICTION_PROTECTED_VERDICT_TTL_MS,
+  type CachedAttachmentBytesSummaryRecord,
   type CachedAttachmentRecord,
 } from '../cacheStoreSchema';
 import * as store from '../index';
@@ -685,7 +687,7 @@ const seedRawAttachment = async (mxcUri: string, byteLength: number): Promise<vo
   });
 };
 
-it('admits repeated under-budget checks without scanning attachments with a cursor', async () => {
+it('admits repeated under-budget checks without rescanning attachments with a cursor', async () => {
   await save('a', 'room-a');
   await save('b', 'room-b');
   await saveAttachmentOwner(session, 'room-c', '$photo', 1, [
@@ -698,13 +700,25 @@ it('admits repeated under-budget checks without scanning attachments with a curs
   );
   const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
   const rawCursor = vi.spyOn(IDBObjectStore.prototype, 'openCursor');
+  // First admission seeds the summary once; repeated checks and later puts avoid cursor scans.
+  const first = await store.runCacheEvictionIfOverBudget(session);
+  expect(first.underPressure).toBe(false);
+  expect(first.bytesBefore).toBeGreaterThanOrEqual(5500);
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(1);
+
   for (let i = 0; i < 3; i += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const result = await store.runCacheEvictionIfOverBudget(session);
-    expect(result.underPressure).toBe(false);
-    expect(result.bytesBefore).toBeGreaterThanOrEqual(5500);
+    expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+      bytesBefore: first.bytesBefore,
+      underPressure: false,
+    });
   }
-  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(0);
+  await save('c', 'room-d');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: first.bytesBefore + 2000,
+    underPressure: false,
+  });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(1);
   expect(rawCursor).not.toHaveBeenCalled();
 });
 
@@ -742,7 +756,7 @@ it('evicts accurately when adding bytes crosses budget or when the budget is low
     bytesBefore: 4000,
     underPressure: false,
   });
-  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(0);
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(1);
 
   await save('third', 'room-c');
   expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
@@ -813,7 +827,7 @@ it('keeps summary accounting accurate across scaled overwrites, room clears, and
   expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(0);
 });
 
-it('falls back to a readonly scan when seeding the summary fails with QuotaExceededError', async () => {
+it('returns the scanned total in one cursor walk when seeding the summary hits QuotaExceededError', async () => {
   await seedRawAttachment('mxc://test/quota-seed', 1500);
   const originalPut = IDBObjectStore.prototype.put;
   vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failSummary(
@@ -825,8 +839,124 @@ it('falls back to a readonly scan when seeding the summary fails with QuotaExcee
       throw new DOMException('Storage full', 'QuotaExceededError');
     return key === undefined ? originalPut.call(this, value) : originalPut.call(this, value, key);
   });
+  const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
   expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
     bytesBefore: 1500,
     underPressure: false,
   });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(1);
+});
+
+it.each(['sync', 'async'] as const)(
+  'frees room content when clearRoomCachedContent hits %s QuotaExceededError on summary put',
+  async (mode) => {
+    await saveText('room-a', 1);
+    await save('a', 'room-a');
+    await save('b', 'room-b');
+    await store.runCacheEvictionIfOverBudget(session);
+
+    const originalPut = IDBObjectStore.prototype.put;
+    const putSpy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failQuota(
+      this: IDBObjectStore,
+      value: unknown,
+      key
+    ) {
+      const mxcUri = (value as { mxcUri?: unknown } | null)?.mxcUri;
+      if (this.name === ATTACHMENTS_STORE && mxcUri === ATTACHMENT_BYTES_SUMMARY_KEY) {
+        if (mode === 'sync') throw new DOMException('Storage full', 'QuotaExceededError');
+        // Trigger a real async IDBRequest error event on the existing summary key.
+        const req = this.add(value);
+        Object.defineProperty(req, 'error', {
+          get: () => new DOMException('Storage full', 'QuotaExceededError'),
+          set: () => undefined,
+        });
+        return req;
+      }
+      return key === undefined ? originalPut.call(this, value) : originalPut.call(this, value, key);
+    });
+    const freed = await store.clearRoomCachedContent(session, 'room-a');
+    putSpy.mockRestore();
+
+    expect(freed).toBeGreaterThanOrEqual(2000);
+    expect(await store.loadCachedAttachment(session, 'mxc://test/a')).toBeUndefined();
+    expect(await hasText('room-a')).toBe(false);
+    expect(await store.loadCachedAttachment(session, 'mxc://test/b')).toBeDefined();
+    // The stale summary was deleted on quota failure, so the next check re-seeds accurately.
+    expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+      bytesBefore: 2000,
+      underPressure: false,
+    });
+  }
+);
+
+it('commits media eviction when reclaimOptionalMedia hits QuotaExceededError on summary put', async () => {
+  let now = Date.now();
+  vi.spyOn(Date, 'now').mockImplementation(() => {
+    now += 1000;
+    return now;
+  });
+  await save('old', 'room-a');
+  await save('new', 'room-b');
+  await store.runCacheEvictionIfOverBudget(session);
+
+  const originalPut = IDBObjectStore.prototype.put;
+  const putSpy = vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failSummary(
+    this: IDBObjectStore,
+    value: unknown,
+    key
+  ) {
+    const mxcUri = (value as { mxcUri?: unknown } | null)?.mxcUri;
+    if (this.name === ATTACHMENTS_STORE && mxcUri === ATTACHMENT_BYTES_SUMMARY_KEY) {
+      throw new DOMException('Storage full', 'QuotaExceededError');
+    }
+    return key === undefined ? originalPut.call(this, value) : originalPut.call(this, value, key);
+  });
+  store.__setCacheStoreByteBudgetForTests(3000);
+  const evicted = await store.runCacheEvictionIfOverBudget(session);
+  putSpy.mockRestore();
+
+  expect(evicted).toMatchObject({
+    bytesBefore: 4000,
+    bytesAfter: 2000,
+    evictedMxcUris: ['mxc://test/old'],
+    underPressure: false,
+  });
+  expect(await store.loadCachedAttachment(session, 'mxc://test/old')).toBeUndefined();
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 2000,
+    underPressure: false,
+  });
+});
+
+it('self-heals drifted summary bytes when reclaimOptionalMedia runs without evicting', async () => {
+  await save('focused', 'room-focused');
+  await store.runCacheEvictionIfOverBudget(session);
+  const db = await store.openCacheStore(session);
+  if (!db) throw new Error('cache store unavailable');
+  await new Promise<void>((resolve, reject) => {
+    const txn = db.transaction(ATTACHMENTS_STORE, 'readwrite');
+    txn.objectStore(ATTACHMENTS_STORE).put({
+      mxcUri: ATTACHMENT_BYTES_SUMMARY_KEY,
+      totalBytes: 5000,
+      count: 1,
+    } satisfies CachedAttachmentBytesSummaryRecord);
+    txn.oncomplete = () => resolve();
+    txn.onerror = () => reject(txn.error);
+    txn.onabort = () => reject(txn.error);
+  });
+
+  store.setEvictionProtectedRoomIds(['room-focused']);
+  store.__setCacheStoreByteBudgetForTests(1000);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    evictedMxcUris: [],
+    underPressure: true,
+  });
+
+  store.__setCacheStoreByteBudgetForTests(3000);
+  const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 2000,
+    underPressure: false,
+  });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(0);
 });

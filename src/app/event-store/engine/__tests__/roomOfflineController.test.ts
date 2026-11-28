@@ -793,6 +793,7 @@ it('does not scan attachments with a cursor on repeated under-budget page admiss
   });
   const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
   try {
+    // First admission seeds the persisted summary once; subsequent admissions skip cursor scans.
     for (let i = 0; i < 5; i += 1) {
       // eslint-disable-next-line no-await-in-loop
       expect(await control.canSavePage(roomId)).toBe(true);
@@ -801,7 +802,7 @@ it('does not scan attachments with a cursor on repeated under-budget page admiss
       (keyCursor.mock.contexts as IDBIndex[]).filter(
         (index) => index.objectStore.name === 'attachments'
       )
-    ).toHaveLength(0);
+    ).toHaveLength(1);
   } finally {
     keyCursor.mockRestore();
   }
