@@ -3,7 +3,7 @@ import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-re
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { getLongTextSource } from '../../matrix/protocol/longText';
-import type { useLongTextResolvedContent } from '../content/LongTextText';
+import type { useLongTextResolvedContent } from '../content/useResolvedMessageContent';
 import { MessageLayout } from '../../preferences/settings';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
@@ -403,7 +403,7 @@ vi.mock('../../event-store/cache/attachmentRepository', () => ({
   hydrateCachedLongText: longTextMocks.hydrateCachedLongText,
 }));
 
-vi.mock('../content/LongTextText', () => ({
+vi.mock('../content/useResolvedMessageContent', () => ({
   useLongTextResolvedContent: longTextMocks.useMindroomLongTextResolvedContent,
 }));
 

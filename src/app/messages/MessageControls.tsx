@@ -12,7 +12,7 @@ import { saveFile } from '../native/nativeFileSave';
 import { getAiRunInfo, withoutAiRunCost, type AiRunInfo } from '../matrix/protocol/aiRun';
 import { getLongTextSource, type LongTextSource } from '../matrix/protocol/longText';
 import { downloadLongTextSidecarBlob, getLongTextDownloadName } from './content/longTextDownload';
-import { useLongTextResolvedContent } from './content/LongTextText';
+import { useLongTextResolvedContent } from './content/useResolvedMessageContent';
 import { hasRenderableAiRunDetails } from './agent-run/aiRunDisplay';
 import { ReplyDetails } from './reply/ReplyDetails';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';

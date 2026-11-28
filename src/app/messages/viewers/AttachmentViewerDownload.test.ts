@@ -139,7 +139,7 @@ vi.mock('../content/longTextDownload', () => ({
   getLongTextDownloadName: () => 'response.json',
 }));
 
-vi.mock('../content/LongTextText', () => ({
+vi.mock('../content/useResolvedMessageContent', () => ({
   useLongTextResolvedContent: () => undefined,
 }));
 

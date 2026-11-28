@@ -2,6 +2,7 @@ import { MsgType } from 'matrix-js-sdk';
 import { sanitizeText } from '../../rich-text/sanitize';
 import {
   contentBytes,
+  getLongTextSidecarFacts,
   LONG_TEXT_CONTINUATION_NOTE,
   MAX_EVENT_CONTENT_BYTES,
 } from '../../matrix/protocol/longText';
@@ -383,4 +384,26 @@ export const readCanvasResponse = (
     label: typeof response.label === 'string' ? response.label : undefined,
     json,
   };
+};
+
+/**
+ * Validates a downloaded long-text sidecar as a canvas answer receipt. Chat's reader accepts more
+ * files than MindRoom's; a receipt claims only what the agent reads, so the file must be the
+ * content itself, within MindRoom's download limit, have no `m.new_content`, and be valid text.
+ */
+export const readCanvasSidecarResponse = (
+  rawHydratedContent: Record<string, unknown> | undefined,
+  outerRelation: unknown
+): CanvasResponseReceipt | undefined => {
+  if (!rawHydratedContent) return undefined;
+  const facts = getLongTextSidecarFacts(rawHydratedContent);
+  if (
+    !facts?.topLevelContent ||
+    facts.bytes > MINDROOM_SIDECAR_MAX_BYTES ||
+    rawHydratedContent['m.new_content'] !== undefined ||
+    !isAllText(rawHydratedContent)
+  ) {
+    return undefined;
+  }
+  return readCanvasResponse({ ...rawHydratedContent, 'm.relates_to': outerRelation });
 };

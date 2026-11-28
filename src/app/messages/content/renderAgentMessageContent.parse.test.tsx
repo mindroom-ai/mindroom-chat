@@ -55,18 +55,14 @@ vi.mock('../thread-summary/ThreadSummaryCard', () => ({ ThreadSummaryCard: () =>
 vi.mock('../../approvals/ToolApprovalCard', () => ({ ToolApprovalCard: () => null }));
 vi.mock('./PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({ ThinkingPlaceholder: () => null }));
-vi.mock('./LongTextText', () => ({
-  LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  LongTextText: ({ content, longTextSource, renderBody }: any) =>
-    React.createElement(
-      'div',
-      null,
-      renderBody(
-        content,
-        { body: content.body, customBody: content.formatted_body },
-        longTextSource ? longText.status : undefined
-      )
-    ),
+vi.mock('./useResolvedMessageContent', () => ({
+  useResolvedMessageContent: ({ content, longTextSource }: any) => ({
+    content,
+    rawHydratedContent: undefined,
+    toolMetadataStatus: longTextSource ? longText.status : undefined,
+    showLoadingIndicator: false,
+    canFold: true,
+  }),
 }));
 
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
