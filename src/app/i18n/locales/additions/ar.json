@@ -64,6 +64,11 @@
       "show": "إظهار كلمة المرور",
       "hide": "إخفاء كلمة المرور"
     },
+    "fileContent": {
+      "preview": "معاينة",
+      "hidePreview": "إخفاء المعاينة",
+      "fullView": "عرض كامل"
+    },
     "pdfViewer": {
       "close": "إغلاق"
     },

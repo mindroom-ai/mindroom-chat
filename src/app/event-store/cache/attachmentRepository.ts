@@ -82,9 +82,16 @@ const awaitWithSignal = async <T>(promise: Promise<T>, signal?: AbortSignal): Pr
   });
 };
 
+export class AttachmentByteLimitError extends Error {
+  constructor(maxBytes: number) {
+    super(`Attachment exceeds the ${maxBytes} byte limit`);
+    this.name = 'AttachmentByteLimitError';
+  }
+}
+
 const enforceMaxBytes = (byteLength: number, maxBytes?: number): void => {
   if (maxBytes !== undefined && byteLength > maxBytes) {
-    throw new Error(`Attachment exceeds the ${maxBytes} byte limit`);
+    throw new AttachmentByteLimitError(maxBytes);
   }
 };
 

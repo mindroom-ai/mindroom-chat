@@ -404,6 +404,8 @@ vi.mock('../../matrix/room', () => ({
 
 vi.mock('../../messages/content/MsgTypeRenderers', () => ({
   MSticker: passthrough,
+  hasTextFilePreview: (content: { info?: { mimetype?: string } }) =>
+    content.info?.mimetype === 'text/plain',
 }));
 vi.mock('../../messages/reply/Reply', () => ({
   Reply: passthrough,
@@ -1210,6 +1212,44 @@ describe('RoomTimeline collapsible wiring', () => {
     );
     expect(refreshedProvider.props.expandAllInit).toBe(true);
     expect(refreshedProvider.props.manualExpansionState).toBe(manualExpansionState);
+  });
+
+  it('keeps the message fold for PDF and binary captions but moves it inside text file rows', async () => {
+    const { RoomTimeline } = await import('../RoomTimeline');
+    const files = [
+      ['$pdf', 'orchard.pdf', 'application/pdf'],
+      ['$binary', 'orchard.zip', 'application/zip'],
+      ['$text', 'orchard.txt', 'text/plain'],
+    ] as const;
+    const events = files.map(([id, filename, mimetype]) =>
+      makeEvent(id, {
+        content: {
+          body: 'A line from the orchard.\n'.repeat(80),
+          filename,
+          msgtype: 'm.file',
+          url: 'mxc://server/orchard',
+          info: { mimetype },
+        },
+      })
+    );
+    const room = makeRoom({ liveEvents: events });
+    const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = createTrackedRenderer(React.createElement(ControlledRoomTimeline, { room }));
+      await flushAsyncWork(2);
+    });
+
+    for (const id of ['$pdf', '$binary']) {
+      expect(findCollapsibleForEvent(renderer, id).props).toMatchObject({
+        collapseMode: 'default',
+        forceOverflowing: true,
+      });
+      expect(findRenderMessageContentPropsForEvent(renderer, id).wrapFileCaption).toBeUndefined();
+    }
+    const textFold = findRenderMessageContentPropsForEvent(renderer, '$text').wrapFileCaption;
+    expect(textFold).toBeTypeOf('function');
+    expect(renderer.root.findAllByProps({ 'data-testid': collapsibleTestId })).toHaveLength(2);
   });
 
   it('hydrates rich long-text content while a default room message row stays collapsed', async () => {

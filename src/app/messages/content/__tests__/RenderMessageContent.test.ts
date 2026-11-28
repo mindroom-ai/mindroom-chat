@@ -59,8 +59,9 @@ vi.mock('../FileHeader', () => ({
 vi.mock('../FileContent', () => ({
   FileContent: () => null,
   ReadPdfFile: () => null,
-  ReadTextFile: () => null,
+  isTextPreviewableFile: () => false,
 }));
+vi.mock('../InlineFilePreview', () => ({ InlineFilePreview: () => null }));
 vi.mock('../ImageContent', () => ({
   ImageContent: () => null,
 }));
@@ -91,10 +92,6 @@ vi.mock('../../viewers/ImageViewer', () => ({
 
 vi.mock('../../viewers/PdfViewer', () => ({
   PdfViewer: () => null,
-}));
-
-vi.mock('../../viewers/TextViewer', () => ({
-  TextViewer: () => null,
 }));
 
 vi.mock('../renderAgentMessageContent', () => ({

@@ -7,14 +7,14 @@ import { Chip, Header } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { copyToClipboard } from '../../lib/dom';
 import { revealDirectionControls } from '../../ui/directional';
+import { MAX_TEXT_HIGHLIGHT_LENGTH } from '../../rich-text/code/codeHighlightLimits';
 import { PrismCode } from '../../rich-text/code/ReactPrism';
 import * as css from './TextViewer.css';
 
 /** How long the copy chip shows its check mark. */
 const COPIED_FEEDBACK_MS = 2000;
 
-/** Upper length for Prism tokenization so very large files stay responsive. */
-export const MAX_TEXT_HIGHLIGHT_LENGTH = 200_000;
+export { MAX_TEXT_HIGHLIGHT_LENGTH };
 
 const PLAIN_LANGUAGES = new Set(['', 'text', 'plaintext']);
 

@@ -55,6 +55,11 @@
       "show": "Mostrar contraseña",
       "hide": "Ocultar contraseña"
     },
+    "fileContent": {
+      "preview": "Vista previa",
+      "hidePreview": "Ocultar vista previa",
+      "fullView": "Vista completa"
+    },
     "pdfViewer": {
       "close": "Cerrar"
     },

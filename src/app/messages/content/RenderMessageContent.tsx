@@ -18,7 +18,8 @@ import {
 } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
 import { FileDownloadButton } from './FileHeader';
-import { FileContent, ReadPdfFile, ReadTextFile } from './FileContent';
+import { FileContent, ReadPdfFile, isTextPreviewableFile } from './FileContent';
+import { InlineFilePreview } from './InlineFilePreview';
 import { ImageContent } from './ImageContent';
 import { ThumbnailContent } from './ThumbnailContent';
 import { VideoContent } from './VideoContent';
@@ -26,7 +27,6 @@ import type { RenderImageContentArgs } from './MsgTypeRenderers';
 import { UrlPreviewCard, UrlPreviewHolder } from '../url-preview/UrlPreviewCard';
 import { Image, Video } from '../../ui/media/Media';
 import { PdfViewer } from '../viewers/PdfViewer';
-import { TextViewer } from '../viewers/TextViewer';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { getMessageStateSuffixRenderer } from './messageStateSuffix';
@@ -81,6 +81,10 @@ type RenderMessageContentProps = BodyOptions & {
   failedSend?: boolean;
   /** Load images and videos without a click. */
   mediaAutoLoad?: boolean;
+  /** Open small text attachment previews automatically in the timeline. */
+  autoPreview?: boolean;
+  /** Fold a text file's caption separately from its drawer in the timeline. */
+  wrapFileCaption?: (caption: ReactNode) => ReactNode;
   /** Draw a hairline around attachments that sit on a surface of their own color. */
   outlineAttachment?: boolean;
   /** Shown in another thread's view (a fork's prefix): its cards offer no decisions there. */
@@ -125,6 +129,8 @@ function CoreMessageContent({
   edited,
   getContent,
   mediaAutoLoad,
+  autoPreview,
+  wrapFileCaption,
   urlPreview,
   outlineAttachment,
   highlightRegex,
@@ -236,31 +242,12 @@ function CoreMessageContent({
     );
   };
 
-  const renderFile = () => (
+  const renderFile = (auto = false) => (
     <MFile
       content={content}
       outlined={outlineAttachment}
-      renderFileContent={(file) => (
-        <FileContent
-          body={file.body}
-          mimeType={file.mimeType}
-          renderAsTextFile={() => (
-            <ReadTextFile
-              owner={owner}
-              {...file}
-              iconOnly
-              renderViewer={(props) => <TextViewer {...props} />}
-            />
-          )}
-          renderAsPdfFile={() => (
-            <ReadPdfFile
-              owner={owner}
-              {...file}
-              iconOnly
-              renderViewer={(props) => <PdfViewer {...props} />}
-            />
-          )}
-        >
+      renderFileContent={({ size, ...file }, renderRow) => {
+        const download = (
           <FileDownloadButton
             filename={file.body}
             mimeType={file.mimeType}
@@ -268,8 +255,37 @@ function CoreMessageContent({
             encInfo={file.encInfo}
             owner={owner}
           />
-        </FileContent>
-      )}
+        );
+        if (isTextPreviewableFile(file.body, file.mimeType)) {
+          return (
+            <InlineFilePreview
+              {...file}
+              client={client}
+              owner={owner}
+              size={size}
+              autoPreview={auto}
+              renderRow={renderRow}
+            >
+              {download}
+            </InlineFilePreview>
+          );
+        }
+        return renderRow(
+          <FileContent
+            mimeType={file.mimeType}
+            renderAsPdfFile={() => (
+              <ReadPdfFile
+                owner={owner}
+                {...file}
+                iconOnly
+                renderViewer={(props) => <PdfViewer {...props} />}
+              />
+            )}
+          >
+            {download}
+          </FileContent>
+        );
+      }}
     />
   );
 
@@ -283,12 +299,15 @@ function CoreMessageContent({
     />
   );
 
-  const withCaption = (media: ReactNode) => (
-    <Box direction="Column" gap="200">
-      {media}
-      {renderCaption()}
-    </Box>
-  );
+  const withCaption = (media: ReactNode, wrapCaption?: typeof wrapFileCaption) => {
+    const caption = renderCaption();
+    return (
+      <Box direction="Column" gap="200">
+        {media}
+        {caption && (wrapCaption ? wrapCaption(caption) : caption)}
+      </Box>
+    );
+  };
 
   if (eventType === MessageEvent.Sticker) {
     return <MSticker content={content} renderImageContent={renderImageContent} />;
@@ -344,7 +363,7 @@ function CoreMessageContent({
         />
       );
     case MsgType.File:
-      return withCaption(renderFile());
+      return withCaption(renderFile(Boolean(autoPreview) && !outlineAttachment), wrapFileCaption);
     case MsgType.Location:
       return <MLocation content={content} />;
     default:

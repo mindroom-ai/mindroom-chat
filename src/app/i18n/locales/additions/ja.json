@@ -49,6 +49,11 @@
       "show": "パスワードを表示",
       "hide": "パスワードを隠す"
     },
+    "fileContent": {
+      "preview": "プレビュー",
+      "hidePreview": "プレビューを非表示",
+      "fullView": "全体を表示"
+    },
     "pdfViewer": {
       "close": "閉じる"
     },

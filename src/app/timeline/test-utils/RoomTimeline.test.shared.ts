@@ -704,6 +704,8 @@ vi.mock('../../matrix/room', () => ({
 
 vi.mock('../../messages/content/MsgTypeRenderers', () => ({
   MSticker: passthrough,
+  hasTextFilePreview: (content: { info?: { mimetype?: string } }) =>
+    content.info?.mimetype === 'text/plain',
 }));
 vi.mock('../../messages/reply/Reply', () => ({
   Reply: passthrough,

@@ -16,8 +16,9 @@ import {
 
 // A long code block starts collapsed to its first lines. It scrolls inside itself with the wheel,
 // sideways when its lines do not wrap, and with the arrow keys once focused; the timeline around
-// it stays put until the block reaches its end, and then takes the scroll. Expand shows the whole
-// block in place. An agent sends the block the way the MindRoom backend renders a fence.
+// it stays put until the block reaches its end, and then takes the scroll. Expand reveals the
+// whole block and scrolls the timeline without hiding the toggle. An agent sends the block the
+// way the MindRoom backend renders a fence.
 // Set E2E_SCREENSHOT_DIR to save the collapsed block at its top and scrolled.
 
 const PASSWORD = 'code-block-scroll-password';
@@ -63,6 +64,7 @@ type ScrollState = {
   maxLeft: number;
   timelineTop: number;
   timelineLeft: number;
+  timelineVisibleTop: number;
 };
 
 /** The block's scroll position and that of the nearest ancestor that scrolls: the timeline. */
@@ -85,17 +87,22 @@ const readScroll = (scrollArea: Locator): Promise<ScrollState> =>
       maxLeft: element.scrollWidth - element.clientWidth,
       timelineTop: timeline ? timeline.scrollTop : -1,
       timelineLeft: timeline ? timeline.scrollLeft : -1,
+      timelineVisibleTop: timeline
+        ? timeline.getBoundingClientRect().top +
+          (Number.parseFloat(getComputedStyle(timeline).scrollPaddingTop) || 0)
+        : -1,
     };
   });
 
-/** Reads the scroll state once a wheel scroll has come to rest. */
-const settledScroll = async (scrollArea: Locator): Promise<ScrollState> => {
+/** Waits for stable scroll state; a wheel can resolve before producing the expected movement. */
+const settledScroll = async (scrollArea: Locator, moved?: (state: ScrollState) => boolean) => {
   let last = JSON.stringify(await readScroll(scrollArea));
   await expect
     .poll(
       async () => {
-        const now = JSON.stringify(await readScroll(scrollArea));
-        const still = now === last;
+        const state = await readScroll(scrollArea);
+        const now = JSON.stringify(state);
+        const still = now === last && (!moved || moved(state));
         last = now;
         return still;
       },
@@ -137,8 +144,7 @@ const wheelThroughBlock = async (
   expect(start.timelineTop, 'the timeline scrolls').toBeGreaterThanOrEqual(0);
 
   await page.mouse.wheel(0, 120);
-  let state = await settledScroll(scrollArea);
-  expect(state.top).toBeGreaterThan(0);
+  let state = await settledScroll(scrollArea, (next) => next.top > start.top);
   expect(state.timelineTop).toBe(start.timelineTop);
   await onScrolled?.();
 
@@ -146,17 +152,14 @@ const wheelThroughBlock = async (
     expect(wheels, 'wheels to reach the end of the block').toBeLessThan(40);
     const before = state.top;
     await page.mouse.wheel(0, 480);
-    state = await settledScroll(scrollArea);
-    expect(state.top).toBeGreaterThan(before);
+    state = await settledScroll(scrollArea, (next) => next.top > before);
     expect(state.timelineTop).toBe(start.timelineTop);
   }
 
   // The block is at its end, so the scroll goes on to the timeline.
-  await expect(async () => {
-    await page.mouse.wheel(0, 120);
-    expect((await settledScroll(scrollArea)).timelineTop).toBeGreaterThan(start.timelineTop);
-  }).toPass({ timeout: 10_000 });
-  expect((await readScroll(scrollArea)).top).toBeGreaterThanOrEqual(state.maxTop - 1);
+  await page.mouse.wheel(0, 120);
+  const chained = await settledScroll(scrollArea, (next) => next.timelineTop > start.timelineTop);
+  expect(chained.top).toBeGreaterThanOrEqual(state.maxTop - 1);
 };
 
 test('a long code block scrolls inside itself in the room timeline and in a thread', async ({
@@ -233,8 +236,6 @@ test('a long code block scrolls inside itself in the room timeline and in a thre
   }
   await wheelThroughBlock(page, roomScroll, async () => {
     if (!SCREENSHOT) return;
-    await page.mouse.wheel(0, 600);
-    await settledScroll(roomScroll);
     await roomBlock.screenshot({ path: `${SCREENSHOT}/L14-code-block-scroll-scrolled.png` });
   });
 
@@ -255,8 +256,7 @@ test('a long code block scrolls inside itself in the room timeline and in a thre
   expect(unwrapped.maxLeft).toBeGreaterThan(100);
   expect(unwrapped.left).toBe(0);
   await page.mouse.wheel(240, 0);
-  const sideways = await settledScroll(roomScroll);
-  expect(sideways.left).toBeGreaterThan(0);
+  const sideways = await settledScroll(roomScroll, (next) => next.left > unwrapped.left);
   expect(sideways.timelineTop).toBe(unwrapped.timelineTop);
   expect(sideways.timelineLeft).toBe(unwrapped.timelineLeft);
 
@@ -268,18 +268,20 @@ test('a long code block scrolls inside itself in the room timeline and in a thre
   await page.keyboard.press('ArrowRight');
   await expect.poll(async () => (await readScroll(roomScroll)).left).toBeGreaterThan(0);
 
-  // Expand shows the whole block where it is, and Collapse caps it again.
+  // Expanding a tall block scrolls the timeline without hiding its toggle.
   await roomScroll.evaluate((element) => element.scrollTo({ top: 0, left: 0 }));
   await pointAtBlock(page, roomScroll);
   const beforeExpand = await settledScroll(roomScroll);
-  const headerTop = (await roomBlock.boundingBox())?.y;
   await roomBlock.getByRole('button', { name: 'Expand', exact: true }).click();
   const collapse = roomBlock.getByRole('button', { name: 'Collapse', exact: true });
   await expect(collapse).toHaveAttribute('aria-expanded', 'true');
   await expect.poll(async () => (await readScroll(roomScroll)).maxTop).toBeLessThanOrEqual(1);
+  await expect
+    .poll(async () => (await readScroll(roomScroll)).timelineTop)
+    .toBeGreaterThan(beforeExpand.timelineTop);
   const afterExpand = await settledScroll(roomScroll);
-  expect(afterExpand.timelineTop).toBe(beforeExpand.timelineTop);
-  expect(Math.abs(((await roomBlock.boundingBox())?.y ?? 0) - (headerTop ?? 0))).toBeLessThan(2);
+  expect(afterExpand.timelineTop).toBeGreaterThan(beforeExpand.timelineTop);
+  expect((await collapse.boundingBox())!.y).toBeGreaterThanOrEqual(afterExpand.timelineVisibleTop);
   await collapse.click();
   await expect(roomBlock.getByRole('button', { name: 'Expand', exact: true })).toHaveAttribute(
     'aria-expanded',

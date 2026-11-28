@@ -49,6 +49,11 @@
       "show": "Tampilkan kata sandi",
       "hide": "Sembunyikan kata sandi"
     },
+    "fileContent": {
+      "preview": "Pratinjau",
+      "hidePreview": "Sembunyikan pratinjau",
+      "fullView": "Tampilan lengkap"
+    },
     "pdfViewer": {
       "close": "Tutup"
     },

@@ -52,6 +52,11 @@
       "show": "Parolayı göster",
       "hide": "Parolayı gizle"
     },
+    "fileContent": {
+      "preview": "Önizleme",
+      "hidePreview": "Önizlemeyi gizle",
+      "fullView": "Tam görünüm"
+    },
     "pdfViewer": {
       "close": "Kapat"
     },

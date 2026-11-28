@@ -112,11 +112,13 @@ export function ChatControlsGlass() {
                 url: 'mxc://example.org/notes',
                 info: { mimetype: 'text/plain', size: 2400 },
               }}
-              renderFileContent={() => (
-                <Button size="300" variant="Secondary" fill="Soft">
-                  Download · 2.4 KB
-                </Button>
-              )}
+              renderFileContent={(_file, renderRow) =>
+                renderRow(
+                  <Button size="300" variant="Secondary" fill="Soft">
+                    Download · 2.4 KB
+                  </Button>
+                )
+              }
             />
           </div>
           <UrlPreview data-testid="link" style={{ maxWidth: '100%' }}>

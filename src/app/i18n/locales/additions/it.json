@@ -55,6 +55,11 @@
       "show": "Mostra password",
       "hide": "Nascondi password"
     },
+    "fileContent": {
+      "preview": "Anteprima",
+      "hidePreview": "Nascondi anteprima",
+      "fullView": "Vista completa"
+    },
     "pdfViewer": {
       "close": "Chiudi"
     },

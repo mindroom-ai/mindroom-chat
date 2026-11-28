@@ -49,6 +49,11 @@
       "show": "显示密码",
       "hide": "隐藏密码"
     },
+    "fileContent": {
+      "preview": "预览",
+      "hidePreview": "隐藏预览",
+      "fullView": "查看完整内容"
+    },
     "pdfViewer": {
       "close": "关闭"
     },

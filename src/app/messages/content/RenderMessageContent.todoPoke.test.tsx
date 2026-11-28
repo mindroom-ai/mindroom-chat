@@ -94,6 +94,7 @@ describe('RenderMessageContent todo poke', () => {
     });
     const mx = {
       getUserId: () => '@reader:example.org',
+      getHomeserverUrl: () => 'https://matrix.example.org',
       getRoom: () => null,
       on: () => undefined,
       removeListener: () => undefined,

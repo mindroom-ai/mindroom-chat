@@ -52,6 +52,11 @@
       "show": "Wachtwoord tonen",
       "hide": "Wachtwoord verbergen"
     },
+    "fileContent": {
+      "preview": "Voorvertoning",
+      "hidePreview": "Voorvertoning verbergen",
+      "fullView": "Volledige weergave"
+    },
     "pdfViewer": {
       "close": "Sluiten"
     },
