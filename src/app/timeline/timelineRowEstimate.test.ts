@@ -13,40 +13,28 @@ import {
   estimateThreadRowHeight,
 } from './timelineRowEstimate';
 
-const MINUTE = 60_000;
+const MIN = 60_000;
+const BASE_TS = 1_700_000_000_000;
+const USER = '@alice:example.org';
 const AGENT = '@mindroom_helper:example.org';
-const AI_RUN_WITH_MODEL = {
+const FINE = { compact: false, coarsePointer: false } as const;
+const COARSE = { compact: false, coarsePointer: true } as const;
+const PHONE = { ...COARSE, wrapChars: 38 } as const;
+const SHOW_TOOLS = { compact: false, showToolCalls: true } as const;
+const AI_RUN = {
   version: 1,
   status: 'completed',
   model: { config: 'sonnet', id: 'claude-sonnet-4', provider: 'anthropic' },
 };
 
-const makeEvent = ({
-  id = '$event',
-  sender = '@alice:example.org',
-  ts = 1_700_000_000_000,
-  type = 'm.room.message',
-  content = { msgtype: 'm.text', body: 'hello' },
-  stateKey,
-}: {
-  id?: string;
-  sender?: string;
-  ts?: number;
-  type?: string;
-  content?: Record<string, unknown>;
-  stateKey?: string;
-} = {}) =>
-  new MatrixEvent({
-    content,
-    event_id: id,
-    origin_server_ts: ts,
-    room_id: '!room:example.org',
-    sender,
-    type,
-    ...(stateKey === undefined ? {} : { state_key: stateKey }),
-  });
-
-const html = (formattedBody: string, body = 'rich', extra: Record<string, unknown> = {}) => ({
+const seq = (n: number, fn: (i: number) => string, sep = '\n') =>
+  Array.from({ length: n }, (_, i) => fn(i)).join(sep);
+const text = (body: string, extra?: Record<string, unknown>) => ({
+  msgtype: 'm.text',
+  body,
+  ...extra,
+});
+const html = (formattedBody: string, body = 'rich', extra?: Record<string, unknown>) => ({
   msgtype: 'm.text',
   body,
   format: 'org.matrix.custom.html',
@@ -54,529 +42,312 @@ const html = (formattedBody: string, body = 'rich', extra: Record<string, unknow
   ...extra,
 });
 
-const makeTimelineSetWithReactions = (
-  targetId: string,
-  reactions: MatrixEvent[]
-): Pick<EventTimelineSet, 'relations'> => {
-  const bucket = { getRelations: () => reactions };
-  return {
-    relations: {
-      getChildEventsForEvent: (eventId: string, relType: string, eventType: string) =>
-        eventId === targetId && relType === 'm.annotation' && eventType === 'm.reaction'
-          ? bucket
-          : undefined,
-    },
-  } as unknown as Pick<EventTimelineSet, 'relations'>;
+type EventOpts = {
+  id?: string;
+  sender?: string;
+  ts?: number;
+  type?: string;
+  content?: Record<string, unknown>;
+  stateKey?: string;
 };
-
-const makeReaction = (id: string, targetId: string, sender: string, key: string, ts: number) =>
-  makeEvent({
+const ev = ({
+  id = '$e',
+  sender = USER,
+  ts = BASE_TS,
+  type = 'm.room.message',
+  content = text('hello'),
+  stateKey,
+}: EventOpts = {}) =>
+  new MatrixEvent({
+    content,
+    event_id: id,
+    origin_server_ts: ts,
+    room_id: '!r:x',
+    sender,
+    type,
+    ...(stateKey === undefined ? {} : { state_key: stateKey }),
+  });
+const agentEv = (id: string, content: Record<string, unknown>, ts = BASE_TS) =>
+  ev({ id, sender: AGENT, content, ts });
+const rx = (id: string, targetId: string, key: string, sender = USER, ts = BASE_TS + 1_000) =>
+  ev({
     id,
     sender,
     ts,
     type: 'm.reaction',
     content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: targetId, key } },
   });
-
-const makeTimelineSetWithReplace = (
+const editEv = (
+  id: string,
   targetId: string,
-  edits: MatrixEvent[]
-): Pick<EventTimelineSet, 'relations'> => {
-  const relationBucket = { getRelations: () => edits };
+  newContent: Record<string, unknown>,
+  extra?: { sender?: string; ts?: number; outer?: Record<string, unknown> }
+) =>
+  ev({
+    id,
+    sender: extra?.sender ?? USER,
+    ts: extra?.ts ?? BASE_TS + 2_000,
+    content: text(`* ${String(newContent.body ?? '')}`, {
+      'm.new_content': newContent,
+      'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
+      ...extra?.outer,
+    }),
+  });
+
+type MsgOpts = Parameters<typeof estimateMessageRowHeight>[1];
+type RoomOpts = Parameters<typeof estimateRoomRowHeight>[2];
+const msgH = (e: MatrixEvent, o: MsgOpts = { compact: false }) => estimateMessageRowHeight(e, o);
+const threadH = (e: MatrixEvent, a?: MatrixEvent, o: MsgOpts = { compact: false }) =>
+  estimateThreadRowHeight(e, a, o);
+const roomH = (e: MatrixEvent, a?: MatrixEvent, o?: RoomOpts) => estimateRoomRowHeight(e, a, o);
+
+const relSet = (targetId: string, relType: string, eventType: string, list: MatrixEvent[]) => {
+  const bucket = { getRelations: () => list };
   return {
     relations: {
-      getChildEventsForEvent: (eventId: string, relType: string, eventType: string) => {
-        if (eventId === targetId && relType === 'm.replace' && eventType === 'm.room.message') {
-          return relationBucket;
-        }
-        return undefined;
-      },
+      getChildEventsForEvent: (id: string, rel: string, type: string) =>
+        id === targetId && rel === relType && type === eventType ? bucket : undefined,
     },
   } as unknown as Pick<EventTimelineSet, 'relations'>;
 };
 
-const codeReply = html(
-  '<p>Reply <strong>1</strong></p><pre><code>function step() {\n  return 1;\n}</code></pre>' +
-    '<ul><li>first point</li><li>second point</li></ul>'
-);
+const redact = (target: MatrixEvent, id: string) =>
+  target.makeRedacted(
+    new MatrixEvent({
+      type: 'm.room.redaction',
+      redacts: target.getId(),
+      event_id: id,
+      sender: USER,
+      content: {},
+    }),
+    new Room('!r:x', {} as MatrixClient, USER)
+  );
 
 describe('estimateFormattedBodyPx', () => {
-  it('leaves plain text and inline HTML to the text estimate', () => {
-    expect(estimateFormattedBodyPx({ msgtype: 'm.text', body: 'plain' })).toBeUndefined();
-    expect(estimateFormattedBodyPx(html('<p>one <strong>bold</strong> word</p>'))).toBeUndefined();
-  });
+  it('returns undefined for plain/empty HTML and prices inline HTML from visible text (not URLs)', () => {
+    expect(estimateFormattedBodyPx(text('plain'))).toBeUndefined();
+    expect(estimateFormattedBodyPx(html('   ', 'plain'))).toBeUndefined();
+    expect(estimateFormattedBodyPx(html('<p>one <strong>bold</strong> word</p>'))).toBe(22);
 
-  it('prices short code blocks by wrapped lines and lists by items', () => {
-    // Paragraph (1) + 2 list items (2) = 3 lines, 2 block gaps (0.8 lines) + 3-line code block (52 + 3 * 19.5).
-    expect(estimateFormattedBodyPx(codeReply)).toBe(Math.round(52 + 3 * 19.5 + (3 + 0.8) * 22));
-  });
-
-  it('wraps short code blocks at narrow widths and collapses code blocks past 16 logical lines', () => {
-    const tenWrappedLines = html(
-      `<pre><code>${Array.from(
-        { length: 10 },
-        (_, i) => `const check_${i} = verifyServiceHealth("service-${i}", timeout);`
-      ).join('\n')}</code></pre>`
+    const urls = Array.from(
+      { length: 9 },
+      (_, i) => `https://docs.example.org/services/alpha/shard-${i}/runbook-details-and-reference`
     );
-    const narrowCoarse = estimateFormattedBodyPx(tenWrappedLines, 38, true)!;
-    const desktopFine = estimateFormattedBodyPx(tenWrappedLines, 110, false)!;
-    // Narrow wraps each 60-char line to 2 lines (20 * 19.5 + 71) vs desktop 1 line (10 * 19.5 + 52).
+    const mdBody = `Sources: ${urls.map((u, i) => `[${i + 1}](${u})`).join(' ')}`;
+    const linkHtml = `<p>Sources: ${urls.map((u, i) => `<a href="${u}">${i + 1}</a>`).join(' ')}</p>`;
+    expect(mdBody.length).toBeGreaterThan(700);
+    // Visible HTML text is 1 line ("Sources: 1 ... 9"), NOT 19 lines of raw Markdown URLs.
+    expect(estimateFormattedBodyPx(html(linkHtml, mdBody), 38)).toBe(22);
+    expect(msgH(agentEv('$links', html(linkHtml, mdBody)), PHONE)).toBe(8 + 22);
+  });
+
+  it('prices code blocks (short, wrapped, >16-line collapsed), lists, and tables accurately', () => {
+    const codeAndList = html(
+      '<p>Reply <strong>1</strong></p><pre><code>function step() {\n  return 1;\n}</code></pre>' +
+        '<ul><li>first point</li><li>second point</li></ul>'
+    );
+    expect(estimateFormattedBodyPx(codeAndList)).toBe(Math.round(52 + 3 * 19.5 + (3 + 0.8) * 22));
+
+    const tenWrapped = html(
+      `<pre><code>${seq(10, (i) => `const item_${i} = computeSummaryValue(input_${i}, option_${i});`)}</code></pre>`
+    );
+    const narrowCoarse = estimateFormattedBodyPx(tenWrapped, 38, true)!;
+    expect(narrowCoarse).toBeGreaterThan(estimateFormattedBodyPx(tenWrapped, 110, false)!);
     expect(narrowCoarse).toBe(Math.round(71 + 20 * 19.5));
-    expect(desktopFine).toBe(Math.round(52 + 10 * 19.5));
-    expect(narrowCoarse).toBeGreaterThan(desktopFine);
 
-    const fortyLines = html(
-      `<pre><code>${Array.from({ length: 40 }, (_, i) => `line ${i}`).join('\n')}</code></pre>`
-    );
-    expect(estimateFormattedBodyPx(fortyLines, 48, false)).toBe(36 + 270);
-    expect(estimateFormattedBodyPx(fortyLines, 38, true)).toBe(53 + 270);
-  });
+    const forty = html(`<pre><code>${seq(40, (i) => `line ${i}`)}</code></pre>`);
+    expect(estimateFormattedBodyPx(forty, 48, false)).toBe(36 + 270);
+    expect(estimateFormattedBodyPx(forty, 38, true)).toBe(53 + 270);
 
-  it('prices table rows from wrapped cell text and adds narrow wide-table controls', () => {
-    const simpleTable = html(
-      '<table><tr><th>a</th><th>b</th></tr><tr><td>1</td><td>2</td></tr></table>'
+    const simple = html(
+      '<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table>'
     );
-    expect(estimateFormattedBodyPx(simpleTable, 48)).toBe(2 * (17 + 22));
+    expect(estimateFormattedBodyPx(simple, 48)).toBe(2 * (17 + 22));
 
-    const multiLineWideTable = html(
-      '<table>' +
-        '<tr><th>Component</th><th>State</th><th>Responsibility</th></tr>' +
-        '<tr><td>Service A</td><td>Active</td><td>Handles primary ingress routing and TLS termination across edge nodes in region alpha.</td></tr>' +
-        '<tr><td>Service B</td><td>Active</td><td>Processes background worker queues with exponential backoff and archival pipelines.</td></tr>' +
-        '</table>'
+    const wide = html(
+      '<table><tr><th>Stage</th><th>Target</th><th>Status</th></tr>' +
+        '<tr><td>Phase 1</td><td>Service X</td><td>Verified and rolled out across all nodes</td></tr></table>'
     );
-    const narrow = estimateFormattedBodyPx(multiLineWideTable, 38)!;
-    const desktop = estimateFormattedBodyPx(multiLineWideTable, 110)!;
-    // Header row (1 line = 39) + 2 wrapped body rows (2 lines each = 61 * 2) = 161 desktop; +66 narrow controls.
-    expect(desktop).toBe(39 + 61 + 61);
-    expect(narrow).toBe(desktop + 66);
+    expect(estimateFormattedBodyPx(wide, 38)!).toBe(estimateFormattedBodyPx(wide, 110)! + 66);
   });
 });
 
 describe('estimateMessageRowHeight', () => {
-  it('matches the text estimate for plain messages, edits and reactions', () => {
-    const plain = makeEvent({ content: { msgtype: 'm.text', body: 'one\ntwo\nthree' } });
-    expect(estimateMessageRowHeight(plain, { compact: false })).toBe(
-      estimateThreadEventRowHeight(plain, { compact: false })
+  it('handles plain text, edits, reactions, human 9-line fold vs full agent replies, and media', () => {
+    const plain = ev({ content: text('one\ntwo\nthree') });
+    expect(msgH(plain)).toBe(estimateThreadEventRowHeight(plain, { compact: false }));
+    expect(msgH(editEv('$ed', '$e', text('a')))).toBe(0);
+    expect(msgH(rx('$rx', '$e', '👍'))).toBe(0);
+
+    const twenty = seq(20, (i) => `line ${i + 1}`);
+    expect(msgH(ev({ content: text(twenty) }))).toBe(8 + 9 * 22);
+    expect(msgH(agentEv('$a20', text(twenty)))).toBe(8 + 20 * 22);
+
+    const sixty = html(
+      `<ul>${seq(60, (i) => `<li>Item ${i + 1}: verify Service X</li>`, '')}</ul>`,
+      seq(60, (i) => `- Item ${i + 1}: verify Service X`)
     );
-    const edit = makeEvent({
-      content: {
-        msgtype: 'm.text',
-        body: '* edited',
-        'm.new_content': { msgtype: 'm.text', body: 'edited' },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$event' },
-      },
+    expect(msgH(agentEv('$a60', sixty))).toBe(8 + 60 * 22);
+
+    const longCode = html(`<pre><code>${seq(30, (n) => `line ${n}`)}</code></pre>`);
+    expect(msgH(ev({ content: longCode }))).toBe(8 + 9 * 22);
+    expect(msgH(agentEv('$ac', longCode))).toBe(8 + 36 + 270);
+
+    const img = ev({ content: { msgtype: 'm.image', body: 'a.png', info: { w: 800, h: 400 } } });
+    const thumb = ev({
+      id: '$t',
+      content: { msgtype: 'm.image', body: '1\n2\n3\n4\n5\n6', info: { w: 20, h: 20 } },
     });
-    expect(estimateMessageRowHeight(edit, { compact: false })).toBe(0);
+    expect(msgH(img)).toBe(8 + 200);
+    expect(msgH(thumb)).toBe(8 + 6 * 22);
   });
 
-  it('folds long human messages at 9 lines while pricing long plain-text and inline-HTML agent replies in full', () => {
-    const paragraphs = Array.from(
-      { length: 20 },
-      (_, i) => `Step ${i + 1}: verify Service X health check in staging.`
-    );
-    const inlineHtmlContent = html(
-      paragraphs.map((p) => `<p><strong>Note:</strong> ${p}</p>`).join(''),
-      paragraphs.join('\n\n')
-    );
-    const human = makeEvent({ id: '$human-long', content: inlineHtmlContent });
-    const agentInline = makeEvent({
-      id: '$agent-inline',
-      sender: AGENT,
-      content: inlineHtmlContent,
-    });
-    const agentPlain = makeEvent({
-      id: '$agent-plain',
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: paragraphs.join('\n') },
-    });
-
-    expect(estimateMessageRowHeight(human, { compact: false, wrapChars: 38 })).toBe(8 + 9 * 22);
-    expect(
-      estimateMessageRowHeight(agentInline, { compact: false, wrapChars: 38 })
-    ).toBeGreaterThan(960);
-    expect(estimateMessageRowHeight(agentPlain, { compact: false, wrapChars: 38 })).toBeGreaterThan(
-      800
-    );
-  });
-
-  it('prices >48-line agent replies past 960 px', () => {
-    const richList = html(
-      `<ul>${Array.from({ length: 60 }, (_, i) => `<li>Item ${i + 1}: verify Service X</li>`).join('')}</ul>`,
-      Array.from({ length: 60 }, (_, i) => `- Item ${i + 1}: verify Service X`).join('\n')
-    );
-    const agent = makeEvent({ id: '$agent-60', sender: AGENT, content: richList });
-    expect(estimateMessageRowHeight(agent, { compact: false, wrapChars: 48 })).toBe(8 + 60 * 22);
-    expect(estimateMessageRowHeight(agent, { compact: false, wrapChars: 48 })).toBeGreaterThan(960);
-  });
-
-  it('folds a rich message from a person and shows a collapsed code block for an agent', () => {
-    const longCode = html(
-      `<pre><code>${Array.from({ length: 30 }, (_v, n) => `line ${n}`).join('\n')}</code></pre>`,
-      Array.from({ length: 30 }, (_v, n) => `line ${n}`).join('\n')
-    );
-    const person = makeEvent({ content: longCode });
-    const agent = makeEvent({ content: longCode, sender: AGENT });
-    expect(estimateMessageRowHeight(person, { compact: false })).toBe(8 + 9 * 22);
-    expect(estimateMessageRowHeight(agent, { compact: false })).toBe(8 + 36 + 270);
-  });
-
-  it('sizes images within the media box and keeps tall captions on small images', () => {
-    const image = makeEvent({
-      content: { msgtype: 'm.image', body: 'cat.png', info: { w: 800, h: 400 } },
-    });
-    expect(estimateMessageRowHeight(image, { compact: false })).toBe(8 + 200);
-    const captionedThumb = makeEvent({
-      id: '$thumb',
-      content: {
-        msgtype: 'm.image',
-        body: 'line 1\nline 2\nline 3\nline 4\nline 5\nline 6',
-        info: { w: 20, h: 20 },
-      },
-    });
-    expect(estimateMessageRowHeight(captionedThumb, { compact: false })).toBe(8 + 6 * 22);
-  });
-
-  it('matches CodeBlockRule parity: unindented backticks collapse while tilde, indented, and unclosed fences do not', () => {
-    const eightyLines = Array.from(
-      { length: 80 },
-      (_, i) => `const step_${i} = runStage(${i});`
-    ).join('\n');
-    const phoneOpts = { compact: false, wrapChars: 38, coarsePointer: true };
-    const htmlCode = makeEvent({
-      id: '$html-80',
-      sender: AGENT,
-      content: html(`<pre><code>${eightyLines}</code></pre>`, eightyLines),
-    });
-    const backtickMd = makeEvent({
-      id: '$md-backtick-80',
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: `\`\`\`ts\n${eightyLines}\n\`\`\`` },
-    });
-    const tildeMd = makeEvent({
-      id: '$md-tilde-80',
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: `~~~ts\n${eightyLines}\n~~~` },
-    });
-    const indentedMd = makeEvent({
-      id: '$md-indented-80',
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: `   \`\`\`ts\n${eightyLines}\n   \`\`\`` },
-    });
-    const unclosedMd = makeEvent({
-      id: '$md-unclosed-80',
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: `\`\`\`ts\n${eightyLines}` },
-    });
-    // Unindented backticks collapse on phone: base (8) + coarse collapsed header (53) + 270 = 331 px.
-    const htmlPx = estimateMessageRowHeight(htmlCode, phoneOpts);
+  it('matches formatMarkdownTextBodyAsHtml parity on fences and inline-marker budget fallback', () => {
+    const eighty = seq(80, (i) => `const step_${i} = runStage(${i});`);
+    const htmlPx = msgH(agentEv('$h80', html(`<pre><code>${eighty}</code></pre>`, eighty)), PHONE);
     expect(htmlPx).toBe(8 + 53 + 270);
-    expect(estimateMessageRowHeight(backtickMd, phoneOpts)).toBe(htmlPx);
-    // CodeBlockRule only parses unindented backtick fences: tilde, indented, and unclosed stay uncollapsed.
-    expect(estimateMessageRowHeight(tildeMd, phoneOpts)).toBe(8 + 82 * 22);
-    expect(estimateMessageRowHeight(indentedMd, phoneOpts)).toBe(8 + 82 * 22);
-    expect(estimateMessageRowHeight(unclosedMd, phoneOpts)).toBe(8 + 81 * 22);
+    // Unindented backticks collapse via formatMarkdownTextBodyAsHtml; tilde, indented, unclosed do not.
+    expect(msgH(agentEv('$bt', text(`\`\`\`ts\n${eighty}\n\`\`\``)), PHONE)).toBe(htmlPx);
+    expect(msgH(agentEv('$ti', text(`~~~ts\n${eighty}\n~~~`)), PHONE)).toBe(8 + 82 * 22);
+    expect(msgH(agentEv('$in', text(`   \`\`\`ts\n${eighty}\n   \`\`\``)), PHONE)).toBe(
+      8 + 82 * 22
+    );
+    expect(msgH(agentEv('$op', text(`\`\`\`ts\n${eighty}`)), PHONE)).toBe(8 + 81 * 22);
 
-    const tenShortLines = Array.from(
-      { length: 10 },
-      (_, i) => `const check_${i} = verifyServiceHealth("service-${i}", timeout);`
-    ).join('\n');
-    const mdShort = makeEvent({
-      id: '$md-short-10',
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: `\`\`\`ts\n${tenShortLines}\n\`\`\`` },
-    });
-    const htmlShort = makeEvent({
-      id: '$html-short-10',
-      sender: AGENT,
-      content: html(`<pre><code>${tenShortLines}</code></pre>`, tenShortLines),
-    });
-    expect(estimateMessageRowHeight(mdShort, phoneOpts)).toBe(
-      estimateMessageRowHeight(htmlShort, phoneOpts)
+    // ~6 KB body-only Python snippet with >512 underscores exceeds formatMarkdownTextBodyAsHtml's
+    // inline-marker budget (returns '') and prices in full, NOT collapsed to 331 px.
+    const heavyPy = seq(
+      90,
+      (i) => `val_a_b_c_d_e_${i} = run_stage_check_value(${i}, max_retries_count)`
+    );
+    expect(heavyPy.length).toBeGreaterThan(5_000);
+    expect(msgH(agentEv('$bud', text(`\`\`\`python\n${heavyPy}\n\`\`\``)), PHONE)).toBeGreaterThan(
+      3_000
+    );
+
+    const ten = seq(10, (i) => `const check_${i} = verifyServiceHealth("service-${i}", timeout);`);
+    expect(msgH(agentEv('$m10', text(`\`\`\`ts\n${ten}\n\`\`\``)), PHONE)).toBe(
+      msgH(agentEv('$h10', html(`<pre><code>${ten}</code></pre>`, ten)), PHONE)
     );
   });
 
   it('sanitizes hydrated v3 long_text sidecars so restored tool markers fold finished work', async () => {
     const owner = {};
-    const previewContent = {
+    const preview = {
       msgtype: 'm.file',
       body: 'Checking Service X...',
       url: 'mxc://example.org/sidecar-v3-folded',
       'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
-      'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
+      'io.mindroom.ai_run': AI_RUN,
       'io.mindroom.stream_status': 'completed',
     };
-    const source = getLongTextSource(previewContent)!;
-    const headLines = Array.from(
-      { length: 20 },
-      (_, i) => `Step ${i + 1}: checking logs for Service X shard ${i + 1}.`
-    );
-    const body = `${headLines.join('\n')}\n\nAll checks passed.`;
-    const formattedBody = `${headLines.map((l) => `<p>${l}</p>`).join('\n')}\n<p>All checks passed.</p>\n`;
+    const head = Array.from({ length: 20 }, (_, i) => `Step ${i + 1}: checking shard ${i + 1}.`);
     const sidecarJson = JSON.stringify({
-      msgtype: 'm.text',
-      body,
-      format: 'org.matrix.custom.html',
-      formatted_body: formattedBody,
+      ...html(
+        `${head.map((l) => `<p>${l}</p>`).join('\n')}\n<p>All checks passed.</p>`,
+        `${head.join('\n')}\n\nAll checks passed.`
+      ),
       'io.mindroom.tool_trace': {
         version: 3,
         events: [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 21, at: 20 }],
       },
     });
-    await hydrateLongTextSource(source, async () => sidecarJson, owner);
-
-    const sidecarEvent = makeEvent({
-      id: '$v3-sidecar',
-      sender: AGENT,
-      content: previewContent,
-    });
-    // Without sanitizeContent, 20 head paragraphs would price >450 px; with restored 🔧 markers,
-    // FinishedWorkFold folds the head to base (8) + bar (28) + 1-line answer (22) = 58 px.
-    expect(
-      estimateMessageRowHeight(sidecarEvent, {
-        compact: false,
-        wrapChars: 38,
-        coarsePointer: true,
-        longTextCacheOwner: owner,
-      })
-    ).toBe(8 + 28 + 22);
-  });
-
-  it('prices FinishedWorkFold as 28 px + tail instead of hidden intermediate tool work', () => {
-    const headParagraphs = Array.from(
-      { length: 20 },
-      (_, i) => `<p>Step ${i + 1}: checking logs for Service X shard ${i + 1}.</p>`
-    ).join('');
-    const content = html(
-      `${headParagraphs}<p>🔧 <code>shell</code> [1]</p><p>All checks passed.</p>`,
-      'Checking logs...\n\n🔧 `shell` [1]\n\nAll checks passed.',
-      {
-        'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
-        'io.mindroom.stream_status': 'completed',
-        'io.mindroom.reasoning': { text: 'Planning verification steps.', duration_ms: 2100 },
-      }
-    );
-    const reply = makeEvent({ id: '$folded-work', sender: AGENT, content });
-    // Base (8) + FinishedWorkFold bar (28) + 1-line tail (22) = 58 (not 20 lines of hidden work!).
-    expect(estimateMessageRowHeight(reply, { compact: false, showToolCalls: false })).toBe(
+    await hydrateLongTextSource(getLongTextSource(preview)!, async () => sidecarJson, owner);
+    expect(msgH(agentEv('$v3', preview), { ...PHONE, longTextCacheOwner: owner })).toBe(
       8 + 28 + 22
     );
   });
 
-  it('prices Reasoning, standalone ToolCallsFold cog, and visible tool rows accurately', () => {
-    const toolsOnlyAtStart = html(
-      '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>shell</code> [2]</p><p>Summary ready.</p>',
-      '🔧 `read_file` [1]\n🔧 `shell` [2]\nSummary ready.',
-      {
-        'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
-        'io.mindroom.stream_status': 'completed',
-      }
+  it('folds finished work by default and keeps pre-tool checklist height when expandAll/showToolCalls is on', () => {
+    const checklist = seq(
+      40,
+      (i) => `<li>Check ${i + 1}: verify Service X shard ${i + 1}</li>`,
+      ''
     );
-    const noReasoning = makeEvent({ id: '$tools-only', sender: AGENT, content: toolsOnlyAtStart });
-    // Hidden tool calls: base (8) + standalone cog (26 fine / 36 coarse) + 1-line body (22), excluding 🔧 lines.
-    expect(
-      estimateMessageRowHeight(noReasoning, {
-        compact: false,
-        coarsePointer: false,
-        showToolCalls: false,
-      })
-    ).toBe(8 + 26 + 22);
-    expect(
-      estimateMessageRowHeight(noReasoning, {
-        compact: false,
-        coarsePointer: true,
-        showToolCalls: false,
-      })
-    ).toBe(8 + 36 + 22);
-    // Shown tool calls: consecutive markers group into 1 ThreadActivity run: base (8) + 38 + 22.
-    expect(
-      estimateMessageRowHeight(noReasoning, {
-        compact: false,
-        coarsePointer: false,
-        showToolCalls: true,
-      })
-    ).toBe(8 + 38 + 22);
-
-    const twelveConsecutive = makeEvent({
-      id: '$tools-12-run',
-      sender: AGENT,
-      content: html(
-        `${Array.from({ length: 12 }, (_, i) => `<p>🔧 <code>step_${i + 1}</code> [${i + 1}]</p>`).join('')}<p>Done.</p>`,
-        `${Array.from({ length: 12 }, (_, i) => `🔧 \`step_${i + 1}\` [${i + 1}]`).join('\n')}\nDone.`,
-        { 'io.mindroom.ai_run': AI_RUN_WITH_MODEL, 'io.mindroom.stream_status': 'streaming' }
-      ),
-    });
-    expect(
-      estimateMessageRowHeight(twelveConsecutive, { compact: false, showToolCalls: true })
-    ).toBe(8 + 38 + 22);
-
-    const twoSeparatedRunsHtml = makeEvent({
-      id: '$tools-2-runs-html',
-      sender: AGENT,
-      content: html(
-        '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>grep</code> [2]</p><p>Checking output.</p><p>🔧 <code>shell</code> [3]</p>',
-        '🔧 `read_file` [1]\n🔧 `grep` [2]\nChecking output.\n🔧 `shell` [3]',
-        { 'io.mindroom.ai_run': AI_RUN_WITH_MODEL, 'io.mindroom.stream_status': 'streaming' }
-      ),
-    });
-    expect(
-      estimateMessageRowHeight(twoSeparatedRunsHtml, { compact: false, showToolCalls: true })
-    ).toBe(8 + 2 * 38 + 22);
-
-    const consecutivePlain = makeEvent({
-      id: '$tools-1-run-plain',
-      sender: AGENT,
-      content: {
-        msgtype: 'm.text',
-        body: '🔧 `read_file` [1]\n🔧 `grep` [2]\n\n🔧 `shell` [3]\nSummary ready.',
-        'io.mindroom.stream_status': 'streaming',
-      },
-    });
-    expect(
-      estimateMessageRowHeight(consecutivePlain, { compact: false, showToolCalls: true })
-    ).toBe(8 + 38 + 22);
-
-    const twoSeparatedRunsPlain = makeEvent({
-      id: '$tools-2-runs-plain',
-      sender: AGENT,
-      content: {
-        msgtype: 'm.text',
-        body: '🔧 `read_file` [1]\nChecking output.\n🔧 `shell` [2]',
-        'io.mindroom.stream_status': 'streaming',
-      },
-    });
-    expect(
-      estimateMessageRowHeight(twoSeparatedRunsPlain, { compact: false, showToolCalls: true })
-    ).toBe(8 + 2 * 38 + 22);
-
-    const withReasoning = makeEvent({
-      id: '$tools-and-reasoning',
-      sender: AGENT,
-      content: {
-        ...toolsOnlyAtStart,
-        'io.mindroom.reasoning': { text: 'Checking Service X', duration_ms: 1200 },
-      },
-    });
-    // With reasoning and hidden tool calls, cog shares the 28 px reasoning line.
-    expect(
-      estimateMessageRowHeight(withReasoning, {
-        compact: false,
-        coarsePointer: true,
-        showToolCalls: false,
-      })
-    ).toBe(8 + 28 + 22);
+    const reply = agentEv(
+      '$folded-checklist',
+      html(
+        `<ul>${checklist}</ul><p>🔧 <code>shell</code> [1]</p><p>All checks passed.</p>`,
+        'done',
+        {
+          'io.mindroom.ai_run': AI_RUN,
+          'io.mindroom.stream_status': 'completed',
+          'io.mindroom.reasoning': { text: 'Planning checks.', duration_ms: 2100 },
+        }
+      )
+    );
+    expect(msgH(reply, { compact: false, showToolCalls: false })).toBe(8 + 28 + 22);
+    expect(msgH(reply, SHOW_TOOLS)).toBeGreaterThan(8 + 40 * 22);
   });
 
-  it('adds QuestionCard and option heights for interactive questions', () => {
-    const questionText = 'Which environment should receive the rollout first?';
-    const interactive = {
-      version: 1,
-      question_text: questionText,
-      options: {
-        '1': 'staging',
-        '1️⃣': 'staging',
-        '2': 'canary',
-        '2️⃣': 'canary',
-        '3': 'prod',
-        '3️⃣': 'prod',
-      },
-      option_labels: {
-        '1': 'Staging',
-        '1️⃣': 'Staging',
-        '2': 'Canary',
-        '2️⃣': 'Canary',
-        '3': 'Production',
-        '3️⃣': 'Production',
-      },
-    };
-    const withoutFallback = makeEvent({
-      id: '$q-plain',
-      sender: AGENT,
-      content: {
-        msgtype: 'm.text',
-        body: questionText,
-        'io.mindroom.interactive': interactive,
-      },
-    });
-    const plainOnly = makeEvent({
-      id: '$plain-only',
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: questionText },
-    });
-    const qPx = estimateMessageRowHeight(withoutFallback, { compact: false, wrapChars: 38 });
-    const plainPx = estimateMessageRowHeight(plainOnly, { compact: false, wrapChars: 38 });
-    // Card chrome (30) + 3 options * 42 = +156 px over body.
-    expect(qPx - plainPx).toBe(30 + 3 * 42);
-
-    const fallbackHtmlContent = html(
-      `<p>${questionText}</p><ol><li>1️⃣ Staging</li><li>2️⃣ Canary</li><li>3️⃣ Production</li></ol><p>${INTERACTIVE_INSTRUCTION_TEXT}</p>`,
-      `${questionText}\n1. Staging\n2. Canary\n3. Production\n${INTERACTIVE_INSTRUCTION_TEXT}`,
-      { 'io.mindroom.interactive': interactive }
+  it('prices Reasoning, standalone ToolCallsFold cog, and consecutive vs separated visible tool runs', () => {
+    const atStart = html(
+      '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>shell</code> [2]</p><p>Summary ready.</p>',
+      '🔧 `read_file` [1]\n🔧 `shell` [2]\nSummary ready.',
+      { 'io.mindroom.ai_run': AI_RUN, 'io.mindroom.stream_status': 'completed' }
     );
-    const withFallback = makeEvent({
-      id: '$q-fallback',
-      sender: AGENT,
-      content: fallbackHtmlContent,
+    const noReason = agentEv('$t-only', atStart);
+    expect(msgH(noReason, { ...FINE, showToolCalls: false })).toBe(8 + 26 + 22);
+    expect(msgH(noReason, { ...COARSE, showToolCalls: false })).toBe(8 + 36 + 22);
+    expect(msgH(noReason, SHOW_TOOLS)).toBe(8 + 38 + 22);
+
+    const live = { 'io.mindroom.ai_run': AI_RUN, 'io.mindroom.stream_status': 'streaming' };
+    const twelve = agentEv(
+      '$t12',
+      html(
+        `${seq(12, (i) => `<p>🔧 <code>s_${i + 1}</code> [${i + 1}]</p>`, '')}<p>Done.</p>`,
+        'Done.',
+        live
+      )
+    );
+    const twoHtml = agentEv(
+      '$t2h',
+      html(
+        '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>grep</code> [2]</p><p>Checking.</p><p>🔧 <code>shell</code> [3]</p>',
+        'Checking.',
+        live
+      )
+    );
+    const onePlain = agentEv(
+      '$t1p',
+      text('🔧 `read_file` [1]\n🔧 `grep` [2]\n\n🔧 `shell` [3]\nSummary.', live)
+    );
+    const twoPlain = agentEv('$t2p', text('🔧 `read_file` [1]\nChecking.\n🔧 `shell` [2]', live));
+    expect(msgH(twelve, SHOW_TOOLS)).toBe(8 + 38 + 22);
+    expect(msgH(twoHtml, SHOW_TOOLS)).toBe(8 + 2 * 38 + 22);
+    expect(msgH(onePlain, SHOW_TOOLS)).toBe(8 + 38 + 22);
+    expect(msgH(twoPlain, SHOW_TOOLS)).toBe(8 + 2 * 38 + 22);
+
+    const withReason = agentEv('$t-reason', {
+      ...atStart,
+      'io.mindroom.reasoning': { text: 'Check', duration_ms: 1200 },
     });
-    const fallbackPx = estimateMessageRowHeight(withFallback, { compact: false, wrapChars: 48 });
-    const fallbackBodyPx = estimateFormattedBodyPx(fallbackHtmlContent, 48)!;
-    // Base (8) + fallback body + 3 options * 20 px button delta.
-    expect(fallbackPx).toBe(8 + fallbackBodyPx + 3 * 20);
+    expect(msgH(withReason, { ...COARSE, showToolCalls: false })).toBe(8 + 28 + 22);
   });
 
   it('strips 80-line Matrix reply fallbacks and adds quote height only when a reply quote renders', () => {
-    const quotedLines = Array.from(
-      { length: 80 },
-      (_, i) => `Quoted context line ${i + 1} for Service X diagnostics.`
-    );
-    const fallbackBody = `> <@alice:example.org> ${quotedLines[0]}\n${quotedLines
+    const quoted = Array.from({ length: 80 }, (_, i) => `Quoted line ${i + 1} for Service X.`);
+    const fbBody = `> <${USER}> ${quoted[0]}\n${quoted
       .slice(1)
       .map((l) => `> ${l}`)
       .join('\n')}\n\nDone.`;
-    const fallbackHtml = `<mx-reply><blockquote><a href="https://matrix.to/#/!r/$target">In reply to</a> <a href="https://matrix.to/#/@alice:example.org">@alice:example.org</a><br/>${quotedLines.join('<br/>')}</blockquote></mx-reply>Done.`;
+    const fbHtml = `<mx-reply><blockquote><a href="https://matrix.to/#/!r/$t">In reply to</a> <a href="https://matrix.to/#/${USER}">${USER}</a><br/>${quoted.join('<br/>')}</blockquote></mx-reply>Done.`;
+    const target = ev({ id: '$target' });
+    const other = ev({ id: '$other', sender: '@bob:example.org', ts: BASE_TS + 1000 });
+    const inReply = { 'm.relates_to': { 'm.in_reply_to': { event_id: '$target' } } };
 
-    const earlier = makeEvent({ id: '$target', sender: '@alice:example.org' });
-    const other = makeEvent({
-      id: '$other',
-      sender: '@bob:example.org',
-      ts: earlier.getTs() + 1000,
-    });
+    const genuine = agentEv('$rh', html(fbHtml, fbBody, inReply), BASE_TS + 2000);
+    expect(estimateThreadEventRowHeight(genuine, { compact: false })).toBe(8 + 22);
+    expect(msgH(genuine)).toBe(8 + 22);
+    expect(threadH(genuine, other)).toBe(8 + 22 + 24 + 38);
+    expect(threadH(genuine, target)).toBe(68);
 
-    const genuineReply = makeEvent({
-      id: '$reply-genuine',
-      sender: AGENT,
-      ts: other.getTs() + 1000,
-      content: html(fallbackHtml, fallbackBody, {
-        'm.relates_to': { 'm.in_reply_to': { event_id: '$target' } },
-      }),
-    });
-    // Body strips 80-line fallback to "Done." (8 + 22 = 30), NOT ~1,850 px.
-    expect(estimateThreadEventRowHeight(genuineReply, { compact: false })).toBe(8 + 22);
-    expect(estimateMessageRowHeight(genuineReply, { compact: false })).toBe(8 + 22);
-    // Genuine reply to earlier event adds 24 px quote chip: 30 + 24 + 38 header = 92 px.
-    expect(estimateThreadRowHeight(genuineReply, other, { compact: false })).toBe(8 + 22 + 24 + 38);
-    // Replying directly below its target renders no quote chip: max(68, 30 + 38) = 68 px.
-    expect(estimateThreadRowHeight(genuineReply, earlier, { compact: false })).toBe(68);
+    const bodyOnly = agentEv('$rp', text(fbBody, inReply), BASE_TS + 3000);
+    expect(threadH(bodyOnly, other)).toBe(8 + 22 + 24 + 38);
 
-    const bodyOnlyReply = makeEvent({
-      id: '$reply-body-only',
-      sender: AGENT,
-      ts: other.getTs() + 2000,
-      content: {
-        msgtype: 'm.text',
-        body: fallbackBody,
-        'm.relates_to': { 'm.in_reply_to': { event_id: '$target' } },
-      },
-    });
-    expect(estimateThreadRowHeight(bodyOnlyReply, other, { compact: false })).toBe(
-      8 + 22 + 24 + 38
-    );
-
-    const threadFallbackReply = makeEvent({
-      id: '$reply-thread-fallback',
-      sender: AGENT,
-      ts: other.getTs() + 3000,
-      content: html(fallbackHtml, fallbackBody, {
+    const threadFb = agentEv(
+      '$rt',
+      html(fbHtml, fbBody, {
         'm.relates_to': {
           rel_type: 'm.thread',
           event_id: '$target',
@@ -584,361 +355,192 @@ describe('estimateMessageRowHeight', () => {
           'm.in_reply_to': { event_id: '$target' },
         },
       }),
-    });
-    // MSC3440 thread fallback replies to nothing, so no quote chip is rendered (68 px).
-    expect(estimateThreadRowHeight(threadFallbackReply, other, { compact: false })).toBe(68);
+      BASE_TS + 4000
+    );
+    expect(threadH(threadFb, other)).toBe(68);
   });
 
-  it('prices answered QuestionCards at 1 option and invalidates cache when answers arrive or retract', () => {
-    const questionText = 'Which cluster should run the rollout?';
-    const keys = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'];
+  it('prices unanswered vs answered QuestionCards and invalidates cache on answer arrival or retraction', () => {
+    const qText = 'Which cluster should run the rollout?';
     const labels = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta'];
+    const keys = labels.map((_, i) => `${i + 1}\uFE0F\u20E3`);
     const interactive = {
       version: 1,
-      question_text: questionText,
+      question_text: qText,
       options: Object.fromEntries(keys.map((k, i) => [k, labels[i]!.toLowerCase()])),
       option_labels: Object.fromEntries(keys.map((k, i) => [k, labels[i]!])),
     };
 
-    // 1. Without fallback text: 6 options unanswered vs 1 option answered.
-    const noFallbackEvent = makeEvent({
-      id: '$q6-plain',
-      sender: AGENT,
-      content: {
-        msgtype: 'm.text',
-        body: questionText,
-        'io.mindroom.interactive': interactive,
-      },
-    });
-    const plainReactions: MatrixEvent[] = [
-      makeReaction('$seed-1', '$q6-plain', AGENT, '1️⃣', 1_700_000_001_000),
-      makeReaction('$human-like', '$q6-plain', '@alice:example.org', '👍', 1_700_000_002_000),
+    const plainQ = agentEv('$q6', text(qText, { 'io.mindroom.interactive': interactive }));
+    const rxs = [
+      rx('$seed', '$q6', keys[0]!, AGENT, BASE_TS + 1000),
+      rx('$like', '$q6', '👍', USER, BASE_TS + 2000),
     ];
-    const plainTs = makeTimelineSetWithReactions('$q6-plain', plainReactions);
-    const plainOpts = { compact: false, wrapChars: 48, timelineSet: plainTs };
+    const opts = {
+      compact: false,
+      wrapChars: 48,
+      timelineSet: relSet('$q6', 'm.annotation', 'm.reaction', rxs),
+    };
+    const unanswered = msgH(plainQ, opts);
+    expect(unanswered).toBe(8 + 22 + 30 + 6 * 42);
 
-    // Agent-seeded option reactions and non-option human reactions leave the question unanswered.
-    const unansweredPlain = estimateMessageRowHeight(noFallbackEvent, plainOpts);
-    expect(unansweredPlain).toBe(8 + 22 + 30 + 6 * 42);
+    // Swap 👍 -> answer reaction (active count stays 2) to verify exact answer-state invalidation.
+    redact(rxs[1]!, '$r-like');
+    const answer = rx('$ans', '$q6', keys[1]!, USER, BASE_TS + 3_000);
+    rxs.push(answer);
+    const answered = msgH(plainQ, opts);
+    expect(answered).toBe(8 + 22 + 30 + 42);
+    expect(unanswered - answered).toBe(5 * 42);
 
-    // Replacing a non-option reaction (redacted 👍) with an answer reaction keeps active count = 2
-    // and must still invalidate the cache to 1 option.
-    plainReactions[1]!.makeRedacted(
-      new MatrixEvent({
-        type: 'm.room.redaction',
-        redacts: '$human-like',
-        event_id: '$redact-like',
-        sender: '@alice:example.org',
-        content: {},
-      }),
-      new Room('!room:example.org', {} as MatrixClient, '@alice:example.org')
-    );
-    const answerReaction = makeReaction(
-      '$human-ans',
-      '$q6-plain',
-      '@alice:example.org',
-      '2️⃣',
-      1_700_000_003_000
-    );
-    plainReactions.push(answerReaction);
-    const answeredPlain = estimateMessageRowHeight(noFallbackEvent, plainOpts);
-    expect(answeredPlain).toBe(8 + 22 + 30 + 1 * 42);
-    expect(unansweredPlain - answeredPlain).toBe(5 * 42);
+    redact(answer, '$r-ans');
+    expect(msgH(plainQ, opts)).toBe(unanswered);
 
-    // Redacting the answer reaction invalidates the cache back to all 6 options.
-    answerReaction.makeRedacted(
-      new MatrixEvent({
-        type: 'm.room.redaction',
-        redacts: '$human-ans',
-        event_id: '$redact-ans',
-        sender: '@alice:example.org',
-        content: {},
-      }),
-      new Room('!room:example.org', {} as MatrixClient, '@alice:example.org')
-    );
-    expect(estimateMessageRowHeight(noFallbackEvent, plainOpts)).toBe(unansweredPlain);
-
-    // 2. With fallback list HTML: answered hides 5 fallback option lines + button deltas.
     const fbContent = html(
-      `<p>${questionText}</p><ol>${keys.map((k, i) => `<li>${k} ${labels[i]}</li>`).join('')}</ol><p>${INTERACTIVE_INSTRUCTION_TEXT}</p>`,
-      `${questionText}\n${labels.map((l, i) => `${i + 1}. ${l}`).join('\n')}\n${INTERACTIVE_INSTRUCTION_TEXT}`,
+      `<p>${qText}</p><ol>${keys.map((k, i) => `<li>${k} ${labels[i]}</li>`).join('')}</ol><p>${INTERACTIVE_INSTRUCTION_TEXT}</p>`,
+      `${qText}\n${labels.map((l, i) => `${i + 1}. ${l}`).join('\n')}\n${INTERACTIVE_INSTRUCTION_TEXT}`,
       { 'io.mindroom.interactive': interactive }
     );
-    const fbEvent = makeEvent({ id: '$q6-fb', sender: AGENT, content: fbContent });
-    const fbReactions: MatrixEvent[] = [];
-    const fbTs = makeTimelineSetWithReactions('$q6-fb', fbReactions);
-    const fbOpts = { compact: false, wrapChars: 48, timelineSet: fbTs };
+    const fbQ = agentEv('$q6-fb', fbContent);
+    const fbRxs: MatrixEvent[] = [];
+    const fbOpts = {
+      compact: false,
+      wrapChars: 48,
+      timelineSet: relSet('$q6-fb', 'm.annotation', 'm.reaction', fbRxs),
+    };
     const fbBodyPx = estimateFormattedBodyPx(fbContent, 48)!;
-
-    const unansweredFb = estimateMessageRowHeight(fbEvent, fbOpts);
+    const unansweredFb = msgH(fbQ, fbOpts);
     expect(unansweredFb).toBe(8 + fbBodyPx + 6 * 20);
 
-    fbReactions.push(
-      makeReaction('$fb-ans', '$q6-fb', '@alice:example.org', '3️⃣', 1_700_000_004_000)
-    );
-    const answeredFb = estimateMessageRowHeight(fbEvent, fbOpts);
-    expect(answeredFb).toBe(8 + fbBodyPx + 1 * 20 - 5 * 22);
+    fbRxs.push(rx('$fb-ans', '$q6-fb', keys[2]!, USER, BASE_TS + 4_000));
+    const answeredFb = msgH(fbQ, fbOpts);
+    expect(answeredFb).toBe(8 + fbBodyPx + 20 - 5 * 22);
     expect(unansweredFb - answeredFb).toBe(5 * (20 + 22));
   });
 });
 
 describe('estimateMessageRowHeight reuse and edit awareness', () => {
-  it('prices a row once until what it shows changes', () => {
-    const reply = makeEvent({ content: { msgtype: 'm.text', body: 'one\ntwo' } });
+  it('reuses WeakMap entries until content, edits, metadata, or redaction change', () => {
+    const reply = ev({ content: text('one\ntwo') });
     const relation = vi.spyOn(reply, 'getRelation');
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(8 + 2 * 22);
+    expect(msgH(reply)).toBe(8 + 2 * 22);
     const reads = relation.mock.calls.length;
-    expect(reads).toBeGreaterThan(0);
-    // The virtual list prices every unmeasured row again at each render.
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(8 + 2 * 22);
+    expect(msgH(reply)).toBe(8 + 2 * 22);
     expect(relation.mock.calls.length).toBe(reads);
+    expect(msgH(reply, { compact: true })).toBe(6 + 2 * 22);
 
-    expect(estimateMessageRowHeight(reply, { compact: true })).toBe(6 + 2 * 22);
+    const twelve = seq(12, (i) => `line ${i + 1}`);
+    reply.makeReplaced(editEv('$edit', '$e', text(twelve)));
+    expect(msgH(reply)).toBe(8 + 9 * 22);
 
-    // An edit gives the row other content.
-    const twelveLines = Array.from({ length: 12 }, (_, index) => `line ${index + 1}`).join('\n');
-    const edit = makeEvent({
-      id: '$edit',
-      content: {
-        msgtype: 'm.text',
-        body: `* ${twelveLines}`,
-        'm.new_content': { msgtype: 'm.text', body: twelveLines },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$event' },
-      },
-    });
-    reply.makeReplaced(edit);
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(8 + 9 * 22);
-
-    // Metadata an older edit lends is written into the shown content in place.
     reply.getContent()[THREAD_SUMMARY_METADATA_KEY] = true;
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(
-      estimateThreadEventRowHeight(reply, { compact: false })
-    );
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(8 + 12 * 22);
+    expect(msgH(reply)).toBe(8 + 12 * 22);
+
+    redact(reply, '$redaction');
+    expect(msgH(reply)).toBe(estimateThreadEventRowHeight(reply, { compact: false }));
+    expect(msgH(reply)).not.toBe(8 + 12 * 22);
   });
 
-  it('resolves unapplied m.replace edits once and skips getEditedEvent on repeated cache hits', () => {
-    const target = makeEvent({
-      id: '$thinking',
-      sender: AGENT,
-      content: { msgtype: 'm.text', body: 'Thinking...', 'io.mindroom.stream_status': 'streaming' },
-    });
-    const replacedLines = Array.from({ length: 15 }, (_, i) => `Step ${i + 1}: Service X ok`).join(
-      '\n'
+  it('resolves unapplied m.replace edits once and invalidates on in-place mutation or newer edit', () => {
+    const target = agentEv(
+      '$think',
+      text('Thinking...', {
+        'io.mindroom.ai_run': AI_RUN,
+        'io.mindroom.stream_status': 'streaming',
+      })
     );
-    const edit = makeEvent({
-      id: '$final-edit',
+    const fifteen = seq(15, (i) => `Line ${i + 1}: short result.`);
+    const done = { 'io.mindroom.ai_run': AI_RUN, 'io.mindroom.stream_status': 'completed' };
+    const edit = editEv('$e1', '$think', text(fifteen, done), {
       sender: AGENT,
-      ts: target.getTs() + 2_000,
-      content: {
-        msgtype: 'm.text',
-        body: `* ${replacedLines}`,
-        'm.new_content': {
-          msgtype: 'm.text',
-          body: replacedLines,
-          'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
-          'io.mindroom.stream_status': 'completed',
-        },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$thinking' },
-        'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
-      },
+      outer: { 'io.mindroom.ai_run': AI_RUN },
     });
     const edits = [edit];
-    const timelineSet = makeTimelineSetWithReplace('$thinking', edits);
+    const opts = { ...PHONE, timelineSet: relSet('$think', 'm.replace', 'm.room.message', edits) };
     const editedSpy = vi.spyOn(roomUtils, 'getEditedEvent');
     const latestSpy = vi.spyOn(roomUtils, 'getLatestMessageContent');
     try {
-      const opts = { compact: false, wrapChars: 38, coarsePointer: true, timelineSet };
-      const firstPx = estimateThreadRowHeight(target, undefined, opts);
-      // Base (8) + 15 lines (330) + coarse header (60) = 398, NOT "Thinking..." (~90 px).
+      const firstPx = threadH(target, undefined, opts);
       expect(firstPx).toBe(8 + 15 * 22 + 60);
+      for (let i = 0; i < 4; i += 1) expect(threadH(target, undefined, opts)).toBe(firstPx);
       expect(editedSpy).toHaveBeenCalledTimes(1);
       expect(latestSpy).toHaveBeenCalledTimes(1);
 
-      // Repeated renders hit WeakMap on O(1) source identities without calling getEditedEvent.
-      for (let i = 0; i < 4; i += 1) {
-        expect(estimateThreadRowHeight(target, undefined, opts)).toBe(firstPx);
-      }
-      expect(editedSpy).toHaveBeenCalledTimes(1);
-      expect(latestSpy).toHaveBeenCalledTimes(1);
-
-      // In-place mutation of the cached resolved edit's m.new_content invalidates the cache.
       (edit.getContent()['m.new_content'] as Record<string, unknown>)['io.mindroom.reasoning'] = {
-        text: 'Reasoning added in place.',
+        text: 'Added.',
       };
-      expect(estimateThreadRowHeight(target, undefined, opts)).toBe(firstPx + 28);
+      expect(threadH(target, undefined, opts)).toBe(firstPx + 28);
       expect(editedSpy).toHaveBeenCalledTimes(2);
 
-      // Appending a newer replacement to timelineSet.relations invalidates the cache.
       edits.push(
-        makeEvent({
-          id: '$newer-edit',
-          sender: AGENT,
-          ts: target.getTs() + 4_000,
-          content: {
-            msgtype: 'm.text',
-            body: '* Short final',
-            'm.new_content': {
-              msgtype: 'm.text',
-              body: 'Short final',
-              'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
-              'io.mindroom.stream_status': 'completed',
-            },
-            'm.relates_to': { rel_type: 'm.replace', event_id: '$thinking' },
-          },
-        })
+        editEv('$e2', '$think', text('Short final', done), { sender: AGENT, ts: BASE_TS + 4_000 })
       );
-      // Base (8) + borrowed reasoning from older edit (28) + 1 line (22) + coarse header (60) = 118.
-      expect(estimateThreadRowHeight(target, undefined, opts)).toBe(8 + 28 + 22 + 60);
+      expect(threadH(target, undefined, opts)).toBe(8 + 28 + 22 + 60);
       expect(editedSpy).toHaveBeenCalledTimes(3);
     } finally {
       editedSpy.mockRestore();
       latestSpy.mockRestore();
     }
   });
-
-  it('prices a redacted row again', () => {
-    const reply = makeEvent({ content: { msgtype: 'm.text', body: 'one\ntwo\nthree' } });
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(8 + 3 * 22);
-    reply.makeRedacted(
-      new MatrixEvent({
-        type: 'm.room.redaction',
-        redacts: '$event',
-        event_id: '$redaction',
-        sender: '@alice:example.org',
-        content: {},
-      }),
-      new Room('!room:example.org', {} as MatrixClient, '@alice:example.org')
-    );
-    expect(estimateMessageRowHeight(reply, { compact: false })).toBe(
-      estimateThreadEventRowHeight(reply, { compact: false })
-    );
-    expect(estimateMessageRowHeight(reply, { compact: false })).not.toBe(8 + 3 * 22);
-  });
 });
 
 describe('estimateThreadRowHeight and estimateRoomRowHeight', () => {
-  const first = makeEvent({ id: '$first' });
+  const first = ev({ id: '$first' });
 
-  it('applies author headers, coarse SenderLine, ModelBadge min height, compact layout, and day dividers', () => {
-    // Human group start: 68 fine, 90 coarse.
+  it('applies author headers, coarse SenderLine, ModelBadge floor, compact mode, day dividers, and badges', () => {
+    expect(threadH(first, undefined, FINE)).toBe(68);
+    expect(threadH(first, undefined, COARSE)).toBe(90);
+    expect(threadH(first, undefined, { compact: true, coarsePointer: true })).toBe(6 + 22);
+
+    const agentShort = agentEv(
+      '$a-short',
+      text('ok', { 'io.mindroom.ai_run': AI_RUN }),
+      BASE_TS + 1_000
+    );
+    expect(threadH(agentShort, first, FINE)).toBe(94);
+    expect(threadH(agentShort, first, COARSE)).toBe(114);
+
+    const nextDay = ev({ id: '$next-day', ts: BASE_TS + 24 * 60 * MIN });
+    expect(threadH(nextDay, first, COARSE)).toBe(90 + 34);
+    expect(threadH(nextDay, first, { compact: true, coarsePointer: true })).toBe(6 + 22 + 34);
+    expect(roomH(nextDay, first)).toBe(68 + 34);
+    expect(roomH(first, undefined, { threadBadge: true })).toBe(68 + 31);
+  });
+
+  it('handles room group continuation, agent ownRun separation, column width wrapping, and state events', () => {
+    expect(roomH(ev({ id: '$3', content: text('a\nb\nc') }))).toBe(8 + 3 * 22 + 38);
+    expect(roomH(ev({ id: '$next', ts: BASE_TS + 1_000 }), first)).toBe(30);
+    expect(roomH(ev({ id: '$later', ts: BASE_TS + 5 * MIN }), first)).toBe(68);
+    expect(roomH(ev({ id: '$other', sender: '@bob:example.org', ts: BASE_TS + 1 }), first)).toBe(
+      68
+    );
+
+    const ownRun = ev({
+      id: '$run',
+      ts: BASE_TS + 1_000,
+      content: text('hi', { 'io.mindroom.ai_run': { version: 1, status: 'completed' } }),
+    });
+    const stream = agentEv(
+      '$stream',
+      text('hi', { 'io.mindroom.stream_status': 'streaming' }),
+      BASE_TS + 1_000
+    );
+    expect(roomH(ownRun, first)).toBe(68);
+    expect(roomH(stream, agentEv('$a1', text('hi')))).toBe(68);
+
+    expect([undefined, 390, 960, 200].map(columnWrapCharsForWidth)).toEqual([48, 38, 110, 24]);
+
+    const four = agentEv(
+      '$step',
+      text('Step 1/3 for Item A: inspecting Service X rollout diagnostics.\n'.repeat(4))
+    );
+    const phoneC = roomH(four, first, { wrapChars: 38, coarsePointer: true });
+    const deskF = roomH(four, first, { wrapChars: 110, coarsePointer: false });
+    expect(phoneC - deskF).toBe(4 * 22 + (60 - 38));
+
     expect(
-      estimateThreadRowHeight(first, undefined, { compact: false, coarsePointer: false })
-    ).toBe(68);
-    expect(estimateThreadRowHeight(first, undefined, { compact: false, coarsePointer: true })).toBe(
-      90
-    );
-    // Compact puts sender beside body (no header added above).
-    expect(estimateThreadRowHeight(first, undefined, { compact: true, coarsePointer: true })).toBe(
-      6 + 22
-    );
-
-    // Agent reply with ModelBadge: 94 fine, 114 coarse avatar column floor.
-    const agentShort = makeEvent({
-      id: '$agent-short',
-      sender: AGENT,
-      ts: first.getTs() + 1_000,
-      content: { msgtype: 'm.text', body: 'Done.', 'io.mindroom.ai_run': AI_RUN_WITH_MODEL },
-    });
-    expect(
-      estimateThreadRowHeight(agentShort, first, { compact: false, coarsePointer: false })
-    ).toBe(94);
-    expect(
-      estimateThreadRowHeight(agentShort, first, { compact: false, coarsePointer: true })
-    ).toBe(114);
-
-    // Day divider adds +34 px in threads as well as rooms.
-    const nextDay = makeEvent({
-      id: '$next-day',
-      ts: first.getTs() + 24 * 60 * MINUTE,
-    });
-    expect(estimateThreadRowHeight(nextDay, first, { compact: false, coarsePointer: true })).toBe(
-      90 + 34
-    );
-    expect(estimateThreadRowHeight(nextDay, first, { compact: true, coarsePointer: true })).toBe(
-      6 + 22 + 34
-    );
-  });
-
-  it('gives the first message of a room group its author line and margin', () => {
-    expect(estimateRoomRowHeight(first, undefined)).toBe(68);
-    const threeLines = makeEvent({ id: '$three', content: { msgtype: 'm.text', body: 'a\nb\nc' } });
-    // Base (8) + 3 lines (66) + header+margin (38) = 112.
-    expect(estimateRoomRowHeight(threeLines, undefined)).toBe(8 + 3 * 22 + 38);
-  });
-
-  it('prices a message that continues the group without a header', () => {
-    const next = makeEvent({ id: '$next', ts: first.getTs() + 1_000 });
-    expect(estimateRoomRowHeight(next, first)).toBe(30);
-    const later = makeEvent({ id: '$later', ts: first.getTs() + 5 * MINUTE });
-    expect(estimateRoomRowHeight(later, first)).toBe(68);
-    const other = makeEvent({ id: '$other', sender: '@bob:example.org', ts: first.getTs() + 1 });
-    expect(estimateRoomRowHeight(other, first)).toBe(68);
-  });
-
-  it('keeps the author line of an agent reply that follows one from the same agent', () => {
-    const run = { version: 1, status: 'completed' };
-    const reply = makeEvent({
-      id: '$reply',
-      ts: first.getTs() + 1_000,
-      content: { msgtype: 'm.text', body: 'hello', 'io.mindroom.ai_run': run },
-    });
-    expect(estimateRoomRowHeight(reply, first)).toBe(68);
-    const streaming = makeEvent({
-      id: '$streaming',
-      sender: '@mindroom_code:example.org',
-      ts: first.getTs() + 1_000,
-      content: { msgtype: 'm.text', body: 'hello', 'io.mindroom.stream_status': 'streaming' },
-    });
-    const agentFirst = makeEvent({ id: '$agent', sender: '@mindroom_code:example.org' });
-    expect(estimateRoomRowHeight(streaming, agentFirst)).toBe(68);
-  });
-
-  it('adds the thread badge the threaded view shows under a message', () => {
-    expect(estimateRoomRowHeight(first, undefined, { threadBadge: true })).toBe(68 + 31);
-  });
-
-  it('adds the date separator above the first message of a new day', () => {
-    const tomorrow = makeEvent({ id: '$tomorrow', ts: first.getTs() + 24 * 60 * MINUTE });
-    expect(estimateRoomRowHeight(tomorrow, first)).toBe(68 + 34);
-  });
-
-  it('wraps narrow (390 px) columns at 38 chars and desktop (960 px) at 110 chars', () => {
-    expect(columnWrapCharsForWidth(undefined)).toBe(48);
-    expect(columnWrapCharsForWidth(390)).toBe(38);
-    expect(columnWrapCharsForWidth(960)).toBe(110);
-    expect(columnWrapCharsForWidth(200)).toBe(24);
-
-    const fourMediumLines = makeEvent({
-      id: '$step',
-      sender: AGENT,
-      content: {
-        msgtype: 'm.text',
-        body: 'Step 1/3 for Item A: inspecting Service X rollout diagnostics.\n'.repeat(4),
-      },
-    });
-    const phoneCoarse = estimateRoomRowHeight(fourMediumLines, first, {
-      wrapChars: columnWrapCharsForWidth(390),
-      coarsePointer: true,
-    });
-    const desktopFine = estimateRoomRowHeight(fourMediumLines, first, {
-      wrapChars: columnWrapCharsForWidth(960),
-      coarsePointer: false,
-    });
-    expect(desktopFine).toBeLessThan(phoneCoarse);
-    // 4 lines of 62 chars: 2 lines each on 38-char phone (+4 lines = +88 px) + coarse header (+22 px) = +110 px.
-    expect(phoneCoarse - desktopFine).toBe(4 * 22 + (60 - 38));
-  });
-
-  it('shows membership and name changes as one line and other state as nothing', () => {
-    const join = makeEvent({
-      type: 'm.room.member',
-      stateKey: '@alice:example.org',
-      content: { membership: 'join' },
-    });
-    const powerLevels = makeEvent({ type: 'm.room.power_levels', stateKey: '', content: {} });
-    expect(estimateRoomRowHeight(join, undefined)).toBe(28);
-    expect(estimateRoomRowHeight(powerLevels, undefined)).toBe(0);
-    expect(estimateRoomRowHeight(makeEvent({ type: 'm.call.invite', content: {} }), first)).toBe(0);
+      roomH(ev({ type: 'm.room.member', stateKey: USER, content: { membership: 'join' } }))
+    ).toBe(28);
+    expect(roomH(ev({ type: 'm.room.power_levels', stateKey: '', content: {} }))).toBe(0);
+    expect(roomH(ev({ type: 'm.call.invite', content: {} }), first)).toBe(0);
   });
 });

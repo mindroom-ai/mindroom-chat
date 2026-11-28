@@ -29,7 +29,6 @@ import {
 import { isRecord } from '../lib/isRecord';
 import { matchesEnum } from '../lib/matchesEnum';
 import { inSameDay } from '../lib/time';
-import { CodeBlockRule } from '../rich-text/markdown/block/rules';
 import {
   estimateThreadEventRowHeight,
   THREAD_ROW_LINE_PX as LINE_PX,
@@ -41,6 +40,7 @@ import {
   NOTICE_STATE_EVENT_TYPES,
 } from '../event-store/timeline/timelineRowTypes';
 import {
+  formatMarkdownTextBodyAsHtml,
   MINDROOM_TOOL_REF_HTML_REG_G as TOOL_REF_HTML_G,
   MINDROOM_TOOL_REF_ICON as TOOL_ICON,
   MINDROOM_TOOL_REF_TEXT_REG as TOOL_REF_TEXT,
@@ -85,8 +85,10 @@ const sameItems = (a: readonly unknown[], b: readonly unknown[]) => a.every((v, 
 const wrappedLines = (text: string, wrap: number = COL.wrap): number =>
   text.split('\n').reduce((n, r) => (r.trim() ? n + Math.ceil(r.trim().length / wrap) : n), 0);
 
-const blocksPx = (extraPx: number, text: string, blocks: number, wrap: number) =>
-  Math.round(extraPx + (wrappedLines(text, wrap) + Math.max(0, blocks - 1) * COL.gap) * LINE_PX);
+const blocksPx = (extraPx: number, text: string, blocks: number, wrap: number, blankLines = 0) =>
+  Math.round(
+    extraPx + (wrappedLines(text, wrap) + blankLines + Math.max(0, blocks - 1) * COL.gap) * LINE_PX
+  );
 
 const countRuns = (n: number, splitAt: (i: number) => boolean): number => {
   let runs = 1;
@@ -123,8 +125,7 @@ const estimateTablePx = (tableHtml: string, wrap: number): number => {
   return px + (wrap < TABLE.narrowWrap && maxCols >= TABLE.wideCols ? TABLE.ctrlPx : 0);
 };
 
-const estimateRichHtmlPx = (html: string, wrap: number, coarse: boolean, blockOnly = true) => {
-  if (blockOnly && !/<(pre|ul|ol|table|blockquote|h[1-6])\b/i.test(html)) return undefined;
+const estimateRichHtmlPx = (html: string, wrap: number, coarse: boolean): number => {
   let extraPx = 0;
   let extraBlocks = 0;
   const prose = html
@@ -139,40 +140,24 @@ const estimateRichHtmlPx = (html: string, wrap: number, coarse: boolean, blockOn
       return '\n';
     });
   const text = stripHtml(prose);
-  if (!blockOnly && extraPx === 0 && !text.trim()) return 0;
+  if (extraPx === 0 && !text.trim()) return 0;
+  const blankBrs = prose.match(/<br\s*\/?>\s*(?=<br\s*\/?>)/gi)?.length ?? 0;
   const blocks = (prose.match(/<(p|ul|ol|table|blockquote|h[1-6])\b/gi)?.length ?? 0) + extraBlocks;
-  return blocksPx(extraPx, text, blocks, wrap);
-};
-
-const estimateFencedMarkdownPx = (body: string, wrap: number, coarse: boolean) => {
-  if (!body.includes('```')) return undefined;
-  const norm = body.replace(/\r\n?/g, '\n');
-  const scan = CodeBlockRule.scan!(norm);
-  let cursor = 0;
-  let codePx = 0;
-  let codeBlocks = 0;
-  let prose = '';
-  for (let m = scan(0); m?.index !== undefined; m = scan(cursor)) {
-    prose += `${norm.slice(cursor, m.index)}\n`;
-    codePx += estimateCodeBlockPx(m[3] ?? '', wrap, coarse);
-    codeBlocks += 1;
-    cursor = m.index + m[0].length;
-  }
-  if (codeBlocks === 0) return undefined;
-  const text = `${prose}${norm.slice(cursor)}`.trim();
-  return blocksPx(codePx, text, codeBlocks + (text ? text.split(/\n\s*\n/).length : 0), wrap);
+  return blocksPx(extraPx, text, blocks, wrap, blankBrs);
 };
 
 const customHtml = (c: unknown): string | undefined => {
   if (!isRecord(c) || c.format !== 'org.matrix.custom.html') return undefined;
   const fb = typeof c.formatted_body === 'string' ? c.formatted_body : undefined;
-  return fb && /<mx-reply\b/i.test(fb) && /<\/mx-reply>/i.test(fb) ? fb.replace(MX_REPLY, '') : fb;
+  const stripped =
+    fb && /<mx-reply\b/i.test(fb) && /<\/mx-reply>/i.test(fb) ? fb.replace(MX_REPLY, '') : fb;
+  return stripped && stripped.trim() ? stripped : undefined;
 };
 
-/** Height of block-structured HTML before folding; undefined for plain text and inline-only HTML. */
+/** Height of custom HTML before folding; undefined when `formatted_body` is absent or empty. */
 export const estimateFormattedBodyPx = (c: unknown, wrap: number = COL.wrap, coarse = false) => {
   const html = customHtml(c);
-  return html ? estimateRichHtmlPx(html, wrap, coarse) : undefined;
+  return html ? estimateRichHtmlPx(html, wrap, coarse) || undefined : undefined;
 };
 
 const hasLongText = (c?: ContentRecord) => c?.['io.mindroom.long_text'] !== undefined;
@@ -204,7 +189,7 @@ const estimateToolWorkPx = (
   { wrapChars: wrap, coarse, showToolCalls }: Layout,
   plainPx: (text: string) => number
 ): number | undefined => {
-  const finished = isFinishedAgentReply(content);
+  const foldsFinished = isFinishedAgentReply(content) && !showToolCalls;
   const r = hasReasoning(content);
   const controls = (runs: number) => {
     if (showToolCalls) return (r ? ROW.work : 0) + runs * ROW.toolRun;
@@ -214,12 +199,12 @@ const estimateToolWorkPx = (
     const matches = [...html.matchAll(PRE_OR_TOOL)].filter((m) => !m[1]);
     if (matches.length === 0) return undefined;
     const stripTools = (s: string) => s.replace(PRE_OR_TOOL, (_m, pre?: string) => pre ?? '');
-    const fragPx = (s: string) => estimateRichHtmlPx(s, wrap, coarse, false) ?? 0;
+    const fragPx = (s: string) => estimateRichHtmlPx(s, wrap, coarse);
     const last = matches.at(-1)!;
     const start = last.index ?? 0;
     const end = start + last[0].length;
     const noCut = /^[\s]*(?:<br\s*\/?>[\s]*)*<\/(?:li|blockquote|h[1-6]|td|th)>/i;
-    if (finished && !noCut.test(html.slice(end))) {
+    if (foldsFinished && !noCut.test(html.slice(end))) {
       const tail = html.slice(end).replace(/^(?:[\s]+|<br\s*\/?>|<\/p>)+/i, '');
       if (hasVisibleHtml(stripTools(html.slice(0, start))) && hasVisibleHtml(tail)) {
         return ROW.work + fragPx(tail);
@@ -237,7 +222,7 @@ const estimateToolWorkPx = (
   const idxs = lines.flatMap((l, i) => (TOOL_REF_TEXT.test(l) ? [i] : []));
   if (idxs.length === 0) return undefined;
   const lastIdx = idxs.at(-1)!;
-  if (finished) {
+  if (foldsFinished) {
     const head = lines.slice(0, lastIdx).some((l) => l.trim() !== '' && !TOOL_REF_TEXT.test(l));
     const rest = lines.slice(lastIdx + 1);
     const tail = rest.join('\n').trim();
@@ -279,16 +264,18 @@ const priceMessageRow = (
   if (mediaPx !== undefined) return Math.max(textH(content), base + mediaPx);
   const isAgent = isMindroomAgentUserId(event.getSender() ?? undefined);
   const inFull = isAgent || hasThreadSummary(content);
-  const html = customHtml(content);
   const body = typeof content.body === 'string' ? trimReplyFromBody(content.body) : '';
+  const rawHtml = customHtml(content);
+  const html =
+    rawHtml ?? (inFull && body ? formatMarkdownTextBodyAsHtml(body) || undefined : undefined);
   const plainPx = (text: string, src?: ContentRecord) =>
-    (isAgent ? estimateFencedMarkdownPx(text, wrap, coarse) : undefined) ??
     Math.max(0, textH(src ?? { msgtype: 'm.text', body: text }, inFull) - base);
 
   let innerPx =
     (isAgent ? estimateToolWorkPx(content, html, body, layout, plainPx) : undefined) ??
     (isAgent && hasReasoning(content) ? ROW.work : 0) +
-      ((html ? estimateRichHtmlPx(html, wrap, coarse) : undefined) ?? plainPx(body, content));
+      ((html ? estimateRichHtmlPx(html, wrap, coarse) || undefined : undefined) ??
+        plainPx(body, content));
 
   if (q) {
     const hasFb =

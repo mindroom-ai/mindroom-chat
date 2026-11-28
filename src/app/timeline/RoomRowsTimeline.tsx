@@ -279,7 +279,7 @@ export function RoomRowsTimeline({
     columnWidth: scrollElement?.clientWidth || (phone ? 390 : 960),
     coarsePointer,
     timelineSet: rowTimelineSet,
-    showToolCalls,
+    showToolCalls: showToolCalls || feature.expandAll,
     longTextCacheOwner: mx,
   });
   const anchorBelowLatestEnd = useCallback(() => {
