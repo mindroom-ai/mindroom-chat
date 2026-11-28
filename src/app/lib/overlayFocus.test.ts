@@ -30,8 +30,15 @@ const menuLayer = (): { layer: HTMLDivElement; first: HTMLButtonElement } => {
   return { layer, first };
 };
 
-const press = (target: Element, key: string) =>
-  target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+const press = (target: Element, key: string, shiftKey = false) =>
+  target.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true }));
+
+const addFocusableRow = (after: Element): HTMLElement => {
+  const row = document.createElement('div');
+  row.tabIndex = 0;
+  after.after(row);
+  return row;
+};
 
 describe('overlay focus', () => {
   let uninstall: () => void;
@@ -100,14 +107,40 @@ describe('overlay focus', () => {
     expect(document.activeElement).toBe(first);
   });
 
-  it('leaves focus alone when a pointer opened the menu', async () => {
-    trigger.focus();
-    trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    const { layer } = menuLayer();
-    document.body.append(layer);
-    await flush();
-    expect(document.activeElement).toBe(trigger);
-  });
+  it.each([
+    ['Shift+F10', 'F10', true],
+    ['ContextMenu', 'ContextMenu', false],
+  ])(
+    'moves focus into a row menu opened with %s and returns it on Escape',
+    async (_, key, shift) => {
+      const row = addFocusableRow(trigger);
+      row.focus();
+      const { layer, first } = menuLayer();
+      layer.setAttribute('role', 'menu');
+      press(row, key, shift);
+      document.getElementById('portalContainer')!.append(layer);
+      await flush();
+      expect(document.activeElement).toBe(first);
+
+      press(first, 'Escape');
+      layer.remove();
+      await flush();
+      expect(document.activeElement).toBe(row);
+    }
+  );
+
+  it.each(['button', 'row'])(
+    'leaves focus on a %s when a pointer opened the menu',
+    async (kind) => {
+      const opener = kind === 'row' ? addFocusableRow(trigger) : trigger;
+      opener.focus();
+      opener.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 2 }));
+      const { layer } = menuLayer();
+      document.body.append(layer);
+      await flush();
+      expect(document.activeElement).toBe(opener);
+    }
+  );
 
   it('does not take focus for a tooltip', async () => {
     trigger.focus();
