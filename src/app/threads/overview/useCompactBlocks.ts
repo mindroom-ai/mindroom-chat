@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
-import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
+import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 
 const BLOCK_CARDS = 12;
@@ -41,21 +41,13 @@ type Options = {
   protectedId?: string;
   records?: ReadonlyMap<string, unknown>;
   indexPending?: boolean;
-  /** True when a cold focus placement (e.g. direct-link back-peek) must run while passive. */
   focusRequest?: boolean;
   getRowId?: (row: Element) => string | undefined;
 };
 
 export function useCompactBlocks(options: Options) {
   const { groups, scrollRef, contentRef, memory, roomId } = options;
-  const {
-    target,
-    protectedId,
-    records,
-    indexPending,
-    focusRequest = false,
-    getRowId = defaultRowId,
-  } = options;
+  const { target, protectedId, records, indexPending, getRowId = defaultRowId } = options;
   const state = useMemo(() => {
     const empty: Geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
     return {
@@ -191,7 +183,7 @@ export function useCompactBlocks(options: Options) {
     }
     return group;
   });
-  const paneCollapsed = usePaneCollapsed();
+  const freezeDiscovery = usePanePaused() && !options.focusRequest;
   const mounted = useRef<string[]>([]);
   const liveIds =
     projectedIds.length === mounted.current.length &&
@@ -199,7 +191,7 @@ export function useCompactBlocks(options: Options) {
       ? mounted.current
       : projectedIds;
   useEffect(() => {
-    if (paneCollapsed && !focusRequest) return undefined;
+    if (freezeDiscovery) return undefined;
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return undefined;
     // Heights last with the place to go back to; else for the last eight rooms that mounted.
@@ -299,17 +291,7 @@ export function useCompactBlocks(options: Options) {
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);
     };
-  }, [
-    contentRef,
-    focusRequest,
-    geometry,
-    getRowId,
-    memory,
-    paneCollapsed,
-    roomId,
-    scrollRef,
-    state,
-  ]);
+  }, [contentRef, freezeDiscovery, geometry, getRowId, memory, roomId, scrollRef, state]);
   useLayoutEffect(() => {
     const view = scrollRef.current;
     const pending = savedScrollTopRef.current;

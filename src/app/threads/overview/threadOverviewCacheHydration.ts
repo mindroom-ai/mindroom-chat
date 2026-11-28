@@ -24,11 +24,7 @@ import type {
   ThreadOverviewCachedMetadataUpdate,
 } from './threadOverviewCacheMetadata';
 import { readOnlyEventMapper } from '../../event-store/sdk/readOnlyEventMapper';
-import {
-  getChangedThreadIdsSince,
-  getThreadCacheChangeSeq,
-  subscribeThreadCacheChanges,
-} from '../../event-store/cache/threadCacheChanges';
+import { subscribeThreadCacheChanges } from '../../event-store/cache/threadCacheChanges';
 import { hydrateCachedEvents } from '../../event-store/cache/eventCacheEditUtils';
 
 type ThreadLikeRoot = {
@@ -410,54 +406,29 @@ export const useThreadOverviewCacheHydration = ({
   const pendingReadsRef = useRef(
     new Map<string, ReturnType<typeof loadLatestCachedThreadEventsBatch>>()
   );
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const changedThreadsRef = useRef(new Map<string, number>());
-  const changeRevisionRef = useRef(0);
-  const scopeKey = `${sessionId}\0${room.roomId}`;
-  const lastSeenCacheScopeRef = useRef<{ key: string; seq: number }>({
-    key: scopeKey,
-    seq: getThreadCacheChangeSeq(sessionId, room.roomId),
-  });
-  if (lastSeenCacheScopeRef.current.key !== scopeKey) {
-    lastSeenCacheScopeRef.current = {
-      key: scopeKey,
-      seq: getThreadCacheChangeSeq(sessionId, room.roomId),
-    };
-    changedThreadsRef.current = new Map();
-  }
   const [cacheRevision, setCacheRevision] = useState(0);
 
   useEffect(() => {
-    if (paused) return undefined;
-    const missed = getChangedThreadIdsSince(
-      sessionId,
-      room.roomId,
-      lastSeenCacheScopeRef.current.seq
-    );
-    lastSeenCacheScopeRef.current.seq = getThreadCacheChangeSeq(sessionId, room.roomId);
-    if (missed.length > 0) {
-      missed.forEach((rootId) => {
-        changedThreadsRef.current.set(rootId, ++changeRevisionRef.current);
-      });
-      setCacheRevision((value) => value + 1);
-    } else if (changedThreadsRef.current.size > 0) {
-      // Flush any debounced cache notifications whose timer was cleared on pause or Activity hide.
-      setCacheRevision((value) => value + 1);
-    }
+    changedThreadsRef.current = new Map();
+    let revision = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const unsubscribe = subscribeThreadCacheChanges(sessionId, room.roomId, (rootId) => {
-      lastSeenCacheScopeRef.current.seq = getThreadCacheChangeSeq(sessionId, room.roomId);
-      changedThreadsRef.current.set(rootId, ++changeRevisionRef.current);
+      changedThreadsRef.current.set(rootId, ++revision);
+      if (pausedRef.current) return;
       // Several replies can stream at once. Refresh their previews together after the writes.
       timer ??= setTimeout(() => {
         timer = undefined;
-        setCacheRevision((value) => value + 1);
+        if (!pausedRef.current) setCacheRevision((value) => value + 1);
       }, OVERVIEW_CACHE_PUBLICATION_INTERVAL_MS);
     });
     return () => {
       unsubscribe();
       clearTimeout(timer);
     };
-  }, [paused, sessionId, room.roomId]);
+  }, [sessionId, room.roomId]);
 
   useEffect(() => {
     if (

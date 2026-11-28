@@ -307,13 +307,7 @@ vi.mock('./ThreadView', async () => {
             </div>
           )}
           {header}
-          <div
-            ref={reply}
-            contentEditable
-            suppressContentEditableWarning
-            aria-label="Reply"
-            data-editable-name="RoomInput"
-          />
+          <div ref={reply} contentEditable suppressContentEditableWarning aria-label="Reply" />
           {/* A menu it opens renders outside it, as the app's menus and dialogs do. */}
           {createPortal(<button type="button">Column menu item</button>, document.body)}
         </div>
@@ -331,7 +325,7 @@ vi.mock('../composer/RoomInput', async () => {
       state.roomMessageSent = onRoomMessageSent;
       return (
         <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
-          <Editable aria-label="Message" data-editable-name="RoomInput" />
+          <Editable aria-label="Message" />
         </Slate>
       );
     },
@@ -1061,12 +1055,12 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   state.main!.threadReturnPlaceRef!.current = returnPlace;
   state.main!.compactRoomScrollStateRef!.current.set(room.roomId, compactScroll);
 
-  const warmMessages = screen.getByTestId('messages');
   state.thread = '$thread';
   rerender(tree({}, ScreenSize.Mobile));
-  // Warm phone room stays parked inside <Activity mode="hidden"> (display: none on its box).
-  expect(screen.getByTestId('messages')).toBe(warmMessages);
-  expect(warmMessages.parentElement?.style.display).toBe('none');
+  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(screen.queryByLabelText('Message')).toBeNull();
+  expect(screen.getByLabelText('Reply')).toBeTruthy();
+  expect(screen.getAllByTestId('room-header')).toHaveLength(1);
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
   expect(getDefaultStore().get(conversationUnderThreadAtom)).toBe(true);
 
@@ -1081,8 +1075,7 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   expect(live!.under.getAttribute('aria-hidden')).toBe('true');
   expect(live!.over).toBe(screen.getByTestId('thread-column'));
   expect(getDefaultStore().get(conversationUnderThreadAtom)).toBe(true);
-  expect(screen.getByTestId('messages')).toBe(warmMessages);
-  expect(warmMessages.parentElement?.style.display).not.toBe('none');
+  expect(screen.getByTestId('messages')).toBeDefined();
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
   const passiveHeaders = screen
     .getAllByTestId('room-header')
@@ -1090,7 +1083,7 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   expect(passiveHeaders).toHaveLength(1);
   expect(passiveHeaders[0]?.dataset.openThreadId).toBe('');
 
-  // Simulate timeline hide cleanup overwriting scroll refs during peek.
+  // Simulate timeline mount/unmount overwriting scroll refs during peek.
   state.main!.threadReturnPlaceRef!.current = undefined;
   state.main!.compactRoomScrollStateRef!.current.set(room.roomId, { scrollTop: 0, anchors: [] });
 
@@ -1099,8 +1092,7 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   });
   expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
   expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
-  expect(screen.getByTestId('messages')).toBe(warmMessages);
-  expect(warmMessages.parentElement?.style.display).toBe('none');
+  expect(screen.queryByTestId('messages')).toBeNull();
   expect(state.main!.threadReturnPlaceRef!.current).toEqual(returnPlace);
   expect(state.main!.compactRoomScrollStateRef!.current.get(room.roomId)).toEqual(compactScroll);
 });
@@ -1317,7 +1309,7 @@ it('plays live 2-layer forward push on Room -> Thread on phone and skips when Sp
       await Promise.resolve();
     });
     expect(isLiveSlideActive()).toBe(false);
-    expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
+    expect(screen.queryByTestId('messages')).toBeNull();
     rendered.unmount();
 
     // 3. Space-owned slide suppresses RoomView forward slide (no double animation).
@@ -1343,7 +1335,7 @@ it('plays live 2-layer forward push on Room -> Thread on phone and skips when Sp
       </div>
     );
     expect(isLiveSlideActive()).toBe(false);
-    expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
+    expect(screen.queryByTestId('messages')).toBeNull();
   } finally {
     rectSpy.mockRestore();
     vi.useRealTimers();
@@ -1406,7 +1398,7 @@ it('mounts ThreadColumn passively during end-edge forward peek, cleans up on can
   expect(state.viewMounts).toBe(2);
   expect(screen.getByTestId('thread-view').dataset.hidden).toBe('false');
   expect(screen.getByTestId('thread-view').dataset.passive).toBe('false');
-  expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
+  expect(screen.queryByTestId('messages')).toBeNull();
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
 });
 
@@ -1459,54 +1451,4 @@ it('cancelling a live room back-peek flushes preview unmount BEFORE restoring sc
     savedCompactScroll
   );
   expect(state.main!.threadReturnPlaceRef!.current).toEqual(savedReturnPlace);
-});
-
-it('keeps a single RoomInput in DOM across parked phone room, back-peek, and commit, and drops warm Activity on room switch or desktop resize', () => {
-  const inputs = () => document.querySelectorAll('[data-editable-name="RoomInput"]');
-  state.thread = undefined;
-  const { rerender } = render(tree({}, ScreenSize.Mobile));
-  const warmMessages = screen.getByTestId('messages');
-  expect(inputs()).toHaveLength(1);
-  expect(screen.getByLabelText('Message')).toBeTruthy();
-
-  // Opening a filling thread parks messages in hidden Activity and unmounts room RoomInput.
-  state.thread = '$thread';
-  rerender(tree({}, ScreenSize.Mobile));
-  expect(screen.getByTestId('messages')).toBe(warmMessages);
-  expect(warmMessages.parentElement?.style.display).toBe('none');
-  expect(inputs()).toHaveLength(1);
-  expect(screen.queryByLabelText('Message')).toBeNull();
-  expect(screen.getByLabelText('Reply')).toBeTruthy();
-
-  // Passive back-peek keeps 0 room RoomInputs in DOM while reserving composer band, then commit restores it.
-  let live: LiveThreadBackUnder | null = null;
-  act(() => {
-    live = state.enterLiveRoomPeek?.() ?? null;
-  });
-  expect(live).not.toBeNull();
-  expect(inputs()).toHaveLength(1);
-  expect(screen.queryByLabelText('Message')).toBeNull();
-  expect(document.querySelector<HTMLElement>('[data-footer-of="room"]')?.style.minBlockSize).toBe(
-    'var(--room-composer-height, 0px)'
-  );
-
-  state.thread = undefined;
-  rerender(tree({}, ScreenSize.Mobile));
-  expect(inputs()).toHaveLength(1);
-  expect(screen.getByLabelText('Message')).toBeTruthy();
-
-  // Re-park and verify desktop resize or room switch drops the warm Activity.
-  state.thread = '$thread';
-  rerender(tree({}, ScreenSize.Mobile));
-  expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
-  rerender(tree({}, ScreenSize.Desktop));
-  expect(screen.queryByTestId('messages')).toBeNull();
-
-  state.thread = undefined;
-  rerender(tree({}, ScreenSize.Mobile));
-  state.thread = '$thread';
-  rerender(tree({}, ScreenSize.Mobile));
-  const otherRoom = new Room('!other-room:example.org', mx, '@alice:example.org');
-  rerender(tree({ room: otherRoom }, ScreenSize.Mobile));
-  expect(screen.queryByTestId('messages')).toBeNull();
 });

@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
-import { Activity, useRef } from 'react';
+import { useRef } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { stubCompactLayout, tickFrames as tick } from './compactBlocks.test.shared';
-import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
+import { PassivePeekContext } from '../../lib/hooks/usePaneCollapsed';
 import { useCompactBlocks } from './useCompactBlocks';
 
 const ids = Array.from({ length: 96 }, (_, i) => `$row${i}`);
@@ -528,7 +528,7 @@ it('caches getComputedStyle and reads view.scrollTop once per scroll pass when f
   computedSpy.mockRestore();
 });
 
-it('freezes warm passive Activity peeks while restoring scrollTop, and still runs cold focusRequest discovery while passive', () => {
+it('freezes discovery during warm passive back-peek remount while still allowing cold focusRequest discovery', () => {
   const observeSpy = vi.fn();
   const prevRO = globalThis.ResizeObserver;
   globalThis.ResizeObserver = class {
@@ -536,38 +536,37 @@ it('freezes warm passive Activity peeks while restoring scrollTop, and still run
     disconnect = vi.fn();
     unobserve = vi.fn();
   };
-  const wrap = (collapsed: boolean, mode: 'visible' | 'hidden', memory: ScrollAnchorMemory) => (
-    <PaneCollapsedContext.Provider value={collapsed}>
-      <Activity mode={mode}>
-        <List roomId="!warm-room:example.org" memory={memory} />
-      </Activity>
-    </PaneCollapsedContext.Provider>
-  );
-
   try {
     const warmMemory: ScrollAnchorMemory = new Map();
-    const warm = render(wrap(false, 'visible', warmMemory));
+    const warm = render(<List roomId="!warm-room:example.org" memory={warmMemory} />);
     const view = warm.container.querySelector<HTMLElement>('[data-view]')!;
     tick(6);
     layout.scroll(view, 420);
-    warm.rerender(wrap(true, 'hidden', warmMemory));
-    view.scrollTop = 0;
-    observeSpy.mockClear();
-    warm.rerender(wrap(true, 'visible', warmMemory));
-    expect(view.scrollTop).toBe(420);
-    expect(observeSpy).not.toHaveBeenCalled();
-    warm.rerender(wrap(false, 'visible', warmMemory));
-    expect(observeSpy).toHaveBeenCalled();
     warm.unmount();
+
+    observeSpy.mockClear();
+    const peek = render(
+      <PassivePeekContext.Provider value>
+        <List roomId="!warm-room:example.org" memory={warmMemory} />
+      </PassivePeekContext.Provider>
+    );
+    expect(observeSpy).not.toHaveBeenCalled();
+    peek.rerender(
+      <PassivePeekContext.Provider value={false}>
+        <List roomId="!warm-room:example.org" memory={warmMemory} />
+      </PassivePeekContext.Provider>
+    );
+    expect(observeSpy).toHaveBeenCalled();
+    peek.unmount();
 
     observeSpy.mockClear();
     const coldMemory: ScrollAnchorMemory = new Map([
       ['!cold-room:example.org', { scrollTop: 1, anchors: [{ key: '$row30', offset: 160 }] }],
     ]);
     const cold = render(
-      <PaneCollapsedContext.Provider value>
+      <PassivePeekContext.Provider value>
         <List roomId="!cold-room:example.org" memory={coldMemory} focusRequest />
-      </PaneCollapsedContext.Provider>
+      </PassivePeekContext.Provider>
     );
     const coldView = cold.container.querySelector<HTMLElement>('[data-view]')!;
     tick(6);

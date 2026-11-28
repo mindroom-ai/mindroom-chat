@@ -22,12 +22,6 @@ const takeSnapshot = (room: Room, eventType: string): StateSnapshot => ({
   events: room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(eventType) ?? [],
 });
 
-const sameStateSnapshot = (prev: StateSnapshot, next: StateSnapshot): boolean =>
-  prev.room === next.room &&
-  prev.eventType === next.eventType &&
-  prev.events.length === next.events.length &&
-  prev.events.every((event, index) => event === next.events[index]);
-
 /**
  * The room's current state events of `eventType`, read again whenever one of them changes. The
  * array keeps its identity between changes, so callers can key memos and caches on it.
@@ -41,13 +35,7 @@ export const useStateEvents = (room: Room, eventType: string): MatrixEvent[] => 
   if (stale) setStored(snapshot);
 
   useEffect(() => {
-    const refresh = () =>
-      setStored((prev) => {
-        const next = takeSnapshot(room, eventType);
-        return sameStateSnapshot(prev, next) ? prev : next;
-      });
-    // Catch room state changes that arrived while listeners were disconnected (e.g. <Activity mode="hidden">).
-    refresh();
+    const refresh = () => setStored(takeSnapshot(room, eventType));
     const handleStateEvent: RoomStateEventHandlerMap[RoomStateEvent.Events] = (event) => {
       if (event.getRoomId() !== room.roomId || event.getType() !== eventType) return;
       refresh();

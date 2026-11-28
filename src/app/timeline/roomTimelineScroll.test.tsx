@@ -1,4 +1,4 @@
-import { Activity, createElement, useEffect, useReducer, useRef } from 'react';
+import { createElement, useEffect, useReducer, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -1020,77 +1020,6 @@ describe('useThreadReturnPlace', () => {
       undefined,
       undefined,
     ]);
-  });
-
-  it('restores mid-scroll offset and follows bottom growth across Activity hide and reveal', () => {
-    const scroller = scrolledRoomRows(720);
-    const memoryRef: { current: RoomRowsPlace | undefined } = { current: undefined };
-    function Rows({ latestAtTop, target }: { latestAtTop: boolean; target: HTMLElement }) {
-      const scrollRef = useRef<HTMLElement | null>(target);
-      useThreadReturnPlace({
-        memoryRef,
-        roomId: '!room',
-        eventId: undefined,
-        roomRowsShown: true,
-        latestAtTop,
-        scrollRef,
-      });
-      return null;
-    }
-    let renderer!: ReactTestRenderer;
-    act(() => {
-      renderer = create(
-        <Activity mode="visible">
-          <Rows latestAtTop target={scroller} />
-        </Activity>
-      );
-    });
-    act(() => {
-      renderer.update(
-        <Activity mode="hidden">
-          <Rows latestAtTop target={scroller} />
-        </Activity>
-      );
-    });
-    // Simulate WebKit resetting scrollTop to 0 while display: none is applied.
-    scroller.scrollTop = 0;
-    act(() => {
-      renderer.update(
-        <Activity mode="visible">
-          <Rows latestAtTop target={scroller} />
-        </Activity>
-      );
-    });
-    expect(scroller.scrollTop).toBe(720);
-    act(() => renderer.unmount());
-
-    // Reader at the bottom of a classic timeline lands at the grown bottom on reveal, not stale scrollTop.
-    const classic = scrolledRoomRows(8400) as HTMLElement & { scrollHeight: number };
-    act(() => {
-      renderer = create(
-        <Activity mode="visible">
-          <Rows latestAtTop={false} target={classic} />
-        </Activity>
-      );
-    });
-    act(() => {
-      renderer.update(
-        <Activity mode="hidden">
-          <Rows latestAtTop={false} target={classic} />
-        </Activity>
-      );
-    });
-    classic.scrollHeight = 9600;
-    classic.scrollTop = 0;
-    act(() => {
-      renderer.update(
-        <Activity mode="visible">
-          <Rows latestAtTop={false} target={classic} />
-        </Activity>
-      );
-    });
-    expect(classic.scrollTop).toBe(9000);
-    act(() => renderer.unmount());
   });
 });
 

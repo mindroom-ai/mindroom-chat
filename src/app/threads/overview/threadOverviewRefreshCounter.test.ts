@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { RoomEvent, ThreadEvent, type Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
+import { PaneCollapsedContext, PassivePeekContext } from '../../lib/hooks/usePaneCollapsed';
 import {
   useThreadOverviewListenedFirst,
   useThreadOverviewRefreshCounter,
@@ -134,7 +134,7 @@ describe('useThreadOverviewRefreshCounter', () => {
     });
   });
 
-  it('transitions cold collapsed useThreadOverviewListenedFirst 0 -> 1 once and freezes live events until uncollapsed', async () => {
+  it('skips waiting on passive back-peek mount, buffers live events while peeking, and flushes on commit', async () => {
     const room = makeRoom();
     const seen: Array<number | 'waiting' | undefined> = [];
     function Harness() {
@@ -142,19 +142,21 @@ describe('useThreadOverviewRefreshCounter', () => {
       seen.push(value === 'waiting' ? 'waiting' : value?.overviewRefreshCounter);
       return null;
     }
-    const wrap = (collapsed: boolean) =>
+    const wrap = (passive: boolean) =>
       React.createElement(
-        PaneCollapsedContext.Provider,
-        { value: collapsed },
+        PassivePeekContext.Provider,
+        { value: passive },
         React.createElement(Harness)
       );
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
       renderer = create(wrap(true));
+    });
+    await act(async () => {
       room.emit(RoomEvent.Receipt, undefined, room);
       room.emit(ThreadEvent.Update);
     });
-    expect(seen.at(-1)).toBe(1);
+    expect(seen).toEqual([1]);
     await act(async () => {
       renderer?.update(wrap(false));
     });

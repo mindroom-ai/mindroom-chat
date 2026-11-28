@@ -25,12 +25,20 @@ export function selectPhoneHeaderActions(
 }
 
 const pixels = (value: string) => Number.parseFloat(value) || 0;
+let lastMeasuredSlots: { width: number; slots: number } | undefined;
 
 export function usePhoneHeaderSlots(phone: boolean, passive = false) {
   const headerRef = useRef<HTMLElement>(null);
   const callGroupRef = useRef<HTMLDivElement>(null);
   const mandatoryTailRef = useRef<HTMLDivElement>(null);
-  const [slots, setSlots] = useState(0);
+  const [slots, setSlots] = useState(() =>
+    phone &&
+    passive &&
+    typeof window !== 'undefined' &&
+    lastMeasuredSlots?.width === window.innerWidth
+      ? lastMeasuredSlots.slots
+      : 0
+  );
   const measure = useCallback(() => {
     if (!phone || passive) return;
     const header = headerRef.current;
@@ -48,7 +56,10 @@ export function usePhoneHeaderSlots(phone: boolean, passive = false) {
     const callWidth = callGroupRef.current?.getBoundingClientRect().width ?? 0;
     const mandatoryWidth =
       tail.getBoundingClientRect().width + (callWidth > 0 ? callWidth + gap : 0);
-    setSlots(getPhoneHeaderSlots(contentWidth, mandatoryWidth, slotWidth));
+    const next = getPhoneHeaderSlots(contentWidth, mandatoryWidth, slotWidth);
+    if (typeof window !== 'undefined')
+      lastMeasuredSlots = { width: window.innerWidth, slots: next };
+    setSlots(next);
   }, [passive, phone]);
   useLayoutEffect(measure, [measure]);
   // Observe only fixed groups, not the whole actions row: promotions never change these widths.

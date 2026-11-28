@@ -4,7 +4,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { EventEmitter } from 'events';
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { PaneCollapsedContext } from '../lib/hooks/usePaneCollapsed';
 import { RoomViewFollowing } from './RoomViewFollowing';
 
 vi.mock('./RoomViewFollowing.css', () => ({
@@ -267,34 +266,4 @@ it('in a thread, reads once for a burst of updates, and again for each later one
   room.read.add('@avery:example.org');
   await emitting(() => room.emit('Thread.update', thread));
   expect(names(view)).toContain('Avery');
-});
-
-it('renders nothing and skips follower scans while PaneCollapsedContext is true', () => {
-  const room = makeRoom();
-  room.read.add('@avery:example.org');
-  const hasUserReadEvent = vi.spyOn(
-    room as unknown as { hasUserReadEvent: () => boolean },
-    'hasUserReadEvent'
-  );
-  container = document.createElement('div');
-  document.body.append(container);
-  act(() => {
-    root = createRoot(container!);
-    root.render(
-      <PaneCollapsedContext.Provider value>
-        <RoomViewFollowing room={room as unknown as Room} />
-      </PaneCollapsedContext.Provider>
-    );
-  });
-  expect(names(container)).toBe('');
-  expect(hasUserReadEvent).not.toHaveBeenCalled();
-
-  act(() => {
-    root?.render(
-      <PaneCollapsedContext.Provider value={false}>
-        <RoomViewFollowing room={room as unknown as Room} />
-      </PaneCollapsedContext.Provider>
-    );
-  });
-  expect(names(container)).toContain('Avery');
 });

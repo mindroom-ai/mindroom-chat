@@ -1,4 +1,4 @@
-import { MatrixEvent, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent, Room, ThreadEvent, type IEvent, type Thread } from 'matrix-js-sdk';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   loadRoomThreads,
@@ -9,7 +9,7 @@ import {
   buildThreadUnreadMap,
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
-import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
+import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import { useSyncEngine } from '../../event-store/engine/engineContext';
@@ -33,6 +33,8 @@ import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils
  * reads, all through WebKit's networking process.
  */
 const restoredRooms = new WeakSet<Room>();
+const cachedSortedThreads = new WeakMap<Room, { userId: string; threads: Thread[] }>();
+const EMPTY_UNREADS: ReadonlyMap<string, boolean> = new Map();
 const savedRootRevisions = new WeakMap<
   Room,
   { isCurrent: () => boolean; revisions: Map<string, number> }
@@ -88,11 +90,11 @@ export const useRoomThreadList = (
 ) => {
   const mx = useMatrixClient();
   const engine = useSyncEngine();
-  const collapsed = usePaneCollapsed();
-  const collapsedRef = useRef(collapsed);
-  collapsedRef.current = collapsed;
+  const paused = usePanePaused();
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const dirtyVersionRef = useRef(false);
-  const [loading, setLoading] = useState(enabled && !collapsed);
+  const [loading, setLoading] = useState(enabled && !paused);
   const [loadedSuccessfully, setLoadedSuccessfully] = useState(false);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
@@ -100,7 +102,7 @@ export const useRoomThreadList = (
 
   useEffect(() => {
     // The SDK keeps the threads restored by the first mount; later ones come from the server list.
-    if (!enabled || collapsed || restoredRooms.has(room)) return undefined;
+    if (!enabled || paused || restoredRooms.has(room)) return undefined;
     let cancelled = false;
     loadCachedThreadRootsForRoom(engine.sessionId, room.roomId)
       .then((roots) => {
@@ -135,7 +137,7 @@ export const useRoomThreadList = (
     return () => {
       cancelled = true;
     };
-  }, [collapsed, enabled, engine.persist, engine.sessionId, mx, room]);
+  }, [paused, enabled, engine.persist, engine.sessionId, mx, room]);
 
   const handleThreadListProgress = useCallback(() => {
     setLoadedSuccessfully(true);
@@ -248,7 +250,7 @@ export const useRoomThreadList = (
       setError(undefined);
       return undefined;
     }
-    if (collapsed) return undefined;
+    if (paused) return undefined;
 
     const abortController = new AbortController();
     lifecycleAbortControllerRef.current = abortController;
@@ -273,13 +275,13 @@ export const useRoomThreadList = (
         lifecycleAbortControllerRef.current = undefined;
       }
     };
-  }, [collapsed, enabled, loadThreads]);
+  }, [paused, enabled, loadThreads]);
 
   useEffect(() => {
     if (!enabled) return undefined;
 
     const handleThreadUpdate = () => {
-      if (collapsedRef.current) {
+      if (pausedRef.current) {
         dirtyVersionRef.current = true;
         return;
       }
@@ -296,41 +298,46 @@ export const useRoomThreadList = (
       room.removeListener(ThreadEvent.Update, handleThreadUpdate);
       room.removeListener(ThreadEvent.NewReply, handleThreadUpdate);
       room.removeListener(ThreadEvent.Delete, handleThreadUpdate);
-      if (collapsedRef.current) dirtyVersionRef.current = true;
     };
   }, [enabled, room]);
 
   useLayoutEffect(() => {
-    if (!collapsed && dirtyVersionRef.current) {
+    if (!paused && dirtyVersionRef.current) {
       dirtyVersionRef.current = false;
       setVersion((current) => current + 1);
     }
-  }, [collapsed]);
+  }, [paused]);
 
+  const userId = mx.getUserId() ?? '';
+  const cachedWarm = enabled && paused ? cachedSortedThreads.get(room) : undefined;
+  const warmThreads = cachedWarm?.userId === userId ? cachedWarm.threads : undefined;
   const rawThreads = useMemo(() => {
+    if (warmThreads) return warmThreads;
     void version;
     return room.getThreads();
-  }, [room, version]);
-  const userId = mx.getUserId() ?? '';
+  }, [room, version, warmThreads]);
   // The marks of the last build. A count checks the threads it marked (a reply, the reader's
   // receipt in a thread), not every thread of the room, and keeps the map while no mark changed.
   const builtUnreadsRef = useRef<ReadonlyMap<string, boolean>>(undefined);
   const threadUnreads = useMemo(() => {
     // A receipt raises the count and leaves the list as it was.
     void overviewRefreshCounter;
-    if (!enabled) return new Map<string, boolean>();
+    if (!enabled || warmThreads) return EMPTY_UNREADS;
     const built = buildThreadUnreadMap(room, rawThreads, userId, {
       previous: builtUnreadsRef.current,
       changes: overviewChanges,
     });
     builtUnreadsRef.current = built;
     return built;
-  }, [enabled, room, rawThreads, userId, overviewRefreshCounter, overviewChanges]);
+  }, [enabled, room, rawThreads, userId, overviewRefreshCounter, overviewChanges, warmThreads]);
   const threads = useMemo(
     // Non-compact surfaces still use known roots for deep links, but not this ordering.
-    () => (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),
-    [enabled, rawThreads, threadUnreads]
+    () => warmThreads ?? (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),
+    [enabled, rawThreads, threadUnreads, warmThreads]
   );
+  useLayoutEffect(() => {
+    if (enabled && !paused) cachedSortedThreads.set(room, { userId, threads });
+  }, [enabled, paused, room, threads, userId]);
   const fullyLoaded = useMemo(() => {
     void version;
     return roomThreadListIsComplete(room);

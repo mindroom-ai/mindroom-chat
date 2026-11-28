@@ -1,11 +1,4 @@
-import {
-  Activity,
-  type CSSProperties,
-  type ReactNode,
-  type RefObject,
-  useLayoutEffect,
-  useRef,
-} from 'react';
+import { type CSSProperties, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -16,7 +9,12 @@ import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
-import { PaneCollapsedContext, usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
+import {
+  PaneCollapsedContext,
+  PassivePeekContext,
+  usePaneCollapsed,
+  usePassivePeek,
+} from '../lib/hooks/usePaneCollapsed';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { RoomViewFollowing } from '../timeline/RoomViewFollowing';
@@ -54,10 +52,6 @@ const DOCK_STYLE: CSSProperties = {
   zIndex: 5,
   pointerEvents: 'none',
 };
-// Reserve the cached composer band while a passive back-peek omits Slate RoomInput.
-const PASSIVE_FOOTER_STYLE: CSSProperties = {
-  minBlockSize: 'var(--room-composer-height, 0px)',
-};
 // The footer starts with an empty box where a selection can end. A triple click selects up to the
 // start of the next paragraph; on the conversation's last text, with nothing in between, that
 // start was in the composer, and Chrome moved the selection and the focus there as the held drag
@@ -90,33 +84,25 @@ const useOverlayInsets = (
   headerRef: RefObject<HTMLElement | null>,
   footerRef: RefObject<HTMLElement | null>,
   dockRef: RefObject<HTMLElement | null>,
-  parts: string,
-  collapsed: boolean,
-  passive: boolean
+  parts: string
 ) => {
-  const measuredPartsRef = useRef<string>(undefined);
-  const lastInsetsRef = useRef<{ header?: number; composer?: number; footer?: number }>({});
   useLayoutEffect(() => {
-    if (measuredPartsRef.current !== parts) {
-      measuredPartsRef.current = undefined;
-      lastInsetsRef.current = {};
-    }
     const area = areaRef.current;
     if (!area || typeof ResizeObserver === 'undefined') return undefined;
-    if (collapsed || (passive && measuredPartsRef.current === parts)) return undefined;
+    let lastHeader: number | undefined;
+    let lastComposer: number | undefined;
+    let lastFooter: number | undefined;
     const measure = () => {
       const header = headerRef.current?.offsetHeight ?? 0;
       const composer = footerRef.current?.offsetHeight ?? 0;
       const footer = composer + (dockRef.current?.offsetHeight ?? 0);
-      const last = lastInsetsRef.current;
-      if (header !== last.header) area.style.setProperty('--room-header-height', `${header}px`);
-      if (composer !== last.composer)
+      if (header !== lastHeader) area.style.setProperty('--room-header-height', `${header}px`);
+      if (composer !== lastComposer)
         area.style.setProperty('--room-composer-height', `${composer}px`);
-      if (footer !== last.footer) area.style.setProperty('--room-footer-height', `${footer}px`);
-      last.header = header;
-      last.composer = composer;
-      last.footer = footer;
-      if (!passive) measuredPartsRef.current = parts;
+      if (footer !== lastFooter) area.style.setProperty('--room-footer-height', `${footer}px`);
+      lastHeader = header;
+      lastComposer = composer;
+      lastFooter = footer;
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -124,7 +110,7 @@ const useOverlayInsets = (
       if (ref.current) observer.observe(ref.current);
     });
     return () => observer.disconnect();
-  }, [areaRef, collapsed, dockRef, footerRef, headerRef, parts, passive]);
+  }, [areaRef, dockRef, footerRef, headerRef, parts]);
 };
 
 /**
@@ -174,8 +160,6 @@ export type ConversationLayoutProps = {
   composer?: ReactNode;
   /** Takes no room in its row and shows only `children` (the room under a filling thread). */
   collapsed?: boolean;
-  /** Parks inner content inside React `<Activity mode="hidden">` when collapsed instead of unmounting. */
-  keepAlive?: boolean;
   /** The element a plugin's cover hides: timeline, dock and footer. */
   conversationRef?: RefObject<HTMLDivElement | null>;
   /** Layers over the conversation, under the header: the plugin cover. */
@@ -202,7 +186,6 @@ export function ConversationLayout({
   notice,
   composer,
   collapsed = false,
-  keepAlive = false,
   conversationRef,
   children,
 }: ConversationLayoutProps) {
@@ -211,26 +194,28 @@ export function ConversationLayout({
   const dockRef = useRef<HTMLDivElement>(null);
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const parentCollapsed = usePaneCollapsed();
-  const paneCollapsed = collapsed || passive || parentCollapsed;
-  const mountContent = !collapsed || keepAlive;
-  const shownHeader = mountContent && header;
-  const activityMode = collapsed ? 'hidden' : 'visible';
+  const parentPassive = usePassivePeek();
+  const paneCollapsed = collapsed || parentCollapsed;
+  const panePassive = passive || parentPassive;
+  const shownHeader = !collapsed && header;
   useOverlayInsets(
     areaRef,
     headerRef,
     footerRef,
     dockRef,
-    `${room.roomId}|${threadId ?? ''}|${!!header}`,
-    collapsed,
-    passive
+    `${threadId ?? ''}|${collapsed}|${!!shownHeader}`
   );
 
   return (
     <PaneCollapsedContext.Provider value={paneCollapsed}>
-      <div ref={areaRef} className={css.RoomArea} style={collapsed ? COLLAPSED_STYLE : AREA_STYLE}>
-        {shownHeader && (
-          <Activity mode={activityMode}>
-            {/* The element draws the header's surface; the row inside shows it and paints none. */}
+      <PassivePeekContext.Provider value={panePassive}>
+        <div
+          ref={areaRef}
+          className={css.RoomArea}
+          style={collapsed ? COLLAPSED_STYLE : AREA_STYLE}
+        >
+          {shownHeader && (
+            // The element draws the header's surface; the row inside shows it and paints none.
             <div
               ref={headerRef}
               data-room-header="true"
@@ -243,71 +228,66 @@ export function ConversationLayout({
             >
               <SurfaceProvider value>{shownHeader(headerRef)}</SurfaceProvider>
             </div>
-          </Activity>
-        )}
-        {/* The element stays as the conversation goes: a plugin's cover keeps holding it. */}
-        <div ref={conversationRef} style={CONVERSATION_STYLE}>
-          {mountContent && (
-            <Activity mode={activityMode}>
-              <ThreadApprovalProvider
-                room={room}
-                // A message not yet on the server has no approvals, and no relations to ask for.
-                threadId={!readOnly && isConfirmedMatrixEventId(threadId) ? threadId : undefined}
-                focusConversation={focusConversation}
-                passive={passive}
-              >
-                <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
-                  {timeline}
-                </Box>
-                <div ref={dockRef} style={DOCK_STYLE}>
-                  <div className={overlay.DockRow}>
-                    <div className={overlay.DockBars}>
-                      <RoomViewTyping room={room} threadId={threadId} containerRef={areaRef} />
-                      {/* A bar that throws hides itself, not the room; it tries again in the next conversation. */}
-                      <ErrorBoundary
-                        fallback={null}
-                        resetKeys={[room.roomId, threadId]}
-                        onError={(thrown: unknown, info) => {
-                          // eslint-disable-next-line no-console
-                          console.error('[background-jobs] the jobs bar failed', thrown);
-                          reportBoundaryError(thrown, info.componentStack);
-                        }}
-                      >
-                        <BackgroundJobsBar
-                          room={room}
-                          threadId={threadId ?? null}
-                          canCancel={canCancelJobs && !readOnly}
-                          readOnly={readOnly}
-                          focusConversation={focusConversation}
-                        />
-                      </ErrorBoundary>
+          )}
+          {/* The element stays as the conversation goes: a plugin's cover keeps holding it. */}
+          <div ref={conversationRef} style={CONVERSATION_STYLE}>
+            {!collapsed && (
+              <>
+                <ThreadApprovalProvider
+                  room={room}
+                  // A message not yet on the server has no approvals, and no relations to ask for.
+                  threadId={!readOnly && isConfirmedMatrixEventId(threadId) ? threadId : undefined}
+                  focusConversation={focusConversation}
+                  passive={passive}
+                >
+                  <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>
+                    {timeline}
+                  </Box>
+                  <div ref={dockRef} style={DOCK_STYLE}>
+                    <div className={overlay.DockRow}>
+                      <div className={overlay.DockBars}>
+                        <RoomViewTyping room={room} threadId={threadId} containerRef={areaRef} />
+                        {/* A bar that throws hides itself, not the room; it tries again in the next conversation. */}
+                        <ErrorBoundary
+                          fallback={null}
+                          resetKeys={[room.roomId, threadId]}
+                          onError={(thrown: unknown, info) => {
+                            // eslint-disable-next-line no-console
+                            console.error('[background-jobs] the jobs bar failed', thrown);
+                            reportBoundaryError(thrown, info.componentStack);
+                          }}
+                        >
+                          <BackgroundJobsBar
+                            room={room}
+                            threadId={threadId ?? null}
+                            canCancel={canCancelJobs && !readOnly}
+                            readOnly={readOnly}
+                            focusConversation={focusConversation}
+                          />
+                        </ErrorBoundary>
+                      </div>
+                      <RoomViewFollowing room={room} threadId={threadId} />
                     </div>
-                    <RoomViewFollowing room={room} threadId={threadId} />
+                    {threadId && !readOnly && <ThreadApprovalQueue />}
                   </div>
-                  {threadId && !readOnly && <ThreadApprovalQueue />}
+                </ThreadApprovalProvider>
+                {/* Outside the approval provider: opening a thread must not remount the composer. */}
+                <div
+                  ref={footerRef}
+                  className={classNames(overlay.Footer, phone && overlay.FooterOnPhone)}
+                  data-room-footer="true"
+                  data-footer-of={threadId ? 'thread' : 'room'}
+                >
+                  <div aria-hidden style={SELECTION_STOP_STYLE} />
+                  {notice}
+                  {composer}
                 </div>
-              </ThreadApprovalProvider>
-            </Activity>
-          )}
-          {/* Outside <Activity> and the approval provider: desktop beside-thread keeps the composer
-              mounted, while a collapsed phone room unmounts it so no hidden second RoomInput stays
-              in the DOM. */}
-          {!collapsed && (
-            <div
-              ref={footerRef}
-              className={classNames(overlay.Footer, phone && overlay.FooterOnPhone)}
-              style={passive && !composer ? PASSIVE_FOOTER_STYLE : undefined}
-              data-room-footer="true"
-              data-footer-of={threadId ? 'thread' : 'room'}
-            >
-              <div aria-hidden style={SELECTION_STOP_STYLE} />
-              {notice}
-              {composer}
-            </div>
-          )}
+              </>
+            )}
+          </div>
+          {children}
         </div>
-        {children}
-      </div>
+      </PassivePeekContext.Provider>
     </PaneCollapsedContext.Provider>
   );
 }

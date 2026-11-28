@@ -1,5 +1,4 @@
 import 'fake-indexeddb/auto';
-import { Activity } from 'react';
 import { act, create } from 'react-test-renderer';
 import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
@@ -319,106 +318,6 @@ it('refreshes a cached preview when the reply finishes outside the loaded thread
     await vi.waitFor(async () => {
       await act(async () => {});
       expect(preview).toBe('The release notes are ready.');
-    });
-  } finally {
-    await act(async () => renderer?.unmount());
-    await deleteCacheStoreDb(sessionId);
-  }
-});
-
-it('catches a thread cache write that occurred while hidden in Activity and paused, updating the preview on commit', async () => {
-  const sessionId = 'preview-revisions-activity-hidden';
-  const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@reader:example.org' });
-  const room = new Room('!room:example.org', mx, '@reader:example.org');
-  const rootId = '$other-root';
-  const reply = {
-    event_id: '$other-reply',
-    room_id: room.roomId,
-    sender: '@agent:example.org',
-    origin_server_ts: 1000,
-    type: 'm.room.message',
-    content: {
-      msgtype: 'm.text',
-      body: 'Thinking...',
-      'io.mindroom.stream_status': 'pending',
-      'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
-    },
-  };
-  const roots = [rootId];
-  const noThreads: [] = [];
-  const noBodies = new Map<string, string>();
-  const storeSummary = () => {};
-  let records = new Map([[rootId, buildThreadRecord({ room, threadRootId: rootId })]]);
-  let preview: string | undefined;
-
-  function Harness({ paused }: { paused: boolean }) {
-    const cachedMetadata = useThreadOverviewCachedMetadata(room);
-    preview = cachedMetadata.latestReplyPreviewMap.get(rootId);
-    useThreadOverviewCacheHydration({
-      paused,
-      overviewThreadRootIds: roots,
-      overviewThreadMetadataCacheLimit: 32,
-      room,
-      roomThreadListThreads: noThreads,
-      sessionId,
-      mx,
-      showCompactRoomView: true,
-      compactThreadRootBodyMap: noBodies,
-      compactThreadRecordMap: records,
-      threadRecordMap: records,
-      cachedMetadata,
-      onStoreThreadSummary: storeSummary,
-    });
-    return null;
-  }
-
-  const tree = (mode: 'visible' | 'hidden', paused: boolean) => (
-    <Activity mode={mode}>
-      <Harness paused={paused} />
-    </Activity>
-  );
-
-  let renderer: ReturnType<typeof create> | undefined;
-  try {
-    await saveThreadEventsToCache(sessionId, room.roomId, rootId, [reply]);
-    await act(async () => {
-      renderer = create(tree('visible', false));
-    });
-    await vi.waitFor(async () => {
-      await act(async () => {});
-      expect(preview).toBe('Thinking...');
-    });
-
-    await act(async () => renderer?.update(tree('hidden', true)));
-    const finishedEdit = {
-      ...reply,
-      event_id: '$other-finished',
-      origin_server_ts: 2000,
-      content: {
-        msgtype: 'm.text',
-        body: '* Final answer ready.',
-        'm.new_content': {
-          msgtype: 'm.text',
-          body: 'Final answer ready.',
-          'io.mindroom.stream_status': 'completed',
-        },
-        'm.relates_to': { rel_type: 'm.replace', event_id: '$other-reply' },
-      },
-    };
-    await saveThreadEventsToCache(sessionId, room.roomId, rootId, [
-      { ...reply, unsigned: { 'm.relations': { 'm.replace': finishedEdit } } },
-    ]);
-    records = new Map([
-      [rootId, buildThreadRecord({ room, threadRootId: rootId, fallbackLastActivityTs: 2000 })],
-    ]);
-
-    // Passive back-peek stays paused; commit unpauses and picks up the missed cache write.
-    await act(async () => renderer?.update(tree('visible', true)));
-    expect(preview).toBe('Thinking...');
-    await act(async () => renderer?.update(tree('visible', false)));
-    await vi.waitFor(async () => {
-      await act(async () => {});
-      expect(preview).toBe('Final answer ready.');
     });
   } finally {
     await act(async () => renderer?.unmount());

@@ -5,8 +5,8 @@ import {
   type ThreadBackgroundState,
 } from '../../matrix/protocol/threadBackgroundJobs';
 import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
-import { useMemo, useRef } from 'react';
-import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
+import { useLayoutEffect, useMemo, useRef } from 'react';
+import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
@@ -83,6 +83,26 @@ type ThreadIndexOrdering = {
   liveOrderedIds: string[];
   displayOrderedIds: string[];
 };
+
+const EMPTY_RECORD_MAPS: ThreadIndexRecordMaps = {
+  normalThreadRecordMap: new Map(),
+  compactThreadRecordMap: new Map(),
+};
+const EMPTY_ROOT_DATA = {
+  ids: [] as string[],
+  indexMap: new Map<string, number>(),
+  bodyMap: new Map<string, string>(),
+  sourceTsMap: new Map<string, number>(),
+};
+type WarmThreadIndexEntry = {
+  key: string;
+  freeze: ThreadSortFreezeState | null;
+  ignored: Set<string>;
+  result: Omit<UseThreadIndexResult, 'refreshRoomThreadList' | 'applyThreadOverviewRelationEvents'>;
+};
+const warmThreadIndexCache = new WeakMap<Room, WarmThreadIndexEntry>();
+const sameSet = (a: Set<string>, b: Set<string>) =>
+  a === b || (a.size === b.size && [...a].every((id) => b.has(id)));
 
 const EMPTY_ORDERING: ThreadIndexOrdering = {
   filteredIds: [],
@@ -383,42 +403,66 @@ export const useThreadIndex = ({
   mx,
   onStoreThreadSummary,
 }: UseThreadIndexOptions): UseThreadIndexResult => {
+  const paused = usePanePaused();
+  const threadSortControlSignature = useMemo(
+    () =>
+      createThreadSortControlSignature({
+        state: requestedThreadFilterState,
+        viewMode: effectiveViewMode,
+      }),
+    [requestedThreadFilterState, effectiveViewMode]
+  );
+  const warmKey = `${sessionId}\0${currentUserId ?? ''}\0${compactViewRequested}\0${threadSortControlSignature}\0${requestedThreadFilterState.unsupportedQuery}\0${showHiddenEvents}\0${hideMembershipEvents}\0${hideNickAvatarEvents}`;
+  const cachedWarm =
+    paused && !threadId && !focusedRoomOverviewRequested
+      ? warmThreadIndexCache.get(room)
+      : undefined;
+  const warmPeek =
+    cachedWarm &&
+    cachedWarm.key === warmKey &&
+    cachedWarm.freeze === threadSortFreezeState &&
+    sameSet(cachedWarm.ignored, ignoredUsersSet)
+      ? cachedWarm.result
+      : undefined;
+  const skipBuild = Boolean(threadId || warmPeek);
   const loadedTimelineEvents = useMemo(() => {
-    if (threadId) return [] as MatrixEvent[];
+    if (skipBuild) return [] as MatrixEvent[];
     return getLinkedTimelineEvents(linkedTimelines);
-  }, [threadId, linkedTimelines]);
+  }, [skipBuild, linkedTimelines]);
   const threadReplyCountMap = useMemo(
     () =>
-      threadId ? new Map<string, number>() : buildVisibleThreadReplyCountMap(loadedTimelineEvents),
-    [threadId, loadedTimelineEvents]
+      skipBuild ? new Map<string, number>() : buildVisibleThreadReplyCountMap(loadedTimelineEvents),
+    [skipBuild, loadedTimelineEvents]
   );
   const threadWriters = useThreadWriters(room);
   const threadParticipantMap = useMemo(
     () =>
-      threadId
+      skipBuild
         ? new Map<string, string[]>()
         : mergeThreadWriterIds(
             buildVisibleThreadParticipantMap(loadedTimelineEvents, Infinity),
             threadWriters
           ),
-    [threadId, loadedTimelineEvents, threadWriters]
+    [skipBuild, loadedTimelineEvents, threadWriters]
   );
   const threadSummaryInfoMap = useMemo(
     () =>
-      threadId ? new Map<string, ThreadSummaryInfo>() : buildThreadSummaryMap(loadedTimelineEvents),
-    [threadId, loadedTimelineEvents]
+      skipBuild
+        ? new Map<string, ThreadSummaryInfo>()
+        : buildThreadSummaryMap(loadedTimelineEvents),
+    [skipBuild, loadedTimelineEvents]
   );
   const scheduledTaskEvents = useScheduledTaskEvents(room);
   const scheduledStatusMap = useMemo(
     () =>
-      threadId
+      skipBuild
         ? new Map<string, ThreadScheduledStatus>()
         : buildRoomThreadScheduledStatusMap(scheduledTaskEvents),
-    [threadId, scheduledTaskEvents]
+    [skipBuild, scheduledTaskEvents]
   );
   const availableRoomTags = useMemo(
-    () => collectAvailableRoomTags(threadResolutionMap),
-    [threadResolutionMap]
+    () => (warmPeek ? warmPeek.availableRoomTags : collectAvailableRoomTags(threadResolutionMap)),
+    [warmPeek, threadResolutionMap]
   );
   // The Threads view lists the room's threads as Compact does: those of the room's thread list
   // too, not only those whose roots the loaded history holds, which pages of history full of
@@ -438,6 +482,7 @@ export const useThreadIndex = ({
     overviewRefreshCounter
   );
   const roomSurfaceEventEntries = useMemo(() => {
+    if (warmPeek) return [] as TimelineEventEntry[];
     // Mutable SDK/event metadata can change without changing the timeline array identity.
     void overviewRefreshCounter;
     if (threadId) return renderableEventEntries;
@@ -465,6 +510,7 @@ export const useThreadIndex = ({
       )
     );
   }, [
+    warmPeek,
     threadId,
     renderableEventEntries,
     linkedTimelines,
@@ -480,6 +526,7 @@ export const useThreadIndex = ({
     roomThreadListThreads,
   ]);
   const visibleThreadRootData = useMemo(() => {
+    if (warmPeek) return EMPTY_ROOT_DATA;
     const ids: string[] = [];
     const indexMap = new Map<string, number>();
     const bodyMap = new Map<string, string>();
@@ -501,22 +548,23 @@ export const useThreadIndex = ({
       }
     });
     return { ids, indexMap, bodyMap, sourceTsMap };
-  }, [roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
+  }, [warmPeek, roomSurfaceEventEntries, room, threadResolutionMap, threadReplyCountMap]);
   const pinnedEventIds = usePinnedEventIds(room);
   const pinnedThreadEvents = usePinnedThreadEvents(
     room,
-    compactViewRequested && !threadId,
+    compactViewRequested && !threadId && !paused,
     overviewRefreshCounter
   );
   const compactRoomSurfaceEntries = useMemo(() => {
+    if (warmPeek) return [] as TimelineEventEntry[];
     const entries = pinnedThreadEvents.map((event, index) => ({
       event: room.findEventById(event.getId()!) ?? event,
       absoluteIndex: -(index + 1),
     }));
     return [...entries, ...roomSurfaceEventEntries];
-  }, [pinnedThreadEvents, room, roomSurfaceEventEntries]);
+  }, [warmPeek, pinnedThreadEvents, room, roomSurfaceEventEntries]);
   const { compactThreadRootData, zeroReplyRootCount } = useMemo(() => {
-    if (threadId || !compactViewRequested) {
+    if (skipBuild || !compactViewRequested) {
       return { compactThreadRootData: visibleThreadRootData, zeroReplyRootCount: 0 };
     }
 
@@ -552,7 +600,7 @@ export const useThreadIndex = ({
       zeroReplyRootCount: compactZeroReplyRootData.ids.length,
     };
   }, [
-    threadId,
+    skipBuild,
     compactViewRequested,
     room,
     compactRoomSurfaceEntries,
@@ -570,6 +618,7 @@ export const useThreadIndex = ({
   const cachedMetadata = useThreadOverviewCachedMetadata(room);
 
   const compactThreadRootBodyMap = useMemo(() => {
+    if (warmPeek) return compactThreadRootData.bodyMap;
     return mergeCompactThreadRootBodyMaps(
       compactThreadRootData.bodyMap,
       cachedMetadata.compactRootBodyMap,
@@ -577,20 +626,13 @@ export const useThreadIndex = ({
       cachedMetadata.compactRootSourceTsMap
     );
   }, [
+    warmPeek,
     compactThreadRootData.bodyMap,
     compactThreadRootData.sourceTsMap,
     cachedMetadata.compactRootBodyMap,
     cachedMetadata.compactRootSourceTsMap,
   ]);
 
-  const threadSortControlSignature = useMemo(
-    () =>
-      createThreadSortControlSignature({
-        state: requestedThreadFilterState,
-        viewMode: effectiveViewMode,
-      }),
-    [requestedThreadFilterState, effectiveViewMode]
-  );
   const visibleThreadRootEventMap = useMemo(
     () => buildThreadRootEventMap(roomSurfaceEventEntries, visibleThreadRootData.indexMap),
     [roomSurfaceEventEntries, visibleThreadRootData.indexMap]
@@ -600,27 +642,15 @@ export const useThreadIndex = ({
     [compactRoomSurfaceEntries, compactThreadRootData.indexMap]
   );
   const { jobs } = useRoomBackgroundJobs(room);
-  const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
+  const jobStates = useMemo(
+    () => (warmPeek ? warmPeek.threadBackgroundStates : indexThreadBackgroundJobs(jobs)),
+    [warmPeek, jobs]
+  );
   const { threads: activeRunThreads } = useRoomActiveRuns(room);
-  const paneCollapsed = usePaneCollapsed();
   // Keep base records only: background-job overlays never become reuse inputs.
-  const builtRecordMapsRef = useRef<{
-    room: Room;
-    threadId: string | undefined;
-    compactViewRequested: boolean;
-    maps: ThreadIndexRecordMaps;
-  }>(undefined);
+  const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>(undefined);
   const baseRecordMaps = useMemo(() => {
-    const prev = builtRecordMapsRef.current;
-    if (
-      paneCollapsed &&
-      prev &&
-      prev.room === room &&
-      prev.threadId === threadId &&
-      prev.compactViewRequested === compactViewRequested
-    ) {
-      return prev.maps;
-    }
+    if (warmPeek) return EMPTY_RECORD_MAPS;
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
     const built = measureDeepTracePhase('roomOverview.threadIndex', () =>
@@ -641,15 +671,15 @@ export const useThreadIndex = ({
         threadResolutionMap,
         currentUserId,
         scheduledStatusMap,
-        previous: prev?.maps,
+        previous: builtRecordMapsRef.current,
         changes: overviewChanges,
       })
     );
     // An open thread has no records, so nothing is kept from before it.
-    builtRecordMapsRef.current = { room, threadId, compactViewRequested, maps: built };
+    builtRecordMapsRef.current = built;
     return built;
   }, [
-    paneCollapsed,
+    warmPeek,
     threadId,
     compactViewRequested,
     room,
@@ -673,6 +703,7 @@ export const useThreadIndex = ({
   // Weak keys retain unchanged overlays without retaining old record/history snapshots.
   const jobOverlays = useMemo(() => new WeakMap<ThreadRecord, ThreadRecord>(), []);
   const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
+    if (warmPeek) return warmPeek;
     const overlay = (records: Map<string, ThreadRecord>) => {
       let result = records;
       for (const [id, record] of records) {
@@ -704,15 +735,17 @@ export const useThreadIndex = ({
           ? normal
           : overlay(baseRecordMaps.compactThreadRecordMap),
     };
-  }, [baseRecordMaps, jobStates, activeRunThreads, jobOverlays]);
+  }, [warmPeek, baseRecordMaps, jobStates, activeRunThreads, jobOverlays]);
   // Renewed when a snooze ends, so its thread comes back into the list.
   const snoozeNow = useSnoozeNow(
     useMemo(
       () =>
-        [...normalThreadRecordMap.values(), ...compactThreadRecordMap.values()].map(
-          (record) => record.status.snoozedUntilTs
-        ),
-      [normalThreadRecordMap, compactThreadRecordMap]
+        warmPeek
+          ? []
+          : [...normalThreadRecordMap.values(), ...compactThreadRecordMap.values()].map(
+              (record) => record.status.snoozedUntilTs
+            ),
+      [warmPeek, normalThreadRecordMap, compactThreadRecordMap]
     )
   );
   const focusedRoomOverviewRootId = useMemo(
@@ -736,8 +769,9 @@ export const useThreadIndex = ({
     ]
   );
 
-  const snapshot = useMemo(
+  const snapshot = useMemo<ThreadIndexSnapshot>(
     () =>
+      warmPeek ??
       resolveThreadIndexSnapshot({
         room,
         pinnedThreadRootIds: [...pinnedEventIds].reverse(),
@@ -757,6 +791,7 @@ export const useThreadIndex = ({
         now: snoozeNow,
       }),
     [
+      warmPeek,
       room,
       pinnedEventIds,
       threadId,
@@ -775,35 +810,7 @@ export const useThreadIndex = ({
     ]
   );
 
-  useThreadOverviewCacheHydration({
-    paused: paneCollapsed,
-    threadId,
-    overviewThreadRootIds: snapshot.overviewThreadRootIds,
-    overviewThreadMetadataCacheLimit: THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
-    room,
-    roomThreadListThreads,
-    sessionId,
-    mx,
-    showCompactRoomView: snapshot.showCompactRoomView,
-    compactThreadRootBodyMap: compactThreadRootData.bodyMap,
-    compactThreadRecordMap: snapshot.compactThreadRecordMap,
-    threadRecordMap: snapshot.normalThreadRecordMap,
-    cachedMetadata,
-    onStoreThreadSummary,
-  });
-
-  const applyThreadOverviewRelationEvents = useThreadOverviewRelationUpdates({
-    threadId,
-    showCompactRoomView: snapshot.showCompactRoomView,
-    compactThreadRecordMap,
-    normalThreadRecordMap,
-    cachedMetadata,
-    room,
-    roomThreadListThreads,
-    onStoreThreadSummary,
-  });
-
-  return {
+  const data: WarmThreadIndexEntry['result'] = warmPeek ?? {
     ...snapshot,
     roomSurfaceEventEntries,
     visibleThreadRootData,
@@ -820,9 +827,46 @@ export const useThreadIndex = ({
       (compactViewRequested || threadsViewListed) &&
       roomThreadListLoadedSuccessfully &&
       !roomThreadListLoading,
-    refreshRoomThreadList,
-    applyThreadOverviewRelationEvents,
     snoozeNow,
     threadBackgroundStates: jobStates,
   };
+
+  useThreadOverviewCacheHydration({
+    paused,
+    threadId,
+    overviewThreadRootIds: data.overviewThreadRootIds,
+    overviewThreadMetadataCacheLimit: THREAD_OVERVIEW_METADATA_CACHE_LIMIT,
+    room,
+    roomThreadListThreads,
+    sessionId,
+    mx,
+    showCompactRoomView: data.showCompactRoomView,
+    compactThreadRootBodyMap: data.compactThreadRootData.bodyMap,
+    compactThreadRecordMap: data.compactThreadRecordMap,
+    threadRecordMap: data.normalThreadRecordMap,
+    cachedMetadata,
+    onStoreThreadSummary,
+  });
+
+  const applyThreadOverviewRelationEvents = useThreadOverviewRelationUpdates({
+    threadId,
+    showCompactRoomView: data.showCompactRoomView,
+    compactThreadRecordMap,
+    normalThreadRecordMap,
+    cachedMetadata,
+    room,
+    roomThreadListThreads,
+    onStoreThreadSummary,
+  });
+  useLayoutEffect(() => {
+    if (paused || threadId || focusedRoomOverviewRequested) return;
+    warmThreadIndexCache.set(room, {
+      key: warmKey,
+      freeze: threadSortFreezeState,
+      ignored: ignoredUsersSet,
+      result: data,
+    });
+  });
+
+  return { ...data, refreshRoomThreadList, applyThreadOverviewRelationEvents };
 };

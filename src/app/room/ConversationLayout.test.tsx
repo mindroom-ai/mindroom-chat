@@ -4,8 +4,8 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { createClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
+import { usePaneCollapsed, usePassivePeek } from '../lib/hooks/usePaneCollapsed';
 import { ConversationLayout } from './ConversationLayout';
-import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { HeaderInShortArea } from './RoomView.css';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
@@ -247,70 +247,38 @@ it('skips rewriting overlay inset CSS properties when heights are unchanged on r
   }
 });
 
-it('parks header and timeline inside Activity when keepAlive is set, unmounts footer while collapsed, and preserves cached insets while passive', () => {
-  vi.stubGlobal(
-    'ResizeObserver',
-    class {
-      observe() {}
-      disconnect() {}
-    }
-  );
-  const collapsedSeen: boolean[] = [];
+it('keeps composer, typing, jobs, and following visible during passive peek and unmounts all chrome when collapsed', () => {
+  const states: Array<{ collapsed: boolean; passive: boolean }> = [];
   function Probe() {
-    collapsedSeen.push(usePaneCollapsed());
+    states.push({ collapsed: usePaneCollapsed(), passive: usePassivePeek() });
     return <div data-testid="probe" />;
   }
-  const areaRef = createRef<HTMLDivElement>();
-  const conversationRef = createRef<HTMLDivElement>();
-  const propsFor = (extra: Partial<Parameters<typeof layout>[0]> = {}) =>
+  const { rerender } = render(
     layout({
-      areaRef,
-      conversationRef,
-      keepAlive: true,
-      threadId: '$t1',
+      passive: true,
       header: () => <div data-testid="header" />,
       timeline: <Probe />,
-      children: <div data-testid="cover" />,
-      ...extra,
-    });
-  try {
-    const { rerender } = render(propsFor({ threadId: undefined }));
-    const probeEl = screen.getByTestId('probe');
-    const headerWrap = screen.getByTestId('header').parentElement as HTMLElement;
-    let headerReads = 0;
-    Object.defineProperty(headerWrap, 'offsetHeight', {
-      configurable: true,
-      get: () => {
-        headerReads += 1;
-        return 56;
-      },
-    });
-    rerender(propsFor());
-    expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
-    expect(collapsedSeen.at(-1)).toBe(false);
+      composer: <div data-testid="composer" />,
+    })
+  );
+  expect(states.at(-1)).toEqual({ collapsed: false, passive: true });
+  expect(screen.getByTestId('header')).toBeTruthy();
+  expect(screen.getByTestId('typing')).toBeTruthy();
+  expect(screen.getByTestId('jobs')).toBeTruthy();
+  expect(screen.getByTestId('following')).toBeTruthy();
+  expect(screen.getByTestId('composer')).toBeTruthy();
 
-    // Collapsed with keepAlive: header+timeline parked in hidden Activity, footer unmounted, insets preserved.
-    headerReads = 0;
-    rerender(propsFor({ collapsed: true }));
-    expect(screen.getByTestId('cover')).toBeTruthy();
-    expect(screen.getByTestId('probe')).toBe(probeEl);
-    expect(probeEl.parentElement?.style.display).toBe('none');
-    expect(headerWrap.style.display).toBe('none');
-    expect(document.querySelector('[data-room-footer="true"]')).toBeNull();
-    expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
-    expect(headerReads).toBe(0);
-
-    // Passive reveal without composer: visible Activity, footer reserves composer band, 0 forced reflows.
-    rerender(propsFor({ collapsed: false, passive: true, composer: undefined }));
-    expect(screen.getByTestId('probe')).toBe(probeEl);
-    expect(probeEl.parentElement?.style.display).not.toBe('none');
-    expect(collapsedSeen.at(-1)).toBe(true);
-    expect(
-      document.querySelector<HTMLElement>('[data-room-footer="true"]')?.style.minBlockSize
-    ).toBe('var(--room-composer-height, 0px)');
-    expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
-    expect(headerReads).toBe(0);
-  } finally {
-    vi.unstubAllGlobals();
-  }
+  rerender(
+    layout({
+      collapsed: true,
+      header: () => <div data-testid="header" />,
+      timeline: <Probe />,
+      composer: <div data-testid="composer" />,
+    })
+  );
+  expect(screen.queryByTestId('probe')).toBeNull();
+  expect(screen.queryByTestId('composer')).toBeNull();
+  expect(screen.queryByTestId('typing')).toBeNull();
+  expect(document.querySelector('[data-room-header="true"]')).toBeNull();
+  expect(document.querySelector('[data-room-footer="true"]')).toBeNull();
 });

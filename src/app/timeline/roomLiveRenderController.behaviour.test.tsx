@@ -15,7 +15,7 @@ import { createDefaultThreadFilterState } from '../event-store/threads/roomThrea
 import type { RoomUnreadInfo, Timeline } from '../event-store/timeline/timelinePagination';
 import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { PaneCollapsedContext } from '../lib/hooks/usePaneCollapsed';
+import { PaneCollapsedContext, PassivePeekContext } from '../lib/hooks/usePaneCollapsed';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
 import {
   finishesStreamedThreadReply,
@@ -790,12 +790,23 @@ describe('useRoomLiveRenderController, a streamed thread reply finishes', () => 
       },
     } as unknown as Room;
     const mx = { getUserId: () => ME } as unknown as MatrixClient;
-    const setTimeline = vi.fn<(update: SetStateAction<Timeline>) => void>();
+    let state = { linkedTimelines: [], range: { start: 0, end: 5 } } as unknown as Timeline;
+    const setTimeline = vi.fn<(update: SetStateAction<Timeline>) => void>((update) => {
+      state = typeof update === 'function' ? update(state) : update;
+    });
     const scrollArea = { clientHeight: 400, scrollHeight: 1_000, scrollTop: 600 } as HTMLDivElement;
 
-    const Harness = ({ collapsed }: { collapsed: boolean }) => (
+    const Harness = ({
+      collapsed = false,
+      passive = false,
+    }: {
+      collapsed?: boolean;
+      passive?: boolean;
+    }) => (
       <PaneCollapsedContext.Provider value={collapsed}>
-        <Inner />
+        <PassivePeekContext.Provider value={passive}>
+          <Inner />
+        </PassivePeekContext.Provider>
       </PaneCollapsedContext.Provider>
     );
     const Inner = () => {
@@ -842,5 +853,21 @@ describe('useRoomLiveRenderController, a streamed thread reply finishes', () => 
       renderer.update(<Harness collapsed={false} />);
     });
     expect(setTimeline).toHaveBeenCalledTimes(1);
+
+    // Passive peek also defers grow() updates and flushes exact range growth once on commit.
+    setTimeline.mockClear();
+    act(() => renderer.update(<Harness passive />));
+    act(() => {
+      listeners
+        .get(RoomEvent.Timeline)
+        ?.forEach((fn) => fn(makeEvent('$m1'), room, false, false, { liveEvent: true }));
+      listeners
+        .get(RoomEvent.Timeline)
+        ?.forEach((fn) => fn(makeEvent('$m2'), room, false, false, { liveEvent: true }));
+    });
+    expect(setTimeline).not.toHaveBeenCalled();
+    act(() => renderer.update(<Harness passive={false} />));
+    expect(setTimeline).toHaveBeenCalledTimes(1);
+    expect(state.range).toEqual({ start: 0, end: 7 });
   });
 });

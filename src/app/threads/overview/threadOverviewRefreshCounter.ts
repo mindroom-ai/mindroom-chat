@@ -24,7 +24,7 @@ import {
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
-import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
+import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
 import { isRecord } from '../../lib/isRecord';
 import { MINDROOM_ACTIVE_RUNS_EVENT } from '../../matrix/protocol/activeRunsContract';
 import { onSyncedEditForgotten } from '../../matrix/client/syncedEdits';
@@ -121,11 +121,11 @@ const useThreadOverviewRefresh = (
   threadId: string | undefined,
   starts: 'afterPaint' | 'inCommit' | 'never'
 ): ThreadOverviewRefresh => {
-  const collapsed = usePaneCollapsed();
-  const collapsedRef = useRef(collapsed);
-  collapsedRef.current = collapsed;
+  const paused = usePanePaused();
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const dirtyRef = useRef(false);
-  const [overviewRefreshCounter, setCounter] = useState(0);
+  const [overviewRefreshCounter, setCounter] = useState(starts === 'inCommit' && paused ? 1 : 0);
   const [overviewChanges] = useState(createThreadRecordChanges);
   const setOverviewRefreshCounter = useCallback<Dispatch<SetStateAction<number>>>(
     (count) => {
@@ -140,7 +140,7 @@ const useThreadOverviewRefresh = (
 
     overviewChanges.listened = true;
     const bump = () => {
-      if (collapsedRef.current) {
+      if (pausedRef.current) {
         dirtyRef.current = true;
         return;
       }
@@ -154,13 +154,9 @@ const useThreadOverviewRefresh = (
     };
     // What happened to the room before these listeners heard it: since the render that built the
     // records shown, or while a thread was open. A list that waits for them has built none, and
-    // builds on this count. When a cold-mounted Compact preview starts while collapsed/passive,
-    // transition 0 -> 1 once so it renders; a warm <Activity> reveal already has count >= 1 and
-    // defers its refresh until uncollapsed.
-    if (starts === 'inCommit' && collapsedRef.current) {
+    // builds on this count — except a passive swipe peek, which skips the waiting commit.
+    if (starts === 'inCommit' && pausedRef.current) {
       markThreadRecordChange(overviewChanges);
-      dirtyRef.current = true;
-      setCounter((count) => (count === 0 ? 1 : count));
     } else {
       mark();
     }
@@ -298,11 +294,11 @@ const useThreadOverviewRefresh = (
   useLayoutEffect(() => (starts === 'inCommit' ? listen() : undefined), [starts, listen]);
   useEffect(() => (starts === 'afterPaint' ? listen() : undefined), [starts, listen]);
   useLayoutEffect(() => {
-    if (!collapsed && dirtyRef.current) {
+    if (!paused && dirtyRef.current) {
       dirtyRef.current = false;
       setCounter((count) => count + 1);
     }
-  }, [collapsed]);
+  }, [paused]);
 
   return { overviewRefreshCounter, setOverviewRefreshCounter, overviewChanges };
 };
