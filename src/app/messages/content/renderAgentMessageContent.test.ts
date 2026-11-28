@@ -40,11 +40,12 @@ vi.mock('./MsgTypeRenderers', () => ({
       renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
       renderAfterBody
     ),
-  MText: ({ content, renderBody, renderStateSuffix }: any) =>
+  MText: ({ content, renderAfterBody, renderBody, renderStateSuffix }: any) =>
     React.createElement(
       'div',
       { 'data-renderer': 'text' },
       renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
+      renderAfterBody,
       renderStateSuffix?.()
     ),
 }));
@@ -58,6 +59,7 @@ vi.mock('./BrokenContent', () => ({
 vi.mock('../agent-run/Reasoning.css', () => ({}));
 vi.mock('../html/HtmlBlocks', () => ({
   useToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
+  inspectRenderedToolCalls: vi.fn(() => ({ indexes: [], lastNode: -1 })),
 }));
 
 vi.mock('../../ui-actions/ChatUiActionButton', () => ({
@@ -108,58 +110,21 @@ vi.mock('../../approvals/SecretRequestCard', () => ({
   },
 }));
 
-vi.mock('./LongTextText', () => ({
-  // Sidecar contents the tests have "downloaded", by MXC URI.
-  useLongTextResolvedContent: (source: { mxcUri: string } | undefined) =>
-    source ? resolvedLongText.get(source.mxcUri) : undefined,
-  LongTextKind: {
-    Text: 'text',
-    Emote: 'emote',
-    Notice: 'notice',
-  },
-  LongTextText: ({
-    content,
-    displayName,
-    hydrate,
-    kind,
-    longTextSource,
-    renderAfterBody,
-    renderBody,
-    renderStateSuffix,
-  }: any) => {
-    const bodyProps = { body: typeof content.body === 'string' ? content.body : '' };
-    if (!longTextSource) {
-      if (kind === 'emote') {
-        return React.createElement(
-          'div',
-          { 'data-renderer': 'emote' },
-          displayName,
-          ' ',
-          renderBody(content, bodyProps, undefined)
-        );
-      }
-      if (kind === 'notice') {
-        return React.createElement(
-          'div',
-          { 'data-renderer': 'notice' },
-          renderBody(content, bodyProps, undefined),
-          renderAfterBody?.(content)
-        );
-      }
-      return React.createElement(
-        'div',
-        { 'data-renderer': 'text' },
-        renderBody(content, bodyProps, undefined),
-        renderStateSuffix?.()
-      );
+vi.mock('./useResolvedMessageContent', () => ({
+  useResolvedMessageContent: ({ content, longTextSource, hydrate }: any) => {
+    if (longTextSource) {
+      longTextTextMock({ hydrate, mxcUri: longTextSource.mxcUri });
     }
-    longTextTextMock({ hydrate, kind });
-    return React.createElement(
-      'div',
-      { 'data-renderer': 'long-text' },
-      kind,
-      renderBody(content, bodyProps, 'unavailable')
-    );
+    const rawHydratedContent = longTextSource
+      ? resolvedLongText.get(longTextSource.mxcUri)
+      : undefined;
+    return {
+      content: rawHydratedContent ?? content,
+      rawHydratedContent,
+      toolMetadataStatus: longTextSource ? 'unavailable' : undefined,
+      showLoadingIndicator: false,
+      canFold: !longTextSource || rawHydratedContent !== undefined,
+    };
   },
 }));
 
@@ -724,11 +689,11 @@ describe('renderAgentMessageContent', () => {
 
       const rendered = JSON.stringify(renderer.toJSON());
 
-      expect(rendered).toContain('long-text');
+      expect(rendered).toContain('"data-renderer":"text"');
       expect(rendered).toContain('Long text preview');
       expect(longTextTextMock).toHaveBeenCalledWith({
         hydrate: expectedHydrate,
-        kind: 'text',
+        mxcUri: 'mxc://example.org/long-text',
       });
 
       renderer.unmount();
@@ -770,7 +735,7 @@ describe('renderAgentMessageContent', () => {
     expect(previewContent?.formatted_body).not.toContain('<unsafe>');
     expect(longTextTextMock).toHaveBeenCalledWith({
       hydrate: false,
-      kind: 'text',
+      mxcUri: 'mxc://example.org/long-text',
     });
 
     renderer.unmount();
@@ -909,7 +874,7 @@ describe('renderAgentMessageContent', () => {
 
       expect(rendered).toContain('data-canvas-receipt');
       expect(rendered).toContain('Edited draft');
-      expect(rendered).not.toContain('"data-renderer":"long-text"');
+      expect(rendered).not.toContain('"data-renderer":"text"');
       renderer.unmount();
     });
 
@@ -960,7 +925,7 @@ describe('renderAgentMessageContent', () => {
       const deep = await renderNode({ msgType: 'm.file', content: preview });
       const deepRendered = JSON.stringify(deep.toJSON());
       expect(deepRendered).not.toContain('data-canvas-receipt');
-      expect(deepRendered).toContain('"data-renderer":"long-text"');
+      expect(deepRendered).toContain('"data-renderer":"text"');
       deep.unmount();
 
       // MindRoom refuses a file with a lone surrogate anywhere in it.
@@ -980,7 +945,7 @@ describe('renderAgentMessageContent', () => {
       const rendered = JSON.stringify(renderer.toJSON());
 
       expect(rendered).not.toContain('data-canvas-receipt');
-      expect(rendered).toContain('long-text');
+      expect(rendered).toContain('"data-renderer":"text"');
       renderer.unmount();
     });
 
@@ -1231,10 +1196,10 @@ describe('renderAgentMessageContent', () => {
 
     const rendered = JSON.stringify(renderer.toJSON());
 
-    expect(rendered).toContain('long-text');
+    expect(rendered).toContain('"data-renderer":"text"');
     expect(longTextTextMock).toHaveBeenCalledWith({
       hydrate: true,
-      kind: 'text',
+      mxcUri: 'mxc://example.org/long-text',
     });
 
     renderer.unmount();

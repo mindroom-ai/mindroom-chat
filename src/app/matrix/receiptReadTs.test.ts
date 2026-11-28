@@ -9,7 +9,7 @@ import {
   type MatrixClient,
   type Thread,
 } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SAVED_RECEIPT_EVENT_TS_KEY } from './client/savedSyncReceipts';
 import {
   contextReceiptReadTs,
@@ -17,6 +17,7 @@ import {
   receiptEventsVersion,
   receiptReadTs,
   unthreadedReceiptReadTs,
+  type RoomReceiptLookup,
 } from './receiptReadTs';
 
 // A receipt reads up to the event it names, or to when the server took it while the room does not
@@ -43,6 +44,25 @@ const message = (eventId: string, ts: number, rootId?: string): MatrixEvent =>
 beforeEach(() => {
   mx = createClient({ baseUrl: 'https://matrix.example', userId: '@me:server' });
   room = new Room('!room:server', mx, '@me:server');
+});
+
+describe('receiptReadTs', () => {
+  it('reuses room lookups, including misses, but prefers the thread and keeps per-receipt fallbacks', async () => {
+    await room.addLiveEvents([message('$named', 1000)], { addToState: false });
+    const find = vi.spyOn(room, 'findEventById');
+    const stats = { receipt_ms: 0, receipt_lookups: 0, receipt_cache_hits: 0 };
+    const lookup: RoomReceiptLookup = { room, targets: new Map(), stats };
+    const local = message('$named', 2000, '$thread');
+    const thread = { findEventById: () => local } as unknown as Thread;
+
+    expect(receiptReadTs(room, room, '$named', 5000, lookup)).toBe(1000);
+    expect(receiptReadTs(room, thread, '$named', 5000, lookup)).toBe(2000);
+    expect(receiptReadTs(room, room, '$named', 5000, lookup)).toBe(1000);
+    expect(receiptReadTs(room, room, '$missing', 5000, lookup)).toBe(5000);
+    expect(receiptReadTs(room, room, '$missing', 5500, lookup)).toBe(5500);
+    expect(find.mock.calls).toEqual([['$named'], ['$missing']]);
+    expect(stats).toMatchObject({ receipt_lookups: 2, receipt_cache_hits: 2 });
+  });
 });
 
 describe('receiptEventsVersion', () => {
@@ -287,7 +307,9 @@ describe('receiptEventsVersion', () => {
         })
       );
 
-      expect(receiptReadTs(room, room, '$trimmed-main', 5000)).toBe(1300);
+      const lookup: RoomReceiptLookup = { room, targets: new Map() };
+      expect(receiptReadTs(room, room, '$trimmed-main', 5000, lookup)).toBe(1300);
+      expect(receiptReadTs(room, room, '$trimmed-main', 5100, lookup)).toBe(1300);
       expect(contextReceiptReadTs(room, '@me:server', room)).toBe(1300);
       expect(unthreadedReceiptReadTs(room, '@me:server', room)).toBe(1200);
 
@@ -313,7 +335,8 @@ describe('receiptEventsVersion', () => {
 
       // Once the named event is held in the room, its live timestamp takes precedence.
       await room.addLiveEvents([message('$trimmed-main', 1350)], { addToState: false });
-      expect(receiptReadTs(room, room, '$trimmed-main', 5100)).toBe(1350);
+      const freshLookup: RoomReceiptLookup = { room, targets: new Map() };
+      expect(receiptReadTs(room, room, '$trimmed-main', 5100, freshLookup)).toBe(1350);
       expect(contextReceiptReadTs(room, '@me:server', room)).toBe(1350);
     } finally {
       stop();

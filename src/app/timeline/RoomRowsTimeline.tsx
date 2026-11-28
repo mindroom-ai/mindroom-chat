@@ -45,6 +45,7 @@ import {
   useMembershipFolds,
   useRoomRowWindow,
 } from './useMembershipFolds';
+import { useToolCallsShown } from '../messages/toolCallVisibility';
 import { isTimelineRowHidden, timelineRowSizing } from './roomTimelineRows';
 import type { Timeline } from '../event-store/timeline/timelinePagination';
 import { ExpandAllLine, listTopSentinelStyle } from './RoomTimelineOverlays';
@@ -261,6 +262,9 @@ export function RoomRowsTimeline({
   const showRoomBackSentinel =
     activeTimelineRange.start > 0 || canPaginateRoomBack || state.roomHasMoreCachedBack;
   const showRoomFrontSentinel = activeTimelineRange.end < roomRows.length || canPaginateRoomFront;
+  const [showToolCalls] = useToolCallsShown(room.roomId);
+  const coarsePointer =
+    phone || (typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)')?.matches);
   const { estimateSize, getItemKey } = timelineRowSizing({
     compactLayout: env.compactLayout,
     showThreadRepliesInRoom,
@@ -272,7 +276,12 @@ export function RoomRowsTimeline({
     threadRecordMapRef,
     membershipFoldsRef,
     renderedRoomRowsRef,
-    columnWidth: phone ? undefined : 960,
+    columnWidth: scrollElement?.clientWidth || (phone ? 390 : 960),
+    coarsePointer,
+    timelineSet: rowTimelineSet,
+    showToolCalls,
+    expandAll: feature.expandAll,
+    longTextCacheOwner: mx,
   });
   const anchorBelowLatestEnd = useCallback(() => {
     const scrollArea = getScrollElement();

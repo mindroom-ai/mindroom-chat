@@ -573,6 +573,7 @@ export function RoomView({
     );
   const timelineProps: RoomTimelineProps = {
     room,
+    uncommittedBackPeek: columnFills && peekingBack,
     // The event the address names is the thread's, unless it asks for it in the room (or a
     // live-peek swipe is previewing a direct-exit focus target).
     eventId: peekFocusEventId ?? (openThreadId && !focusEventInRoom ? undefined : eventId),

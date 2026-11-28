@@ -3,6 +3,7 @@ import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { VisibleThreadRootData } from '../../event-store/threads/roomThreadOverviewModel';
 import {
   buildThreadRecordMap,
+  type ThreadRecordBuildStats,
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
 import type { ThreadOverviewCachedMetadataSnapshot } from './threadOverviewCacheMetadata';
@@ -42,6 +43,7 @@ export type BuildThreadIndexRecordMapsOptions = {
   /** The maps of the build before, whose records are kept for the threads without a change. */
   previous?: ThreadIndexRecordMaps;
   changes: ThreadRecordChanges;
+  stats?: ThreadRecordBuildStats;
 };
 
 export type ThreadIndexRecordMaps = {
@@ -68,6 +70,7 @@ export const buildThreadIndexRecordMaps = ({
   scheduledStatusMap,
   previous,
   changes,
+  stats,
 }: BuildThreadIndexRecordMapsOptions): ThreadIndexRecordMaps => {
   const emptyThreadRecordMap = new Map<string, ThreadRecord>();
   if (threadId) {
@@ -92,6 +95,8 @@ export const buildThreadIndexRecordMaps = ({
     currentUserId,
     scheduledStatusMap,
     cacheCoverageMap: cachedMetadata.coverageMap,
+    // The normal and Compact maps resolve receipt targets against the same synchronous snapshot.
+    receiptLookup: { room, targets: new Map<string, MatrixEvent | null>(), stats },
   };
 
   const pass = Symbol('thread-index-pass');

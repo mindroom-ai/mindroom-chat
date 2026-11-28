@@ -24,6 +24,7 @@ import type { PersistThreadEventCache } from '../../event-store/engine/enginePer
 
 export const useThreadOverviewResumeController = ({
   alive,
+  enabled = true,
   activeTimelineRange,
   compactFilteredThreadRootIds,
   compactViewRequested,
@@ -46,6 +47,7 @@ export const useThreadOverviewResumeController = ({
   threadResolutionMap,
 }: {
   alive: () => boolean;
+  enabled?: boolean;
   activeTimelineRange: Timeline['range'];
   compactFilteredThreadRootIds: string[];
   compactViewRequested: boolean;
@@ -108,7 +110,7 @@ export const useThreadOverviewResumeController = ({
   }, [room.roomId]);
 
   useEffect(() => {
-    if (threadId) {
+    if (!enabled || threadId) {
       overviewRefreshAbortControllerRef.current = undefined;
       return undefined;
     }
@@ -121,7 +123,7 @@ export const useThreadOverviewResumeController = ({
         overviewRefreshAbortControllerRef.current = undefined;
       }
     };
-  }, [compactViewRequested, room, threadId]);
+  }, [compactViewRequested, enabled, room, threadId]);
 
   // ISSUE-207 P4.4: route each per-thread refresh through the engine
   // scheduler as a `thread-backfill` job. AC8 dedup means a resume
@@ -189,7 +191,7 @@ export const useThreadOverviewResumeController = ({
 
   const refreshOverviewThreadsOnResume = useCallback(
     (reason: 'focus' | 'online' | 'pageshow' | 'visibility') => {
-      if (threadId) return;
+      if (!enabled || threadId) return;
       if (!compactViewRequested && targetThreadIds.length === 0) return;
 
       const now = Date.now();
@@ -252,6 +254,7 @@ export const useThreadOverviewResumeController = ({
       alive,
       compactViewRequested,
       debugTraceId,
+      enabled,
       refreshCompactThreadList,
       refreshOverviewThreadCacheFromRelations,
       room,

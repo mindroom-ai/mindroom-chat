@@ -56,19 +56,30 @@ it('freezes matching Compact peeks and refreshes the warm snapshot when the drag
   const onStoreThreadSummary = () => undefined;
 
   const build = vi.spyOn(threadRecord, 'buildThreadRecordMap');
+  const buildUnreads = vi.spyOn(threadRecord, 'buildThreadUnreadMap');
   const sort = vi.spyOn(roomThreadList, 'sortThreadsByActivity');
   const load = vi.spyOn(roomThreadList, 'loadRoomThreads').mockResolvedValue(undefined);
   const clearWork = () => {
     build.mockClear();
+    buildUnreads.mockClear();
     sort.mockClear();
     load.mockClear();
   };
 
-  type Props = { focus?: 'event' | 'overview'; filter?: ThreadFilterState };
+  type Props = {
+    focus?: 'event' | 'overview';
+    filter?: ThreadFilterState;
+    uncommittedBackPeek?: boolean;
+  };
   type IndexProps = Props & { listened: ThreadOverviewRefresh | undefined };
   let committed: UseThreadIndexResult | undefined;
   let waitingCommits = 0;
-  function Index({ focus, filter = DIRECT_ROOM_TIMELINE_FILTER_STATE, listened }: IndexProps) {
+  function Index({
+    focus,
+    filter = DIRECT_ROOM_TIMELINE_FILTER_STATE,
+    uncommittedBackPeek = false,
+    listened,
+  }: IndexProps) {
     const { overviewRefreshCounter, overviewChanges } = useThreadOverviewRefreshCounter(
       room,
       undefined,
@@ -76,6 +87,7 @@ it('freezes matching Compact peeks and refreshes the warm snapshot when the drag
     );
     const index = useThreadIndex({
       room,
+      uncommittedBackPeek,
       threadId: undefined,
       eventId: focus ? '$root-2' : undefined,
       focusEventInRoom: focus === 'event',
@@ -134,6 +146,7 @@ it('freezes matching Compact peeks and refreshes the warm snapshot when the drag
     expect(cards()).toBe(warm.compactOverviewOrdering.displayOrderedIds);
     expect(snapshot().compactThreadRecordMap).toBe(warm.compactThreadRecordMap);
     expect(build).not.toHaveBeenCalled();
+    expect(buildUnreads).not.toHaveBeenCalled();
     expect(sort).not.toHaveBeenCalled();
     expect(load).not.toHaveBeenCalled();
   };
@@ -197,4 +210,11 @@ it('freezes matching Compact peeks and refreshes the warm snapshot when the drag
   clearWork();
   view.rerender(page(true));
   expectFrozen(refreshed);
+
+  // The explicit peek flag works without a passive pane, but a warm index is not proof of listing.
+  view.rerender(page(false, null));
+  view.rerender(page(false, { uncommittedBackPeek: true }));
+  expectFrozen(refreshed);
+  expect(snapshot().threadListLoading).toBe(true);
+  expect(snapshot().threadListSettled).toBe(false);
 });

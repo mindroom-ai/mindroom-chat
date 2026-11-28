@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   loadRoomThreads,
   roomThreadListIsComplete,
+  roomThreadListIsListed,
   sortThreadsByActivity,
 } from '../../event-store/threads/roomThreadList';
 import {
@@ -33,7 +34,13 @@ import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils
  * reads, all through WebKit's networking process.
  */
 const restoredRooms = new WeakSet<Room>();
-let lastWarmThreadList: { room: Room; userId: string; threads: Thread[] } | null = null;
+let lastWarmThreadList: {
+  room: Room;
+  userId: string;
+  rawThreads: Thread[];
+  threadUnreads: ReadonlyMap<string, boolean>;
+  threads: Thread[];
+} | null = null;
 const EMPTY_UNREADS: ReadonlyMap<string, boolean> = new Map();
 const savedRootRevisions = new WeakMap<
   Room,
@@ -77,26 +84,47 @@ const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
   );
 };
 
+// A passive effect can run in flushSync. Queue a task after the next frame, not inside it.
+const afterRoomPaint = (run: () => void) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const schedule = () => {
+    timer = setTimeout(run, 0);
+  };
+  const frame =
+    typeof requestAnimationFrame === 'function' ? requestAnimationFrame(schedule) : undefined;
+  if (frame === undefined) schedule();
+  return () => {
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    clearTimeout(timer);
+  };
+};
+
 /**
  * The room's threads, unread first and then by activity, and their unread marks.
  * `overviewChanges` and `overviewRefreshCounter` are the room's (`useThreadOverviewRefreshCounter`):
  * each count checks the marks of the threads it may have changed (`buildThreadUnreadMap`).
+ * `allowWarmCache` controls snapshot reuse, not whether automatic work resumes.
  */
 export const useRoomThreadList = (
   room: Room,
   enabled: boolean,
   overviewChanges: ThreadRecordChanges,
   overviewRefreshCounter: number,
-  bypassWarmPeek = false
+  uncommittedBackPeek = false,
+  allowWarmCache = true
 ) => {
   const mx = useMatrixClient();
   const engine = useSyncEngine();
-  const paused = usePanePaused();
+  const paused = usePanePaused() || uncommittedBackPeek;
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
   const dirtyVersionRef = useRef(false);
-  const [loading, setLoading] = useState(enabled && !paused);
-  const [loadedSuccessfully, setLoadedSuccessfully] = useState(false);
+  // A list can look complete before server support is known. Use the first SDK load as proof.
+  const alreadyListed = enabled && roomThreadListIsListed(room);
+  // A cold peek is pending even though it defers automatic work.
+  const [loading, setLoading] = useState(enabled && !alreadyListed);
+  const [loadedSuccessfully, setLoadedSuccessfully] = useState(alreadyListed);
+  const [peekRetried, setPeekRetried] = useState(false);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
   const lifecycleAbortControllerRef = useRef<AbortController>(undefined);
@@ -105,8 +133,9 @@ export const useRoomThreadList = (
     // The SDK keeps the threads restored by the first mount; later ones come from the server list.
     if (!enabled || paused || restoredRooms.has(room)) return undefined;
     let cancelled = false;
-    loadCachedThreadRootsForRoom(engine.sessionId, room.roomId)
-      .then((roots) => {
+    const restore = async () => {
+      try {
+        const roots = await loadCachedThreadRootsForRoom(engine.sessionId, room.roomId);
         if (cancelled) return;
         restoredRooms.add(room);
         const mapper = keepHeldThreadSummaries(
@@ -131,14 +160,21 @@ export const useRoomThreadList = (
           }
         });
         setVersion((current) => current + 1);
-      })
-      .catch(() => {
+      } catch {
         // A cache miss/failure must not interrupt the independent server load.
-      });
+      }
+    };
+    const cancelRestore = roomThreadListIsListed(room)
+      ? afterRoomPaint(() => {
+          void restore();
+        })
+      : undefined;
+    if (!cancelRestore) void restore();
     return () => {
       cancelled = true;
+      cancelRestore?.();
     };
-  }, [paused, enabled, engine.persist, engine.sessionId, mx, room]);
+  }, [enabled, engine.persist, engine.sessionId, mx, paused, room]);
 
   const handleThreadListProgress = useCallback(() => {
     setLoadedSuccessfully(true);
@@ -146,7 +182,7 @@ export const useRoomThreadList = (
   }, []);
 
   const loadThreads = useCallback(
-    (signal: AbortSignal) => {
+    (signal: AbortSignal, checkRootsOnly = false) => {
       const persist = engine.persist.forRoom(room);
       const saved = getSavedRootRevisions(room, persist.isCurrent);
       const mapper = readOnlyEventMapper(
@@ -195,7 +231,7 @@ export const useRoomThreadList = (
       const checkAll = () => {
         signal.removeEventListener('abort', checkAll);
         try {
-          if (pages > 1) {
+          if (checkRootsOnly || pages > 1) {
             checked.clear();
             measureDeepTracePhase('roomOverview.saveRoots', saveRoots);
           }
@@ -206,6 +242,10 @@ export const useRoomThreadList = (
         }
         pages = 0;
       };
+      if (checkRootsOnly) {
+        checkAll();
+        return Promise.resolve();
+      }
       signal.addEventListener('abort', checkAll);
       return loadRoomThreads(
         room,
@@ -230,6 +270,8 @@ export const useRoomThreadList = (
     const signal = lifecycleAbortControllerRef.current?.signal;
     if (!signal || signal.aborted) return;
 
+    // An explicit retry shows fresh results even if the peek had a warm snapshot.
+    if (paused) setPeekRetried(true);
     setLoading(true);
     setLoadedSuccessfully(false);
     setError(undefined);
@@ -242,41 +284,52 @@ export const useRoomThreadList = (
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, [enabled, loadThreads]);
+  }, [enabled, loadThreads, paused]);
 
   useEffect(() => {
+    setPeekRetried(false);
     if (!enabled) {
       setLoading(false);
       setLoadedSuccessfully(false);
       setError(undefined);
       return undefined;
     }
-    if (paused) return undefined;
 
     const abortController = new AbortController();
     lifecycleAbortControllerRef.current = abortController;
 
-    setLoading(true);
-    setLoadedSuccessfully(false);
+    const listed = roomThreadListIsListed(room);
+    setLoading(!listed);
+    setLoadedSuccessfully(listed);
     setError(undefined);
 
-    loadThreads(abortController.signal)
-      .catch((err: unknown) => {
-        if (abortController.signal.aborted) return;
-        setError(err as Error);
-      })
-      .finally(() => {
-        if (abortController.signal.aborted) return;
-        setLoading(false);
-      });
+    // A peek can be abandoned without loading anything; Retry still has a live signal.
+    const signal = abortController.signal;
+    const cancelRootCheck =
+      !paused && listed
+        ? afterRoomPaint(() => {
+            void loadThreads(signal, true);
+          })
+        : undefined;
+    if (!paused && !listed) {
+      loadThreads(signal)
+        .catch((err: unknown) => {
+          if (signal.aborted) return;
+          setError(err as Error);
+        })
+        .finally(() => {
+          if (!signal.aborted) setLoading(false);
+        });
+    }
 
     return () => {
+      cancelRootCheck?.();
       abortController.abort();
       if (lifecycleAbortControllerRef.current === abortController) {
         lifecycleAbortControllerRef.current = undefined;
       }
     };
-  }, [paused, enabled, loadThreads]);
+  }, [enabled, loadThreads, paused, room]);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -310,45 +363,49 @@ export const useRoomThreadList = (
   }, [paused]);
 
   const userId = mx.getUserId() ?? '';
-  const warmThreads =
+  const warmList =
     enabled &&
     paused &&
-    !bypassWarmPeek &&
+    allowWarmCache &&
+    !peekRetried &&
     lastWarmThreadList?.room === room &&
     lastWarmThreadList.userId === userId
-      ? lastWarmThreadList.threads
+      ? lastWarmThreadList
       : undefined;
   const rawThreads = useMemo(() => {
-    if (warmThreads) return warmThreads;
+    if (warmList) return warmList.rawThreads;
+    // The SDK can gain threads while our listeners are detached.
+    void enabled;
     void version;
     return room.getThreads();
-  }, [room, version, warmThreads]);
+  }, [enabled, room, version, warmList]);
   // The marks of the last build. A count checks the threads it marked (a reply, the reader's
   // receipt in a thread), not every thread of the room, and keeps the map while no mark changed.
   const builtUnreadsRef = useRef<ReadonlyMap<string, boolean>>(undefined);
   const threadUnreads = useMemo(() => {
     // A receipt raises the count and leaves the list as it was.
     void overviewRefreshCounter;
-    if (!enabled || warmThreads) return EMPTY_UNREADS;
+    if (warmList) return warmList.threadUnreads;
+    if (!enabled) return EMPTY_UNREADS;
     const built = buildThreadUnreadMap(room, rawThreads, userId, {
       previous: builtUnreadsRef.current,
       changes: overviewChanges,
     });
     builtUnreadsRef.current = built;
     return built;
-  }, [enabled, room, rawThreads, userId, overviewRefreshCounter, overviewChanges, warmThreads]);
+  }, [enabled, room, rawThreads, userId, overviewRefreshCounter, overviewChanges, warmList]);
   const threads = useMemo(
     // Non-compact surfaces still use known roots for deep links, but not this ordering.
-    () => warmThreads ?? (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),
-    [enabled, rawThreads, threadUnreads, warmThreads]
+    () =>
+      warmList?.threads ??
+      (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),
+    [enabled, rawThreads, threadUnreads, warmList]
   );
   useLayoutEffect(() => {
-    if (enabled && !paused) lastWarmThreadList = { room, userId, threads };
-  }, [enabled, paused, room, threads, userId]);
-  const fullyLoaded = useMemo(() => {
-    void version;
-    return roomThreadListIsComplete(room);
-  }, [room, version]);
+    if (enabled && !paused)
+      lastWarmThreadList = { room, userId, rawThreads, threadUnreads, threads };
+  }, [enabled, paused, rawThreads, room, threadUnreads, threads, userId]);
+  const fullyLoaded = roomThreadListIsComplete(room);
 
   return {
     threads,

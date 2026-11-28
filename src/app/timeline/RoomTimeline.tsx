@@ -16,6 +16,8 @@ import { RoomSurface } from './RoomSurface';
 
 export type RoomTimelineProps = {
   room: Room;
+  /** True while the room is only shown underneath an uncommitted swipe back. */
+  uncommittedBackPeek?: boolean;
   eventId?: string;
   threadId?: string;
   /** Show a permalinked thread root in the room instead of opening its thread. */

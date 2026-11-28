@@ -578,4 +578,57 @@ describe('thread end-anchoring delegates bottom-following to the thread pin hook
     render(prepended, false, () => v.measureElement(rowNode));
     expect(scrollElement.scrollTop).toBe(1330);
   });
+
+  it('makes zero scroll writes while positive iOS _holdOffset reaches scrollTop=0 mid-gesture and keeps anchor visual Y across rest flush', async () => {
+    const { scrollElement, getVirtualizer } = await mountIOSThread(1000);
+    const v = getVirtualizer();
+    const scrollToSpy = scrollElement.scrollTo as ReturnType<typeof vi.fn>;
+    scrollToSpy.mockClear();
+
+    let currentTop = scrollElement.scrollTop;
+    let gestureDriven = false;
+    let programmaticScrollTopWrites = 0;
+    Object.defineProperty(scrollElement, 'scrollTop', {
+      configurable: true,
+      get: () => currentTop,
+      set: (value: number) => {
+        if (!gestureDriven) programmaticScrollTopWrites += 1;
+        currentTop = value;
+      },
+    });
+    const moveGestureTo = (top: number) => {
+      gestureDriven = true;
+      scrollElement.scrollTop = top;
+      gestureDriven = false;
+      scrollElement.dispatchEvent(new Event('scroll'));
+    };
+
+    scrollElement.dispatchEvent(new Event('touchstart'));
+    moveGestureTo(600);
+    // Rows above the viewport measure far taller than estimated, banking +900 px positive _holdOffset.
+    v.resizeItem(2, ROW_HEIGHT + 300);
+    v.resizeItem(3, ROW_HEIGHT + 300);
+    v.resizeItem(4, ROW_HEIGHT + 300);
+    expect(readVirtualizerHoldOffset(v)).toBe(900);
+
+    // Fast upward flick hits scrollTop = 0 mid-gesture while +900 px remains held.
+    moveGestureTo(0);
+    expect(scrollElement.scrollTop).toBe(0);
+    expect(readVirtualizerHoldOffset(v)).toBe(900);
+    expect(programmaticScrollTopWrites).toBe(0);
+    expect(scrollToSpy).not.toHaveBeenCalled();
+
+    const anchorItem = v
+      .getVirtualItems()
+      .find((item) => item.start - scrollElement.scrollTop >= 0);
+    expect(anchorItem).toBeDefined();
+    const anchorVisualBeforeFlush = visualTopOf(v, scrollElement, anchorItem!.index);
+
+    // End gesture; wait for iOS rest tail flush (150ms) and verify anchor stays visually fixed.
+    scrollElement.dispatchEvent(new Event('touchend'));
+    vi.advanceTimersByTime(150);
+    expect(readVirtualizerHoldOffset(v)).toBe(0);
+    expect(scrollElement.scrollTop).toBe(900);
+    expect(visualTopOf(v, scrollElement, anchorItem!.index)).toBe(anchorVisualBeforeFlush);
+  });
 });

@@ -94,7 +94,7 @@ type RoomRowsViewportApi = {
 };
 
 function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: ThreadOverviewRefresh) {
-  const { room, eventId, threadFilterState, viewMode } = props;
+  const { room, eventId, threadFilterState, viewMode, uncommittedBackPeek = false } = props;
   const threadSortFreezeState = props.threadSortFreezeState ?? null;
   const hasMindroomAgents = props.hasMindroomAgents ?? true;
   const paused = usePanePaused();
@@ -160,6 +160,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
   const threadIndex = useThreadIndex({
     ...filters,
     room,
+    uncommittedBackPeek,
     threadId: undefined,
     eventId,
     focusEventInRoom: props.focusEventInRoom,
@@ -477,6 +478,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
   });
   useThreadOverviewResumeController({
     alive,
+    enabled: !uncommittedBackPeek && !paused,
     activeTimelineRange: stateRange,
     compactFilteredThreadRootIds: threadIndex.compactFilteredThreadRootIds,
     compactViewRequested,

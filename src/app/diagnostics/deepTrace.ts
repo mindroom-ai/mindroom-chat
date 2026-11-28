@@ -585,7 +585,11 @@ export const isDeepTraceRecording = (): boolean =>
   !!runtime && runtime.enabled && !runtime.disposed;
 
 /** Measures a synchronous hot path when deep trace is active, recording passes >= 16 ms. */
-export const measureDeepTracePhase = <T>(phase: DeepTracePhaseName, fn: () => T): T => {
+export const measureDeepTracePhase = <T>(
+  phase: DeepTracePhaseName,
+  fn: () => T,
+  details?: Readonly<Record<string, number>>
+): T => {
   if (!isDeepTraceRecording()) return fn();
   const startedAt = nowMonotonic();
   try {
@@ -593,7 +597,12 @@ export const measureDeepTracePhase = <T>(phase: DeepTracePhaseName, fn: () => T)
   } finally {
     const durationMs = nowMonotonic() - startedAt;
     if (durationMs >= SLOW_PHASE_THRESHOLD_MS) {
+      const receiptMs = details?.receipt_ms;
+      const presentationMs = details?.presentation_ms;
       recordDeepTraceEvent(DEEP_TRACE_PHASE_EVENTS[phase], {
+        ...details,
+        ...(receiptMs === undefined ? {} : { receipt_ms: roundMetric(receiptMs) }),
+        ...(presentationMs === undefined ? {} : { presentation_ms: roundMetric(presentationMs) }),
         duration_ms: roundMetric(durationMs),
       });
     }

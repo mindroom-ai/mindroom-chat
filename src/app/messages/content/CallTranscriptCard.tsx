@@ -63,20 +63,22 @@ const useSpeakersFromServer = (
   members: RoomMember[]
 ): ReadonlySet<string> => {
   const [found, setFound] = useState(NOBODY);
-  const unlisted = useMemo(() => {
+  const { callId, turns } = transcript;
+  const unlistedKey = useMemo(() => {
     const posted = isMindroomAgentUserIdForViewer(sender, client.getUserId() ?? undefined);
-    if (transcript.callId === undefined || !posted) return '';
+    if (callId === undefined || !posted) return '';
     const listed = new Set(members.map((member) => member.userId));
-    const speakers = new Set(transcript.turns.map((turn) => turn.sender));
+    const speakers = new Set(turns.map((turn) => turn.sender));
     return [...speakers]
       .filter((userId) => !listed.has(userId) && !isMindroomAgentUserId(userId))
-      .join(' ');
-  }, [client, members, sender, transcript]);
+      .sort()
+      .join('\0');
+  }, [callId, client, members, sender, turns]);
   useEffect(() => {
-    if (!roomId || !unlisted) return undefined;
+    if (!roomId || !unlistedKey) return undefined;
     let current = true;
-    const counted = speakerMemberships(transcript);
-    const asked = unlisted.split(' ').map((userId) =>
+    const counted = speakerMemberships({ callId });
+    const asked = unlistedKey.split('\0').map((userId) =>
       client.getStateEvent(roomId, EventType.RoomMember, userId).then(
         (content) => (counted.has(String(content.membership)) ? [userId] : []),
         () => []
@@ -88,7 +90,7 @@ const useSpeakersFromServer = (
     return () => {
       current = false;
     };
-  }, [client, roomId, transcript, unlisted]);
+  }, [callId, client, roomId, unlistedKey]);
   return found;
 };
 

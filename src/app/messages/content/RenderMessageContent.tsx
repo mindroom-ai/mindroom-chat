@@ -40,15 +40,8 @@ import { MessageEvent } from '../../matrix/types/room';
 import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { ToolCallsFold } from '../agent-run/ToolCallsFold';
-import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { readCallRow } from '../../matrix/protocol/callRow';
-import { getLongTextSource } from '../../matrix/protocol/longText';
-import { readTriggerWake } from '../../matrix/protocol/triggerWake';
-import { readTodoPoke } from '../../matrix/protocol/todoPoke';
 import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
-import { TriggerWakeMarker } from '../TriggerWakeMarker';
-import { TodoPokeMarker } from '../TodoPokeMarker';
-import { CallTranscriptCard } from './CallTranscriptCard';
 import {
   useMessageRenderer,
   type MatchedRenderer,
@@ -154,11 +147,6 @@ function CoreMessageContent({
     fromMindroomAgent &&
     (hasMindroomAgentMessageMetadata(content) || isVisibleRouterVoiceEcho(content));
   const showEdited = !!edited && !agentManaged;
-  // A voice call's transcript from an agent shows as a call card; malformed, it renders as its HTML.
-  const callTranscript = useMemo(
-    () => (fromMindroomAgent ? readCallTranscript(content) : undefined),
-    [content, fromMindroomAgent]
-  );
 
   // A reply shown outside its thread's view (Classic lists them in the order sent) still follows
   // its thread's choice of showing tool calls.
@@ -181,23 +169,6 @@ function CoreMessageContent({
   // in the call, Join and Transcript while live; how long it lasted once over.
   const callRow = fromMindroomAgent ? readCallRow(content) : undefined;
   if (callRow && mEvent) return <LazyCallRow mEvent={mEvent} row={callRow} body={content.body} />;
-
-  // Outside an open thread (room timeline, thread roots), a trigger wake still shows as its
-  // collapsed marker instead of raw markdown/HTML or wrapped tool/transcript chrome.
-  // Search results pass highlightRegex so matches stay visible inline instead of collapsing.
-  const triggerWake =
-    !highlightRegex && fromMindroomAgent && !getLongTextSource(content)
-      ? readTriggerWake(content)
-      : null;
-  if (triggerWake) return <TriggerWakeMarker wake={triggerWake} ts={ts} roomId={toolRoomId} />;
-
-  const todoPoke =
-    !highlightRegex && fromMindroomAgent && !getLongTextSource(content)
-      ? readTodoPoke(content)
-      : null;
-  if (todoPoke) {
-    return <TodoPokeMarker poke={todoPoke} ts={ts} senderDisplayName={displayName} />;
-  }
 
   const renderUrlsPreview = urlPreview
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
@@ -226,24 +197,13 @@ function CoreMessageContent({
     disableRunErrorUi,
   });
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
-  const agentMessage = agentContent !== undefined && (
-    <ToolCallMessageContext value={toolCallMessage}>
-      <ToolCallsFold>{agentContent}</ToolCallsFold>
-    </ToolCallMessageContext>
-  );
-  if (callTranscript && agentMessage) {
+  if (agentContent !== undefined) {
     return (
-      <CallTranscriptCard
-        transcript={callTranscript}
-        sender={mEvent?.getSender()}
-        roomId={roomId ?? mEvent?.getRoomId()}
-        fallback={agentMessage}
-        highlightRegex={highlightRegex}
-        linkifyOpts={linkifyOpts}
-      />
+      <ToolCallMessageContext value={toolCallMessage}>
+        <ToolCallsFold>{agentContent}</ToolCallsFold>
+      </ToolCallMessageContext>
     );
   }
-  if (agentMessage) return agentMessage;
 
   const owner = getEventAttachmentOwner(mEvent);
   const renderStateSuffix = getMessageStateSuffixRenderer({

@@ -1,7 +1,18 @@
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
 import { parseAiRunError } from '../../matrix/protocol/aiRun';
-import { prepareRunErrorBody } from './runErrorHtml';
+import { isText, type ChildNode } from 'domhandler';
+import { sanitizeCustomHtml } from '../../rich-text/sanitize';
+import { parseRenderedHtml, prepareAgentReplyDom } from './replyDom';
+import { stripTrailingRunErrorText } from './runErrorHtml';
+import { isDomElementNode } from './toolRefDom';
+
+const extractDomText = (nodes: readonly ChildNode[]): string =>
+  nodes
+    .map((node) =>
+      isText(node) ? node.data : isDomElementNode(node) ? extractDomText(node.children) : ''
+    )
+    .join('');
 
 type ContractCase = {
   name: string;
@@ -83,27 +94,28 @@ describe.skipIf(!mindroomCheckout)('backend run-error contract', () => {
         fallback: c.ai_run.error.fallback,
       });
 
-      const aiRun = { status: 'error', error: parsed };
-      const plain = prepareRunErrorBody({ enabled: true, body: c.body, html: undefined, aiRun });
-      const html = prepareRunErrorBody({
-        enabled: true,
-        body: c.body,
-        html: c.formatted_body,
-        aiRun,
+      const plain = stripTrailingRunErrorText(c.body, parsed!);
+      const plan = prepareAgentReplyDom({
+        canonicalDom: parseRenderedHtml(sanitizeCustomHtml(c.formatted_body), {}),
+        runErrorEnabled: true,
+        runError: parsed,
+        shouldFold: false,
+        baseOpts: {},
       });
 
       if (c.hasPartialText) {
-        expect(plain, `${c.name} plain`).toMatchObject({
-          bodyEmpty: false,
+        expect(plain, `${c.name} plain`).toEqual({
+          stripped: true,
           body: 'I checked the logs.',
         });
-        expect(html.bodyEmpty, `${c.name} html`).toBe(false);
-        expect(html.html, `${c.name} html`).toContain('I checked the logs.');
-        expect(html.html, `${c.name} html`).not.toContain(c.ai_run.error.fallback);
-        expect(html.html, `${c.name} html`).not.toContain(c.ai_run.error.summary);
+        expect(plan.bodyEmpty, `${c.name} html`).toBe(false);
+        const text = extractDomText(plan.nodes);
+        expect(text, `${c.name} html`).toContain('I checked the logs.');
+        expect(text, `${c.name} html`).not.toContain(c.ai_run.error.fallback);
+        expect(text, `${c.name} html`).not.toContain(c.ai_run.error.summary);
       } else {
-        expect(plain, `${c.name} plain`).toMatchObject({ bodyEmpty: true, body: '' });
-        expect(html, `${c.name} html`).toMatchObject({ bodyEmpty: true, html: undefined });
+        expect(plain, `${c.name} plain`).toEqual({ stripped: true, body: '' });
+        expect(plan, `${c.name} html`).toMatchObject({ bodyEmpty: true, nodes: [] });
       }
     }
   }, 120_000);

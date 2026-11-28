@@ -70,7 +70,7 @@ import {
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
 import { buildThreadIndexRecordMaps, type ThreadIndexRecordMaps } from './threadIndexRecords';
-import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
+import { isDeepTraceRecording, measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
 
 type ThreadResolutionLike = {
@@ -99,7 +99,13 @@ type WarmThreadIndexEntry = {
   key: string;
   freeze: ThreadSortFreezeState | null;
   ignored: Set<string>;
-  result: Omit<UseThreadIndexResult, 'refreshRoomThreadList' | 'applyThreadOverviewRelationEvents'>;
+  result: Omit<
+    UseThreadIndexResult,
+    | 'threadListLoading'
+    | 'threadListSettled'
+    | 'refreshRoomThreadList'
+    | 'applyThreadOverviewRelationEvents'
+  >;
 };
 let lastWarmThreadIndex: WarmThreadIndexEntry | null = null;
 const sameSet = (a: Set<string>, b: Set<string>) =>
@@ -356,6 +362,7 @@ export const resolveThreadIndexSnapshot = ({
 
 export type UseThreadIndexOptions = {
   room: Room;
+  uncommittedBackPeek?: boolean;
   threadId: string | undefined;
   eventId: string | undefined;
   focusEventInRoom?: boolean;
@@ -383,6 +390,7 @@ export type UseThreadIndexOptions = {
 
 export const useThreadIndex = ({
   room,
+  uncommittedBackPeek = false,
   threadId,
   eventId,
   focusEventInRoom,
@@ -406,7 +414,7 @@ export const useThreadIndex = ({
   mx,
   onStoreThreadSummary,
 }: UseThreadIndexOptions): UseThreadIndexResult => {
-  const paused = usePanePaused();
+  const paused = usePanePaused() || uncommittedBackPeek;
   const threadSortControlSignature = useMemo(
     () =>
       createThreadSortControlSignature({
@@ -484,7 +492,8 @@ export const useThreadIndex = ({
     compactViewRequested || threadsViewListed,
     overviewChanges,
     overviewRefreshCounter,
-    bypassWarmPeek || !warmPeek
+    paused,
+    Boolean(warmPeek)
   );
   const roomSurfaceEventEntries = useMemo(() => {
     if (warmPeek) return [] as TimelineEventEntry[];
@@ -658,7 +667,16 @@ export const useThreadIndex = ({
     if (warmPeek) return EMPTY_RECORD_MAPS;
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    const built = measureDeepTracePhase('roomOverview.threadIndex', () =>
+    const stats = isDeepTraceRecording()
+      ? {
+          root_count: 0,
+          receipt_ms: 0,
+          presentation_ms: 0,
+          receipt_lookups: 0,
+          receipt_cache_hits: 0,
+        }
+      : undefined;
+    const build = () =>
       buildThreadIndexRecordMaps({
         threadId,
         compactViewRequested,
@@ -678,8 +696,9 @@ export const useThreadIndex = ({
         scheduledStatusMap,
         previous: builtRecordMapsRef.current,
         changes: overviewChanges,
-      })
-    );
+        stats,
+      });
+    const built = measureDeepTracePhase('roomOverview.threadIndex', build, stats);
     // An open thread has no records, so nothing is kept from before it.
     builtRecordMapsRef.current = built;
     return built;
@@ -827,11 +846,6 @@ export const useThreadIndex = ({
     scheduledStatusMap,
     availableRoomTags,
     roomThreadListThreads,
-    threadListLoading: roomThreadListLoading,
-    threadListSettled:
-      (compactViewRequested || threadsViewListed) &&
-      roomThreadListLoadedSuccessfully &&
-      !roomThreadListLoading,
     snoozeNow,
     threadBackgroundStates: jobStates,
   };
@@ -874,5 +888,15 @@ export const useThreadIndex = ({
     };
   });
 
-  return { ...data, refreshRoomThreadList, applyThreadOverviewRelationEvents };
+  return {
+    ...data,
+    // A frozen index does not prove the server list finished paging.
+    threadListLoading: roomThreadListLoading,
+    threadListSettled:
+      (compactViewRequested || threadsViewListed) &&
+      roomThreadListLoadedSuccessfully &&
+      !roomThreadListLoading,
+    refreshRoomThreadList,
+    applyThreadOverviewRelationEvents,
+  };
 };
