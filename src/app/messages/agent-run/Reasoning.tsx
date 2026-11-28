@@ -10,6 +10,7 @@ import {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ChildNode } from 'domhandler';
 import { type HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Icon, Icons } from 'folds';
@@ -44,7 +45,8 @@ import {
 import { replyDisclosureScope, usePersistedDisclosure } from '../manualExpansionState';
 import { CogRipple } from './ToolCallsFold.css';
 import { MINDROOM_TOOL_REF_ICON } from '../html/blocks';
-import { readRenderedToolCalls } from '../html/HtmlBlocks';
+import { inspectRenderedToolCalls } from '../html/HtmlBlocks';
+import { domContainsText, parseRenderedHtml } from './replyDomNodes';
 import { useBodySanitizeOptions } from '../content/useBodySanitizeOptions';
 import * as css from './Reasoning.css';
 import { CompactionSeamsAt, ReasoningSegmentsAt, thoughtSeconds } from './ReasoningAnchors';
@@ -198,16 +200,27 @@ function LiveActivity({ text }: { text: string }) {
   );
 }
 
-type ReplyReasoningProps = {
+export type ReplyReasoningProps = {
   content: Record<string, unknown>;
   /** The HTML the body renders, whose tool markers place the segments. */
   html: string | undefined;
+  /** Pre-sanitized, pre-parsed DOM of the body (skips sanitize+parse fallback). */
+  parsedDom?: readonly ChildNode[];
+  /** Already-computed rendered tool call indexes from finished-work splitting. */
+  toolCallIndexes?: readonly number[];
   htmlReactParserOptions: HTMLReactParserOptions;
   /** The reply's body. */
   children: ReactNode;
 };
 
-function ReplyReasoning({ content, html, htmlReactParserOptions, children }: ReplyReasoningProps) {
+export function ReplyReasoning({
+  content,
+  html,
+  parsedDom,
+  toolCallIndexes,
+  htmlReactParserOptions,
+  children,
+}: ReplyReasoningProps) {
   const { t } = useTranslation();
   const final = parseFinalReasoning(content[MINDROOM_REASONING_KEY]);
   const liveText = nonEmptyString(content[LIVE_REASONING_KEY]);
@@ -274,14 +287,19 @@ function ReplyReasoning({ content, html, htmlReactParserOptions, children }: Rep
   const readsCalls =
     (open && (segments.some(({ afterTool }) => afterTool > 0) || (grew.seen && !!last))) ||
     compactions.some(({ afterTool }) => afterTool > 0);
-  const markers = useMemo(
-    () =>
-      readsCalls && html?.includes(MINDROOM_TOOL_REF_ICON)
-        ? readRenderedToolCalls(sanitizeCustomHtml(html, sanitizeOptions), htmlReactParserOptions)
-            .indexes
-        : NO_MARKERS,
-    [readsCalls, html, htmlReactParserOptions, sanitizeOptions]
-  );
+  const markers = useMemo(() => {
+    if (!readsCalls) return NO_MARKERS;
+    if (toolCallIndexes !== undefined) return toolCallIndexes;
+    const dom =
+      parsedDom !== undefined
+        ? domContainsText(parsedDom, MINDROOM_TOOL_REF_ICON)
+          ? parsedDom
+          : undefined
+        : html?.includes(MINDROOM_TOOL_REF_ICON)
+          ? parseRenderedHtml(sanitizeCustomHtml(html, sanitizeOptions), htmlReactParserOptions)
+          : undefined;
+    return dom ? inspectRenderedToolCalls(dom, htmlReactParserOptions).indexes : NO_MARKERS;
+  }, [readsCalls, toolCallIndexes, parsedDom, html, htmlReactParserOptions, sanitizeOptions]);
   // The model is writing its last segment from when the live reasoning comes or grows on screen
   // until the reply moves past it. A tool call that began after the segment did ends it, also when
   // its marker came in the frame of the segment's last piece, and so does a segment that has begun
@@ -382,9 +400,17 @@ export const withReasoning = (
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _linkifyOpts?: LinkifyOpts,
   /** The HTML `body` renders; without it every segment shows at the top. */
-  html?: string
+  html?: string,
+  parsedDom?: readonly ChildNode[],
+  toolCallIndexes?: readonly number[]
 ): ReactNode => (
-  <ReplyReasoning content={content} html={html} htmlReactParserOptions={htmlReactParserOptions}>
+  <ReplyReasoning
+    content={content}
+    html={html}
+    parsedDom={parsedDom}
+    toolCallIndexes={toolCallIndexes}
+    htmlReactParserOptions={htmlReactParserOptions}
+  >
     {body}
   </ReplyReasoning>
 );

@@ -12,7 +12,7 @@ import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { RenderBody } from '../content/RenderBody';
 import { renderAgentMessageContent } from '../content/renderAgentMessageContent';
 import { loadLiveMarkdown, renderLiveMarkdown } from '../live/liveMarkdown';
-import { QuestionReply } from '../question/QuestionReply';
+import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from './react-custom-html-parser';
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
@@ -313,15 +313,8 @@ describe('Markdown footnotes rendering and navigation', () => {
     expect(document.activeElement).toBe(ansItem);
   });
 
-  it('shares one footnote scope across before and after halves of QuestionReply', () => {
+  it('shares one footnote scope across before and after halves around an inline QuestionCard', () => {
     const scrollIntoView = mockScrollIntoView();
-    const question = {
-      text: 'Choose a color?',
-      options: [
-        { key: '🔴', label: 'Red' },
-        { key: '🟢', label: 'Green' },
-      ],
-    };
     const md = [
       'Context[^1].',
       '',
@@ -334,29 +327,46 @@ describe('Markdown footnotes rendering and navigation', () => {
       '',
       '[^1]: Detail after card.',
     ].join('\n');
-    const html = renderLiveMarkdown(md)!;
+    const content = {
+      msgtype: 'm.text',
+      body: md,
+      format: 'org.matrix.custom.html',
+      formatted_body: renderLiveMarkdown(md)!,
+      'io.mindroom.interactive': {
+        question_text: 'Choose a color?',
+        options: { '🔴': 'red', '1': 'red', '🟢': 'green', '2': 'green' },
+        option_labels: { '🔴': 'Red', '1': 'Red', '🟢': 'Green', '2': 'Green' },
+      },
+    };
+    const mEvent = new MatrixEvent({
+      type: 'm.room.message',
+      event_id: '$question-fn',
+      room_id: '!room:example.org',
+      sender: '@mindroom_dev:example.org',
+      origin_server_ts: 1,
+      content,
+    });
     const parserOptions = makeParserOptions();
 
     const { container } = render(
-      <ClientConfigProvider value={{}}>
-        <QuestionReply
-          html={html}
-          question={question}
-          renderCard={() => <div data-testid="question-card">Card</div>}
-          renderHtml={(part) => (
-            <RenderBody
-              body=""
-              customBody={part}
-              htmlReactParserOptions={parserOptions}
-              linkifyOpts={LINKIFY_OPTS}
-            />
-          )}
-          renderBody={(renderPart, bodyHtml) => renderPart(bodyHtml)}
-        />
-      </ClientConfigProvider>
+      <MatrixClientProvider value={mx}>
+        <ClientConfigProvider value={{}}>
+          {renderAgentMessageContent({
+            mEvent,
+            roomId: '!room:example.org',
+            eventId: '$question-fn',
+            fromMindroomAgent: true,
+            displayName: 'Agent',
+            msgType: 'm.text',
+            content,
+            htmlReactParserOptions: parserOptions,
+            linkifyOpts: LINKIFY_OPTS,
+          })}
+        </ClientConfigProvider>
+      </MatrixClientProvider>
     );
 
-    expect(container.querySelector('[data-testid="question-card"]')).not.toBeNull();
+    expect(container.querySelector('[data-question-card]')).not.toBeNull();
     const refLink = container.querySelector<HTMLAnchorElement>('sup.footnote-ref a')!;
     const item = container.querySelector<HTMLLIElement>('li.footnote-item')!;
     const backref = container.querySelector<HTMLAnchorElement>('a.footnote-backref')!;

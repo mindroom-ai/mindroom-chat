@@ -14,11 +14,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import type { AiRunErrorInfo } from '../../matrix/protocol/aiRun';
+import { isText, type ChildNode } from 'domhandler';
+import { sanitizeText } from '../../rich-text/sanitize';
+import { getReplySlot, parseRenderedHtml } from '../agent-run/replyDom';
 import {
-  collapseRestartMarkersHtml,
-  stripTrailingRunErrorHtml,
+  collapseRestartMarkersDom,
+  stripTrailingRunErrorDom,
   stripTrailingRunErrorText,
 } from '../agent-run/runErrorHtml';
+import { isDomElementNode } from '../agent-run/toolRefDom';
 import { LINKIFY_OPTS } from '../html/react-custom-html-parser';
 import { RenderMessageContent } from './RenderMessageContent';
 
@@ -26,6 +30,32 @@ const VIEWER = '@reader:example.org';
 const AGENT = '@mindroom_dev:example.org';
 const HUMAN = '@colleague:example.org';
 const ROOM_ID = '!room:example.org';
+
+const serializeDom = (nodes: readonly ChildNode[]): string =>
+  nodes
+    .map((node) => {
+      const slot = getReplySlot(node);
+      if (slot?.kind === 'restartSeam') return `<restart-seam count="${slot.count}"/>`;
+      if (isText(node)) return sanitizeText(node.data);
+      if (!isDomElementNode(node)) return '';
+      const attrs = Object.entries(node.attribs)
+        .map(([name, value]) => ` ${name}="${sanitizeText(value)}"`)
+        .join('');
+      return node.name === 'br'
+        ? `<br${attrs}>`
+        : `<${node.name}${attrs}>${serializeDom(node.children)}</${node.name}>`;
+    })
+    .join('');
+
+const stripTrailingRunErrorHtml = (html: string, error: AiRunErrorInfo) => {
+  const result = stripTrailingRunErrorDom(parseRenderedHtml(html, {}), error);
+  return { html: serializeDom(result.nodes), stripped: result.stripped };
+};
+
+const collapseRestartMarkersHtml = (html: string) => {
+  const result = collapseRestartMarkersDom(parseRenderedHtml(html, {}));
+  return { html: serializeDom(result.nodes), hasRestartSeam: result.hasRestartSeam };
+};
 
 const STALLED_FALLBACK =
   '[mindroom_dev] ⚠️ OpenRouter sent no data for 5 min (retried once automatically).';
@@ -296,7 +326,7 @@ describe('runErrorHtml transforms', () => {
       '<p><strong>[Response interrupted by service restart]</strong></p>' +
       '<p>After.</p>';
     expect(collapseRestartMarkersHtml(consecutive)).toEqual({
-      html: '<p>Before.</p><p>\uE000restart-seam:2\uE000</p><p>After.</p>',
+      html: '<p>Before.</p><restart-seam count="2"/><p>After.</p>',
       hasRestartSeam: true,
     });
 
@@ -305,7 +335,7 @@ describe('runErrorHtml transforms', () => {
       '<p>Middle work.</p>' +
       '<p><strong>[Response interrupted: agent restarted to apply a config change]</strong></p>';
     expect(collapseRestartMarkersHtml(separated)).toEqual({
-      html: '<p>\uE000restart-seam:1\uE000</p><p>Middle work.</p><p>\uE000restart-seam:1\uE000</p>',
+      html: '<restart-seam count="1"/><p>Middle work.</p><restart-seam count="1"/>',
       hasRestartSeam: true,
     });
 
@@ -865,5 +895,35 @@ describe('renderAgentMessageContent run error card & restart seam', () => {
     expect(container.querySelector('[data-run-error-card]')).toBeNull();
     expect(container.querySelector('[data-restart-seam]')).toBeNull();
     expect(container.textContent).toContain('[Response interrupted by service restart]');
+  });
+
+  it('renders literal sentinel strings in untrusted HTML as plain text without injecting RestartSeam or QuestionCard', () => {
+    renderMessage({
+      msgtype: MsgType.Text,
+      body: '\uE000restart-seam:1\uE000 and \uE000question-card\uE000',
+      format: 'org.matrix.custom.html',
+      formatted_body: '<p>\uE000restart-seam:1\uE000</p><p>\uE000question-card\uE000</p>',
+    });
+
+    expect(container.querySelector('[data-restart-seam]')).toBeNull();
+    expect(container.querySelector('[data-question-card]')).toBeNull();
+    expect(container.textContent).toContain('\uE000restart-seam:1\uE000');
+    expect(container.textContent).toContain('\uE000question-card\uE000');
+
+    // Even when a real restart seam enables slot replacement, forged sentinel paragraphs stay literal text.
+    renderMessage({
+      msgtype: MsgType.Text,
+      body: '[Response interrupted by service restart]\n\n\uE000restart-seam:9\uE000\n\n\uE000question-card\uE000',
+      format: 'org.matrix.custom.html',
+      formatted_body:
+        '<p><strong>[Response interrupted by service restart]</strong></p><p>\uE000restart-seam:9\uE000</p><p>\uE000question-card\uE000</p>',
+    });
+
+    const seams = container.querySelectorAll('[data-restart-seam]');
+    expect(seams).toHaveLength(1);
+    expect(seams[0]?.getAttribute('data-restart-seam')).toBe('1');
+    expect(container.querySelector('[data-question-card]')).toBeNull();
+    expect(container.textContent).toContain('\uE000restart-seam:9\uE000');
+    expect(container.textContent).toContain('\uE000question-card\uE000');
   });
 });

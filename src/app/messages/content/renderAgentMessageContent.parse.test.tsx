@@ -11,6 +11,7 @@ import { showToolCalls } from '../../../test/utils/showToolCalls';
 beforeEach(showToolCalls);
 
 const sanitizeCustomHtmlSpy = vi.hoisted(() => vi.fn((html: string) => html));
+const parseHtmlToDomSpy = vi.hoisted(() => vi.fn());
 // The tool metadata status the long-text renderer reports, as while a sidecar loads.
 const longText = vi.hoisted(() => ({ status: 'loading' }));
 
@@ -18,6 +19,15 @@ vi.mock('../../rich-text/sanitize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../rich-text/sanitize')>()),
   sanitizeCustomHtml: sanitizeCustomHtmlSpy,
 }));
+
+vi.mock('../../rich-text/parseHtml', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../rich-text/parseHtml')>();
+  parseHtmlToDomSpy.mockImplementation(actual.parseHtmlToDom);
+  return {
+    ...actual,
+    parseHtmlToDom: parseHtmlToDomSpy,
+  };
+});
 
 // The real RenderBody and its memo, under an MText that passes the formatted body.
 vi.mock('./MsgTypeRenderers', async () => {
@@ -55,18 +65,14 @@ vi.mock('../thread-summary/ThreadSummaryCard', () => ({ ThreadSummaryCard: () =>
 vi.mock('../../approvals/ToolApprovalCard', () => ({ ToolApprovalCard: () => null }));
 vi.mock('./PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({ ThinkingPlaceholder: () => null }));
-vi.mock('./LongTextText', () => ({
-  LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  LongTextText: ({ content, longTextSource, renderBody }: any) =>
-    React.createElement(
-      'div',
-      null,
-      renderBody(
-        content,
-        { body: content.body, customBody: content.formatted_body },
-        longTextSource ? longText.status : undefined
-      )
-    ),
+vi.mock('./useResolvedMessageContent', () => ({
+  useResolvedMessageContent: ({ content, longTextSource }: any) => ({
+    content,
+    rawHydratedContent: undefined,
+    toolMetadataStatus: longTextSource ? longText.status : undefined,
+    showLoadingIndicator: false,
+    canFold: true,
+  }),
 }));
 
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
@@ -81,7 +87,6 @@ vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
   Count: 'Count',
 }));
 
-vi.mock('../agent-run/Reasoning.css', () => ({}));
 vi.mock('../html/HtmlBlocks.css', () => ({
   Block: 'Block',
   BlockBody: 'BlockBody',
@@ -119,7 +124,15 @@ const agentReply = (text: string, trace: ReturnType<typeof toolTrace>) => ({
 
 type Reply = Record<string, unknown> & { formatted_body: string };
 
-function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRegex?: RegExp }) {
+function Timeline({
+  replies,
+  highlightRegex,
+  fromMindroomAgent,
+}: {
+  replies: Reply[];
+  highlightRegex?: RegExp;
+  fromMindroomAgent?: boolean;
+}) {
   return (
     <ClientConfigProvider value={{}}>
       {replies.map((content, index) => (
@@ -127,6 +140,8 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
         <React.Fragment key={index}>
           {renderAgentMessageContent({
             displayName: 'Agent',
+            fromMindroomAgent,
+            eventId: `$evt-${index}`,
             msgType: 'm.text',
             content,
             highlightRegex,
@@ -139,17 +154,31 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
   );
 }
 
-const parsesOf = (content: Reply) =>
+const sanitizesOf = (content: Reply) =>
   sanitizeCustomHtmlSpy.mock.calls.filter(([html]) => html === content.formatted_body).length;
+const domParsesOf = (content: Reply) =>
+  parseHtmlToDomSpy.mock.calls.filter(([html]) => html === content.formatted_body).length;
 
 let renderer: ReactTestRenderer | undefined;
-const render = (replies: Reply[], highlightRegex?: RegExp) =>
+const render = (replies: Reply[], highlightRegex?: RegExp, fromMindroomAgent = false) =>
   act(() => {
-    const timeline = <Timeline replies={replies} highlightRegex={highlightRegex} />;
+    const timeline = (
+      <Timeline
+        replies={replies}
+        highlightRegex={highlightRegex}
+        fromMindroomAgent={fromMindroomAgent}
+      />
+    );
     if (renderer) renderer.update(timeline);
     else renderer = create(timeline);
   });
 const text = () => JSON.stringify(renderer?.toJSON());
+const nodeText = (node: unknown): string =>
+  typeof node === 'string'
+    ? node
+    : node && typeof node === 'object' && 'children' in node && Array.isArray(node.children)
+      ? node.children.map(nodeText).join('')
+      : '';
 // The tool names of the rendered tool call rows; a marker that did not render stays text.
 const toolCalls = () =>
   renderer?.root
@@ -159,6 +188,7 @@ const toolCalls = () =>
 describe('renderAgentMessageContent parsing', () => {
   beforeEach(() => {
     sanitizeCustomHtmlSpy.mockClear();
+    parseHtmlToDomSpy.mockClear();
   });
 
   afterEach(() => {
@@ -166,46 +196,67 @@ describe('renderAgentMessageContent parsing', () => {
     renderer = undefined;
   });
 
-  it('parses only the reply that changed when another reply with tool calls streams', () => {
+  it('sanitizes and parses only the reply that changed when another reply with tool calls streams', () => {
     const done = agentReply('Finished the search.', toolTrace('web_search'));
     let streaming = agentReply('Working on it.', toolTrace('browser_control'));
     render([done, streaming]);
-    expect(parsesOf(done)).toBe(1);
+    expect(sanitizesOf(done)).toBe(1);
+    expect(domParsesOf(done)).toBe(1);
 
     for (let edit = 1; edit <= 3; edit += 1) {
       streaming = agentReply(`Working on it, step ${edit}.`, toolTrace('browser_control'));
       // Edits are resolved again on every timeline render, so unchanged replies arrive as new
       // objects with the same values.
       render([{ ...done }, streaming]);
-      expect(parsesOf(streaming)).toBe(1);
+      expect(sanitizesOf(streaming)).toBe(1);
+      expect(domParsesOf(streaming)).toBe(1);
     }
 
-    expect(parsesOf(done)).toBe(1);
+    expect(sanitizesOf(done)).toBe(1);
+    expect(domParsesOf(done)).toBe(1);
     expect(text()).toContain('Working on it, step 3.');
     expect(text()).not.toContain('step 2');
     expect(toolCalls()).toEqual(['web_search', 'browser_control']);
   });
 
-  it('parses a reply again when only its tool trace changes', () => {
-    const before = agentReply('Searching.', toolTrace('web_search'));
+  it('reuses the sanitized DOM without re-sanitizing or re-parsing when only tool_trace changes', () => {
+    const before = agentReply('Searching.', {
+      version: 2,
+      events: [{ type: 'tool_call_started', tool_name: 'web_search' }],
+    });
     render([before]);
-    const after = { ...before, 'io.mindroom.tool_trace': toolTrace('web_search') };
+    expect(sanitizesOf(before)).toBe(1);
+    expect(domParsesOf(before)).toBe(1);
+
+    const after = {
+      ...before,
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_completed', tool_name: 'web_search', result_preview: 'ok' }],
+      },
+    };
     render([after]);
 
-    expect(parsesOf(before)).toBe(2);
-  });
-
-  it('renders the tool calls of a reply parsed again for another reason', () => {
-    const reply = agentReply('Searching.', toolTrace('web_search'));
-    render([reply]);
-    // A search highlight parses the same reply again with the same parser options.
-    render([reply], /Searching/);
-
-    expect(parsesOf(reply)).toBe(2);
+    expect(sanitizesOf(before)).toBe(1);
+    expect(domParsesOf(before)).toBe(1);
     expect(toolCalls()).toEqual(['web_search']);
   });
 
-  it('parses a long reply again when its tool metadata status changes', () => {
+  it('reuses the sanitized DOM without re-sanitizing or re-parsing when highlightRegex changes', () => {
+    const reply = agentReply('Searching.', toolTrace('web_search'));
+    render([reply]);
+    expect(sanitizesOf(reply)).toBe(1);
+    expect(domParsesOf(reply)).toBe(1);
+
+    render([reply], /Searching/);
+
+    expect(sanitizesOf(reply)).toBe(1);
+    expect(domParsesOf(reply)).toBe(1);
+    expect(toolCalls()).toEqual(['web_search']);
+    expect(text()).toContain('Searching');
+  });
+
+  it('reuses the sanitized DOM without re-sanitizing or re-parsing when toolMetadataStatus changes', () => {
     const reply = {
       ...agentReply('Long answer.', toolTrace('web_search')),
       url: 'mxc://example.org/long-text',
@@ -214,13 +265,87 @@ describe('renderAgentMessageContent parsing', () => {
     longText.status = 'loading';
     render([reply]);
     render([{ ...reply }]);
-    expect(parsesOf(reply)).toBe(1);
+    expect(sanitizesOf(reply)).toBe(1);
+    expect(domParsesOf(reply)).toBe(1);
 
     // The sidecar settled without the tool metadata.
     longText.status = 'unavailable';
     render([{ ...reply }]);
 
-    expect(parsesOf(reply)).toBe(2);
+    expect(sanitizesOf(reply)).toBe(1);
+    expect(domParsesOf(reply)).toBe(1);
     expect(toolCalls()).toEqual(['web_search']);
+  });
+
+  it('sanitizes and parses once even when toggling the reasoning bulb on a finished reply', () => {
+    const reply = {
+      ...agentReply('Checking.', toolTrace('web_search')),
+      formatted_body: '<p>Checking.</p><p>🔧 <code>web_search</code> [1]</p><p>Done.</p>',
+      'io.mindroom.ai_run': { version: 1, status: 'completed' },
+      'io.mindroom.reasoning': {
+        text: 'Plan the search.\n\nReview the answer.',
+        duration_ms: 4000,
+        segments: [
+          { start: 0, end: 16, after_tool: 0, duration_ms: 2000 },
+          { start: 18, end: 36, after_tool: 1, duration_ms: 2000 },
+        ],
+      },
+    };
+    render([reply], undefined, true);
+    expect(sanitizesOf(reply)).toBe(1);
+    expect(domParsesOf(reply)).toBe(1);
+
+    // Open finished-work fold, then open reasoning bulb inside it (reuses split toolCallIndexes).
+    const foldButton = renderer!.root.find(
+      (node) => node.type === 'button' && node.props['aria-expanded'] === false
+    );
+    act(() => {
+      foldButton.props.onClick();
+    });
+    const bulbButton = renderer!.root.find(
+      (node) =>
+        node.type === 'button' &&
+        node.props['aria-expanded'] === false &&
+        nodeText(node).includes('Thought')
+    );
+    act(() => {
+      bulbButton.props.onClick();
+    });
+
+    expect(sanitizesOf(reply)).toBe(1);
+    expect(domParsesOf(reply)).toBe(1);
+    expect(text()).toContain('Plan the search.');
+    expect(text()).toContain('Review the answer.');
+  });
+
+  it('sanitizes and parses once even when toggling the reasoning bulb on an unfolded streaming reply', () => {
+    const reply = {
+      ...agentReply('Checking.', toolTrace('web_search')),
+      formatted_body: '<p>Checking.</p><p>🔧 <code>web_search</code> [1]</p><p>Still working.</p>',
+      'io.mindroom.stream_status': 'streaming',
+      'io.mindroom.live_reasoning': 'Plan the search.\n\nInspect result.',
+      'io.mindroom.live_reasoning_segments': [
+        { start: 0, end: 16, after_tool: 0 },
+        { start: 18, end: 33, after_tool: 1 },
+      ],
+    };
+    render([reply], undefined, true);
+    expect(sanitizesOf(reply)).toBe(1);
+    expect(domParsesOf(reply)).toBe(1);
+
+    const bulbButton = renderer!.root.find(
+      (node) =>
+        node.type === 'button' &&
+        node.props['aria-expanded'] === false &&
+        nodeText(node).includes('Thinking')
+    );
+    act(() => {
+      bulbButton.props.onClick();
+    });
+
+    expect(sanitizesOf(reply)).toBe(1);
+    expect(domParsesOf(reply)).toBe(1);
+    expect(text()).toContain('Plan the search.');
+    expect(text()).toContain('Inspect result.');
   });
 });

@@ -95,18 +95,22 @@ const getToolRefChildHtml = (child: ChildNode): string | undefined => {
  * what is left after the last marker taken. The element is scanned once,
  * however many markers it holds.
  */
-export const takeLeadingToolRefs = (
+export const splitLeadingToolRefs = (
   element: Element,
-  take: (html: string) => boolean
-): ChildNode[] => {
+  take: (html: string) => boolean,
+  skipAllBreaks = false
+): { leading: ChildNode[]; trailing: ChildNode[]; count: number } => {
   const children = element.children;
-  if (!['p', 'div', 'li'].includes(element.name)) return children;
+  if (!['p', 'div', 'li'].includes(element.name)) {
+    return { leading: [], trailing: children, count: 0 };
+  }
 
   // What is left starts `split` characters into children[start]. The children
   // a marker can span from there are joined once into `html`, in which
   // children[runStart + i] ends at childEnds[i].
   let start = 0;
   let split = 0;
+  let count = 0;
   let runStart = 0;
   let html = '';
   let childEnds: number[] = [];
@@ -131,7 +135,21 @@ export const takeLeadingToolRefs = (
       split = 0;
     }
   };
+  const skipBreaks = () => {
+    skipWhitespaceText();
+    let skipped = false;
+    for (;;) {
+      const next = children[start];
+      if (!isDomElementNode(next) || next.name !== 'br') break;
+      start += 1;
+      skipped = true;
+      skipWhitespaceText();
+      if (!skipAllBreaks) break;
+    }
+    return skipped;
+  };
 
+  if (skipAllBreaks) skipBreaks();
   joinRun();
   for (;;) {
     // A prefix is a marker exactly when it ends between the marker's `]` and the end of this
@@ -161,26 +179,31 @@ export const takeLeadingToolRefs = (
       }
     }
     if (end === undefined || !take(html.slice(from, end))) break;
+    count += 1;
 
     // Continue after the marker and its boundary: whitespace, then one line
     // break and more whitespace.
     const endsInsideChild = end < childEnds[endChild - runStart]!;
     start = endsInsideChild ? endChild : endChild + 1;
     split = endsInsideChild ? end - childStartOf(endChild) : 0;
-    skipWhitespaceText();
-    const next = children[start];
-    if (isDomElementNode(next) && next.name === 'br') {
-      start += 1;
-      skipWhitespaceText();
-      joinRun();
-    }
+    if (skipBreaks()) joinRun();
   }
 
-  const rest = children.slice(start);
-  const first = rest[0];
-  if (split > 0 && isDomTextNode(first)) rest[0] = new DOMText(first.data.slice(split));
-  return rest;
+  const leading = children.slice(0, start);
+  const splitNode = children[start];
+  if (split > 0 && isDomTextNode(splitNode)) {
+    leading.push(new DOMText(splitNode.data.slice(0, split)));
+  }
+  const trailing = children.slice(start);
+  const first = trailing[0];
+  if (split > 0 && isDomTextNode(first)) trailing[0] = new DOMText(first.data.slice(split));
+  return { leading, trailing, count };
 };
+
+export const takeLeadingToolRefs = (
+  element: Element,
+  take: (html: string) => boolean
+): ChildNode[] => splitLeadingToolRefs(element, take).trailing;
 
 export const getToolRefPrefixFromElement = (element: Element): ToolRefElementPrefix | undefined => {
   let prefixHtml = '';

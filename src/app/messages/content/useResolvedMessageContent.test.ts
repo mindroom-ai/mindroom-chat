@@ -59,7 +59,24 @@ vi.mock('./BrokenContent', async () => {
   };
 });
 vi.mock('./MsgTypeRenderers', () => ({
-  MEmote: () => null,
+  MEmote: ({
+    displayName,
+    content,
+    renderBody,
+  }: {
+    displayName: string;
+    content: Record<string, unknown>;
+    renderBody: (props: { body: string; customBody?: string }) => React.ReactNode;
+  }) =>
+    React.createElement(
+      'div',
+      { 'data-testid': 'emote-body' },
+      `* ${displayName} `,
+      renderBody({
+        body: trimReplyFromBody(typeof content.body === 'string' ? content.body : ''),
+        customBody: typeof content.formatted_body === 'string' ? content.formatted_body : undefined,
+      })
+    ),
   MNotice: () => null,
   MText: ({
     content,
@@ -194,10 +211,10 @@ vi.mock('../SkillReviewMarker', () => ({
   SkillReviewMarker: () => null,
 }));
 vi.mock('../TriggerWakeMarker', () => ({
-  TriggerWakeMarker: () => null,
+  TriggerWakeMarker: () => React.createElement('div', { 'data-testid': 'trigger-wake-marker' }),
 }));
 vi.mock('../TodoPokeMarker', () => ({
-  TodoPokeMarker: () => null,
+  TodoPokeMarker: () => React.createElement('div', { 'data-testid': 'todo-poke-marker' }),
 }));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: () => null,
@@ -232,9 +249,9 @@ vi.mock('../../matrix/hooks/useMatrixClient', async (importOriginal) => ({
 
 const getDownloadLongTextSidecarBlob = async () =>
   (await import('./longTextDownload')).downloadLongTextSidecarBlob;
-const getLongTextTextModule = async () => import('./LongTextText');
+const getResolvedMessageContentModule = async () => import('./useResolvedMessageContent');
 const getShouldResetResolvedContentToPreview = async () =>
-  (await import('./LongTextText')).shouldResetResolvedContentToPreview;
+  (await import('./useResolvedMessageContent')).shouldResetResolvedContentToPreview;
 const mockMx = hookMocks.mx as unknown as MatrixClient;
 
 const createLongTextSource = (overrides: Partial<LongTextSource> = {}): LongTextSource => ({
@@ -264,22 +281,27 @@ const createDeferred = <T>() => {
   return { promise, resolve };
 };
 
-const renderLongTextText = async (
+const renderResolvedMessageContent = async (
   content: Record<string, unknown>
 ): Promise<{
   renderer: ReactTestRenderer;
   update: (nextContent: Record<string, unknown>) => Promise<void>;
 }> => {
-  const { LongTextKind, LongTextText } = await getLongTextTextModule();
+  const { useResolvedMessageContent } = await getResolvedMessageContentModule();
   let renderer!: ReactTestRenderer;
 
-  const render = (nextContent: Record<string, unknown>) =>
-    React.createElement(LongTextText, {
-      kind: LongTextKind.Text,
+  const Probe = ({ nextContent }: { nextContent: Record<string, unknown> }) => {
+    useResolvedMessageContent({
+      outerContent: nextContent,
       content: nextContent,
       longTextSource: createLongTextSource({ previewContent: nextContent }),
-      renderBody: () => null,
+      fromMindroomAgent: false,
     });
+    return null;
+  };
+
+  const render = (nextContent: Record<string, unknown>) =>
+    React.createElement(Probe, { nextContent });
 
   await act(async () => {
     renderer = create(render(content));
@@ -303,7 +325,7 @@ const renderResolvedContentProbe = async (
   renderer: ReactTestRenderer;
   update: (nextSource: LongTextSource | undefined, nextEnabled: boolean) => Promise<void>;
 }> => {
-  const { useLongTextResolvedContent } = await getLongTextTextModule();
+  const { useLongTextResolvedContent } = await getResolvedMessageContentModule();
   const onResolvedContent = vi.fn();
   let renderer!: ReactTestRenderer;
 
@@ -352,7 +374,7 @@ const renderResolvedContentDomProbe = async (
     nextEnabled: boolean
   ) => Promise<{ renderPhaseValues: (Record<string, unknown> | undefined)[] }>;
 }> => {
-  const { useLongTextResolvedContent } = await getLongTextTextModule();
+  const { useLongTextResolvedContent } = await getResolvedMessageContentModule();
   let renderer!: ReactTestRenderer;
   const renderPhaseValues: (Record<string, unknown> | undefined)[] = [];
 
@@ -627,7 +649,7 @@ describe('shouldResetResolvedContentToPreview', () => {
   });
 });
 
-describe('LongTextText hydration identity', () => {
+describe('useResolvedMessageContent hydration identity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // A warm real cache now short-circuits the mocked hydrate entirely, so
@@ -640,18 +662,26 @@ describe('LongTextText hydration identity', () => {
   });
 
   it('defers sidecar hydration until hydration is enabled', async () => {
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
     const content = createPreviewContent();
     let renderer!: ReactTestRenderer;
 
-    const render = (hydrate: boolean) =>
-      React.createElement(LongTextText, {
-        kind: LongTextKind.Text,
-        hydrate,
+    const Probe = ({ hydrate }: { hydrate: boolean }) => {
+      const resolved = useResolvedMessageContent({
+        outerContent: content,
         content,
         longTextSource: createLongTextSource({ previewContent: content }),
-        renderBody: (_content, props) => props.body,
+        fromMindroomAgent: false,
+        hydrate,
       });
+      return React.createElement(
+        'div',
+        { 'data-testid': 'long-text-body' },
+        String(resolved.content.body ?? '')
+      );
+    };
+
+    const render = (hydrate: boolean) => React.createElement(Probe, { hydrate });
 
     longTextMocks.hydrateMindroomLongTextSource.mockClear();
     longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
@@ -686,7 +716,7 @@ describe('LongTextText hydration identity', () => {
   it('shows no link previews and no loading line while the preview text waits for the sidecar', async () => {
     vi.useFakeTimers();
     try {
-      const { LongTextKind, LongTextText } = await getLongTextTextModule();
+      const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
       const content = {
         ...createPreviewContent(),
         body: 'Preview response https://a.example/x https://b.example/y',
@@ -698,14 +728,19 @@ describe('LongTextText hydration identity', () => {
       const text = () => JSON.stringify(renderer.toJSON());
       await act(async () => {
         renderer = create(
-          React.createElement(LongTextText, {
-            kind: LongTextKind.Text,
-            content,
-            longTextSource: createLongTextSource({ previewContent: content }),
-            renderBody: (_content, props) => props.body,
-            renderUrlsPreview: (urls: string[]) =>
-              urls.map((url) => React.createElement('span', { key: url, 'data-url-card': true })),
-          })
+          React.createElement(
+            ClientConfigProvider,
+            { value: {} },
+            renderAgentMessageContent({
+              displayName: 'MindRoom',
+              msgType: 'm.text',
+              content,
+              htmlReactParserOptions: {},
+              linkifyOpts: {},
+              renderUrlsPreview: (urls: string[]) =>
+                urls.map((url) => React.createElement('span', { key: url, 'data-url-card': true })),
+            })
+          )
         );
       });
       expect(text()).toContain('Preview response');
@@ -740,18 +775,23 @@ describe('LongTextText hydration identity', () => {
   ])('shows the loading line while a preview of %s waits for its sidecar', async (_, preview) => {
     vi.useFakeTimers();
     try {
-      const { LongTextKind, LongTextText } = await getLongTextTextModule();
+      const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
       const content = { ...createPreviewContent(), ...preview };
       longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(new Promise(() => undefined));
       let renderer!: ReactTestRenderer;
       await act(async () => {
         renderer = create(
-          React.createElement(LongTextText, {
-            kind: LongTextKind.Text,
-            content,
-            longTextSource: createLongTextSource({ previewContent: content }),
-            renderBody: (_content, props) => props.body,
-          })
+          React.createElement(
+            ClientConfigProvider,
+            { value: {} },
+            renderAgentMessageContent({
+              displayName: 'MindRoom',
+              msgType: 'm.text',
+              content,
+              htmlReactParserOptions: {},
+              linkifyOpts: {},
+            })
+          )
         );
       });
       await act(async () => {
@@ -765,7 +805,7 @@ describe('LongTextText hydration identity', () => {
   });
 
   it('renders prewarmed sidecar content on the first paint without a preview flash', async () => {
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
     const content = createPreviewContent();
     const source = createLongTextSource({ previewContent: content });
     // Warm the REAL cache the way a thread open does before its first paint.
@@ -781,19 +821,20 @@ describe('LongTextText hydration identity', () => {
 
     // Capture every render body so the first render (before any effect runs) is checked directly.
     const renderedBodies: string[] = [];
+    const Probe = () => {
+      const resolved = useResolvedMessageContent({
+        outerContent: content,
+        content,
+        longTextSource: source,
+        fromMindroomAgent: false,
+      });
+      const body = String(resolved.content.body ?? '');
+      renderedBodies.push(body);
+      return React.createElement('div', { 'data-testid': 'long-text-body' }, body);
+    };
     let renderer!: ReactTestRenderer;
     act(() => {
-      renderer = create(
-        React.createElement(LongTextText, {
-          kind: LongTextKind.Text,
-          content,
-          longTextSource: source,
-          renderBody: (_content, props) => {
-            renderedBodies.push(props.body);
-            return props.body;
-          },
-        })
-      );
+      renderer = create(React.createElement(Probe));
     });
     expect(renderedBodies[0]).toBe('Full prewarmed response');
     expect(renderer.root.findByProps({ 'data-testid': 'long-text-body' }).children).toContain(
@@ -813,7 +854,7 @@ describe('LongTextText hydration identity', () => {
   });
 
   it('shows warm content on the render that enables hydration, before effects run', async () => {
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
     const content = createPreviewContent();
     const source = createLongTextSource({ previewContent: content });
     const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
@@ -827,17 +868,19 @@ describe('LongTextText hydration identity', () => {
     longTextMocks.hydrateMindroomLongTextSource.mockClear();
 
     const renderedBodies: string[] = [];
-    const render = (hydrate: boolean) =>
-      React.createElement(LongTextText, {
-        kind: LongTextKind.Text,
-        hydrate,
+    const Probe = ({ hydrate }: { hydrate: boolean }) => {
+      const resolved = useResolvedMessageContent({
+        outerContent: content,
         content,
         longTextSource: source,
-        renderBody: (_content, props) => {
-          renderedBodies.push(props.body);
-          return props.body;
-        },
+        fromMindroomAgent: false,
+        hydrate,
       });
+      const body = String(resolved.content.body ?? '');
+      renderedBodies.push(body);
+      return React.createElement('div', { 'data-testid': 'long-text-body' }, body);
+    };
+    const render = (hydrate: boolean) => React.createElement(Probe, { hydrate });
 
     // Overscan mount: cold render keeps the cheap preview despite the warm
     // cache (PR #110's guard).
@@ -1168,21 +1211,22 @@ describe('LongTextText hydration identity', () => {
   });
 
   it('keeps tool details loading on the first render when a cold row becomes visible', async () => {
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
     longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(createDeferred().promise);
     const content = createPreviewContent();
     const statuses: (string | undefined)[] = [];
-    const render = (hydrate: boolean) =>
-      React.createElement(LongTextText, {
-        kind: LongTextKind.Text,
+    const Probe = ({ hydrate }: { hydrate: boolean }) => {
+      const resolved = useResolvedMessageContent({
+        outerContent: content,
         content,
-        hydrate,
         longTextSource: createLongTextSource({ previewContent: content }),
-        renderBody: (_content, _props, status) => {
-          statuses.push(status);
-          return React.createElement('span', null, status);
-        },
+        fromMindroomAgent: false,
+        hydrate,
       });
+      statuses.push(resolved.toolMetadataStatus);
+      return React.createElement('span', null, resolved.toolMetadataStatus);
+    };
+    const render = (hydrate: boolean) => React.createElement(Probe, { hydrate });
     let renderer!: ReactTestRenderer;
     await act(async () => {
       renderer = create(render(false));
@@ -1429,7 +1473,7 @@ describe('LongTextText hydration identity', () => {
 
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {
     const content = createPreviewContent();
-    const { renderer, update } = await renderLongTextText(content);
+    const { renderer, update } = await renderResolvedMessageContent(content);
 
     expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
 
@@ -1449,7 +1493,7 @@ describe('LongTextText hydration identity', () => {
   });
 
   it('keeps the previous hydrated tool trace while the next rich preview hydrates', async () => {
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
     const toolTrace = {
       version: 2,
       events: [{ type: 'tool_call_completed', tool_name: 'run_shell_command' }],
@@ -1469,23 +1513,26 @@ describe('LongTextText hydration identity', () => {
     const secondDeferred = createDeferred<Record<string, unknown>>();
     let renderer!: ReactTestRenderer;
 
-    const render = (nextContent: Record<string, unknown>) =>
-      React.createElement(LongTextText, {
-        kind: LongTextKind.Text,
+    const Probe = ({ nextContent }: { nextContent: Record<string, unknown> }) => {
+      const resolved = useResolvedMessageContent({
+        outerContent: nextContent,
         content: nextContent,
         longTextSource: createLongTextSource({
           previewContent: nextContent,
           mxcUri: nextContent.url as string,
         }),
-        renderBody: (resolvedContent, props) =>
-          React.createElement(
-            'span',
-            { 'data-testid': 'tool-trace-probe' },
-            `${props.body}|${
-              resolvedContent['io.mindroom.tool_trace'] ? 'trace-present' : 'trace-missing'
-            }`
-          ),
+        fromMindroomAgent: true,
       });
+      return React.createElement(
+        'span',
+        { 'data-testid': 'tool-trace-probe' },
+        `${String(resolved.content.body ?? '')}|${
+          resolved.content['io.mindroom.tool_trace'] ? 'trace-present' : 'trace-missing'
+        }`
+      );
+    };
+    const render = (nextContent: Record<string, unknown>) =>
+      React.createElement(Probe, { nextContent });
 
     longTextMocks.hydrateMindroomLongTextSource.mockReset();
     longTextMocks.hydrateMindroomLongTextSource.mockImplementation((source: LongTextSource) => {
@@ -1537,7 +1584,7 @@ describe('LongTextText hydration identity', () => {
   });
 
   it('clears stale sidecar state across defined -> undefined -> defined transitions', async () => {
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
     const sidecarADeferred = createDeferred<Record<string, unknown>>();
     const sidecarBDeferred = createDeferred<Record<string, unknown>>();
     longTextMocks.hydrateMindroomLongTextSource
@@ -1545,16 +1592,25 @@ describe('LongTextText hydration identity', () => {
       .mockReturnValueOnce(sidecarBDeferred.promise);
 
     const observed: Array<{ body: string; status: string | undefined }> = [];
-    const renderElement = (content: Record<string, unknown>, longTextSource?: LongTextSource) =>
-      React.createElement(LongTextText, {
-        kind: LongTextKind.Text,
+    const Probe = ({
+      content,
+      longTextSource,
+    }: {
+      content: Record<string, unknown>;
+      longTextSource?: LongTextSource;
+    }) => {
+      const resolved = useResolvedMessageContent({
+        outerContent: content,
         content,
         longTextSource,
-        renderBody: (_resolved, props, status) => {
-          observed.push({ body: props.body, status });
-          return React.createElement('span', { 'data-testid': 'body' }, props.body);
-        },
+        fromMindroomAgent: false,
       });
+      const body = String(resolved.content.body ?? '');
+      observed.push({ body, status: resolved.toolMetadataStatus });
+      return React.createElement('span', { 'data-testid': 'body' }, body);
+    };
+    const renderElement = (content: Record<string, unknown>, longTextSource?: LongTextSource) =>
+      React.createElement(Probe, { content, longTextSource });
 
     const contentA = { ...createPreviewContent(), body: 'Preview A', url: 'mxc://server/a' };
     const sourceA = createLongTextSource({ previewContent: contentA, mxcUri: 'mxc://server/a' });
@@ -1695,12 +1751,11 @@ describe('v3 tool-trace sidecar hydration', () => {
     },
   };
 
-  it('applies transformContent before MText builds props without mutating the shared MXC cache', async () => {
+  it('sanitizes sidecar content without mutating rawHydratedContent or the shared MXC cache', async () => {
     const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
       '../../matrix/protocol/longText'
     );
-    const { sanitizeContent } = await import('../../matrix/protocol/untrustedContent');
-    const { LongTextKind, LongTextText } = await getLongTextTextModule();
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
     const mxcUri = 'mxc://server/v3-transform-unit';
     const preview = {
       ...createPreviewContent(),
@@ -1716,29 +1771,39 @@ describe('v3 tool-trace sidecar hydration', () => {
 
     const observed: Array<{
       content: Record<string, unknown>;
-      props: { body: string; customBody?: string };
+      rawHydratedContent: Record<string, unknown> | undefined;
     }> = [];
+    const Probe = () => {
+      const resolved = useResolvedMessageContent({
+        outerContent: preview,
+        content: preview,
+        longTextSource: source,
+        fromMindroomAgent: true,
+      });
+      observed.push({
+        content: resolved.content,
+        rawHydratedContent: resolved.rawHydratedContent,
+      });
+      return null;
+    };
     let renderer!: ReactTestRenderer;
     await act(async () => {
-      renderer = create(
-        React.createElement(LongTextText, {
-          kind: LongTextKind.Text,
-          content: preview,
-          longTextSource: source,
-          transformContent: (downloaded) => sanitizeContent(downloaded, true),
-          renderBody: (resolved, props) => {
-            observed.push({ content: resolved, props });
-            return React.createElement('span', null, props.customBody ?? props.body);
-          },
-        })
-      );
+      renderer = create(React.createElement(Probe));
     });
 
     try {
       const last = observed.at(-1);
-      expect(last?.props.body).toContain('🔧 `read_file` [1]');
-      expect(last?.props.customBody).toContain('<p>🔧 <code>read_file</code> [1]</p>');
+      expect(last?.content.body).toContain('🔧 `read_file` [1]');
+      expect(last?.content.formatted_body).toContain('<p>🔧 <code>read_file</code> [1]</p>');
       expect((last?.content['io.mindroom.tool_trace'] as { version?: number })?.version).toBe(2);
+
+      // rawHydratedContent keeps the raw cached sidecar (with SIDECAR_FACTS) intact.
+      expect(last?.rawHydratedContent).toBe(
+        actualLongText.getCachedLongTextContent(source, mockMx)
+      );
+      expect(
+        last?.rawHydratedContent && actualLongText.getLongTextSidecarFacts(last.rawHydratedContent)
+      ).toMatchObject({ topLevelContent: true });
 
       // Shared MXC cache keeps raw wire v3 JSON untouched.
       const cached = actualLongText.getCachedLongTextContent(source, mockMx);
@@ -2275,6 +2340,191 @@ describe('useLongTextResolvedContent', () => {
     });
 
     expect(getProbeText()).toBe(JSON.stringify(resolvedContentB));
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+});
+
+describe('useResolvedMessageContent invariants', () => {
+  beforeEach(() => {
+    clearLongTextHydrationCache();
+    vi.clearAllMocks();
+  });
+
+  it('never exposes a previous revision as rawHydratedContent while a new cold revision loads', async () => {
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
+    const firstDeferred = createDeferred<Record<string, unknown>>();
+    const secondDeferred = createDeferred<Record<string, unknown>>();
+    longTextMocks.hydrateMindroomLongTextSource
+      .mockReturnValueOnce(firstDeferred.promise)
+      .mockReturnValueOnce(secondDeferred.promise);
+
+    const previewA = { ...createPreviewContent(), body: 'Preview A', url: 'mxc://server/rev-a' };
+    const previewB = { ...createPreviewContent(), body: 'Preview B', url: 'mxc://server/rev-b' };
+    const hydratedA = {
+      msgtype: 'm.text',
+      body: 'Hydrated A',
+      formatted_body: '<p>Hydrated A</p>',
+    };
+    const snapshots: Array<{
+      body: unknown;
+      rawHydratedContent: Record<string, unknown> | undefined;
+    }> = [];
+
+    const Probe = ({ preview }: { preview: Record<string, unknown> }) => {
+      const resolved = useResolvedMessageContent({
+        outerContent: preview,
+        content: preview,
+        longTextSource: createLongTextSource({
+          previewContent: preview,
+          mxcUri: preview.url as string,
+        }),
+        fromMindroomAgent: false,
+      });
+      snapshots.push({
+        body: resolved.content.body,
+        rawHydratedContent: resolved.rawHydratedContent,
+      });
+      return null;
+    };
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(Probe, { preview: previewA }));
+    });
+    await act(async () => {
+      firstDeferred.resolve(hydratedA);
+      await firstDeferred.promise;
+    });
+    expect(snapshots.at(-1)).toEqual({ body: 'Hydrated A', rawHydratedContent: hydratedA });
+
+    // Switch to revision B (no formatted_body in preview -> display retains hydratedA for visual
+    // continuity, while rawHydratedContent MUST immediately clear to undefined).
+    snapshots.length = 0;
+    await act(async () => {
+      renderer.update(React.createElement(Probe, { preview: previewB }));
+    });
+    expect(snapshots.every((s) => s.rawHydratedContent === undefined)).toBe(true);
+    expect(snapshots.at(-1)?.body).toBe('Hydrated A');
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('exposes warm cached rawHydratedContent with SIDECAR_FACTS when hydrate=false while keeping cheap preview', async () => {
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
+      '../../matrix/protocol/longText'
+    );
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
+    const preview = { ...createPreviewContent(), url: 'mxc://server/warm-cold-row' };
+    const source = createLongTextSource({ previewContent: preview, mxcUri: preview.url });
+    const rawSidecar = await actualLongText.hydrateLongTextSource(
+      source,
+      async () => JSON.stringify({ msgtype: 'm.text', body: 'Warm full content' }),
+      mockMx
+    );
+
+    let observed: ReturnType<typeof useResolvedMessageContent> | undefined;
+    const Probe = () => {
+      observed = useResolvedMessageContent({
+        outerContent: preview,
+        content: preview,
+        longTextSource: source,
+        fromMindroomAgent: false,
+        hydrate: false,
+      });
+      return null;
+    };
+
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(React.createElement(Probe));
+    });
+
+    expect(observed?.content.body).toBe('Preview response');
+    expect(observed?.rawHydratedContent).toBe(rawSidecar);
+    expect(
+      observed?.rawHydratedContent &&
+        actualLongText.getLongTextSidecarFacts(observed.rawHydratedContent)
+    ).toMatchObject({ topLevelContent: true });
+
+    await act(async () => {
+      renderer.unmount();
+    });
+  });
+
+  it('works without a MatrixClientProvider and does not blanket-sanitize non-sidecar content', async () => {
+    const { useResolvedMessageContent } = await getResolvedMessageContentModule();
+    const savedMx = hookMocks.mx;
+    (hookMocks as { mx: unknown }).mx = undefined;
+    try {
+      const eventlessContent = {
+        msgtype: 'm.text',
+        body: 'Subagent output',
+        'io.mindroom.tool_trace': { version: 2, events: [] },
+      };
+      let observed: ReturnType<typeof useResolvedMessageContent> | undefined;
+      const Probe = () => {
+        observed = useResolvedMessageContent({
+          outerContent: eventlessContent,
+          content: eventlessContent,
+          fromMindroomAgent: false,
+        });
+        return null;
+      };
+
+      let renderer!: ReactTestRenderer;
+      await act(async () => {
+        renderer = create(React.createElement(Probe));
+      });
+
+      expect(observed?.content).toBe(eventlessContent);
+      expect(observed?.rawHydratedContent).toBeUndefined();
+      expect(observed?.toolMetadataStatus).toBeUndefined();
+      expect(observed?.showLoadingIndicator).toBe(false);
+      expect(observed?.canFold).toBe(true);
+
+      await act(async () => {
+        renderer.unmount();
+      });
+    } finally {
+      hookMocks.mx = savedMx;
+    }
+  });
+
+  it('never collapses an m.emote message into a TriggerWakeMarker or TodoPokeMarker', async () => {
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
+    const emoteContent = {
+      msgtype: 'm.emote',
+      body: 'checks the deploy status',
+      'com.mindroom.source_kind': 'external_trigger',
+      'io.mindroom.external_trigger.id': 'deploy-hook',
+    };
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          ClientConfigProvider,
+          { value: {} },
+          renderAgentMessageContent({
+            fromMindroomAgent: true,
+            displayName: 'Agent',
+            msgType: 'm.emote',
+            content: emoteContent,
+            htmlReactParserOptions: {},
+            linkifyOpts: {},
+          })
+        )
+      );
+    });
+
+    const rendered = JSON.stringify(renderer.toJSON());
+    expect(rendered).toContain('checks the deploy status');
+    expect(rendered).not.toContain('trigger-wake-marker');
+    expect(rendered).not.toContain('todo-poke-marker');
 
     await act(async () => {
       renderer.unmount();

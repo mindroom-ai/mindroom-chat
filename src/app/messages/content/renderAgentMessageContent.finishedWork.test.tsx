@@ -577,13 +577,16 @@ describe('finished agent work', () => {
     // Trailing text disappears and an interactive question appears on the reply.
     render(
       baseStreaming({
-        'io.mindroom.question': {
-          version: 1,
-          question: 'Continue?',
-          options: [{ label: 'Yes', emoji: '✅' }],
+        'io.mindroom.interactive': {
+          question_text: 'Continue?',
+          options: { '✅': 'yes', '1': 'yes' },
+          option_labels: { '✅': 'Yes', '1': 'Yes' },
         },
       })
     );
+    expect(
+      renderer!.root.findAll((node) => node.props['data-question-card'] === true)
+    ).toHaveLength(1);
     expect(reasoningToggle().props['aria-expanded']).toBe(true);
     expect(toolRunButtons()[0]!.props['aria-expanded']).toBe(true);
 

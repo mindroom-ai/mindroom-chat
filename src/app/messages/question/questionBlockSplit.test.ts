@@ -1,6 +1,39 @@
 import { describe, expect, it } from 'vitest';
+import { isText, type ChildNode } from 'domhandler';
+import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
+import { getReplySlot, parseRenderedHtml } from '../agent-run/replyDom';
+import { isDomElementNode } from '../agent-run/toolRefDom';
 import { formatMarkdownTextBodyAsHtml } from '../html/blocks';
-import { splitQuestionBlock } from './questionBlockSplit';
+import { placeQuestionCardInDom } from './questionBlockSplit';
+import type { InteractiveQuestion } from '../../matrix/protocol/interactiveQuestion';
+
+const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'wbr']);
+const serializeDom = (nodes: readonly ChildNode[]): string =>
+  nodes
+    .map((node) => {
+      if (isText(node)) return sanitizeText(node.data);
+      if (!isDomElementNode(node)) return '';
+      const attrs = Object.entries(node.attribs)
+        .map(([name, value]) => ` ${name}="${sanitizeText(value)}"`)
+        .join('');
+      return VOID_TAGS.has(node.name)
+        ? `<${node.name}${attrs}>`
+        : `<${node.name}${attrs}>${serializeDom(node.children)}</${node.name}>`;
+    })
+    .join('');
+
+const splitQuestionHtml = (html: string | undefined, question: InteractiveQuestion) => {
+  if (!html) return undefined;
+  const placed = placeQuestionCardInDom(parseRenderedHtml(sanitizeCustomHtml(html), {}), question);
+  if (!placed) return undefined;
+  const slotIndex = placed.findIndex((node) => getReplySlot(node)?.kind === 'questionCard');
+  expect(slotIndex).toBeGreaterThanOrEqual(0);
+  expect(placed.filter((node) => getReplySlot(node)?.kind === 'questionCard')).toHaveLength(1);
+  return {
+    before: serializeDom(placed.slice(0, slotIndex)),
+    after: serializeDom(placed.slice(slotIndex + 1)),
+  };
+};
 
 const question = {
   text: 'Which **color** should the `snake_case_name` take?',
@@ -19,16 +52,16 @@ const block = [
   INSTRUCTION,
 ].join('\n');
 
-describe('splitQuestionBlock', () => {
-  it('splits off the text before a question that ends the reply', () => {
-    expect(splitQuestionBlock(`<p>The build is green.</p>\n${block}`, question)).toEqual({
+describe('placeQuestionCardInDom', () => {
+  it('replaces a question that ends the reply with a questionCard slot', () => {
+    expect(splitQuestionHtml(`<p>The build is green.</p>\n${block}`, question)).toEqual({
       before: '<p>The build is green.</p>',
       after: '',
     });
   });
 
   it('keeps the text on both sides of a question in the middle', () => {
-    const split = splitQuestionBlock(
+    const split = splitQuestionHtml(
       `<h2>Status</h2>\n${block}\n<p>More <b>after</b>.</p>`,
       question
     );
@@ -38,7 +71,7 @@ describe('splitQuestionBlock', () => {
   it('matches a question over several paragraphs', () => {
     const twoParagraphs = { ...question, text: 'First part.\n\nWhich color?' };
     const html = `<p>Intro</p><p>First part.</p>\n<p>Which color?</p>${OPTIONS}${INSTRUCTION}<p>Tail</p>`;
-    expect(splitQuestionBlock(html, twoParagraphs)).toEqual({
+    expect(splitQuestionHtml(html, twoParagraphs)).toEqual({
       before: '<p>Intro</p>',
       after: '<p>Tail</p>',
     });
@@ -47,33 +80,33 @@ describe('splitQuestionBlock', () => {
   it('takes the last block, not an example before it with other symbols or no instruction', () => {
     const greater = { ...question, text: 'Deploy if x > 0?' };
     const asked = `<p>Deploy if x &gt; 0?</p>${OPTIONS}${INSTRUCTION}`;
-    expect(splitQuestionBlock(`<p>Deploy if x &lt; 0?</p>${OPTIONS}${INSTRUCTION}`, greater)).toBe(
+    expect(splitQuestionHtml(`<p>Deploy if x &lt; 0?</p>${OPTIONS}${INSTRUCTION}`, greater)).toBe(
       undefined
     );
     const example = `<p>Deploy if x &gt; 0?</p>${OPTIONS}<p>Like that.</p>`;
-    expect(splitQuestionBlock(`${example}${asked}<p>Tail</p>`, greater)).toEqual({
+    expect(splitQuestionHtml(`${example}${asked}<p>Tail</p>`, greater)).toEqual({
       before: example,
       after: '<p>Tail</p>',
     });
     const quoted = `${asked}<p>Between</p>${asked}`;
-    expect(splitQuestionBlock(quoted, greater)?.before).toBe(`${asked}<p>Between</p>`);
+    expect(splitQuestionHtml(quoted, greater)?.before).toBe(`${asked}<p>Between</p>`);
   });
 
   it('finds nothing when the reply holds more than the question, or other options', () => {
     const image = '<img src="mxc://example.org/abc" alt="chart">';
-    expect(splitQuestionBlock(block.replace('\n<ol>', `<p>${image}</p><ol>`), question)).toBe(
+    expect(splitQuestionHtml(block.replace('\n<ol>', `<p>${image}</p><ol>`), question)).toBe(
       undefined
     );
-    expect(splitQuestionBlock(block.replace('take?', `take? ${image}`), question)).toBe(undefined);
-    expect(splitQuestionBlock(block.replace(INSTRUCTION, ''), question)).toBeUndefined();
-    expect(splitQuestionBlock(block.replace('</ol>', '</ol>stray'), question)).toBeUndefined();
-    expect(splitQuestionBlock(block.replace('🟢 Green', '🟡 Green'), question)).toBeUndefined();
-    expect(splitQuestionBlock(block.replace('take?', 'get?'), question)).toBeUndefined();
-    expect(splitQuestionBlock('<p>The build is green.</p>', question)).toBeUndefined();
+    expect(splitQuestionHtml(block.replace('take?', `take? ${image}`), question)).toBe(undefined);
+    expect(splitQuestionHtml(block.replace(INSTRUCTION, ''), question)).toBeUndefined();
+    expect(splitQuestionHtml(block.replace('</ol>', '</ol>stray'), question)).toBeUndefined();
+    expect(splitQuestionHtml(block.replace('🟢 Green', '🟡 Green'), question)).toBeUndefined();
+    expect(splitQuestionHtml(block.replace('take?', 'get?'), question)).toBeUndefined();
+    expect(splitQuestionHtml('<p>The build is green.</p>', question)).toBeUndefined();
   });
 });
 
-describe('splitQuestionBlock on the HTML the app formats from a body-only reply', () => {
+describe('placeQuestionCardInDom on the HTML the app formats from a body-only reply', () => {
   const asked = {
     text: 'Which order should the work take? I recommend tests first (80%).',
     options: [
@@ -90,7 +123,7 @@ describe('splitQuestionBlock on the HTML the app formats from a body-only reply'
     '',
     'React with an emoji or type the number to respond.',
   ].join('\n');
-  const split = (body: string) => splitQuestionBlock(formatMarkdownTextBodyAsHtml(body), asked);
+  const split = (body: string) => splitQuestionHtml(formatMarkdownTextBodyAsHtml(body), asked);
 
   it('finds the block in its line-break layout, the text around it kept as formatted', () => {
     const html =
@@ -101,7 +134,7 @@ describe('splitQuestionBlock on the HTML the app formats from a body-only reply'
     expect(formatMarkdownTextBodyAsHtml(`The main choice:\n\n${BLOCK}\n\n**TL;DR:** soon.`)).toBe(
       html
     );
-    expect(splitQuestionBlock(html, asked)).toEqual({
+    expect(splitQuestionHtml(html, asked)).toEqual({
       before: 'The main choice:',
       after: '<strong data-md="**">TL;DR:</strong> soon.',
     });
@@ -112,7 +145,6 @@ describe('splitQuestionBlock on the HTML the app formats from a body-only reply'
     const fenced = `\`\`\`text\n${BLOCK}\n\`\`\``;
     const result = split(`${BLOCK}\n\nAn example:\n\n${fenced}`);
     expect(result?.before).toBe('');
-    // The parts are the formatter's nodes, written out again as the fold of finished work does.
     expect(result?.after).toMatch(/^An example:<br><br><pre[^>]*><code[^>]*>Which order/);
   });
 

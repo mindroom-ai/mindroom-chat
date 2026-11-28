@@ -25,12 +25,24 @@ beforeEach(showToolCalls);
 // Sidecar contents the tests have "downloaded", by MXC URI.
 const sidecars = vi.hoisted(() => new Map<string, Record<string, unknown>>());
 
-vi.mock('./LongTextText', () => ({
-  LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  LongTextText: ({ content, longTextSource, renderBody }: any) => {
-    const resolved = longTextSource ? (sidecars.get(content.url) ?? content) : content;
-    return renderBody(resolved, { body: resolved.body, customBody: resolved.formatted_body });
-  },
+const stubMx = vi.hoisted(() => ({}));
+vi.mock('../../matrix/hooks/useMatrixClient', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/useMatrixClient')>()),
+  useOptionalMatrixClient: () => stubMx,
+}));
+vi.mock('../../matrix/protocol/longText', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../matrix/protocol/longText')>();
+  return {
+    ...actual,
+    getCachedLongTextContent: (source: { mxcUri: string }) => sidecars.get(source.mxcUri),
+  };
+});
+vi.mock('../../event-store/cache/attachmentRepository', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../event-store/cache/attachmentRepository')>()),
+  hydrateCachedLongText: async (
+    _mx: unknown,
+    source: { mxcUri: string; previewContent: Record<string, unknown> }
+  ) => sidecars.get(source.mxcUri) ?? source.previewContent,
 }));
 
 // The real RenderBody and its memo, under an MText (and an MNotice like it) that passes the body

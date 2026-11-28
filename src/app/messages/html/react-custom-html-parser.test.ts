@@ -26,7 +26,7 @@ import {
   renderTextWithLatex,
 } from './react-custom-html-parser';
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
-import { readRenderedToolCalls, useToolTraceMarkerParserOptions } from './HtmlBlocks';
+import { inspectRenderedToolCalls, useToolTraceMarkerParserOptions } from './HtmlBlocks';
 import { resolveHtmlReactParserOptions } from '../../rich-text/htmlReactParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { ManualExpansionStateContext } from '../manualExpansionState';
@@ -35,7 +35,8 @@ import { withReasoning } from '../agent-run/Reasoning';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getRenderedToolRefs } from '../agent-run/toolRefDom';
 import { getMessageCopyTexts, scanToolMarkerLines } from '../messageCopyText';
-import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
+import { splitFinishedWorkDom } from '../agent-run/finishedWorkSplit';
+import { cloneDomNodes, parseRenderedHtml } from '../agent-run/replyDom';
 import { formatMessageTextBodyAsHtml } from './blocks';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
@@ -2129,7 +2130,26 @@ describe('placement markers and the fold match the app renderer', () => {
     act(() => renderer.unmount());
     return order;
   };
-  const placed = (html: string) => readRenderedToolCalls(html, baseOpts).indexes;
+  const placed = (html: string) =>
+    inspectRenderedToolCalls(parseRenderedHtml(html, baseOpts), baseOpts).indexes;
+  const renderedDomOrder = async (
+    nodes: ReturnType<typeof parseRenderedHtml>
+  ): Promise<number[]> => {
+    const opts = markerParserOptions(baseOpts, { body: '', formatted_body: '🔧' });
+    let renderer!: ReactTestRenderer;
+    await act(async () => {
+      renderer = create(
+        React.createElement(React.Fragment, null, domToReact(cloneDomNodes(nodes), opts))
+      );
+    });
+    const order = renderer.root
+      .findAll((node) => Array.isArray(node.props?.parsedTools))
+      .flatMap((node) =>
+        (node.props.parsedTools as Array<{ index: number }>).map((tool) => tool.index)
+      );
+    act(() => renderer.unmount());
+    return order;
+  };
 
   it.each<readonly [string, string]>([
     ...Object.entries(backendToolMarkerBodies).map(
@@ -2168,11 +2188,11 @@ describe('placement markers and the fold match the app renderer', () => {
     const drawn = await renderedOrder(html);
     expect(placed(html)).toEqual(drawn);
 
-    // The fold keeps every drawn call in the work, each body rendered as RenderBody renders it.
-    const split = splitFinishedWork(rawHtml, baseOpts, {});
+    // The fold keeps every drawn call in the work, each body rendered straight from its DOM.
+    const split = splitFinishedWorkDom(parseRenderedHtml(html, baseOpts), baseOpts).split;
     if (!split) return;
-    expect(await renderedOrder(sanitizeCustomHtml(split.head))).toEqual(drawn);
-    expect(await renderedOrder(sanitizeCustomHtml(split.tail))).toEqual([]);
+    expect(await renderedDomOrder(split.work)).toEqual(drawn);
+    expect(await renderedDomOrder(split.answer)).toEqual([]);
   });
 });
 
