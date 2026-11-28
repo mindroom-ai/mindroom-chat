@@ -9,17 +9,40 @@ import {
 } from './compactColumnsLayout';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
 
-const EMPTY_LIMITS: Readonly<Partial<Record<CompactThreadSectionId, number>>> = {};
-const columnScrollMemories = new WeakMap<ScrollAnchorMemory, Map<string, number>>();
+export type CompactColumnViewState = {
+  scrollTop: number;
+  limit: number;
+};
 
-const getColumnScrollMap = (memory?: ScrollAnchorMemory): Map<string, number> | undefined => {
+const EMPTY_LIMITS: Readonly<Partial<Record<CompactThreadSectionId, number>>> = {};
+const columnStateMemories = new WeakMap<ScrollAnchorMemory, Map<string, CompactColumnViewState>>();
+
+const getColumnStateMap = (
+  memory?: ScrollAnchorMemory
+): Map<string, CompactColumnViewState> | undefined => {
   if (!memory) return undefined;
-  let positions = columnScrollMemories.get(memory);
-  if (!positions) {
-    positions = new Map();
-    columnScrollMemories.set(memory, positions);
+  let states = columnStateMemories.get(memory);
+  if (!states) {
+    states = new Map();
+    columnStateMemories.set(memory, states);
   }
-  return positions;
+  return states;
+};
+
+const readSavedLimits = (
+  columnStates: ReadonlyMap<string, CompactColumnViewState> | undefined,
+  scopeKey: string
+): Readonly<Partial<Record<CompactThreadSectionId, number>>> => {
+  if (!columnStates) return EMPTY_LIMITS;
+  const prefix = `${scopeKey}:`;
+  let restored: Partial<Record<CompactThreadSectionId, number>> | undefined;
+  columnStates.forEach((entry, key) => {
+    if (!key.startsWith(prefix) || entry.limit <= COMPACT_COLUMN_INITIAL_CARDS) return;
+    const id = key.slice(prefix.length) as CompactThreadSectionId;
+    restored ??= {};
+    restored[id] = entry.limit;
+  });
+  return restored ?? EMPTY_LIMITS;
 };
 
 export type UseCompactColumnsBoardOptions = {
@@ -35,7 +58,7 @@ export type UseCompactColumnsBoardOptions = {
  * Shared board controller for Columns mode across CompactRoomView and SpaceThreadsList:
  * owns per-column progressive card caps, reveals target cards on demand (for `End`/arrow
  * navigation and deep links), registers full open-column card order with keyboard navigation,
- * and preserves per-column scroll offsets across List ↔ Columns remounts.
+ * and preserves per-column `{ scrollTop, limit }` state across List <-> Columns remounts.
  */
 export const useCompactColumnsBoard = ({
   viewRef,
@@ -45,11 +68,19 @@ export const useCompactColumnsBoard = ({
   scrollMemory,
   idOf,
 }: UseCompactColumnsBoardOptions) => {
+  const columnStates = useMemo(() => getColumnStateMap(scrollMemory), [scrollMemory]);
   const [limitState, setLimitState] = useState<{
     scopeKey: string;
-    limits: Partial<Record<CompactThreadSectionId, number>>;
-  }>(() => ({ scopeKey, limits: {} }));
-  const limits = limitState.scopeKey === scopeKey ? limitState.limits : EMPTY_LIMITS;
+    limits: Readonly<Partial<Record<CompactThreadSectionId, number>>>;
+  }>(() => ({ scopeKey, limits: readSavedLimits(columnStates, scopeKey) }));
+
+  const limits = useMemo(
+    () =>
+      limitState.scopeKey === scopeKey
+        ? limitState.limits
+        : readSavedLimits(columnStates, scopeKey),
+    [columnStates, limitState, scopeKey]
+  );
   const pendingFocusIdRef = useRef<string | null>(null);
 
   const foldedSet = useMemo(() => new Set(folded), [folded]);
@@ -61,23 +92,43 @@ export const useCompactColumnsBoard = ({
     () => getVisibleColumnCardIds(sections, folded, limits),
     [folded, limits, sections]
   );
-  const scrollPositions = useMemo(() => getColumnScrollMap(scrollMemory), [scrollMemory]);
-  const latestRef = useLatestRef({ sections, foldedSet, allOpenIds });
+  const latestRef = useLatestRef({ sections, foldedSet, allOpenIds, columnStates });
+
+  useLayoutEffect(() => {
+    if (!columnStates) return;
+    (Object.entries(limits) as [CompactThreadSectionId, number | undefined][]).forEach(
+      ([id, limit]) => {
+        if (!limit || limit <= COMPACT_COLUMN_INITIAL_CARDS) return;
+        const key = `${scopeKey}:${id}`;
+        const prev = columnStates.get(key);
+        if (!prev || prev.limit < limit) {
+          columnStates.set(key, { scrollTop: prev?.scrollTop ?? 0, limit });
+        }
+      }
+    );
+  }, [columnStates, limits, scopeKey]);
 
   const showMore = useCallback(
     (id: CompactThreadSectionId) => {
       setLimitState((prev) => {
-        const base = prev.scopeKey === scopeKey ? prev.limits : {};
+        const base =
+          prev.scopeKey === scopeKey
+            ? prev.limits
+            : readSavedLimits(latestRef.current.columnStates, scopeKey);
         const current = base[id] ?? COMPACT_COLUMN_INITIAL_CARDS;
         return { scopeKey, limits: { ...base, [id]: current + COMPACT_COLUMN_CARDS_STEP } };
       });
     },
-    [scopeKey]
+    [latestRef, scopeKey]
   );
 
   const revealCard = useCallback(
     (cardId: string): boolean => {
-      const { sections: currentSections, foldedSet: currentFolded } = latestRef.current;
+      const {
+        sections: currentSections,
+        foldedSet: currentFolded,
+        columnStates: states,
+      } = latestRef.current;
       for (const section of currentSections) {
         if (currentFolded.has(section.id)) continue;
         const index = section.rootIds.indexOf(cardId);
@@ -85,7 +136,7 @@ export const useCompactColumnsBoard = ({
         const needed =
           Math.ceil((index + 1) / COMPACT_COLUMN_CARDS_STEP) * COMPACT_COLUMN_CARDS_STEP;
         setLimitState((prev) => {
-          const base = prev.scopeKey === scopeKey ? prev.limits : {};
+          const base = prev.scopeKey === scopeKey ? prev.limits : readSavedLimits(states, scopeKey);
           const current = base[section.id] ?? COMPACT_COLUMN_INITIAL_CARDS;
           if (current >= needed) return prev;
           return { scopeKey, limits: { ...base, [section.id]: needed } };
@@ -138,7 +189,7 @@ export const useCompactColumnsBoard = ({
     limits,
     allOpenIds,
     visibleIds,
-    scrollPositions,
+    columnStates,
     showMore,
     revealCard,
   };

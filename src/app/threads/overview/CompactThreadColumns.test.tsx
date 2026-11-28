@@ -3,25 +3,20 @@ import { useRef, useState } from 'react';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  COMPACT_BOARD_INLINE_PADDING_PX,
   COMPACT_COLLAPSED_RAIL_WIDTH_PX,
+  COMPACT_COLUMNS_MIN_WIDTH_PX,
   COMPACT_COLUMN_GAP_PX,
   COMPACT_COLUMN_INITIAL_CARDS,
-  COMPACT_COLUMN_MIN_WIDTH_PX,
-  COMPACT_COLUMNS_MIN_WIDTH_PX,
-  findDragTargetIndex,
   getVisibleColumnCardIds,
   mergeVisibleSectionOrder,
 } from './compactColumnsLayout';
-import { useCompactColumnsAvailable } from './useCompactColumnsAvailable';
-import { useCompactColumnsBoard } from './useCompactColumnsBoard';
-import { COLUMN_DRAG_THRESHOLD_PX, COLUMN_FLIP_DURATION_MS } from './useCompactColumnMotion';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
 import { CompactThreadColumns } from './CompactThreadColumns';
+import { useCompactColumnsBoard } from './useCompactColumnsBoard';
+import { COLUMN_FLIP_DURATION_MS } from './useCompactColumnMotion';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    i18n: { language: 'en' },
     t: (key: string, params?: Record<string, unknown>) =>
       params?.count !== undefined ? `${key}:${String(params.count)}` : key,
   }),
@@ -31,90 +26,88 @@ vi.mock('../ThreadStreamingDot', () => ({
   ThreadStreamingDot: () => <span data-streaming-dot="true" />,
 }));
 
+vi.mock('./CompactCardSwipe', () => ({
+  useCompactCardSwipeList: () => undefined,
+}));
+
 const SECTIONS: CompactThreadSection[] = [
   { id: 'needsYou', rootIds: ['$alpha', '$beta'] },
   { id: 'working', rootIds: ['$gamma'] },
   { id: 'done', rootIds: ['$delta'] },
 ];
 
-const pointerEvent = (
-  type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
-  init: {
-    pointerId: number;
-    clientX?: number;
-    clientY?: number;
-    button?: number;
-    pointerType?: string;
-  }
-): Event => {
-  const event = new MouseEvent(type, {
-    bubbles: true,
-    cancelable: true,
-    button: init.button ?? 0,
-    clientX: init.clientX ?? 0,
-    clientY: init.clientY ?? 0,
-  });
-  Object.defineProperties(event, {
-    pointerId: { value: init.pointerId },
-    pointerType: { value: init.pointerType ?? 'mouse' },
-    isPrimary: { value: true },
-  });
-  return event;
+const stubMatchMedia = (reducedMotion: boolean) => {
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('prefers-reduced-motion') ? reducedMotion : false,
+    media: query,
+    onchange: null,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    dispatchEvent: () => false,
+  }));
 };
 
-const columnOrder = (container: HTMLElement): string[] =>
-  [...container.querySelectorAll<HTMLElement>('[data-compact-column]')].map(
-    (el) => el.dataset.compactColumn ?? ''
-  );
-
-const makeRect = (left: number, width: number): DOMRect => ({
-  left,
-  right: left + width,
-  top: 0,
-  bottom: 400,
-  width,
-  height: 400,
+const makeRect = (left: number, width: number, height = 400): DOMRect => ({
   x: left,
   y: 0,
+  left,
+  top: 0,
+  width,
+  height,
+  right: left + width,
+  bottom: height,
   toJSON: () => ({}),
 });
 
-/**
- * Assigns deterministic horizontal layout rects based on current DOM order (wide open vs 40px rail)
- * and reflects inline `translate3d(Npx, ...)` transforms just like a real browser's `getBoundingClientRect`.
- */
-const bindDynamicColumnRects = (container: HTMLElement, rtl = false) => {
-  const columns = [...container.querySelectorAll<HTMLElement>('[data-compact-column]')];
-  const boardWidth = 1000;
-  columns.forEach((col) => {
-    vi.spyOn(col, 'getBoundingClientRect').mockImplementation(() => {
-      const siblings = [...container.querySelectorAll<HTMLElement>('[data-compact-column]')];
-      let cursor = rtl ? boardWidth : 0;
-      for (const sibling of siblings) {
-        const w = sibling.dataset.collapsed === 'true' ? COMPACT_COLLAPSED_RAIL_WIDTH_PX : 320;
-        const left = rtl ? cursor - w : cursor;
-        if (sibling === col) {
-          const match = /translate3d\(([-\d.]+)px/.exec(col.style.transform);
-          const tx = match ? Number(match[1]) : 0;
-          return makeRect(left + tx, w);
-        }
-        cursor = rtl ? left - COMPACT_COLUMN_GAP_PX : left + w + COMPACT_COLUMN_GAP_PX;
-      }
-      return makeRect(0, 320);
-    });
+/** Computes dynamic column rects from current DOM order and collapsed state (LTR or RTL). */
+const bindDynamicColumnRects = (container: HTMLElement) => {
+  const board = container.querySelector<HTMLElement>('[data-compact-columns-board]')!;
+  vi.spyOn(board, 'getBoundingClientRect').mockImplementation(() => makeRect(0, 1000, 400));
+  const computeRect = (col: HTMLElement): DOMRect => {
+    const columns = Array.from(board.querySelectorAll<HTMLElement>('[data-compact-column]'));
+    const rtl = getComputedStyle(board).direction === 'rtl';
+    let cursor = rtl ? 1000 : 0;
+    for (const item of columns) {
+      const width =
+        item.getAttribute('data-collapsed') === 'true' ? COMPACT_COLLAPSED_RAIL_WIDTH_PX : 320;
+      const left = rtl ? cursor - width : cursor;
+      if (item === col) return makeRect(left, width);
+      cursor = rtl ? left - COMPACT_COLUMN_GAP_PX : left + width + COMPACT_COLUMN_GAP_PX;
+    }
+    return makeRect(0, 0);
+  };
+  return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+    this: HTMLElement
+  ) {
+    if (this === board) return makeRect(0, 1000, 400);
+    const col = this.closest<HTMLElement>('[data-compact-column]');
+    if (col && board.contains(col)) return computeRect(col);
+    return makeRect(0, 0);
   });
 };
 
-const stubMatchMedia = (reducedMotion: boolean) => {
-  vi.stubGlobal(
-    'matchMedia',
-    vi.fn((query: string) => ({
-      matches: reducedMotion && query.includes('prefers-reduced-motion'),
-      media: query,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    }))
+const columnOrder = (container: HTMLElement): string[] =>
+  Array.from(container.querySelectorAll<HTMLElement>('[data-compact-column]')).map(
+    (el) => el.dataset.compactColumn ?? ''
   );
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+const createTouch = (target: EventTarget, clientX: number, clientY: number) =>
+  ({ identifier: 1, target, clientX, clientY, pageX: clientX, pageY: clientY }) as Touch;
+
+const touchEvent = (type: string, target: EventTarget, clientX: number, clientY: number) => {
+  const touch = createTouch(target, clientX, clientY);
+  const touches = type === 'touchend' || type === 'touchcancel' ? [] : [touch];
+  return new TouchEvent(type, {
+    bubbles: true,
+    cancelable: true,
+    touches,
+    changedTouches: [touch],
+    targetTouches: touches,
+  });
 };
 
 beforeEach(() => {
@@ -127,91 +120,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('compactColumnsLayout & useCompactColumnsAvailable', () => {
-  it('derives COMPACT_COLUMNS_MIN_WIDTH_PX from structural column, rail, gap, and padding constants', () => {
-    expect(COMPACT_COLUMNS_MIN_WIDTH_PX).toBe(
-      2 * COMPACT_COLUMN_MIN_WIDTH_PX +
-        3 * COMPACT_COLLAPSED_RAIL_WIDTH_PX +
-        4 * COMPACT_COLUMN_GAP_PX +
-        COMPACT_BOARD_INLINE_PADDING_PX
-    );
+describe('compactColumnsLayout helpers', () => {
+  it('derives the structural width threshold and merges hidden empty buckets when reordering', () => {
+    expect(COMPACT_COLUMNS_MIN_WIDTH_PX).toBe(824);
     expect(
       mergeVisibleSectionOrder(
         ['needsYou', 'working', 'later', 'quiet', 'done'],
-        ['working', 'needsYou', 'done']
+        ['done', 'needsYou', 'working']
       )
-    ).toEqual(['working', 'needsYou', 'later', 'quiet', 'done']);
-  });
-
-  it('defaults to false without ResizeObserver and flips based on observed container width', () => {
-    function Probe() {
-      const ref = useRef<HTMLDivElement>(null);
-      const available = useCompactColumnsAvailable(ref);
-      return <div ref={ref} data-available={String(available)} />;
-    }
-
-    vi.stubGlobal('ResizeObserver', undefined);
-    const { container, unmount } = render(<Probe />);
-    expect(container.firstElementChild?.getAttribute('data-available')).toBe('false');
-    unmount();
-
-    let cb: ResizeObserverCallback | undefined;
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(callback: ResizeObserverCallback) {
-          cb = callback;
-        }
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      }
-    );
-
-    const measured = render(<Probe />);
-    expect(measured.container.firstElementChild?.getAttribute('data-available')).toBe('false');
-
-    act(() => {
-      cb?.(
-        [{ contentRect: { width: COMPACT_COLUMNS_MIN_WIDTH_PX } } as ResizeObserverEntry],
-        {} as ResizeObserver
-      );
-    });
-    expect(measured.container.firstElementChild?.getAttribute('data-available')).toBe('true');
-
-    act(() => {
-      cb?.(
-        [{ contentRect: { width: COMPACT_COLUMNS_MIN_WIDTH_PX - 1 } } as ResizeObserverEntry],
-        {} as ResizeObserver
-      );
-    });
-    expect(measured.container.firstElementChild?.getAttribute('data-available')).toBe('false');
-  });
-
-  it('uses oscillation-free hysteresis across wide open columns and 40px rails in LTR and RTL', () => {
-    const ltrRects = new Map<CompactThreadSectionId, Pick<DOMRect, 'left' | 'right'>>([
-      ['needsYou', { left: 0, right: 320 }],
-      ['done', { left: 330, right: 370 }],
-    ]);
-    expect(findDragTargetIndex(['needsYou', 'done'], 0, 353, 340, ltrRects, (x) => x)).toBe(0);
-    expect(findDragTargetIndex(['needsYou', 'done'], 0, 355, 340, ltrRects, (x) => x)).toBe(1);
-
-    const swappedRects = new Map<CompactThreadSectionId, Pick<DOMRect, 'left' | 'right'>>([
-      ['done', { left: 0, right: 40 }],
-      ['needsYou', { left: 50, right: 370 }],
-    ]);
-    expect(findDragTargetIndex(['done', 'needsYou'], 1, 354, 355, swappedRects, (x) => x)).toBe(1);
-
-    const rtlRects = new Map<CompactThreadSectionId, Pick<DOMRect, 'left' | 'right'>>([
-      ['needsYou', { left: 680, right: 1000 }],
-      ['done', { left: 630, right: 670 }],
-    ]);
-    expect(findDragTargetIndex(['needsYou', 'done'], 0, -645, -660, rtlRects, (x) => -x)).toBe(1);
+    ).toEqual(['done', 'needsYou', 'later', 'quiet', 'working']);
   });
 });
 
 describe('CompactThreadColumns', () => {
-  it('renders open headers, 90° collapsed rails with 0 mounted cards, live signals, and single-open count', () => {
+  it('renders open columns and 90° collapsed rails with streaming/unread signals, zero cards in collapsed columns, and open-count tracking', () => {
     const onToggleFold = vi.fn();
     const { container, rerender } = render(
       <CompactThreadColumns
@@ -358,7 +280,7 @@ describe('CompactThreadColumns', () => {
     expect(document.activeElement).toBe(last);
   });
 
-  it('distinguishes clicks from drags, scopes touch drags to the grip only, reorders across mixed rails, and cancels on pointercancel', () => {
+  it('reorders via @dnd-kit mouse drag and grip-only touch drag, merges fullOrder, and ignores sub-threshold clicks', async () => {
     const onToggleFold = vi.fn();
     const onReorder = vi.fn();
     const { container } = render(
@@ -377,97 +299,97 @@ describe('CompactThreadColumns', () => {
     const needsHeader = container.querySelector<HTMLButtonElement>(
       '[data-compact-column-header="needsYou"]'
     )!;
-    fireEvent(
-      needsHeader,
-      pointerEvent('pointerdown', { button: 0, pointerId: 1, clientX: 100, clientY: 20 })
-    );
-    fireEvent(
-      window,
-      pointerEvent('pointermove', {
-        pointerId: 1,
-        clientX: 100 + COLUMN_DRAG_THRESHOLD_PX - 2,
-        clientY: 20,
-      })
-    );
-    fireEvent(window, pointerEvent('pointerup', { pointerId: 1, clientX: 104, clientY: 20 }));
+    await act(async () => {
+      needsHeader.dispatchEvent(
+        new MouseEvent('mousedown', { button: 0, clientX: 100, clientY: 20, bubbles: true })
+      );
+      document.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 103, clientY: 20, bubbles: true })
+      );
+      document.dispatchEvent(
+        new MouseEvent('mouseup', { clientX: 103, clientY: 20, bubbles: true })
+      );
+      await tick();
+    });
     fireEvent.click(needsHeader);
     expect(onToggleFold).toHaveBeenCalledWith('needsYou');
     expect(onReorder).not.toHaveBeenCalled();
 
-    // Touch drag outside the drag grip does NOT hijack horizontal board panning.
+    // Touch drag outside the drag grip does NOT activate @dnd-kit (keeps native board panning).
     const doneRail = container.querySelector<HTMLButtonElement>(
       '[data-compact-column-rail="done"]'
     )!;
-    fireEvent(
-      doneRail,
-      pointerEvent('pointerdown', {
-        pointerId: 10,
-        pointerType: 'touch',
-        clientX: 680,
-        clientY: 30,
-      })
-    );
-    fireEvent(
-      window,
-      pointerEvent('pointermove', {
-        pointerId: 10,
-        pointerType: 'touch',
-        clientX: 400,
-        clientY: 30,
-      })
-    );
+    await act(async () => {
+      doneRail.dispatchEvent(touchEvent('touchstart', doneRail, 680, 30));
+      doneRail.dispatchEvent(touchEvent('touchmove', doneRail, 100, 30));
+      await tick();
+    });
     expect(
       container.querySelector('[data-compact-column="done"]')?.getAttribute('data-dragging')
     ).toBeNull();
-    fireEvent(
-      window,
-      pointerEvent('pointerup', { pointerId: 10, pointerType: 'touch', clientX: 400, clientY: 30 })
-    );
+    await act(async () => {
+      doneRail.dispatchEvent(touchEvent('touchend', doneRail, 100, 30));
+      await tick();
+    });
+    expect(onReorder).not.toHaveBeenCalled();
 
-    // Touch drag starting on the drag grip DOES reorder cleanly.
+    // Touch drag starting on the drag grip DOES activate @dnd-kit and commits merged order.
     const doneGrip = doneRail.querySelector<HTMLElement>('[data-compact-column-drag-grip]')!;
-    fireEvent(
-      doneGrip,
-      pointerEvent('pointerdown', {
-        pointerId: 11,
-        pointerType: 'touch',
-        clientX: 680,
-        clientY: 30,
-      })
-    );
-    fireEvent(
-      window,
-      pointerEvent('pointermove', {
-        pointerId: 11,
-        pointerType: 'touch',
-        clientX: 400,
-        clientY: 30,
-      })
-    );
+    await act(async () => {
+      doneGrip.dispatchEvent(touchEvent('touchstart', doneGrip, 680, 30));
+      await tick();
+    });
+    await act(async () => {
+      doneGrip.dispatchEvent(touchEvent('touchmove', doneGrip, 660, 30));
+      await tick();
+    });
+    await act(async () => {
+      doneGrip.dispatchEvent(touchEvent('touchmove', doneGrip, 100, 30));
+      await tick();
+    });
     expect(
       container.querySelector('[data-compact-column="done"]')?.getAttribute('data-dragging')
     ).toBe('true');
-    expect(columnOrder(container)).toEqual(['needsYou', 'done', 'working']);
+    await act(async () => {
+      doneGrip.dispatchEvent(touchEvent('touchend', doneGrip, 100, 30));
+      await tick();
+    });
+    expect(onReorder).toHaveBeenLastCalledWith(['done', 'needsYou', 'later', 'quiet', 'working']);
 
-    // pointercancel reverts live order without committing.
-    fireEvent(window, pointerEvent('pointercancel', { pointerId: 11, pointerType: 'touch' }));
-    expect(columnOrder(container)).toEqual(['needsYou', 'working', 'done']);
-    expect(onReorder).not.toHaveBeenCalled();
-
-    // Mouse drag from anywhere on the rail commits merged order immediately on pointerup.
-    fireEvent(
-      doneRail,
-      pointerEvent('pointerdown', { button: 0, pointerId: 3, clientX: 680, clientY: 30 })
-    );
-    fireEvent(window, pointerEvent('pointermove', { pointerId: 3, clientX: 100, clientY: 30 }));
-    expect(columnOrder(container)).toEqual(['done', 'needsYou', 'working']);
-    fireEvent(window, pointerEvent('pointerup', { pointerId: 3, clientX: 100, clientY: 30 }));
+    // Mouse drag from anywhere on the rail reorders cleanly and suppresses trailing click.
+    onReorder.mockClear();
+    await act(async () => {
+      doneRail.dispatchEvent(
+        new MouseEvent('mousedown', { button: 0, clientX: 680, clientY: 30, bubbles: true })
+      );
+      await tick();
+    });
+    await act(async () => {
+      document.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 660, clientY: 30, bubbles: true })
+      );
+      await tick();
+    });
+    await act(async () => {
+      document.dispatchEvent(
+        new MouseEvent('mousemove', { clientX: 100, clientY: 30, bubbles: true })
+      );
+      await tick();
+    });
+    await act(async () => {
+      document.dispatchEvent(
+        new MouseEvent('mouseup', { clientX: 100, clientY: 30, bubbles: true })
+      );
+      await tick();
+    });
     fireEvent.click(doneRail);
     expect(onToggleFold).toHaveBeenCalledTimes(1);
     expect(onReorder).toHaveBeenCalledWith(['done', 'needsYou', 'later', 'quiet', 'working']);
+    // Wait for @dnd-kit's 50ms post-drag document click guard to detach cleanly.
+    await new Promise((resolve) => setTimeout(resolve, 60));
   });
 
-  it('plays unified 260ms FLIP on collapse, swap, and drop commit, with zero motion on mount or reduced motion', () => {
+  it('plays 260ms FLIP on collapse/expand with zero motion on mount or prefers-reduced-motion', () => {
     const animateCalls: Array<{ col: string; options: KeyframeAnimationOptions }> = [];
     const origAnimate = HTMLElement.prototype.animate;
     HTMLElement.prototype.animate = vi.fn(function (
@@ -480,24 +402,18 @@ describe('CompactThreadColumns', () => {
       return { cancel: vi.fn(), finished: Promise.resolve() } as unknown as Animation;
     });
 
-    const onReorder = vi.fn();
     function StatefulBoard() {
       const [folded, setFolded] = useState<CompactThreadSectionId[]>(['done']);
-      const [order, setOrder] = useState<CompactThreadSectionId[]>(['needsYou', 'working', 'done']);
-      const ordered = order.map((id) => SECTIONS.find((section) => section.id === id)!);
       return (
         <CompactThreadColumns
-          sections={ordered}
+          sections={SECTIONS}
           folded={folded}
           onToggleFold={(id) =>
             setFolded((prev) =>
               prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
             )
           }
-          onReorder={(next) => {
-            onReorder(next);
-            setOrder(next);
-          }}
+          onReorder={vi.fn()}
           renderCard={(id) => <div key={id} data-test-card={id} />}
         />
       );
@@ -508,33 +424,7 @@ describe('CompactThreadColumns', () => {
       bindDynamicColumnRects(container);
       expect(animateCalls).toHaveLength(0);
 
-      // Collapsing needsYou glides shifted sibling columns with 260ms FLIP.
       fireEvent.click(container.querySelector('[data-compact-column-header="needsYou"]')!);
-      expect(
-        animateCalls.some(
-          (call) => call.col === 'working' && call.options.duration === COLUMN_FLIP_DURATION_MS
-        )
-      ).toBe(true);
-      animateCalls.length = 0;
-
-      // Dragging working across needsYou glides sibling, then drop commits immediately and FLIPs working home.
-      const workingHeader = container.querySelector<HTMLButtonElement>(
-        '[data-compact-column-header="working"]'
-      )!;
-      fireEvent(
-        workingHeader,
-        pointerEvent('pointerdown', { button: 0, pointerId: 7, clientX: 200, clientY: 20 })
-      );
-      fireEvent(window, pointerEvent('pointermove', { pointerId: 7, clientX: 10, clientY: 20 }));
-      expect(
-        animateCalls.some(
-          (call) => call.col === 'needsYou' && call.options.duration === COLUMN_FLIP_DURATION_MS
-        )
-      ).toBe(true);
-      animateCalls.length = 0;
-
-      fireEvent(window, pointerEvent('pointerup', { pointerId: 7, clientX: 10, clientY: 20 }));
-      expect(onReorder).toHaveBeenCalledWith(['working', 'needsYou', 'done']);
       expect(
         animateCalls.some(
           (call) => call.col === 'working' && call.options.duration === COLUMN_FLIP_DURATION_MS

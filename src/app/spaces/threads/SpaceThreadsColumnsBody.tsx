@@ -101,7 +101,7 @@ export function SpaceThreadsColumnsBody({
         fullOrder={sectionOrder}
         columnLimits={board.limits}
         onShowMore={board.showMore}
-        scrollPositions={board.scrollPositions}
+        columnStates={board.columnStates}
         scrollScopeKey={scrollMemoryKey}
         getSignal={getSignal}
         onToggleFold={onToggleSectionFold}

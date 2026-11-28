@@ -1115,15 +1115,18 @@ describe('SpaceThreadsList', () => {
     expect(container.querySelector('[data-compact-columns-board="true"]')).not.toBeNull();
     expect(container.querySelectorAll('button[data-thread-root-id]')).toHaveLength(40);
 
-    // Save column scrollTop, toggle to Vertical, toggle back to Columns -> scrollTop restored.
+    // Reveal past 40 cards, save deep scrollTop, toggle to Vertical and back -> both limit & scrollTop restored.
+    fireEvent.click(container.querySelector('[data-compact-column-show-more="needsYou"]')!);
+    expect(container.querySelectorAll('button[data-thread-root-id]')).toHaveLength(45);
     const body = container.querySelector<HTMLDivElement>('[data-compact-column-body="needsYou"]')!;
-    body.scrollTop = 260;
+    body.scrollTop = 3_400;
     fireEvent.scroll(body);
     rerenderProps({ columns: false });
     expect(container.querySelector('[data-compact-columns-board]')).toBeNull();
     rerenderProps({ columns: true });
+    expect(container.querySelectorAll('button[data-thread-root-id]')).toHaveLength(45);
     expect(
       container.querySelector<HTMLDivElement>('[data-compact-column-body="needsYou"]')?.scrollTop
-    ).toBe(260);
+    ).toBe(3_400);
   });
 });

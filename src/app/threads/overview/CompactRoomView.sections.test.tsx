@@ -776,28 +776,88 @@ describe('the Compact room in sections', () => {
     expect(lastCard).not.toBeNull();
     expect(document.activeElement).toBe(lastCard);
 
-    // Per-column scrollTop is preserved across Columns -> Vertical -> Columns remounts.
+    // Per-column limit (>40) and deep scrollTop are BOTH preserved across Columns -> Vertical -> Columns remounts.
     const workingBody = document.querySelector<HTMLDivElement>(
       '[data-compact-column-body="working"]'
     )!;
-    workingBody.scrollTop = 320;
+    workingBody.scrollTop = 4_200;
     fireEvent.scroll(workingBody);
     rerender(renderView(false));
     expect(document.querySelector('[data-compact-columns-board]')).toBeNull();
     rerender(renderView(true));
+    // All 75 working cards (+ 1 needsYou card = 76) stay revealed immediately on return before scrollTop restore.
+    expect(document.querySelectorAll('button[data-thread-root-id]')).toHaveLength(76);
     expect(
       document.querySelector<HTMLDivElement>('[data-compact-column-body="working"]')?.scrollTop
-    ).toBe(320);
+    ).toBe(4_200);
 
-    // Deep-link focusRequest targeting a card beyond the initial 40-card cap reveals & meets it.
+    // Pushed focusRequest on a fresh memory targeting card >40 reveals & meets it.
+    const freshMemory: ScrollAnchorMemory = new Map();
+    const renderFresh = (focusRequest?: CompactFocusRequest) => (
+      <CompactRoomView
+        room={room}
+        threadRootIds={['$need-0', ...manyIds]}
+        threadRecordMap={new Map()}
+        onThreadClick={vi.fn()}
+        compactRoomScrollStateRef={{ current: freshMemory }}
+        sectionsNow={NOW}
+        columnsMode
+        focusRequest={focusRequest}
+      />
+    );
+    cleanup();
+    scrollIntoView.mockClear();
+    const pushedRender = render(renderFresh());
     expect(document.querySelector('button[data-thread-root-id="$col-65"]')).toBeNull();
-    const req: CompactFocusRequest = { eventId: '$col-65', entryKey: 'pin-link', pushed: true };
-    takeCompactFocusRequest(viewMemory, ROOM_ID, req);
-    expect(isCompactFocusRequestOpen(viewMemory, req)).toBe(true);
-    rerender(renderView(true, req));
+    const pushedReq: CompactFocusRequest = {
+      eventId: '$col-65',
+      entryKey: 'pin-link',
+      pushed: true,
+    };
+    takeCompactFocusRequest(freshMemory, ROOM_ID, pushedReq);
+    expect(isCompactFocusRequestOpen(freshMemory, pushedReq)).toBe(true);
+    pushedRender.rerender(renderFresh(pushedReq));
     expect(document.querySelector('button[data-thread-root-id="$col-65"]')).not.toBeNull();
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
-    expect(isCompactFocusRequestOpen(viewMemory, req)).toBe(false);
+    expect(isCompactFocusRequestOpen(freshMemory, pushedReq)).toBe(false);
+
+    // Fresh-tab direct ?focusEvent=1 link (entryKey: "default", non-pushed) targeting card >40 reveals & scrolls once.
+    cleanup();
+    scrollIntoView.mockClear();
+    const directMemory: ScrollAnchorMemory = new Map();
+    const directReq: CompactFocusRequest = { eventId: '$col-65', entryKey: 'default' };
+    takeCompactFocusRequest(directMemory, ROOM_ID, directReq);
+    const directRender = render(
+      <CompactRoomView
+        room={room}
+        threadRootIds={['$need-0', ...manyIds]}
+        threadRecordMap={new Map()}
+        onThreadClick={vi.fn()}
+        compactRoomScrollStateRef={{ current: directMemory }}
+        sectionsNow={NOW}
+        columnsMode
+        focusRequest={directReq}
+      />
+    );
+    expect(document.querySelector('button[data-thread-root-id="$col-65"]')).not.toBeNull();
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+
+    // Unrelated rerenders do not keep scrolling back to the initial direct focusRequest.
+    scrollIntoView.mockClear();
+    directRender.rerender(
+      <CompactRoomView
+        room={room}
+        threadRootIds={['$need-0', ...manyIds]}
+        threadRecordMap={new Map()}
+        onThreadClick={vi.fn()}
+        compactRoomScrollStateRef={{ current: directMemory }}
+        sectionsNow={NOW}
+        columnsMode
+        focusRequest={directReq}
+      />
+    );
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
   it('shows the cards as before while Sections are off', () => {

@@ -38,8 +38,6 @@ export const COMPACT_COLUMNS_MIN_WIDTH_PX =
 export const COMPACT_COLUMN_INITIAL_CARDS = 40;
 /** Additional cards revealed per "Show more" step in an open column. */
 export const COMPACT_COLUMN_CARDS_STEP = 40;
-/** Pointer hysteresis past a sibling's center to avoid oscillation across mixed column/rail widths. */
-export const COLUMN_SWAP_HYSTERESIS_PX = 4;
 
 /**
  * Visible card IDs across open workflow columns (collapsed columns mount 0 cards, and open columns
@@ -93,46 +91,4 @@ export const mergeVisibleSectionOrder = (
     return replacement ?? id;
   });
   return normalizeCompactSectionOrder([...merged, ...nextVisibleOrder]);
-};
-
-export const moveSectionInOrder = (
-  order: readonly CompactThreadSectionId[],
-  from: number,
-  to: number
-): CompactThreadSectionId[] => {
-  const next = [...order];
-  const [moved] = next.splice(from, 1);
-  if (moved !== undefined) next.splice(to, 0, moved);
-  return next;
-};
-
-/**
- * Computes the next slot index for a dragged column using resting layout rects (unaffected by
- * active FLIP transforms), pointer direction, and center hysteresis so mixed 320px columns and
- * 40px rails never oscillate in LTR or RTL.
- */
-export const findDragTargetIndex = (
-  order: readonly CompactThreadSectionId[],
-  currentIndex: number,
-  pointerAxis: number,
-  prevPointerAxis: number,
-  restingRects: ReadonlyMap<CompactThreadSectionId, Pick<DOMRect, 'left' | 'right'>>,
-  axis: (x: number) => number
-): number => {
-  const dir = pointerAxis > prevPointerAxis ? 1 : pointerAxis < prevPointerAxis ? -1 : 0;
-  if (dir === 0) return currentIndex;
-  let targetIndex = currentIndex;
-  while (targetIndex + dir >= 0 && targetIndex + dir < order.length) {
-    const neighborId = order[targetIndex + dir];
-    const rect = neighborId ? restingRects.get(neighborId) : undefined;
-    if (!rect) break;
-    const center = axis((rect.left + rect.right) / 2);
-    const crossed =
-      dir === 1
-        ? pointerAxis > center + COLUMN_SWAP_HYSTERESIS_PX
-        : pointerAxis < center - COLUMN_SWAP_HYSTERESIS_PX;
-    if (!crossed) break;
-    targetIndex += dir;
-  }
-  return targetIndex;
 };

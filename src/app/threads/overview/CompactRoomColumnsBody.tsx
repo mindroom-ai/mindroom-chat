@@ -9,12 +9,13 @@ import {
   useRef,
 } from 'react';
 import { Box, Text } from 'folds';
-import * as css from './CompactRoomView.css';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
+import * as css from './CompactRoomView.css';
 import { findCompactCard } from './compactCardKeys';
+import { COMPACT_COLUMN_INITIAL_CARDS } from './compactColumnsLayout';
 import {
   type CompactFocusRequest,
   isCompactFocusRequestOpen,
@@ -90,16 +91,43 @@ export function CompactRoomColumnsBody({
     viewModelByRootRef.current = modelByRootId;
   }, [modelByRootId, viewModelByRootRef]);
 
-  // Deep-link reveal: if `focusRequest` targets a card in an open column, expand that column's
-  // progressive cap to include it, scroll it into view inside its column body, and mark it met.
+  // Honor both initial mount `?focusEvent=1` links (including fresh-tab `entryKey: "default"`)
+  // and subsequent pushed links while avoiding overrides when returning to saved column scroll.
+  const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
+  const mountRequestKeyRef = useRef(requestKey);
+  const mountRequestHandledRef = useRef(false);
+  const hadSavedRoomColumnsOnMountRef = useRef<boolean | undefined>(undefined);
+  if (hadSavedRoomColumnsOnMountRef.current === undefined) {
+    const prefix = `${room.roomId}:`;
+    let saved = false;
+    board.columnStates?.forEach((entry, key) => {
+      if (
+        key.startsWith(prefix) &&
+        (entry.scrollTop > 0 || entry.limit > COMPACT_COLUMN_INITIAL_CARDS)
+      ) {
+        saved = true;
+      }
+    });
+    hadSavedRoomColumnsOnMountRef.current = saved;
+  }
+
+  const isMountRequest = !!focusRequest && requestKey === mountRequestKeyRef.current;
+  const isDefaultEntry = !focusRequest?.entryKey || focusRequest.entryKey === 'default';
+  const focusRequestActive =
+    !!focusRequest &&
+    (isMountRequest
+      ? !mountRequestHandledRef.current &&
+        !(focusRequest.returned && hadSavedRoomColumnsOnMountRef.current) &&
+        (isDefaultEntry || isCompactFocusRequestOpen(memory, focusRequest))
+      : !!focusRequest.pushed && isCompactFocusRequestOpen(memory, focusRequest));
   const openFocusEventId =
-    focusRequest &&
-    isCompactFocusRequestOpen(memory, focusRequest) &&
-    board.allOpenIds.includes(focusRequest.eventId)
+    focusRequestActive && board.allOpenIds.includes(focusRequest.eventId)
       ? focusRequest.eventId
       : undefined;
+
   const { visibleIds, revealCard } = board;
   useLayoutEffect(() => {
+    if (requestKey !== mountRequestKeyRef.current) mountRequestKeyRef.current = undefined;
     if (!focusRequest || !openFocusEventId) return;
     if (!visibleIds.includes(openFocusEventId)) {
       revealCard(openFocusEventId);
@@ -108,8 +136,18 @@ export function CompactRoomColumnsBody({
     const card = findCompactCard(viewRef.current, openFocusEventId);
     if (!card) return;
     card.scrollIntoView?.({ block: 'nearest' });
+    if (isMountRequest) mountRequestHandledRef.current = true;
     meetCompactFocusRequest(memory, focusRequest);
-  }, [focusRequest, memory, openFocusEventId, revealCard, viewRef, visibleIds]);
+  }, [
+    focusRequest,
+    isMountRequest,
+    memory,
+    openFocusEventId,
+    requestKey,
+    revealCard,
+    viewRef,
+    visibleIds,
+  ]);
 
   const getSignal = useCallback(
     (section: CompactThreadSection): CompactColumnSignal | undefined => {
@@ -155,7 +193,7 @@ export function CompactRoomColumnsBody({
         fullOrder={fullOrder}
         columnLimits={board.limits}
         onShowMore={board.showMore}
-        scrollPositions={board.scrollPositions}
+        columnStates={board.columnStates}
         scrollScopeKey={room.roomId}
         getCount={(section) => sectionCounts.get(section.id) ?? 0}
         getSignal={getSignal}
