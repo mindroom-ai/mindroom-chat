@@ -427,7 +427,7 @@ describe('CompactThreadColumns', () => {
     await new Promise((resolve) => setTimeout(resolve, 60));
   });
 
-  it('sorts an RTL rail against open columns and pans a touch drag within negative scroll bounds', async () => {
+  it('drags an open RTL column across a rail and pans within negative scroll bounds', async () => {
     const onReorder = vi.fn();
     const logical = ['needsYou', 'working', 'done'];
     const physical = [...logical].reverse();
@@ -476,9 +476,12 @@ describe('CompactThreadColumns', () => {
       const board = container.querySelector<HTMLElement>('[data-compact-columns-board]')!;
       bindDynamicColumnRects(container, 680);
       Object.defineProperties(board, { clientWidth: { value: 680 }, scrollWidth: { value: 700 } });
-      const grip = container.querySelector<HTMLElement>(
-        '[data-compact-column-rail="done"] [data-compact-column-drag-grip]'
-      )!;
+      const working = container.querySelector<HTMLElement>('[data-compact-column="working"]')!;
+      const rail = container.querySelector<HTMLElement>('[data-compact-column="done"]')!;
+      const grip = working.querySelector<HTMLElement>('[data-compact-column-drag-grip]')!;
+      const { left, width } = working.getBoundingClientRect();
+      const startX = left + width / 2;
+      const edgeX = 2;
       const touch = async (type: string, x: number) => {
         await act(async () => {
           grip.dispatchEvent(touchEvent(type, grip, x, 30));
@@ -489,20 +492,21 @@ describe('CompactThreadColumns', () => {
         act(() => {
           vi.advanceTimersToNextFrame();
         });
-      await touch('touchstart', 12);
-      await touch('touchmove', 2);
-      advancePan();
-      expect(board.scrollLeft).toBeLessThan(0);
-      advancePan();
-      expect(board.scrollLeft).toBe(-20);
-      fireEvent.scroll(board);
-
-      await touch('touchmove', 180);
-      const working = container.querySelector<HTMLElement>('[data-compact-column="working"]')!;
-      expect(working.style.transform).toBe(
-        `translate3d(-${COMPACT_COLLAPSED_RAIL_WIDTH_PX + COMPACT_COLUMN_GAP_PX}px, 0px, 0)`
-      );
-      await touch('touchend', 180);
+      try {
+        await touch('touchstart', startX);
+        await touch('touchmove', startX - 20);
+        await touch('touchmove', edgeX);
+        advancePan();
+        expect(board.scrollLeft).toBeLessThan(0);
+        advancePan();
+        expect(board.scrollLeft).toBe(-20);
+        fireEvent.scroll(board);
+        expect(rail.style.transform.split(',')[0]).toBe(
+          `translate3d(${width + COMPACT_COLUMN_GAP_PX}px`
+        );
+      } finally {
+        await touch('touchend', edgeX);
+      }
       expect(onReorder).toHaveBeenCalledWith(['needsYou', 'done', 'later', 'quiet', 'working']);
       await touch('touchmove', 675);
       advancePan();
@@ -552,21 +556,23 @@ describe('CompactThreadColumns', () => {
       bindDynamicColumnRects(container);
       expect(animateCalls).toHaveLength(0);
 
-      const header = container.querySelector<HTMLButtonElement>(
-        '[data-compact-column-header="needsYou"]'
-      )!;
+      const trigger = (kind: 'header' | 'rail') =>
+        container.querySelector<HTMLButtonElement>(`[data-compact-column-${kind}="needsYou"]`)!;
+      // detail: 0 represents the native button click from keyboard activation in jsdom.
+      for (const detail of [0, 1]) {
+        const header = trigger('header');
+        header.focus();
+        fireEvent.click(header, { detail });
+        const rail = trigger('rail');
+        expect(document.activeElement).toBe(rail);
+        fireEvent.click(rail, { detail });
+        expect(document.activeElement).toBe(trigger('header'));
+      }
+
       // Safari clicks need not move focus off the card before the column folds.
       container.querySelector<HTMLButtonElement>('[data-test-card="$alpha"]')!.focus();
-      fireEvent.click(header, { detail: 1 });
-      const rail = container.querySelector<HTMLButtonElement>(
-        '[data-compact-column-rail="needsYou"]'
-      )!;
-      expect(document.activeElement).toBe(rail);
-      // jsdom does not dispatch the button's native keyboard-generated click.
-      fireEvent.click(rail, { detail: 0 });
-      expect(document.activeElement).toBe(
-        container.querySelector('[data-compact-column-header="needsYou"]')
-      );
+      fireEvent.click(trigger('header'), { detail: 1 });
+      expect(document.activeElement).toBe(trigger('rail'));
       expect(
         animateCalls.some(
           (call) => call.col === 'working' && call.options.duration === COLUMN_FLIP_DURATION_MS
