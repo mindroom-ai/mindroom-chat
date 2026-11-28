@@ -10,6 +10,7 @@ import * as threadRecordModule from '../../event-store/threads/threadRecord';
 import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../../event-store/timeline/roomTimelineViewState';
 import { PassivePeekContext } from '../../lib/hooks/usePaneCollapsed';
 import { keepRedactionsInSavedSync } from '../../matrix/client/savedSyncRedactions';
+import { mergeSameIdEventRevision } from '../../matrix/eventRevision';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { useThreadOverviewListenedFirst } from './threadOverviewRefreshCounter';
@@ -509,5 +510,130 @@ describe('passive back-peek warm snapshot reuse', () => {
     stopRedactions();
     expect(mx.listenerCount(RoomEvent.Redaction)).toBe(0);
     expect(room.listenerCount(RoomEvent.Redaction)).toBe(baseRedactionListeners);
+  });
+
+  it('invalidates the warm peek cache when mergeSameIdEventRevision hydrates a redacted reply without emitting RoomEvent.Redaction', async () => {
+    const roomId = '!hydrated-redact:example.org';
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
+    vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+    const room = new Room(roomId, mx, '@self:example.org', { timelineSupport: true });
+    const root = msg(roomId, '$root-hydrated', 'Hydrated thread root', 1_000);
+    const reply = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: roomId,
+      event_id: '$reply-hydrated',
+      sender: '@member:example.org',
+      origin_server_ts: 2_000,
+      content: {
+        msgtype: 'm.text',
+        body: 'Hydrated reply to withdraw',
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: '$root-hydrated',
+        },
+      },
+    });
+    await room.addLiveEvents([root], { addToState: false });
+    const thread = room.createThread('$root-hydrated', root, [], false);
+    thread.addEvents([reply], false);
+    const linkedTimelines = [room.getLiveTimeline()];
+    const entries = [{ event: root, absoluteIndex: 0 }];
+    const buildSpy = vi.spyOn(threadRecordModule, 'buildThreadRecordMap');
+    const engine = createSyncEngine({ mx });
+    let lastPreview: string | undefined;
+
+    function HydratedRoom() {
+      const listened = useThreadOverviewListenedFirst(room, undefined, true);
+      if (listened === 'waiting') return null;
+      return <HydratedRoomBody listened={listened!} />;
+    }
+    function HydratedRoomBody({
+      listened,
+    }: {
+      listened: NonNullable<Exclude<ReturnType<typeof useThreadOverviewListenedFirst>, 'waiting'>>;
+    }) {
+      const index = useThreadIndex({
+        room,
+        threadId: undefined,
+        eventId: undefined,
+        focusedRoomOverviewRequested: false,
+        compactViewRequested: true,
+        effectiveViewMode: 'compact',
+        linkedTimelines,
+        renderableEventEntries: entries,
+        ignoredUsersSet: EMPTY_IGNORED,
+        showHiddenEvents: false,
+        hideMembershipEvents: false,
+        hideNickAvatarEvents: false,
+        summaryMap: new Map(),
+        threadResolutionMap: EMPTY_RESOLUTIONS,
+        currentUserId: '@self:example.org',
+        requestedThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
+        threadSortFreezeState: null,
+        overviewRefreshCounter: listened.overviewRefreshCounter,
+        overviewChanges: listened.overviewChanges,
+        sessionId: engine.sessionId,
+        mx,
+        onStoreThreadSummary: NOOP,
+      });
+      lastPreview =
+        index.compactThreadRecordMap.get('$root-hydrated')?.presentation.latestReplyPreviewText;
+      return null;
+    }
+
+    const queryClient = new QueryClient();
+    const wrap = (mounted: boolean, passive: boolean) => (
+      <QueryClientProvider client={queryClient}>
+        <MatrixClientProvider value={mx}>
+          <SyncEngineProvider engine={engine}>
+            <PassivePeekContext.Provider value={passive}>
+              {mounted ? <HydratedRoom /> : null}
+            </PassivePeekContext.Provider>
+          </SyncEngineProvider>
+        </MatrixClientProvider>
+      </QueryClientProvider>
+    );
+
+    let rendered!: ReturnType<typeof render>;
+    await act(async () => {
+      rendered = render(wrap(true, false));
+      await Promise.resolve();
+    });
+    expect(lastPreview).toBe('Hydrated reply to withdraw');
+
+    rendered.rerender(wrap(false, false));
+    mergeSameIdEventRevision({
+      liveEvent: reply,
+      rawEvent: {
+        type: 'm.room.message',
+        room_id: roomId,
+        event_id: '$reply-hydrated',
+        sender: '@member:example.org',
+        origin_server_ts: 2_000,
+        content: {},
+        unsigned: {
+          redacted_because: {
+            type: 'm.room.redaction',
+            room_id: roomId,
+            event_id: '$redaction-hydrated',
+            sender: '@member:example.org',
+            origin_server_ts: 3_000,
+            redacts: '$reply-hydrated',
+            content: {},
+            unsigned: {},
+          },
+        },
+      },
+      mapEvent: (raw) => new MatrixEvent(raw),
+      room,
+    });
+    expect(reply.isRedacted()).toBe(true);
+
+    buildSpy.mockClear();
+    rendered.rerender(wrap(true, true));
+    expect(buildSpy).toHaveBeenCalled();
+    expect(lastPreview).not.toBe('Hydrated reply to withdraw');
+
+    rendered.unmount();
   });
 });

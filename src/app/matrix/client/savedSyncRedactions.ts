@@ -10,7 +10,11 @@ import {
 } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
 import { matchesEnum } from '../../lib/matchesEnum';
-import { stripRedactedRelationsFromRawEvent } from '../eventRevision';
+import {
+  noteRoomRedaction,
+  roomRedactionVersion,
+  stripRedactedRelationsFromRawEvent,
+} from '../eventRevision';
 import { withoutRedactedThreadPreviews } from '../threadSummaryPreviews';
 import { dropSettledScheduledTasks } from './savedSyncScheduledTasks';
 
@@ -180,12 +184,7 @@ const trimSavedSync = (mx: MatrixClient): void => {
   dropSettledScheduledTasks(sync);
 };
 
-const roomRedactionVersions = new WeakMap<Room, number>();
-
-/** Monotonic per-room counter bumped on every live redaction or dropped bundled edit. */
-export const roomRedactionVersion = (room: Room): number =>
-  (roomRedactionVersions.get(room) ?? 0) +
-  ((room as { redactedBundledEdits?: { size?: number } }).redactedBundledEdits?.size ?? 0);
+export { roomRedactionVersion };
 
 /**
  * Saves the client's sync store after sync batches that brought a redaction, a state event,
@@ -253,8 +252,13 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
   const onEvent = (event: MatrixEvent) => {
     // Synced events only: a local event still being sent has a status.
     if (event.status !== null) return;
-    if (event.isRedaction()) redactionSinceSave = true;
-    else if (event.isState() || hasOwnReadReceipt(event, mx.getUserId())) changeSinceSave = true;
+    if (event.isRedaction()) {
+      redactionSinceSave = true;
+      const roomId = event.getRoomId();
+      if (roomId) noteRoomRedaction(mx.getRoom(roomId));
+    } else if (event.isState() || hasOwnReadReceipt(event, mx.getUserId())) {
+      changeSinceSave = true;
+    }
   };
 
   const onAccountData = () => {
@@ -266,8 +270,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
   };
 
   const onRoomRedaction = (_event: MatrixEvent, room?: Room) => {
-    if (!room) return;
-    roomRedactionVersions.set(room, (roomRedactionVersions.get(room) ?? 0) + 1);
+    noteRoomRedaction(room);
   };
 
   // The SDK reports SYNCING once it has processed a batch, just before it decides to save.

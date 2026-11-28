@@ -240,8 +240,11 @@ describe('keepRedactionsInSavedSync', () => {
     expect(emitter.listenerCount(ClientEvent.Sync)).toBe(0);
   });
 
-  it('increments roomRedactionVersion on RoomEvent.Redaction and redactedBundledEdits growth', () => {
-    const room = { redactedBundledEdits: new Set<string>() } as unknown as Room;
+  it('increments roomRedactionVersion on RoomEvent.Redaction, ClientEvent.Event redactions, and redactedBundledEdits growth', () => {
+    const room = {
+      roomId: '!room:example.org',
+      redactedBundledEdits: new Set<string>(),
+    } as unknown as Room;
     const { mx, emitter } = makeClient({ room });
     const stop = keepRedactionsInSavedSync(mx);
 
@@ -249,12 +252,17 @@ describe('keepRedactionsInSavedSync', () => {
     emitter.emit(RoomEvent.Redaction, synced('m.room.redaction', '$r1'), room);
     expect(roomRedactionVersion(room)).toBe(1);
 
-    room.redactedBundledEdits.add('$edit-1');
+    // Unloaded-target redaction arrives on ClientEvent.Event without emitting RoomEvent.Redaction.
+    emitter.emit(ClientEvent.Event, synced('m.room.redaction', '$r-unloaded'));
     expect(roomRedactionVersion(room)).toBe(2);
+
+    room.redactedBundledEdits.add('$edit-1');
+    expect(roomRedactionVersion(room)).toBe(3);
 
     stop();
     emitter.emit(RoomEvent.Redaction, synced('m.room.redaction', '$r2'), room);
-    expect(roomRedactionVersion(room)).toBe(2);
+    emitter.emit(ClientEvent.Event, synced('m.room.redaction', '$r3'));
+    expect(roomRedactionVersion(room)).toBe(3);
   });
 
   const stateEvent = (eventId: string) =>
