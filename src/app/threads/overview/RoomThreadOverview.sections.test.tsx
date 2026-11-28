@@ -46,6 +46,7 @@ const renderBar = (simple: boolean, overrides: Partial<RoomThreadOverviewProps> 
 const byData = (name: string): ReactTestInstance[] =>
   renderer?.root.findAll((node) => typeof node.type === 'string' && name in node.props) ?? [];
 const sectionsSwitch = (): ReactTestInstance | undefined => byData('data-thread-sections')[0];
+const columnsSwitch = (): ReactTestInstance | undefined => byData('data-thread-columns')[0];
 const tabs = () => byData('data-thread-tab').map((node) => node.props['data-thread-tab'] as string);
 
 describe('the Group switch of the Compact filter bar', () => {
@@ -125,4 +126,51 @@ it.each([true, false])('shows and toggles For me beside Group (simple: %s)', (si
   });
   expect(toggle()?.props['aria-pressed']).toBe(true);
   expect(toggle()?.props.className).toContain(css.SortButtonActive);
+});
+
+describe('the Columns switch of the Compact filter bar', () => {
+  it.each([true, false])(
+    'renders right beside Group only when offered and keeps Group/Columns mutually exclusive (simple: %s)',
+    (simple) => {
+      renderBar(simple, { onToggleThreadSections: noop });
+      expect(columnsSwitch()).toBeUndefined();
+
+      act(() => renderer?.unmount());
+      const onToggleThreadSections = vi.fn();
+      const onToggleThreadColumns = vi.fn();
+      renderBar(simple, {
+        onToggleThreadSections,
+        onToggleThreadColumns,
+        threadSections: true,
+        threadColumns: true,
+      });
+
+      const groupBtn = sectionsSwitch();
+      const colsBtn = columnsSwitch();
+      expect(groupBtn?.props['aria-pressed']).toBe(false);
+      expect(groupBtn?.props.className).not.toContain(css.SortButtonActive);
+      expect(colsBtn?.props['aria-label']).toBe('Columns');
+      expect(colsBtn?.props['aria-pressed']).toBe(true);
+      expect(colsBtn?.props.className).toContain(css.SortButtonActive);
+      expect(byData('data-sort-by')).toHaveLength(0);
+      expect(byData('data-thread-sort-freeze')).toHaveLength(0);
+
+      act(() => {
+        groupBtn?.props.onClick();
+        colsBtn?.props.onClick();
+      });
+      expect(onToggleThreadSections).toHaveBeenCalledTimes(1);
+      expect(onToggleThreadColumns).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it('falls back to showing Group pressed when Columns is hidden on narrow panes', () => {
+    renderBar(true, {
+      onToggleThreadSections: noop,
+      threadSections: true,
+      threadColumns: true,
+    });
+    expect(columnsSwitch()).toBeUndefined();
+    expect(sectionsSwitch()?.props['aria-pressed']).toBe(true);
+  });
 });

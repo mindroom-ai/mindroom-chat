@@ -38,6 +38,7 @@ import {
 } from '../../threads/cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../../threads/cross-room/threadSignalsReader';
 import { getCompactRoomSectionsAtom } from '../../threads/overview/compactRoomSections';
+import { useCompactColumnsAvailable } from '../../threads/overview/useCompactColumnsAvailable';
 import { roomThreadFilterAtomFamily } from '../../threads/overview/roomThreadFilterState';
 import { RoomThreadOverview } from '../../threads/overview/RoomThreadOverview';
 import { ThreadPeopleFilter } from '../../threads/overview/ThreadPeopleFilter';
@@ -112,6 +113,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
   const [compactSections, updateCompactSections] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(myUserId), [myUserId])
   );
+  const columnsAvailable = useCompactColumnsAvailable(pageRef);
   const sectionsEnabled = hasMindroomAgents && compactSections.on;
   const pinnedByRoom = usePinnedEventIdsByRoom(spaceRooms);
   const pinnedKeys = useMemo(() => {
@@ -208,6 +210,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           quietNow,
           hasMindroomAgents,
           groupSections: sectionsEnabled,
+          sectionOrder: compactSections.order,
           pinnedKeys,
           signalsOf: sectionsEnabled
             ? (entry) => {
@@ -228,6 +231,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
       myUserId,
       pinnedKeys,
       quietNow,
+      compactSections.order,
       roomsById,
       sectionsEnabled,
       simpleMode,
@@ -313,6 +317,8 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
     result.effectiveFilterState.tab && result.effectiveFilterState.tab !== 'all'
       ? result.effectiveFilterState.tab
       : undefined;
+  const columnsOffered = hasMindroomAgents && columnsAvailable && !singleBucketTab;
+  const columnsEnabled = sectionsEnabled && columnsOffered && compactSections.columns;
   const isSettled = indexSnapshot.bootstrapped && threadListsSettled;
   const showLoading = !isSettled && result.scopedTotalCount === 0;
   const overviewShowsFilteredEmpty = showsFilteredEmptyState(
@@ -423,7 +429,21 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
               threadSections={sectionsEnabled}
               onToggleThreadSections={
                 hasMindroomAgents
-                  ? () => updateCompactSections({ type: 'SET_ON', on: !compactSections.on })
+                  ? () =>
+                      updateCompactSections({
+                        type: 'SET_ON',
+                        on: columnsEnabled ? true : !compactSections.on,
+                      })
+                  : undefined
+              }
+              threadColumns={columnsEnabled}
+              onToggleThreadColumns={
+                columnsOffered
+                  ? () =>
+                      updateCompactSections({
+                        type: 'SET_COLUMNS',
+                        columns: !compactSections.columns,
+                      })
                   : undefined
               }
             />
@@ -435,8 +455,11 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           entryByKey={result.entryByKey}
           sections={sectionsEnabled ? result.sections : undefined}
           foldedSections={compactSections.folded}
+          sectionOrder={compactSections.order}
+          columns={columnsEnabled}
           singleBucketTab={singleBucketTab}
           onToggleSectionFold={(id) => updateCompactSections({ type: 'TOGGLE_FOLD', id })}
+          onReorderSections={(order) => updateCompactSections({ type: 'REORDER_SECTIONS', order })}
           roomsById={roomsById}
           pinnedByRoom={pinnedByRoom}
           showRoomBadge={activeRoomIds.length > 1}

@@ -138,6 +138,7 @@ const mountThreadState = ({
   advancedFilters = false,
   ...options
 }: {
+  columnsAvailable?: boolean;
   hasMindroomAgents?: boolean;
   advancedFilters?: boolean;
   threadId?: string;
@@ -148,9 +149,10 @@ const mountThreadState = ({
   const store = createStore();
   if (advancedFilters) store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
   let latest: RoomViewThreadState | undefined;
-  const { spaceUnderLayer = null, ...hookOptions } = options;
+  const { spaceUnderLayer = null, ...initialHookOptions } = options;
+  let currentHookOptions = initialHookOptions;
   function Probe() {
-    latest = useRoomViewThreadState({ room, ...hookOptions });
+    latest = useRoomViewThreadState({ room, ...currentHookOptions });
     return null;
   }
   // A new element each time, so an update renders the probe again.
@@ -164,7 +166,10 @@ const mountThreadState = ({
   act(() => {
     renderer = create(tree());
   });
-  const rerender = () => act(() => renderer?.update(tree()));
+  const rerender = (overrides?: Partial<typeof initialHookOptions>) => {
+    if (overrides) currentHookOptions = { ...currentHookOptions, ...overrides };
+    act(() => renderer?.update(tree()));
+  };
   return { store, current: () => latest as RoomViewThreadState, rerender };
 };
 
@@ -532,6 +537,37 @@ describe('useRoomViewThreadState', () => {
     act(() => current().handleToggleThreadSections());
 
     expect(current().threadSections).toBe(false);
+  });
+
+  it('toggles Columns on wide panes, switches to vertical Group when clicking Group from Columns, and preserves stored preference when narrow', () => {
+    const wide = mountThreadState({ columnsAvailable: true });
+    expect(wide.current().threadColumns).toBe(false);
+
+    act(() => wide.current().handleToggleThreadColumns());
+    expect(wide.current().threadSections).toBe(true);
+    expect(wide.current().threadColumns).toBe(true);
+    expect(wide.store.get(getCompactRoomSectionsAtom(USER_ID))).toMatchObject({
+      on: true,
+      columns: true,
+    });
+
+    // Clicking Group while Columns is active switches to vertical sections (keeps on: true).
+    act(() => wide.current().handleToggleThreadSections());
+    expect(wide.current().threadSections).toBe(true);
+    expect(wide.current().threadColumns).toBe(false);
+
+    // Re-enable Columns, then narrow pane: falls back to vertical sections without losing stored columns: true.
+    act(() => wide.current().handleToggleThreadColumns());
+    expect(wide.current().threadColumns).toBe(true);
+
+    wide.rerender({ columnsAvailable: false });
+    expect(wide.current().threadSections).toBe(true);
+    expect(wide.current().threadColumns).toBe(false);
+    expect(wide.store.get(getCompactRoomSectionsAtom(USER_ID)).columns).toBe(true);
+
+    // Widening again restores Columns mode automatically.
+    wide.rerender({ columnsAvailable: true });
+    expect(wide.current().threadColumns).toBe(true);
   });
 });
 

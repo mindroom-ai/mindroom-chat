@@ -43,24 +43,67 @@ export const useCompactHistoryAtEnd = ({
   const [, setPagesSettled] = useState(0);
 
   useEffect(() => {
-    const view = hostRef.current?.querySelector<HTMLElement>('[data-compact-room-view]');
-    if (!enabled || !view) return undefined;
+    const host = hostRef.current;
+    if (!enabled || !host) return undefined;
+    const currentView = (): HTMLElement | null =>
+      host.querySelector<HTMLElement>('[data-compact-room-view]');
+    const initialView = currentView();
+    const listenTarget = typeof host.addEventListener === 'function' ? host : initialView;
+    if (!listenTarget || typeof listenTarget.addEventListener !== 'function') return undefined;
+
     let pages = 0;
     let inFlight = false;
     let alive = true;
     let retry = 0;
-    let lastScrollTop = view.scrollTop;
+    const lastScrollTop = new WeakMap<HTMLElement, number>();
+    let activeScroller: HTMLElement | undefined;
+
+    const hasColumnsBoard = (view: HTMLElement): boolean =>
+      typeof view.querySelector === 'function' &&
+      Boolean(view.querySelector('[data-compact-columns-board]'));
+
+    if (initialView) {
+      lastScrollTop.set(initialView, initialView.scrollTop);
+      if (typeof initialView.querySelectorAll === 'function') {
+        initialView.querySelectorAll<HTMLElement>('[data-compact-column-body]').forEach((body) => {
+          lastScrollTop.set(body, body.scrollTop);
+        });
+      }
+    }
+
+    const resolveScroller = (target: EventTarget | null | undefined): HTMLElement | undefined => {
+      const view = currentView();
+      if (!view) return undefined;
+      if (
+        target &&
+        typeof Node !== 'undefined' &&
+        target instanceof Node &&
+        typeof view.contains === 'function' &&
+        !view.contains(target)
+      ) {
+        return undefined;
+      }
+      if (!hasColumnsBoard(view)) return view;
+      if (typeof Element !== 'undefined' && target instanceof Element) {
+        return target.closest<HTMLElement>('[data-compact-column-body]') ?? undefined;
+      }
+      return undefined;
+    };
 
     const loadIfAtEnd = () => {
       const state = stateRef.current;
       if (!alive || inFlight || pages <= 0) return;
       if (!state.canPaginateBack && !state.hasMoreCachedBack) return;
+      const view = currentView();
+      const scroller = activeScroller;
+      if (!view || !scroller || scroller.isConnected === false) return;
+      if (hasColumnsBoard(view) && scroller === view) return;
       // While cards still mount, the view ends before the cards do: a shown list looks again on
       // the next frame, as the cards a page brought are measured without the reader moving.
-      const pending = view.hasAttribute('data-cards-pending');
+      const pending = scroller === view && view.hasAttribute('data-cards-pending');
       cancelAnimationFrame(retry);
       if (pending && view.clientHeight) retry = requestAnimationFrame(loadIfAtEnd);
-      if (pending || !isNearCardsEnd(view)) return;
+      if (pending || !isNearCardsEnd(scroller)) return;
       inFlight = true;
       pages -= 1;
       state
@@ -74,27 +117,38 @@ export const useCompactHistoryAtEnd = ({
           requestAnimationFrame(loadIfAtEnd);
         });
     };
-    const approach = () => {
+    const approach = (scroller: HTMLElement | undefined) => {
+      if (!scroller) return;
+      activeScroller = scroller;
       pages = COMPACT_HISTORY_PAGES_PER_APPROACH;
       loadIfAtEnd();
     };
-    const onScroll = () => {
-      const moved = view.scrollTop > lastScrollTop;
-      lastScrollTop = view.scrollTop;
-      if (moved) approach();
+    const onScroll = (event: Event) => {
+      const scroller = resolveScroller(event?.target);
+      if (!scroller) return;
+      const prevTop = lastScrollTop.get(scroller) ?? 0;
+      const moved = scroller.scrollTop > prevTop;
+      lastScrollTop.set(scroller, scroller.scrollTop);
+      if (moved) approach(scroller);
     };
     const onWheel = (event: WheelEvent) => {
-      if (event.deltaY > 0) approach();
+      if (event.deltaY > 0) approach(resolveScroller(event.target));
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      approach(resolveScroller(event?.target));
     };
 
-    view.addEventListener('scroll', onScroll, { passive: true });
-    view.addEventListener('wheel', onWheel, { passive: true });
-    view.addEventListener('touchmove', approach, { passive: true });
+    // Capture on the stable host so non-bubbling column scrolls and Vertical <-> Columns view
+    // swaps are handled seamlessly without detaching listeners.
+    listenTarget.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    listenTarget.addEventListener('wheel', onWheel, { capture: true, passive: true });
+    listenTarget.addEventListener('touchmove', onTouchMove, { capture: true, passive: true });
     return () => {
       alive = false;
-      view.removeEventListener('scroll', onScroll);
-      view.removeEventListener('wheel', onWheel);
-      view.removeEventListener('touchmove', approach);
+      cancelAnimationFrame(retry);
+      listenTarget.removeEventListener('scroll', onScroll, { capture: true });
+      listenTarget.removeEventListener('wheel', onWheel, { capture: true });
+      listenTarget.removeEventListener('touchmove', onTouchMove, { capture: true });
     };
   }, [enabled, roomId, hostRef]);
 };

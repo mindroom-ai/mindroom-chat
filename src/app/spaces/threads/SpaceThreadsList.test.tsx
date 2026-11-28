@@ -1087,4 +1087,46 @@ describe('SpaceThreadsList', () => {
       else Reflect.deleteProperty(navigator, 'userAgent');
     }
   });
+
+  it('renders Columns mode with real layout geometry without render loops and preserves per-column scroll across Columns <-> Vertical toggles', () => {
+    const room = makeRoom(ROOM_A, 'Engineering');
+    const entries = Array.from({ length: 45 }, (_, i) =>
+      entry(ROOM_A, `$space-col-${i}`, `Thread ${i}`, { lastActivityTs: 10_000 - i })
+    );
+    const sections: CompactThreadSection[] = [
+      { id: 'needsYou', rootIds: entries.map((e) => e.key) },
+    ];
+    const scrollMemory: ScrollAnchorMemory = new Map();
+    stubCompactLayout({
+      width: () => 1000,
+      clientHeight: 700,
+      gap: 4,
+      rowHeight: () => 84,
+    });
+
+    const { container, rerenderProps } = renderScenario({
+      rooms: [room],
+      entries,
+      sections,
+      scrollMemory,
+    });
+
+    rerenderProps({ columns: true });
+    expect(container.querySelector('[data-compact-columns-board="true"]')).not.toBeNull();
+    expect(container.querySelectorAll('button[data-thread-root-id]')).toHaveLength(40);
+
+    // Reveal past 40 cards, save deep scrollTop, toggle to Vertical and back -> both limit & scrollTop restored.
+    fireEvent.click(container.querySelector('[data-compact-column-show-more="needsYou"]')!);
+    expect(container.querySelectorAll('button[data-thread-root-id]')).toHaveLength(45);
+    const body = container.querySelector<HTMLDivElement>('[data-compact-column-body="needsYou"]')!;
+    body.scrollTop = 3_400;
+    fireEvent.scroll(body);
+    rerenderProps({ columns: false });
+    expect(container.querySelector('[data-compact-columns-board]')).toBeNull();
+    rerenderProps({ columns: true });
+    expect(container.querySelectorAll('button[data-thread-root-id]')).toHaveLength(45);
+    expect(
+      container.querySelector<HTMLDivElement>('[data-compact-column-body="needsYou"]')?.scrollTop
+    ).toBe(3_400);
+  });
 });

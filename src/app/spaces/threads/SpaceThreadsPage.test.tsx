@@ -46,6 +46,7 @@ import {
   clearCompactRoomSectionsStore,
   getCompactRoomSectionsAtom,
 } from '../../threads/overview/compactRoomSections';
+import { COMPACT_COLUMNS_MIN_WIDTH_PX } from '../../threads/overview/compactColumnsLayout';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
 import { SpaceThreadsPage } from './SpaceThreadsPage';
 import { makeSpaceThreadEntry, SPACE_THREADS_TEST_NOW as NOW } from './spaceThreads.test.shared';
@@ -1552,5 +1553,84 @@ describe('SpaceThreadsPage', () => {
         .querySelector('[data-scroll-anchor="$t-rename"] [data-compact-thread-pin]')
         ?.getAttribute('aria-label')
     ).toBe('Unpin thread');
+  });
+
+  it('enables width-gated Columns mode in wide SpaceThreadsPage and falls back cleanly when narrowed', () => {
+    let observedWidth = COMPACT_COLUMNS_MIN_WIDTH_PX + 80;
+    const observers: Array<{ cb: ResizeObserverCallback; targets: Set<Element> }> = [];
+    const origRO = globalThis.ResizeObserver;
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        private readonly rec: { cb: ResizeObserverCallback; targets: Set<Element> };
+        constructor(cb: ResizeObserverCallback) {
+          this.rec = { cb, targets: new Set() };
+          observers.push(this.rec);
+        }
+        observe(target: Element) {
+          this.rec.targets.add(target);
+          this.rec.cb(
+            [{ target, contentRect: { width: observedWidth } } as ResizeObserverEntry],
+            this
+          );
+        }
+        unobserve(target: Element) {
+          this.rec.targets.delete(target);
+        }
+        disconnect() {
+          this.rec.targets.clear();
+        }
+      }
+    );
+    try {
+      const now = Date.now();
+      const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
+      const entries = [
+        makeEntry(ROOM_ENG, 'Engineering', '$needs', 'Needs attention', now - 5_000, ME, 0),
+        makeEntry(
+          ROOM_ENG,
+          'Engineering',
+          '$quiet',
+          'Quiet item',
+          now - QUIET_AFTER_MS - 60_000,
+          ME,
+          0
+        ),
+      ];
+      const store = createStore();
+      const { container } = renderSpaceThreads({ rooms: [eng], entries, store });
+
+      const columnsBtn = container.querySelector<HTMLButtonElement>('[data-thread-columns]');
+      expect(columnsBtn).toBeTruthy();
+      fireEvent.click(columnsBtn!);
+
+      expect(container.querySelector('[data-compact-columns-board]')).toBeTruthy();
+      expect(container.querySelector('[data-compact-column="needsYou"]')).toBeTruthy();
+      expect(
+        container.querySelector('[data-compact-column="quiet"][data-collapsed="true"]')
+      ).toBeTruthy();
+      expect(store.get(getCompactRoomSectionsAtom(ME))).toMatchObject({ on: true, columns: true });
+
+      // Narrow below structural threshold -> hides Columns button and falls back to vertical sections,
+      // while preserving stored columns: true preference.
+      observedWidth = COMPACT_COLUMNS_MIN_WIDTH_PX - 40;
+      act(() => {
+        observers.forEach(({ cb, targets }) => {
+          if (targets.size === 0) return;
+          cb(
+            [...targets].map(
+              (target) => ({ target, contentRect: { width: observedWidth } }) as ResizeObserverEntry
+            ),
+            {} as ResizeObserver
+          );
+        });
+      });
+      expect(container.querySelector('[data-thread-columns]')).toBeNull();
+      expect(container.querySelector('[data-compact-columns-board]')).toBeNull();
+      expect(container.querySelector('[data-compact-section="needsYou"]')).toBeTruthy();
+      expect(store.get(getCompactRoomSectionsAtom(ME)).columns).toBe(true);
+    } finally {
+      vi.stubGlobal('ResizeObserver', origRO);
+    }
   });
 });

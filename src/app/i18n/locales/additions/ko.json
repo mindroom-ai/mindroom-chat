@@ -2432,6 +2432,12 @@
     "emptyForMe": "아직 나를 위한 스레드가 없습니다",
     "group": "그룹",
     "groupHint": "상태별로 그룹화",
+    "columns": "열",
+    "columnsHint": "상태별 열 보기",
+    "collapseColumn": "{{section}} 접기 ({{count}})",
+    "expandColumn": "{{section}} 펼치기 ({{count}})",
+    "foldColumn": "접기",
+    "showMoreInColumn": "{{count}}개 더 보기",
     "sections": {
       "working": "작업 중",
       "later": "나중에",

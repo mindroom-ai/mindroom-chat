@@ -274,7 +274,9 @@ vi.mock('../../threads/overview/CompactRoomView.css', () => ({
   CardMotion: 'CardMotion',
   Cards: 'Cards',
   EmptyState: 'EmptyState',
+  Host: 'Host',
   View: 'View',
+  ViewColumns: 'ViewColumns',
 }));
 
 vi.mock('../../threads/overview/CompactCardSwipe.css', () => ({

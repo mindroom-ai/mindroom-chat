@@ -2513,6 +2513,12 @@
     "emptyForMe": "Nog geen threads voor jou",
     "group": "Groeperen",
     "groupHint": "Groeperen op status",
+    "columns": "Kolommen",
+    "columnsHint": "Statuskolommen tonen",
+    "collapseColumn": "{{section}} inklappen ({{count}})",
+    "expandColumn": "{{section}} uitklappen ({{count}})",
+    "foldColumn": "Inklappen",
+    "showMoreInColumn": "Nog {{count}} tonen",
     "sections": {
       "working": "Bezig",
       "later": "Later",

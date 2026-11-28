@@ -2513,6 +2513,12 @@
     "emptyForMe": "এখনও আপনার জন্য কোনো থ্রেড নেই",
     "group": "গ্রুপ",
     "groupHint": "অবস্থা অনুযায়ী গ্রুপ করুন",
+    "columns": "কলাম",
+    "columnsHint": "অবস্থার কলাম দেখান",
+    "collapseColumn": "{{section}} গুটিয়ে নিন ({{count}})",
+    "expandColumn": "{{section}} প্রসারিত করুন ({{count}})",
+    "foldColumn": "গুটিয়ে নিন",
+    "showMoreInColumn": "আরও {{count}}টি দেখান",
     "sections": {
       "working": "কাজ চলছে",
       "later": "পরে",

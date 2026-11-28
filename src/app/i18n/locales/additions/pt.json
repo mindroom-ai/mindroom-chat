@@ -2594,6 +2594,12 @@
     "emptyForMe": "Ainda não há tópicos para si",
     "group": "Agrupar",
     "groupHint": "Agrupar por estado",
+    "columns": "Colunas",
+    "columnsHint": "Mostrar colunas de status",
+    "collapseColumn": "Recolher {{section}} ({{count}})",
+    "expandColumn": "Expandir {{section}} ({{count}})",
+    "foldColumn": "Recolher",
+    "showMoreInColumn": "Mostrar mais {{count}}",
     "sections": {
       "working": "Em curso",
       "later": "Mais tarde",
