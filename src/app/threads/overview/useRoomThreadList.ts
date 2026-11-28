@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   loadRoomThreads,
   roomThreadListIsComplete,
+  roomThreadListIsListed,
   sortThreadsByActivity,
 } from '../../event-store/threads/roomThreadList';
 import {
@@ -74,6 +75,21 @@ const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
   );
 };
 
+// A passive effect can run in flushSync. Queue a task after the next frame, not inside it.
+const afterRoomPaint = (run: () => void) => {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const schedule = () => {
+    timer = setTimeout(run, 0);
+  };
+  const frame =
+    typeof requestAnimationFrame === 'function' ? requestAnimationFrame(schedule) : undefined;
+  if (frame === undefined) schedule();
+  return () => {
+    if (frame !== undefined) cancelAnimationFrame(frame);
+    clearTimeout(timer);
+  };
+};
+
 /**
  * The room's threads, unread first and then by activity, and their unread marks.
  * `overviewChanges` and `overviewRefreshCounter` are the room's (`useThreadOverviewRefreshCounter`):
@@ -83,22 +99,27 @@ export const useRoomThreadList = (
   room: Room,
   enabled: boolean,
   overviewChanges: ThreadRecordChanges,
-  overviewRefreshCounter: number
+  overviewRefreshCounter: number,
+  uncommittedBackPeek = false
 ) => {
   const mx = useMatrixClient();
   const engine = useSyncEngine();
-  const [loading, setLoading] = useState(enabled);
-  const [loadedSuccessfully, setLoadedSuccessfully] = useState(false);
+  // A list can look complete before server support is known. Use the first SDK load as proof.
+  const alreadyListed = enabled && roomThreadListIsListed(room);
+  // A cold peek is pending even though it defers automatic work.
+  const [loading, setLoading] = useState(enabled && !alreadyListed);
+  const [loadedSuccessfully, setLoadedSuccessfully] = useState(alreadyListed);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
   const lifecycleAbortControllerRef = useRef<AbortController>(undefined);
 
   useEffect(() => {
     // The SDK keeps the threads restored by the first mount; later ones come from the server list.
-    if (!enabled || restoredRooms.has(room)) return undefined;
+    if (!enabled || uncommittedBackPeek || restoredRooms.has(room)) return undefined;
     let cancelled = false;
-    loadCachedThreadRootsForRoom(engine.sessionId, room.roomId)
-      .then((roots) => {
+    const restore = async () => {
+      try {
+        const roots = await loadCachedThreadRootsForRoom(engine.sessionId, room.roomId);
         if (cancelled) return;
         restoredRooms.add(room);
         const mapper = keepHeldThreadSummaries(
@@ -123,14 +144,21 @@ export const useRoomThreadList = (
           }
         });
         setVersion((current) => current + 1);
-      })
-      .catch(() => {
+      } catch {
         // A cache miss/failure must not interrupt the independent server load.
-      });
+      }
+    };
+    const cancelRestore = roomThreadListIsListed(room)
+      ? afterRoomPaint(() => {
+          void restore();
+        })
+      : undefined;
+    if (!cancelRestore) void restore();
     return () => {
       cancelled = true;
+      cancelRestore?.();
     };
-  }, [enabled, engine.persist, engine.sessionId, mx, room]);
+  }, [enabled, engine.persist, engine.sessionId, mx, room, uncommittedBackPeek]);
 
   const handleThreadListProgress = useCallback(() => {
     setLoadedSuccessfully(true);
@@ -138,7 +166,7 @@ export const useRoomThreadList = (
   }, []);
 
   const loadThreads = useCallback(
-    (signal: AbortSignal) => {
+    (signal: AbortSignal, checkRootsOnly = false) => {
       const persist = engine.persist.forRoom(room);
       const saved = getSavedRootRevisions(room, persist.isCurrent);
       const mapper = readOnlyEventMapper(
@@ -187,7 +215,7 @@ export const useRoomThreadList = (
       const checkAll = () => {
         signal.removeEventListener('abort', checkAll);
         try {
-          if (pages > 1) {
+          if (checkRootsOnly || pages > 1) {
             checked.clear();
             measureDeepTracePhase('roomOverview.saveRoots', saveRoots);
           }
@@ -198,6 +226,10 @@ export const useRoomThreadList = (
         }
         pages = 0;
       };
+      if (checkRootsOnly) {
+        checkAll();
+        return Promise.resolve();
+      }
       signal.addEventListener('abort', checkAll);
       return loadRoomThreads(
         room,
@@ -247,27 +279,38 @@ export const useRoomThreadList = (
     const abortController = new AbortController();
     lifecycleAbortControllerRef.current = abortController;
 
-    setLoading(true);
-    setLoadedSuccessfully(false);
+    const listed = roomThreadListIsListed(room);
+    setLoading(!listed);
+    setLoadedSuccessfully(listed);
     setError(undefined);
 
-    loadThreads(abortController.signal)
-      .catch((err: unknown) => {
-        if (abortController.signal.aborted) return;
-        setError(err as Error);
-      })
-      .finally(() => {
-        if (abortController.signal.aborted) return;
-        setLoading(false);
-      });
+    // A peek can be abandoned without loading anything; Retry still has a live signal.
+    const signal = abortController.signal;
+    const cancelRootCheck =
+      !uncommittedBackPeek && listed
+        ? afterRoomPaint(() => {
+            void loadThreads(signal, true);
+          })
+        : undefined;
+    if (!uncommittedBackPeek && !listed) {
+      loadThreads(signal)
+        .catch((err: unknown) => {
+          if (signal.aborted) return;
+          setError(err as Error);
+        })
+        .finally(() => {
+          if (!signal.aborted) setLoading(false);
+        });
+    }
 
     return () => {
+      cancelRootCheck?.();
       abortController.abort();
       if (lifecycleAbortControllerRef.current === abortController) {
         lifecycleAbortControllerRef.current = undefined;
       }
     };
-  }, [enabled, loadThreads]);
+  }, [enabled, loadThreads, room, uncommittedBackPeek]);
 
   useEffect(() => {
     if (!enabled) return undefined;
@@ -290,9 +333,11 @@ export const useRoomThreadList = (
   }, [enabled, room]);
 
   const rawThreads = useMemo(() => {
+    // The SDK can gain threads while our listeners are detached.
+    void enabled;
     void version;
     return room.getThreads();
-  }, [room, version]);
+  }, [enabled, room, version]);
   const userId = mx.getUserId() ?? '';
   // The marks of the last build. A count checks the threads it marked (a reply, the reader's
   // receipt in a thread), not every thread of the room, and keeps the map while no mark changed.
@@ -313,10 +358,7 @@ export const useRoomThreadList = (
     () => (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),
     [enabled, rawThreads, threadUnreads]
   );
-  const fullyLoaded = useMemo(() => {
-    void version;
-    return roomThreadListIsComplete(room);
-  }, [room, version]);
+  const fullyLoaded = roomThreadListIsComplete(room);
 
   return {
     threads,

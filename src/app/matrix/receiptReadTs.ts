@@ -126,6 +126,32 @@ const namedEventsOf = (room: Room): NamedEvents | undefined => {
   return kept;
 };
 
+/** Only for one synchronous build. Null remembers a miss without caching its timestamp fallback. */
+export type RoomReceiptLookup = {
+  room: Room;
+  targets: Map<string, MatrixEvent | null>;
+  /** Count and time SDK room fallbacks; cache hits include reuse of misses. */
+  stats?: { receipt_ms: number; receipt_lookups: number; receipt_cache_hits: number };
+};
+
+const findRoomReceiptEvent = (room: Room, eventId: string, lookup?: RoomReceiptLookup) => {
+  if (!lookup || lookup.room !== room) return room.findEventById?.(eventId);
+  const { targets, stats } = lookup;
+  const cached = targets.get(eventId);
+  if (cached !== undefined) {
+    if (stats) stats.receipt_cache_hits += 1;
+    return cached;
+  }
+  const startedAt = stats ? performance.now() : 0;
+  const event = room.findEventById?.(eventId) ?? null;
+  if (stats) {
+    stats.receipt_ms += performance.now() - startedAt;
+    stats.receipt_lookups += 1;
+  }
+  targets.set(eventId, event);
+  return event;
+};
+
 /**
  * How far a receipt in `context` (the room's main timeline, or a thread) reads: up to the event it
  * names. A receipt on an event the client does not hold (often a reply's terminal edit, which no
@@ -136,7 +162,8 @@ export const receiptReadTs = (
   room: Room,
   context: Room | Thread,
   eventId: string | undefined,
-  takenTs: number
+  takenTs: number,
+  lookup?: RoomReceiptLookup
 ): number => {
   if (!eventId) return takenTs;
   // Before the answer, so the room counts what happens to a named event from the first lookup.
@@ -144,7 +171,9 @@ export const receiptReadTs = (
   kept?.asked.add(eventId);
   // Optional calls here and below: room and thread stand-ins in tests often lack receipts, events
   // or, for a thread, its room.
-  const named = context.findEventById?.(eventId) ?? room.findEventById?.(eventId);
+  const named =
+    (context === room ? undefined : context.findEventById?.(eventId)) ??
+    findRoomReceiptEvent(room, eventId, lookup);
   if (named) kept?.held.add(eventId);
   else kept?.held.delete(eventId);
   return named?.getTs() ?? savedReceiptEventTs.get(room)?.get(eventId) ?? takenTs;
@@ -160,13 +189,14 @@ const seenReceiptReadTs = (
   room: Room,
   userId: string,
   context: Room | Thread,
-  threadId: string
+  threadId: string,
+  lookup?: RoomReceiptLookup
 ): number | undefined => {
   const seen = room ? seenReceipts.get(room) : undefined;
   return maxOf(
     ...[ReceiptType.Read, ReceiptType.ReadPrivate].map((type) => {
       const receipt = seen?.get(seenReceiptKey(userId, type, threadId));
-      return receipt && receiptReadTs(room, context, receipt.eventId, receipt.ts);
+      return receipt && receiptReadTs(room, context, receipt.eventId, receipt.ts, lookup);
     })
   );
 };
@@ -178,12 +208,13 @@ const seenReceiptReadTs = (
 export const unthreadedReceiptReadTs = (
   room: Room,
   userId: string,
-  context: Room | Thread = room
+  context: Room | Thread = room,
+  lookup?: RoomReceiptLookup
 ): number | undefined => {
   const receipt = room?.getLastUnthreadedReceiptFor?.(userId);
   return maxOf(
-    receipt && receiptReadTs(room, context, unthreadedReceiptEvents.get(receipt), receipt.ts),
-    seenReceiptReadTs(room, userId, context, '')
+    receipt && receiptReadTs(room, context, unthreadedReceiptEvents.get(receipt), receipt.ts, lookup),
+    seenReceiptReadTs(room, userId, context, '', lookup)
   );
 };
 
@@ -196,14 +227,16 @@ export const unthreadedReceiptReadTs = (
 export const contextReceiptReadTs = (
   room: Room,
   userId: string,
-  context: Room | Thread = room
+  context: Room | Thread = room,
+  lookup?: RoomReceiptLookup
 ): number | undefined =>
   maxOf(
-    unthreadedReceiptReadTs(room, userId, context),
+    unthreadedReceiptReadTs(room, userId, context, lookup),
     seenReceiptReadTs(
       room,
       userId,
       context,
-      context === room ? MAIN_ROOM_TIMELINE : (context as Thread).id
+      context === room ? MAIN_ROOM_TIMELINE : (context as Thread).id,
+      lookup
     )
   );

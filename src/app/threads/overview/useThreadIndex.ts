@@ -69,7 +69,7 @@ import {
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
 import { buildThreadIndexRecordMaps, type ThreadIndexRecordMaps } from './threadIndexRecords';
-import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
+import { isDeepTraceRecording, measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import { useSnoozeNow } from '../tags/useSnoozeNow';
 
 type ThreadResolutionLike = {
@@ -334,6 +334,7 @@ export const resolveThreadIndexSnapshot = ({
 
 export type UseThreadIndexOptions = {
   room: Room;
+  uncommittedBackPeek?: boolean;
   threadId: string | undefined;
   eventId: string | undefined;
   focusedRoomOverviewRequested: boolean;
@@ -360,6 +361,7 @@ export type UseThreadIndexOptions = {
 
 export const useThreadIndex = ({
   room,
+  uncommittedBackPeek,
   threadId,
   eventId,
   focusedRoomOverviewRequested,
@@ -434,7 +436,8 @@ export const useThreadIndex = ({
     room,
     compactViewRequested || threadsViewListed,
     overviewChanges,
-    overviewRefreshCounter
+    overviewRefreshCounter,
+    uncommittedBackPeek
   );
   const roomSurfaceEventEntries = useMemo(() => {
     // Mutable SDK/event metadata can change without changing the timeline array identity.
@@ -606,7 +609,16 @@ export const useThreadIndex = ({
   const baseRecordMaps = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    const built = measureDeepTracePhase('roomOverview.threadIndex', () =>
+    const stats = isDeepTraceRecording()
+      ? {
+          root_count: 0,
+          receipt_ms: 0,
+          presentation_ms: 0,
+          receipt_lookups: 0,
+          receipt_cache_hits: 0,
+        }
+      : undefined;
+    const build = () =>
       buildThreadIndexRecordMaps({
         threadId,
         compactViewRequested,
@@ -626,8 +638,9 @@ export const useThreadIndex = ({
         scheduledStatusMap,
         previous: builtRecordMapsRef.current,
         changes: overviewChanges,
-      })
-    );
+        stats,
+      });
+    const built = measureDeepTracePhase('roomOverview.threadIndex', build, stats);
     // An open thread has no records, so nothing is kept from before it.
     builtRecordMapsRef.current = built;
     return built;

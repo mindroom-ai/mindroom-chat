@@ -39,7 +39,7 @@ import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilte
 import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
 import { parseThreadSnooze } from './threadSnooze';
 import { seenThreadRootsVersion } from '../../matrix/seenThreadRoots';
-import { receiptEventsVersion } from '../../matrix/receiptReadTs';
+import { receiptEventsVersion, type RoomReceiptLookup } from '../../matrix/receiptReadTs';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
 
@@ -73,6 +73,15 @@ type BuildThreadRecordOptions = {
   absoluteIndex?: number;
 };
 
+export type ThreadRecordBuildStats = NonNullable<RoomReceiptLookup['stats']> & {
+  /** Candidate roots visited, including reused records and overlap between maps. */
+  root_count: number;
+  /** Total time in presentation snapshot construction for newly built records. */
+  presentation_ms: number;
+};
+
+type ThreadRecordLookup = RoomReceiptLookup & { stats?: ThreadRecordBuildStats };
+
 type BuildThreadRecordMapOptions = {
   room: Room;
   threadRootIds: string[];
@@ -92,6 +101,7 @@ type BuildThreadRecordMapOptions = {
   scheduledStatusMap?: ReadonlyMap<string, ThreadScheduledStatus>;
   cacheCoverageMap?: ReadonlyMap<string, ThreadCacheCoverage>;
   absoluteIndexMap?: ReadonlyMap<string, number>;
+  receiptLookup?: ThreadRecordLookup;
   /** The records of the last build and what changed in the room since: see `ThreadRecordReuse`. */
   reuse?: ThreadRecordReuse;
 };
@@ -186,6 +196,7 @@ type BuildThreadRecordContext = {
   hasMainTimelineReadTs?: boolean;
   pendingByThread?: ReadonlyMap<string, MatrixEvent[]> | null;
   memberDisplayNames: Map<string, string | undefined>;
+  receiptLookup: ThreadRecordLookup;
 };
 
 const EMPTY_PENDING_EVENTS: MatrixEvent[] = [];
@@ -458,6 +469,8 @@ export const buildThreadRecord = ({
     resolvedThreadRootEvent,
     fallbackParticipantIds
   );
+  const stats = context?.receiptLookup.stats;
+  const presentationStartedAt = stats ? performance.now() : 0;
   const presentation = resolveThreadPresentationSnapshot({
     room,
     threadRootId,
@@ -477,6 +490,7 @@ export const buildThreadRecord = ({
     visibleReplyEvents,
     memberDisplayNameCache: context?.memberDisplayNames,
   });
+  if (stats) stats.presentation_ms += performance.now() - presentationStartedAt;
   // The newest reply's sender (the server's bundled reply counts), the loaded repliers, the
   // other known writers, then the root's sender.
   const participantIds = collectThreadPeopleIds(undefined, [
@@ -505,13 +519,17 @@ export const buildThreadRecord = ({
   // An unread root counts toward the room's unread badge, so its thread is unread too.
   let isUnread = false;
   if (currentUserId) {
-    if (thread && getThreadUnread(thread, currentUserId)) {
+    if (thread && getThreadUnread(thread, currentUserId, context?.receiptLookup)) {
       isUnread = true;
     } else if (resolvedThreadRootEvent) {
       let mainTimelineReadTs: number | undefined;
       if (context) {
         if (!context.hasMainTimelineReadTs) {
-          context.mainTimelineReadTs = getMainTimelineReadTs(room, currentUserId);
+          context.mainTimelineReadTs = getMainTimelineReadTs(
+            room,
+            currentUserId,
+            context.receiptLookup
+          );
           context.hasMainTimelineReadTs = true;
         }
         mainTimelineReadTs = context.mainTimelineReadTs;
@@ -615,8 +633,10 @@ export const buildThreadRecordMap = ({
   scheduledStatusMap,
   cacheCoverageMap,
   absoluteIndexMap,
+  receiptLookup = { room, targets: new Map() },
   reuse,
 }: BuildThreadRecordMapOptions): Map<string, ThreadRecord> => {
+  if (receiptLookup.stats) receiptLookup.stats.root_count += threadRootIds.length;
   const records = new Map<string, ThreadRecord>();
   const roomSources = getRoomSources(room);
   const builtAt = reuse?.changes.count ?? 0;
@@ -654,6 +674,7 @@ export const buildThreadRecordMap = ({
     currentUserId,
     serverListed: roomSources[0],
     memberDisplayNames: new Map(),
+    receiptLookup,
   };
   try {
     return withRoomActiveRunsSnapshot(room, () => {
@@ -724,6 +745,7 @@ export const buildThreadUnreadMap = (
     from && from.userId === userId && sameRoomSources(from.roomSources, roomSources)
       ? from
       : undefined;
+  const receiptLookup: RoomReceiptLookup = { room, targets: new Map() };
   const unreads = new Map<string, boolean>();
   const checked = new Map<string, Thread>();
   let changed = false;
@@ -740,7 +762,7 @@ export const buildThreadUnreadMap = (
       unreads.set(thread.id, kept);
       return;
     }
-    const unread = getThreadUnread(thread, userId);
+    const unread = getThreadUnread(thread, userId, receiptLookup);
     if (unread !== kept) changed = true;
     unreads.set(thread.id, unread);
   });
