@@ -7,7 +7,14 @@ import {
 import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
-import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
+import {
+  RoomEvent,
+  type EventTimeline,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+  type Thread,
+} from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import {
@@ -102,6 +109,20 @@ type WarmThreadIndexEntry = {
   result: Omit<UseThreadIndexResult, 'refreshRoomThreadList' | 'applyThreadOverviewRelationEvents'>;
 };
 let lastWarmThreadIndex: WarmThreadIndexEntry | null = null;
+let warmRedactionRoom: Room | null = null;
+const clearWarmThreadIndex = () => {
+  warmRedactionRoom?.removeListener(RoomEvent.Redaction, clearWarmThreadIndex);
+  warmRedactionRoom = null;
+  lastWarmThreadIndex = null;
+};
+const setWarmThreadIndex = (entry: WarmThreadIndexEntry) => {
+  if (warmRedactionRoom !== entry.room) {
+    warmRedactionRoom?.removeListener(RoomEvent.Redaction, clearWarmThreadIndex);
+    warmRedactionRoom = entry.room;
+    entry.room.on(RoomEvent.Redaction, clearWarmThreadIndex);
+  }
+  lastWarmThreadIndex = entry;
+};
 const sameSet = (a: Set<string>, b: Set<string>) =>
   a === b || (a.size === b.size && [...a].every((id) => b.has(id)));
 
@@ -484,7 +505,7 @@ export const useThreadIndex = ({
     compactViewRequested || threadsViewListed,
     overviewChanges,
     overviewRefreshCounter,
-    bypassWarmPeek
+    bypassWarmPeek || !warmPeek
   );
   const roomSurfaceEventEntries = useMemo(() => {
     if (warmPeek) return [] as TimelineEventEntry[];
@@ -864,14 +885,14 @@ export const useThreadIndex = ({
     onStoreThreadSummary,
   });
   useLayoutEffect(() => {
-    if (paused || threadId || bypassWarmPeek) return;
-    lastWarmThreadIndex = {
+    if (paused || threadId || focusedRoomOverviewRequested) return;
+    setWarmThreadIndex({
       room,
       key: warmKey,
       freeze: threadSortFreezeState,
       ignored: ignoredUsersSet,
       result: data,
-    };
+    });
   });
 
   return { ...data, refreshRoomThreadList, applyThreadOverviewRelationEvents };
