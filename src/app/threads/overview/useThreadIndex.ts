@@ -7,15 +7,12 @@ import {
 import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
 import { useLayoutEffect, useMemo, useRef } from 'react';
 import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
+import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
-  RoomEvent,
-  type EventTimeline,
-  type MatrixClient,
-  type MatrixEvent,
-  type Room,
-  type Thread,
-} from 'matrix-js-sdk';
-import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+  buildThreadSummaryMap,
+  isThreadSummaryEvent,
+  type ThreadSummaryInfo,
+} from '../../matrix/protocol/threadSummary';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import {
   buildRoomSurfaceEventEntries,
@@ -51,6 +48,7 @@ import type { ThreadRecordChanges } from '../../event-store/threads/threadRecord
 import {
   buildVisibleThreadParticipantMap,
   buildVisibleThreadReplyCountMap,
+  isVisibleThreadReplyEvent,
 } from '../../event-store/threads/threadUtils';
 import {
   DIRECT_ROOM_TIMELINE_FILTER_STATE,
@@ -101,27 +99,162 @@ const EMPTY_ROOT_DATA = {
   bodyMap: new Map<string, string>(),
   sourceTsMap: new Map<string, number>(),
 };
+type WarmEventWatcher = {
+  event: MatrixEvent;
+  replacing: MatrixEvent | null;
+};
+type WarmPreviewWatchers = {
+  events: WarmEventWatcher[];
+  unloadedEventIds: string[];
+};
 type WarmThreadIndexEntry = {
   room: Room;
   key: string;
   freeze: ThreadSortFreezeState | null;
   ignored: Set<string>;
+  redactedBundledEditsSize: number;
+  previewWatchers: WarmPreviewWatchers;
   result: Omit<UseThreadIndexResult, 'refreshRoomThreadList' | 'applyThreadOverviewRelationEvents'>;
 };
 let lastWarmThreadIndex: WarmThreadIndexEntry | null = null;
-let warmRedactionRoom: Room | null = null;
-const clearWarmThreadIndex = () => {
-  warmRedactionRoom?.removeListener(RoomEvent.Redaction, clearWarmThreadIndex);
-  warmRedactionRoom = null;
-  lastWarmThreadIndex = null;
-};
-const setWarmThreadIndex = (entry: WarmThreadIndexEntry) => {
-  if (warmRedactionRoom !== entry.room) {
-    warmRedactionRoom?.removeListener(RoomEvent.Redaction, clearWarmThreadIndex);
-    warmRedactionRoom = entry.room;
-    entry.room.on(RoomEvent.Redaction, clearWarmThreadIndex);
+
+const getRedactedBundledEditsSize = (room: Room): number =>
+  (room as { redactedBundledEdits?: { size?: number } }).redactedBundledEdits?.size ?? 0;
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+const collectWarmPreviewWatchers = (
+  room: Room,
+  visibleThreadRootEventMap: ReadonlyMap<string, MatrixEvent>,
+  compactThreadRootEventMap: ReadonlyMap<string, MatrixEvent>,
+  roomSurfaceEventEntries: readonly TimelineEventEntry[],
+  normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>,
+  compactThreadRecordMap: ReadonlyMap<string, ThreadRecord>
+): WarmPreviewWatchers => {
+  const events: WarmEventWatcher[] = [];
+  const seenEvents = new Set<MatrixEvent>();
+  const seenLiveIds = new Set<string>();
+  const unloadedEventIds = new Set<string>();
+
+  const watchEventId = (id: unknown) => {
+    if (typeof id !== 'string' || !id || seenLiveIds.has(id) || unloadedEventIds.has(id)) return;
+    const live = room.findEventById?.(id);
+    if (live) {
+      watchEvent(live);
+    } else {
+      unloadedEventIds.add(id);
+    }
+  };
+
+  const watchBundledThreadIds = (rootEvent: MatrixEvent | null | undefined) => {
+    if (!rootEvent) return;
+    const threadBundle = rootEvent.getServerAggregatedRelation?.<unknown>('m.thread');
+    if (!isRecord(threadBundle)) return;
+    for (const key of ['latest_event', 'io.mindroom.latest_reply', 'io.mindroom.title'] as const) {
+      const bundled = threadBundle[key];
+      if (!isRecord(bundled)) continue;
+      const unsigned = bundled.unsigned;
+      if (isRecord(unsigned) && unsigned.redacted_because) continue;
+      watchEventId(bundled.event_id);
+      const relations = isRecord(unsigned) ? unsigned['m.relations'] : undefined;
+      const replace = isRecord(relations) ? relations['m.replace'] : undefined;
+      if (isRecord(replace)) {
+        watchEventId(replace.event_id);
+      }
+    }
+  };
+
+  const watchEvent = (event: MatrixEvent | null | undefined) => {
+    if (!event || seenEvents.has(event)) return;
+    seenEvents.add(event);
+    watchBundledThreadIds(event);
+    const id = event.getId?.();
+    if (event.isRedacted?.()) {
+      if (id) seenLiveIds.add(id);
+      return;
+    }
+    const replacing = event.replacingEvent?.() ?? null;
+    events.push({
+      event,
+      replacing: replacing && !replacing.isRedacted?.() ? replacing : null,
+    });
+    if (id) {
+      const live = room.findEventById?.(id);
+      if (live === event) {
+        seenLiveIds.add(id);
+      } else if (live) {
+        watchEvent(live);
+      } else {
+        unloadedEventIds.add(id);
+      }
+    }
+    const bundledReplace = event.getServerAggregatedRelation?.<unknown>('m.replace');
+    if (isRecord(bundledReplace)) {
+      watchEventId(bundledReplace.event_id);
+    }
+  };
+
+  for (const rootEvent of visibleThreadRootEventMap.values()) watchEvent(rootEvent);
+  for (const rootEvent of compactThreadRootEventMap.values()) watchEvent(rootEvent);
+  for (const { event } of roomSurfaceEventEntries) watchEvent(event);
+  for (const thread of room.getThreads?.() ?? []) {
+    watchEvent(thread.rootEvent);
+    const replyToEvent = thread.replyToEvent;
+    watchEvent(replyToEvent);
+    const threadEvents = thread.events;
+    if (
+      threadEvents?.length &&
+      (!replyToEvent ||
+        replyToEvent.isRedacted?.() ||
+        isThreadSummaryEvent(replyToEvent) ||
+        !isVisibleThreadReplyEvent(replyToEvent))
+    ) {
+      for (let i = threadEvents.length - 1; i >= 0; i -= 1) {
+        const candidate = threadEvents[i];
+        if (
+          !candidate ||
+          candidate === thread.rootEvent ||
+          candidate.isRedacted?.() ||
+          isThreadSummaryEvent(candidate) ||
+          !isVisibleThreadReplyEvent(candidate)
+        ) {
+          continue;
+        }
+        watchEvent(candidate);
+        break;
+      }
+    }
   }
-  lastWarmThreadIndex = entry;
+  const watchRecordSummaries = (records: ReadonlyMap<string, ThreadRecord>) => {
+    for (const record of records.values()) {
+      watchEventId(record.presentation.summaryInfo?.eventId);
+    }
+  };
+  watchRecordSummaries(normalThreadRecordMap);
+  if (compactThreadRecordMap !== normalThreadRecordMap) {
+    watchRecordSummaries(compactThreadRecordMap);
+  }
+
+  return { events, unloadedEventIds: [...unloadedEventIds] };
+};
+
+const hasRedactionSinceWarmSave = (room: Room, entry: WarmThreadIndexEntry): boolean => {
+  if (getRedactedBundledEditsSize(room) !== entry.redactedBundledEditsSize) return true;
+  for (const { event, replacing } of entry.previewWatchers.events) {
+    const currentReplacing = event.replacingEvent?.() ?? null;
+    if (
+      event.isRedacted?.() ||
+      currentReplacing?.isRedacted?.() ||
+      (replacing && (replacing.isRedacted?.() || currentReplacing !== replacing))
+    ) {
+      return true;
+    }
+  }
+  for (const id of entry.previewWatchers.unloadedEventIds) {
+    if (room.findEventById?.(id)?.isRedacted?.()) return true;
+  }
+  return false;
 };
 const sameSet = (a: Set<string>, b: Set<string>) =>
   a === b || (a.size === b.size && [...a].every((id) => b.has(id)));
@@ -438,10 +571,14 @@ export const useThreadIndex = ({
   );
   const warmKey = `${sessionId}\0${currentUserId ?? ''}\0${compactViewRequested}\0${threadSortControlSignature}\0${requestedThreadFilterState.unsupportedQuery}\0${showHiddenEvents}\0${hideMembershipEvents}\0${hideNickAvatarEvents}`;
   const bypassWarmPeek = focusedRoomOverviewRequested || Boolean(focusEventInRoom && eventId);
-  const cachedWarm =
+  let cachedWarm =
     paused && !threadId && !bypassWarmPeek && lastWarmThreadIndex?.room === room
       ? lastWarmThreadIndex
       : undefined;
+  if (cachedWarm && hasRedactionSinceWarmSave(room, cachedWarm)) {
+    lastWarmThreadIndex = null;
+    cachedWarm = undefined;
+  }
   const warmPeek =
     cachedWarm &&
     cachedWarm.key === warmKey &&
@@ -836,26 +973,49 @@ export const useThreadIndex = ({
     ]
   );
 
-  const data: WarmThreadIndexEntry['result'] = warmPeek ?? {
-    ...snapshot,
-    roomSurfaceEventEntries,
-    visibleThreadRootData,
-    compactThreadRootData,
-    hasZeroReplyRootCoverage,
-    threadReplyCountMap,
-    threadParticipantMap,
-    threadSummaryInfoMap,
-    scheduledStatusMap,
-    availableRoomTags,
-    roomThreadListThreads,
-    threadListLoading: roomThreadListLoading,
-    threadListSettled:
-      (compactViewRequested || threadsViewListed) &&
-      roomThreadListLoadedSuccessfully &&
-      !roomThreadListLoading,
-    snoozeNow,
-    threadBackgroundStates: jobStates,
-  };
+  const threadListSettled =
+    (compactViewRequested || threadsViewListed) &&
+    roomThreadListLoadedSuccessfully &&
+    !roomThreadListLoading;
+
+  const data = useMemo<WarmThreadIndexEntry['result']>(
+    () =>
+      warmPeek ?? {
+        ...snapshot,
+        roomSurfaceEventEntries,
+        visibleThreadRootData,
+        compactThreadRootData,
+        hasZeroReplyRootCoverage,
+        threadReplyCountMap,
+        threadParticipantMap,
+        threadSummaryInfoMap,
+        scheduledStatusMap,
+        availableRoomTags,
+        roomThreadListThreads,
+        threadListLoading: roomThreadListLoading,
+        threadListSettled,
+        snoozeNow,
+        threadBackgroundStates: jobStates,
+      },
+    [
+      warmPeek,
+      snapshot,
+      roomSurfaceEventEntries,
+      visibleThreadRootData,
+      compactThreadRootData,
+      hasZeroReplyRootCoverage,
+      threadReplyCountMap,
+      threadParticipantMap,
+      threadSummaryInfoMap,
+      scheduledStatusMap,
+      availableRoomTags,
+      roomThreadListThreads,
+      roomThreadListLoading,
+      threadListSettled,
+      snoozeNow,
+      jobStates,
+    ]
+  );
 
   useThreadOverviewCacheHydration({
     paused,
@@ -886,14 +1046,36 @@ export const useThreadIndex = ({
   });
   useLayoutEffect(() => {
     if (paused || threadId || focusedRoomOverviewRequested) return;
-    setWarmThreadIndex({
+    lastWarmThreadIndex = {
       room,
       key: warmKey,
       freeze: threadSortFreezeState,
       ignored: ignoredUsersSet,
+      redactedBundledEditsSize: getRedactedBundledEditsSize(room),
+      previewWatchers: collectWarmPreviewWatchers(
+        room,
+        visibleThreadRootEventMap,
+        compactThreadRootEventMap,
+        roomSurfaceEventEntries,
+        data.normalThreadRecordMap,
+        data.compactThreadRecordMap
+      ),
       result: data,
-    });
-  });
+    };
+  }, [
+    paused,
+    threadId,
+    focusedRoomOverviewRequested,
+    room,
+    warmKey,
+    threadSortFreezeState,
+    ignoredUsersSet,
+    overviewRefreshCounter,
+    visibleThreadRootEventMap,
+    compactThreadRootEventMap,
+    roomSurfaceEventEntries,
+    data,
+  ]);
 
   return { ...data, refreshRoomThreadList, applyThreadOverviewRelationEvents };
 };

@@ -255,7 +255,7 @@ describe('passive back-peek warm snapshot reuse', () => {
     expect(lastCompactIds).toEqual(expect.arrayContaining(['$root-1', '$root-2']));
   });
 
-  it('invalidates the warm peek cache on RoomEvent.Redaction so deleted reply text is not shown during passive back-peek', async () => {
+  it('invalidates the warm peek cache on ordinary reply redaction via addLiveEvents with zero persistent RoomEvent.Redaction listeners', async () => {
     const mx = createClient({
       baseUrl: 'https://matrix.example.org',
       userId: '@self:example.org',
@@ -263,7 +263,7 @@ describe('passive back-peek warm snapshot reuse', () => {
     vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
     const engine = createSyncEngine({ mx });
     const roomId = '!redaction-peek:example.org';
-    const room = new Room(roomId, mx, '@self:example.org');
+    const room = new Room(roomId, mx, '@self:example.org', { timelineSupport: true });
     const root = msg(roomId, '$root-r1', 'Topic root', 1_000);
     const secretReply = new MatrixEvent({
       type: 'm.room.message',
@@ -345,26 +345,153 @@ describe('passive back-peek warm snapshot reuse', () => {
     });
     expect(lastPreview).toBe('Secret reply to delete');
 
-    // Unmount room (thread is open), redact the reply, and emit RoomEvent.Redaction.
+    // Unmount room (thread is open): zero persistent RoomEvent.Redaction listeners remain.
     rendered.rerender(wrap(false, false));
+    expect(room.listenerCount(RoomEvent.Redaction)).toBe(baseRedactionListeners);
+
+    // Deliver the reply redaction through room.addLiveEvents while unmounted.
     const redaction = new MatrixEvent({
       type: 'm.room.redaction',
       room_id: roomId,
       event_id: '$redaction-1',
-      sender: '@self:example.org',
+      sender: '@member:example.org',
       origin_server_ts: 3_000,
       redacts: '$reply-secret',
-      content: {},
+      content: { redacts: '$reply-secret' },
     });
-    expect(room.listenerCount(RoomEvent.Redaction)).toBe(baseRedactionListeners + 1);
-    secretReply.makeRedacted(redaction, room);
-    room.emit(RoomEvent.Redaction, redaction, room, '$root-r1');
+    await room.addLiveEvents([redaction], { addToState: false });
+    expect(secretReply.isRedacted()).toBe(true);
     expect(room.listenerCount(RoomEvent.Redaction)).toBe(baseRedactionListeners);
 
-    // Passive back-peek must miss the invalidated cache and never preview deleted reply text.
+    // Passive back-peek must invalidate the warm cache and never preview deleted reply text.
     buildSpy.mockClear();
     rendered.rerender(wrap(true, true));
     expect(buildSpy).toHaveBeenCalled();
     expect(lastPreview).not.toBe('Secret reply to delete');
+  });
+
+  it('invalidates the warm peek cache when a bundled edit is redacted via addLiveEvents without emitting RoomEvent.Redaction', async () => {
+    const mx = createClient({
+      baseUrl: 'https://matrix.example.org',
+      userId: '@self:example.org',
+    });
+    vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+    const engine = createSyncEngine({ mx });
+    const roomId = '!bundled-edit-redaction-peek:example.org';
+    const room = new Room(roomId, mx, '@self:example.org', { timelineSupport: true });
+    const editedRoot = mx.getEventMapper()({
+      type: 'm.room.message',
+      room_id: roomId,
+      event_id: '$root-be1',
+      sender: '@member:example.org',
+      origin_server_ts: 1_000,
+      content: { msgtype: 'm.text', body: 'Original safe text' },
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            type: 'm.room.message',
+            room_id: roomId,
+            event_id: '$edit-bundled-1',
+            sender: '@member:example.org',
+            origin_server_ts: 1_500,
+            content: {
+              msgtype: 'm.text',
+              body: '* Retracted edit text',
+              'm.new_content': { msgtype: 'm.text', body: 'Retracted edit text' },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$root-be1' },
+            },
+          },
+        },
+      },
+    });
+    await room.addLiveEvents([editedRoot], { addToState: false });
+    const linkedTimelines = [room.getLiveTimeline()];
+    const entries = [{ event: editedRoot, absoluteIndex: 0 }];
+    const buildSpy = vi.spyOn(threadRecordModule, 'buildThreadRecordMap');
+    let lastRootPreview: string | undefined;
+
+    function BundledEditRoom() {
+      const listened = useThreadOverviewListenedFirst(room, undefined, true);
+      if (listened === 'waiting') return null;
+      return <BundledEditRoomBody listened={listened!} />;
+    }
+    function BundledEditRoomBody({
+      listened,
+    }: {
+      listened: NonNullable<Exclude<ReturnType<typeof useThreadOverviewListenedFirst>, 'waiting'>>;
+    }) {
+      const index = useThreadIndex({
+        room,
+        threadId: undefined,
+        eventId: undefined,
+        focusedRoomOverviewRequested: false,
+        compactViewRequested: true,
+        effectiveViewMode: 'compact',
+        linkedTimelines,
+        renderableEventEntries: entries,
+        ignoredUsersSet: EMPTY_IGNORED,
+        showHiddenEvents: false,
+        hideMembershipEvents: false,
+        hideNickAvatarEvents: false,
+        summaryMap: new Map(),
+        threadResolutionMap: EMPTY_RESOLUTIONS,
+        currentUserId: '@self:example.org',
+        requestedThreadFilterState: DIRECT_ROOM_TIMELINE_FILTER_STATE,
+        threadSortFreezeState: null,
+        overviewRefreshCounter: listened.overviewRefreshCounter,
+        overviewChanges: listened.overviewChanges,
+        sessionId: engine.sessionId,
+        mx,
+        onStoreThreadSummary: NOOP,
+      });
+      lastRootPreview = index.compactThreadRecordMap.get('$root-be1')?.presentation.rootPreviewText;
+      return null;
+    }
+
+    const queryClient = new QueryClient();
+    const wrap = (mounted: boolean, passive: boolean) => (
+      <QueryClientProvider client={queryClient}>
+        <MatrixClientProvider value={mx}>
+          <SyncEngineProvider engine={engine}>
+            <PassivePeekContext.Provider value={passive}>
+              {mounted ? <BundledEditRoom /> : null}
+            </PassivePeekContext.Provider>
+          </SyncEngineProvider>
+        </MatrixClientProvider>
+      </QueryClientProvider>
+    );
+
+    let rendered!: ReturnType<typeof render>;
+    await act(async () => {
+      rendered = render(wrap(true, false));
+      await Promise.resolve();
+    });
+    expect(lastRootPreview).toBe('Retracted edit text');
+
+    // Unmount room and redact the bundled edit via addLiveEvents:
+    // room.redactedBundledEdits grows without emitting RoomEvent.Redaction.
+    rendered.rerender(wrap(false, false));
+    const redactionEventSpy = vi.fn();
+    room.on(RoomEvent.Redaction, redactionEventSpy);
+    const redactionOfBundledEdit = new MatrixEvent({
+      type: 'm.room.redaction',
+      room_id: roomId,
+      event_id: '$redaction-bundled-edit',
+      sender: '@member:example.org',
+      origin_server_ts: 2_500,
+      redacts: '$edit-bundled-1',
+      content: { redacts: '$edit-bundled-1' },
+    });
+    await room.addLiveEvents([redactionOfBundledEdit], { addToState: false });
+    room.removeListener(RoomEvent.Redaction, redactionEventSpy);
+    expect(redactionEventSpy).not.toHaveBeenCalled();
+    expect(room.redactedBundledEdits.size).toBe(1);
+    expect(room.redactedBundledEdits.has('$edit-bundled-1')).toBe(true);
+
+    // Passive back-peek must invalidate the warm cache and show the original text before commit.
+    buildSpy.mockClear();
+    rendered.rerender(wrap(true, true));
+    expect(buildSpy).toHaveBeenCalled();
+    expect(lastRootPreview).toBe('Original safe text');
   });
 });
