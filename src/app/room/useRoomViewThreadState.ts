@@ -88,6 +88,7 @@ export type LiveRoomPeekFocus = {
 };
 
 type UseRoomViewThreadStateOptions = {
+  columnsAvailable?: boolean;
   enterLiveForwardPeek?: (threadId: string) => LiveThreadBackUnder | null;
   enterLiveRoomPeek?: (peekFocus?: LiveRoomPeekFocus) => LiveThreadBackUnder | null;
   eventId?: string;
@@ -115,6 +116,8 @@ export type RoomViewThreadState = {
   handleToggleThreadSortFreeze: () => void;
   /** Turns Compact's Sections on or off, for every room of the account. */
   handleToggleThreadSections: () => void;
+  /** Turns Compact's Columns mode on or off, for every room of the account. */
+  handleToggleThreadColumns: () => void;
   handleToggleUnresolvedOnly: () => void;
   handleToggleForMe: () => void;
   handleTogglePerson: (userId: string) => void;
@@ -127,12 +130,15 @@ export type RoomViewThreadState = {
   threadSummaryInfo?: ThreadSummaryInfo;
   /** Compact shows its cards in sections: Needs you, Working, Later and Done. */
   threadSections: boolean;
+  /** Wide Compact views transpose workflow sections into collapsible side-by-side columns. */
+  threadColumns: boolean;
   /** The open thread is not in this room, and no joined room the client knows holds it. */
   threadNotFound: boolean;
   viewMode: RoomViewMode;
 };
 
 export const useRoomViewThreadState = ({
+  columnsAvailable = false,
   enterLiveForwardPeek,
   enterLiveRoomPeek,
   eventId,
@@ -183,8 +189,14 @@ export const useRoomViewThreadState = ({
   const [compactSections, updateCompactSections] = useAtom(
     useMemo(() => getCompactRoomSectionsAtom(userId), [userId])
   );
+  const singleBucketTab =
+    effectiveThreadFilterState.tab && effectiveThreadFilterState.tab !== 'all'
+      ? effectiveThreadFilterState.tab
+      : undefined;
   // Only agent rooms have the workflow buckets; a room without agents keeps its cards' sort.
   const threadSections = effectiveViewMode === 'compact' && hasMindroomAgents && compactSections.on;
+  const threadColumns =
+    threadSections && columnsAvailable && !singleBucketTab && compactSections.columns;
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
@@ -575,8 +587,13 @@ export const useRoomViewThreadState = ({
   }, []);
 
   const handleToggleThreadSections = useCallback(() => {
-    updateCompactSections({ type: 'SET_ON', on: !compactSections.on });
-  }, [compactSections.on, updateCompactSections]);
+    // Clicking Group while Columns is active switches to vertical sections instead of turning grouping off.
+    updateCompactSections({ type: 'SET_ON', on: threadColumns ? true : !compactSections.on });
+  }, [compactSections.on, threadColumns, updateCompactSections]);
+
+  const handleToggleThreadColumns = useCallback(() => {
+    updateCompactSections({ type: 'SET_COLUMNS', columns: !compactSections.columns });
+  }, [compactSections.columns, updateCompactSections]);
 
   const handleReset = useCallback(() => {
     // Reset discards a pending typed query outright — flushing it first
@@ -706,6 +723,7 @@ export const useRoomViewThreadState = ({
     handleSortDirectionChange,
     handleToggleThreadSortFreeze,
     handleToggleThreadSections,
+    handleToggleThreadColumns,
     handleToggleUnresolvedOnly,
     handleToggleForMe,
     handleTogglePerson,
@@ -717,6 +735,7 @@ export const useRoomViewThreadState = ({
     threadSortFreezeState: effectiveThreadSortFreezeState,
     threadSummaryInfo,
     threadSections,
+    threadColumns,
     threadNotFound,
     viewMode: effectiveViewMode,
   };

@@ -529,6 +529,11 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     viewState.showRoomThreadOverviewControls && !plainConversation && !settings.hideThreadFilterBar;
   const sectionsOffered = compactCards && hasMindroomAgents;
   const threadSectionsShown = sectionsOffered && props.threadSections === true;
+  const singleBucketTab =
+    threadFilterState.tab && threadFilterState.tab !== 'all' ? threadFilterState.tab : undefined;
+  const columnsOffered =
+    sectionsOffered && Boolean(props.onToggleThreadColumns) && !singleBucketTab;
+  const threadColumnsShown = threadSectionsShown && columnsOffered && props.threadColumns === true;
   const overviewOrdering = compactCards
     ? threadIndex.compactOverviewOrdering
     : threadIndex.normalOverviewOrdering;
@@ -564,6 +569,8 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
         onSearchQueryChange={props.onSearchQueryChange ?? NOOP}
         threadSections={threadSectionsShown}
         onToggleThreadSections={sectionsOffered ? props.onToggleThreadSections : undefined}
+        threadColumns={threadColumnsShown}
+        onToggleThreadColumns={columnsOffered ? props.onToggleThreadColumns : undefined}
         hideEmptyState={compactCards && threadIndex.showCompactRoomView}
         peopleFilter={
           props.onTogglePerson && (
@@ -610,6 +617,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     hydrating,
     clientCatchingUp,
     threadSectionsShown,
+    threadColumnsShown,
     committedView,
     threadReturnPlace,
     returnedRef,

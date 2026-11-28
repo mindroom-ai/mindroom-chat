@@ -116,6 +116,17 @@ export const ThreadListScroll = style([
   },
 ]);
 
+export const ThreadListColumns = style([
+  FlexColumn,
+  {
+    overflow: 'hidden',
+    paddingBlockStart: config.space.S100,
+    paddingBlockEnd: config.space.S300,
+    paddingInline: config.space.S300,
+    isolation: 'isolate',
+  },
+]);
+
 export const RoomBadge = style([
   OutlinedPill,
   {

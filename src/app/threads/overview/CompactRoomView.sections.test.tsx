@@ -21,6 +21,7 @@ const state = vi.hoisted(() => ({
   pinned: [] as string[],
   sections: undefined as CompactThreadSection[] | undefined,
   enabled: [] as boolean[],
+  lastViewModelIds: [] as string[],
   unreachable: false,
 }));
 vi.mock('../../matrix/client/homeserverReachability', () => ({
@@ -51,8 +52,10 @@ vi.mock('./useCompactThreadSections', () => ({
   },
 }));
 vi.mock('./compactThreadCardViewModel', () => ({
-  useCompactThreadCardViewModels: ({ threadRootIds }: { threadRootIds: string[] }) =>
-    threadRootIds.map(viewModel),
+  useCompactThreadCardViewModels: ({ threadRootIds }: { threadRootIds: string[] }) => {
+    state.lastViewModelIds = threadRootIds;
+    return threadRootIds.map(viewModel);
+  },
 }));
 vi.mock('../tags/useRoomThreadTags', () => ({
   useToggleThreadResolution: () => ({
@@ -88,7 +91,8 @@ const view = (
   threadRootIds: string[],
   sections = true,
   activeRoom = room,
-  singleBucketTab?: ThreadWorkflowBucket
+  singleBucketTab?: ThreadWorkflowBucket,
+  columnsMode = false
 ) => (
   <CompactRoomView
     room={activeRoom}
@@ -97,6 +101,7 @@ const view = (
     onThreadClick={vi.fn()}
     compactRoomScrollStateRef={{ current: viewMemory }}
     sectionsNow={sections ? NOW : undefined}
+    columnsMode={columnsMode}
     singleBucketTab={singleBucketTab}
   />
 );
@@ -218,9 +223,11 @@ describe('the Compact room in sections', () => {
       '$done',
     ]);
     expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
-      v: 2,
+      v: 3,
       on: false,
+      columns: false,
       folded: ['quiet', 'working'],
+      order: ['needsYou', 'working', 'later', 'quiet', 'done'],
     });
   });
 
@@ -287,9 +294,11 @@ describe('the Compact room in sections', () => {
     expect(rows()).toEqual(['#working 2']);
     expect(header('working').getAttribute('aria-expanded')).toBe('false');
     expect(JSON.parse(localStorage.getItem(`compactRoomSections:${ME}`) ?? 'null')).toEqual({
-      v: 2,
+      v: 3,
       on: false,
+      columns: false,
       folded: ['quiet', 'done', 'working'],
+      order: ['needsYou', 'working', 'later', 'quiet', 'done'],
     });
   });
 
@@ -668,6 +677,31 @@ describe('the Compact room in sections', () => {
     expect(rows()).toContain('$read');
     expect(placeOnReturn('$read')).toBe('left');
     expect(placeOnReturn('$done')).toBe('focused');
+  });
+
+  it("renders Columns board when columnsMode is true, passes only open column card IDs to view models, and preserves empty state & single-bucket fallback", () => {
+    const { rerender } = render(
+      view(["$read", "$job", "$streaming", "$snoozed", "$done"], true, room, undefined, true)
+    );
+    expect(document.querySelector("[data-compact-columns-board=\"true\"]")).not.toBeNull();
+    // Done starts folded -> 0 cards mounted in Done and $done is omitted from view models!
+    expect(document.querySelector("[data-compact-column=\"done\"][data-collapsed=\"true\"]")).not.toBeNull();
+    expect(state.lastViewModelIds).toEqual(["$read", "$job", "$streaming", "$snoozed"]);
+    expect(state.lastViewModelIds).not.toContain("$done");
+
+    // Clicking the collapsed Done rail expands it and requests $done view model.
+    fireEvent.click(document.querySelector("[data-compact-column-rail=\"done\"]")!);
+    expect(state.lastViewModelIds).toContain("$done");
+
+    // Empty list falls back to empty state instead of an empty board.
+    rerender(view([], true, room, undefined, true));
+    expect(document.querySelector("[data-compact-columns-board]")).toBeNull();
+    expect(screen.getByText("mindroomUi.threads.compactRoomView.noThreads")).toBeTruthy();
+
+    // Single-bucket tab falls back to vertical section rendering.
+    rerender(view(["$done"], true, room, "done", true));
+    expect(document.querySelector("[data-compact-columns-board]")).toBeNull();
+    expect(document.querySelector("[data-compact-section=\"done\"]")).not.toBeNull();
   });
 
   it('shows the cards as before while Sections are off', () => {

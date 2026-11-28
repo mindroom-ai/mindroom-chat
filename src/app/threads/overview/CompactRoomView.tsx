@@ -1,5 +1,6 @@
 import React, {
   type MutableRefObject,
+  type RefObject,
   lazy,
   Suspense,
   useCallback,
@@ -46,10 +47,12 @@ import {
 import { useVirtualCompactList } from './useVirtualCompactList';
 import { useCompactThreadSections } from './useCompactThreadSections';
 import {
-  COMPACT_THREAD_SECTION_ORDER,
   type CompactThreadSection,
   type CompactThreadSectionId,
 } from './compactThreadSections';
+import { countOpenColumnCards, getVisibleColumnCardIds } from './compactColumnsLayout';
+import { useColumnsCardNavigation, useCompactColumnLimits } from './useCompactColumnsAvailable';
+import { CompactThreadColumns, type CompactColumnSignal } from './CompactThreadColumns';
 import { step } from './compactShownOrder';
 import { getCompactRoomSectionsAtom } from './compactRoomSections';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
@@ -87,6 +90,8 @@ export type CompactRoomViewProps = {
    * sections classify at too, so they show what the selected tab does.
    */
   sectionsNow?: number;
+  /** Transpose workflow sections into side-by-side collapsible columns (wide panes only). */
+  columnsMode?: boolean;
   /**
    * Set when the active workflow tab filters the list to one bucket (`needsYou`, `working`,
    * `later`, `done` — not `all`; Simple mode projects `tab` away in `useRoomViewThreadState`,
@@ -97,6 +102,9 @@ export type CompactRoomViewProps = {
   /** Filter context and actions for the rich empty state when filters hide every thread. */
   emptyState?: CompactRoomEmptyStateConfig;
 };
+
+const EMPTY_GROUPS: Record<string, string[]> = {};
+const EMPTY_ROWS: string[] = [];
 
 // A section's header among the cards' rows; no event ID starts with it.
 const SECTION_ROW_PREFIX = 'section:';
@@ -117,6 +125,7 @@ export function CompactRoomView({
   focusScope,
   filterBarShown = false,
   sectionsNow,
+  columnsMode = false,
   singleBucketTab,
   emptyState,
 }: CompactRoomViewProps) {
@@ -135,16 +144,17 @@ export function CompactRoomView({
     () => threadRootIds.filter((rootId) => pinning.pinnedEventIds.includes(rootId)),
     [pinning.pinnedEventIds, threadRootIds]
   );
+  const [sectionsChoice, updateSectionsChoice] = useAtom(
+    useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
+  );
   const threadSections = useCompactThreadSections({
     room,
     now: sectionsNow,
     threadRootIds,
     threadRecordMap,
     pinnedRootIds,
+    sectionOrder: sectionsChoice.order,
   });
-  const [sectionsChoice, updateSectionsChoice] = useAtom(
-    useMemo(() => getCompactRoomSectionsAtom(room.myUserId ?? ''), [room.myUserId])
-  );
   const { roomId } = room;
   const shownRef = useRef<{
     roomId: string;
@@ -160,9 +170,9 @@ export function CompactRoomView({
       shown?.roomId === roomId &&
       shown.singleBucketTab === singleBucketTab &&
       shown.sections
-      ? step(shown.sections, threadSections, true, COMPACT_THREAD_SECTION_ORDER)
+      ? step(shown.sections, threadSections, true, sectionsChoice.order)
       : threadSections;
-  }, [orderHeld, roomId, singleBucketTab, threadSections]);
+  }, [orderHeld, roomId, sectionsChoice.order, singleBucketTab, threadSections]);
   // Under a single-bucket workflow tab (such as Done), that section stays open without
   // changing its stored fold, so switching to Done still shows Done threads immediately.
   const folded = useMemo(
@@ -172,9 +182,33 @@ export function CompactRoomView({
         : sectionsChoice.folded,
     [sectionsChoice.folded, singleBucketTab]
   );
-  const toggleFold = (id: CompactThreadSectionId) => {
-    updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
-  };
+  const toggleFold = useCallback(
+    (id: CompactThreadSectionId) => {
+      updateSectionsChoice({ type: 'TOGGLE_FOLD', id });
+    },
+    [updateSectionsChoice]
+  );
+  const reorderSections = useCallback(
+    (order: CompactThreadSectionId[]) => {
+      updateSectionsChoice({ type: 'REORDER_SECTIONS', order });
+    },
+    [updateSectionsChoice]
+  );
+  const columnsShown = Boolean(
+    columnsMode && heldSections && !singleBucketTab && threadRootIds.length > 0
+  );
+  const { limits: columnLimits, showMore: showMoreInColumn } = useCompactColumnLimits(roomId);
+  const columnVisibleIds = useMemo(
+    () =>
+      columnsShown && heldSections
+        ? getVisibleColumnCardIds(heldSections, folded, columnLimits)
+        : EMPTY_ROWS,
+    [columnLimits, columnsShown, folded, heldSections]
+  );
+  const columnTotalCardCount = useMemo(
+    () => (columnsShown && heldSections ? countOpenColumnCards(heldSections, folded) : 0),
+    [columnsShown, folded, heldSections]
+  );
   // In sections, the list's rows are each section's header and, unless it is folded, its cards.
   const listedRows = useMemo(
     () =>
@@ -198,7 +232,7 @@ export function CompactRoomView({
   useLayoutEffect(() => {
     shownRef.current = { roomId, singleBucketTab, sections: heldSections, rows: shownRows };
   }, [heldSections, roomId, shownRows, singleBucketTab]);
-  useCompactScrollFallback(shownRows, viewRef, sectionOfRow);
+  useCompactScrollFallback(columnsShown ? EMPTY_ROWS : shownRows, viewRef, sectionOfRow);
   const memory = compactRoomScrollStateRef.current;
   const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
   const mountRequestKeyRef = useRef(requestKey);
@@ -222,7 +256,7 @@ export function CompactRoomView({
   const address =
     !!pushed && Object.values(groups).some((group) => group.includes(focusRequest.eventId));
   const blocks = useVirtualCompactList({
-    groups,
+    groups: columnsShown ? EMPTY_GROUPS : groups,
     scrollRef: viewRef,
     contentRef,
     memory,
@@ -235,9 +269,10 @@ export function CompactRoomView({
     indexPending: indexPending && !unreachable,
   });
   const { ids } = blocks;
+  useColumnsCardNavigation(viewRef, columnsShown, columnVisibleIds);
   const cardViewModels = useCompactThreadCardViewModels({
     room,
-    threadRootIds: blocks.liveIds,
+    threadRootIds: columnsShown ? columnVisibleIds : blocks.liveIds,
     threadRecordMap,
   });
   const { canToggle, setResolved, unsnooze, updatingThreadRootIds, error } =
@@ -272,9 +307,27 @@ export function CompactRoomView({
   // Discovery changes mounts, not the logical order that drives motion.
   const listMotion = useListMotion(
     contentRef,
-    shownRows.length > MOST_ROWS_IN_MOTION
+    columnsShown || shownRows.length > MOST_ROWS_IN_MOTION
       ? undefined
       : `${filterBarShown}|${shownRows.join(',')}|${pinnedRootIds.join(',')}`
+  );
+  const getColumnSignal = useCallback(
+    (section: CompactThreadSection): CompactColumnSignal | undefined => {
+      if (section.id === 'working') {
+        return {
+          streaming: section.rootIds.some(
+            (id) => threadRecordMap.get(id)?.status.isStreaming === true
+          ),
+        };
+      }
+      if (section.id === 'needsYou') {
+        return {
+          unread: section.rootIds.some((id) => threadRecordMap.get(id)?.status.isUnread === true),
+        };
+      }
+      return undefined;
+    },
+    [threadRecordMap]
   );
 
   // A fully stable click handler keeps the memoized cards from re-rendering
@@ -324,7 +377,10 @@ export function CompactRoomView({
       !isConfirmedMatrixEventId(rootId) ||
       updatingThreadRootIds.has(rootId);
     if (fixed) return true;
-    if (ids.length > 1) focusCardBeside(viewRef.current, rootId, ids.at(-1) === rootId ? -1 : 1);
+    const activeIds = columnsShown ? columnVisibleIds : ids;
+    if (activeIds.length > 1) {
+      focusCardBeside(viewRef.current, rootId, activeIds.at(-1) === rootId ? -1 : 1);
+    }
     handleSetResolved(rootId, !viewModel.isResolved);
     return true;
   });
@@ -340,7 +396,7 @@ export function CompactRoomView({
   // sort above the cards that were in view, so restore by those cards.
   const placeList = useScrollAnchorMemory({
     ...blocks.scrollAnchorProps,
-    ready: cardViewModels.length > 0 && blocks.placeReady,
+    ready: !columnsShown && cardViewModels.length > 0 && blocks.placeReady,
   });
 
   // A link followed to the mounted list (a pin's) places its card once the card shows, as a mount
@@ -373,7 +429,10 @@ export function CompactRoomView({
   const reopenLabel = t('threadActions.reopen');
   const snoozeLabel = t('thread.snooze');
   const unsnoozeLabel = t('thread.unsnooze');
-  const renderCard = (viewModel: CompactThreadCardViewModel) => {
+  const renderCard = (
+    viewModel: CompactThreadCardViewModel,
+    scrollRootRef: RefObject<HTMLDivElement | null> = viewRef
+  ) => {
     const rootId = viewModel.id.threadRootId;
     const pinned = pinning.pinnedEventIds.includes(rootId);
     const actions = getCompactCardRowActions({
@@ -390,7 +449,7 @@ export function CompactRoomView({
       <CompactThreadCardRow
         key={rootId}
         room={room}
-        scrollRootRef={viewRef}
+        scrollRootRef={scrollRootRef}
         viewModel={viewModel}
         pinned={pinned}
         {...actions}
@@ -408,97 +467,131 @@ export function CompactRoomView({
     );
   };
 
-  const renderModelCard = (id: string) => {
+  const renderModelCard = (id: string, scrollRootRef?: RefObject<HTMLDivElement | null>) => {
     const model = modelByRootId.get(id);
-    return model ? renderCard(model) : null;
+    return model ? renderCard(model, scrollRootRef) : null;
   };
   const showRichEmptyState =
     threadRootIds.length === 0 && emptyState !== undefined && threadRecordMap.size > 0;
+  const handleListFocus = (event: React.FocusEvent<HTMLDivElement>) =>
+    setFocusInside(isKeyboardFocus(event.target));
+  const handleListBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget)) {
+      setFocusInside(false);
+    }
+  };
   return (
     <Box
       ref={viewRef}
-      className={css.View}
+      className={columnsShown ? css.ViewColumns : css.View}
       data-compact-room-view="true"
       // For e2e: the cards the list has, which is more than it mounts.
-      data-compact-card-count={ids.length}
-      data-cards-pending={!blocks.extentComplete || undefined}
+      data-compact-card-count={columnsShown ? columnTotalCardCount : ids.length}
+      data-cards-pending={!columnsShown && !blocks.extentComplete ? true : undefined}
       tabIndex={-1}
     >
-      <CompactCardList
-        ref={contentRef}
-        scrollRef={viewRef}
-        liveIds={blocks.liveIds}
-        className={showRichEmptyState ? css.CardsEmpty : undefined}
-        style={overlay.overviewInsetStop}
-        data-order-held={orderHeld || undefined}
-        {...pointerHandlers}
-        // Keyboard focus only: a card a mouse click left focused does not hold the order.
-        onFocus={(event: React.FocusEvent<HTMLDivElement>) =>
-          setFocusInside(isKeyboardFocus(event.target))
-        }
-        onBlur={(event: React.FocusEvent<HTMLDivElement>) => {
-          if (!event.currentTarget.contains(event.relatedTarget)) {
-            setFocusInside(false);
-          }
-        }}
-      >
-        {listMotion}
-        {!!pinning.error && (
-          <Text role="alert" size="T200">
-            {t('thread.pinFailed')}
-          </Text>
-        )}
-        {!!groups.pinned?.length && (
-          <PinnedThreadsSection>
-            {blocks.rows[0]?.map((row) => renderCompactBlockRow(row, viewRef, renderModelCard))}
-          </PinnedThreadsSection>
-        )}
-        {threadRootIds.length === 0 ? (
-          showRichEmptyState ? (
-            <CompactRoomEmptyState
-              room={room}
-              threadRecordMap={threadRecordMap}
-              filterState={emptyState.filterState}
-              now={emptyState.now}
-              canCompose={emptyState.canCompose}
-              indexPending={indexPending && !unreachable}
-              canToggle={canToggle}
-              updatingThreadRootIds={updatingThreadRootIds}
-              onThreadClick={onThreadClick}
-              onSetResolved={handleSetResolved}
-              onReset={emptyState.onReset}
-              onToggleForMe={emptyState.onToggleForMe}
-              onShowSnoozed={emptyState.onShowSnoozed}
-              onRestoreFocus={restoreListFocus}
-            />
-          ) : (
-            <Box className={css.EmptyState}>
-              <Text size="T300" priority="300">
-                {t('mindroomUi.threads.compactRoomView.noThreads')}
+      {columnsShown && heldSections ? (
+        <>
+          {!!pinning.error && (
+            <Text role="alert" size="T200">
+              {t('thread.pinFailed')}
+            </Text>
+          )}
+          <CompactThreadColumns
+            boardRef={contentRef}
+            style={overlay.overviewInsetStop}
+            data-order-held={orderHeld || undefined}
+            {...pointerHandlers}
+            onFocus={handleListFocus}
+            onBlur={handleListBlur}
+            sections={heldSections}
+            folded={folded}
+            fullOrder={sectionsChoice.order}
+            columnLimits={columnLimits}
+            onShowMore={showMoreInColumn}
+            getCount={(section) => sectionCounts.get(section.id) ?? 0}
+            getSignal={getColumnSignal}
+            onToggleFold={toggleFold}
+            onReorder={reorderSections}
+            renderCard={renderModelCard}
+            scopeKey={roomId}
+          />
+        </>
+      ) : (
+        <>
+          <CompactCardList
+            ref={contentRef}
+            scrollRef={viewRef}
+            liveIds={blocks.liveIds}
+            className={showRichEmptyState ? css.CardsEmpty : undefined}
+            style={overlay.overviewInsetStop}
+            data-order-held={orderHeld || undefined}
+            {...pointerHandlers}
+            // Keyboard focus only: a card a mouse click left focused does not hold the order.
+            onFocus={handleListFocus}
+            onBlur={handleListBlur}
+          >
+            {listMotion}
+            {!!pinning.error && (
+              <Text role="alert" size="T200">
+                {t('thread.pinFailed')}
               </Text>
-            </Box>
-          )
-        ) : (
-          renderCompactSections({
-            sections: heldSections,
-            rows: blocks.rows.slice(1),
-            folded,
-            singleBucketTab,
-            onToggle: toggleFold,
-            scrollRef: viewRef,
-            renderCard: renderModelCard,
-            getCount: (section) => sectionCounts.get(section.id) ?? 0,
-            motionKey: sectionRowKey,
-          })
-        )}
-      </CompactCardList>
-      <InsetScrollbar
-        scrollRef={viewRef}
-        contentRef={contentRef}
-        className={overlay.Scrollbar}
-        label={t('threadNav.messages')}
-        beforeEnd={blocks.extentComplete ? blocks.prepareEnd : undefined}
-      />
+            )}
+            {!!groups.pinned?.length && (
+              <PinnedThreadsSection>
+                {blocks.rows[0]?.map((row) =>
+                  renderCompactBlockRow(row, viewRef, (id) => renderModelCard(id))
+                )}
+              </PinnedThreadsSection>
+            )}
+            {threadRootIds.length === 0 ? (
+              showRichEmptyState ? (
+                <CompactRoomEmptyState
+                  room={room}
+                  threadRecordMap={threadRecordMap}
+                  filterState={emptyState.filterState}
+                  now={emptyState.now}
+                  canCompose={emptyState.canCompose}
+                  indexPending={indexPending && !unreachable}
+                  canToggle={canToggle}
+                  updatingThreadRootIds={updatingThreadRootIds}
+                  onThreadClick={onThreadClick}
+                  onSetResolved={handleSetResolved}
+                  onReset={emptyState.onReset}
+                  onToggleForMe={emptyState.onToggleForMe}
+                  onShowSnoozed={emptyState.onShowSnoozed}
+                  onRestoreFocus={restoreListFocus}
+                />
+              ) : (
+                <Box className={css.EmptyState}>
+                  <Text size="T300" priority="300">
+                    {t('mindroomUi.threads.compactRoomView.noThreads')}
+                  </Text>
+                </Box>
+              )
+            ) : (
+              renderCompactSections({
+                sections: heldSections,
+                rows: blocks.rows.slice(1),
+                folded,
+                singleBucketTab,
+                onToggle: toggleFold,
+                scrollRef: viewRef,
+                renderCard: (id) => renderModelCard(id),
+                getCount: (section) => sectionCounts.get(section.id) ?? 0,
+                motionKey: sectionRowKey,
+              })
+            )}
+          </CompactCardList>
+          <InsetScrollbar
+            scrollRef={viewRef}
+            contentRef={contentRef}
+            className={overlay.Scrollbar}
+            label={t('threadNav.messages')}
+            beforeEnd={blocks.extentComplete ? blocks.prepareEnd : undefined}
+          />
+        </>
+      )}
       <ThreadCardDetails room={room} listRef={contentRef} menuOpen={!!menu} />
       {menu && menuModel && (
         <Suspense fallback={null}>

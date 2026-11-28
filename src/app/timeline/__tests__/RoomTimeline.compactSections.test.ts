@@ -125,6 +125,34 @@ describe('RoomTimeline Compact sections wiring', () => {
     act(() => agentless.renderer.unmount());
   });
 
+  it("wires threadColumns into the toolbar and CompactRoomView on All/untabbed views, and hides on single-bucket tabs", async () => {
+    const onToggleThreadColumns = vi.fn();
+    const wide = await renderCompact({
+      threadSections: true,
+      onToggleThreadSections: vi.fn(),
+      threadColumns: true,
+      onToggleThreadColumns,
+    });
+    expect(wide.bar().threadColumns).toBe(true);
+    expect(wide.bar().onToggleThreadColumns).toBe(onToggleThreadColumns);
+    expect(wide.cards().columnsMode).toBe(true);
+    act(() => wide.renderer.unmount());
+
+    const singleTab = await renderCompact(
+      {
+        threadSections: true,
+        onToggleThreadSections: vi.fn(),
+        threadColumns: true,
+        onToggleThreadColumns,
+      },
+      selectThreadWorkflowTab(createDefaultThreadFilterState(), "done")
+    );
+    expect(singleTab.bar().threadColumns).toBe(false);
+    expect(singleTab.bar().onToggleThreadColumns).toBeUndefined();
+    expect(singleTab.cards().columnsMode).toBe(false);
+    act(() => singleTab.renderer.unmount());
+  });
+
   it('stops compact history pagination after 1 call on a terminal empty page without RoomSurface re-rendering', async () => {
     const { CompactRoomSurface } = await import('../CompactRoomSurface');
     const root = makeEvent('$root', { isThreadRoot: true });

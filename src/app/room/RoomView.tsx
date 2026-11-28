@@ -67,6 +67,7 @@ import { useLocalEchoRoot } from './useLocalEchoRoot';
 import { isThreadColumnKey, noteThreadColumnKey } from './useRoomEscapeReadReceipts';
 import { useThreadKeys } from './useThreadKeys';
 import { focusOwnsTyping, isPasteKey, isTypingKey } from './typeToCompose';
+import { useCompactColumnsAvailable } from '../threads/overview/useCompactColumnsAvailable';
 import { THREAD_COLUMN_WIDTH_KEY, useThreadLayout } from './threadLayout';
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
@@ -311,7 +312,9 @@ export function RoomView({
     };
   }, []);
 
+  const columnsAvailable = useCompactColumnsAvailable(areaRef);
   const threadState = useRoomViewThreadState({
+    columnsAvailable,
     room,
     threadId,
     eventId,
@@ -601,6 +604,8 @@ export function RoomView({
     onSearchQueryChange: threadState.handleSearchQueryChange,
     threadSections: threadState.threadSections,
     onToggleThreadSections: threadState.handleToggleThreadSections,
+    threadColumns: threadState.threadColumns,
+    onToggleThreadColumns: columnsAvailable ? threadState.handleToggleThreadColumns : undefined,
     viewMode,
     compactRoomScrollStateRef,
     threadReturnPlaceRef,

@@ -30,6 +30,21 @@ export const View = style([
   },
 ]);
 
+export const ViewColumns = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 auto',
+  minWidth: 0,
+  minBlockSize: 0,
+  blockSize: '100%',
+  width: '100%',
+  paddingBlockStart: topInset,
+  paddingBlockEnd: `calc(${footerInset} + ${config.space.S300})`,
+  paddingInline: config.space.S300,
+  overflow: 'hidden',
+  isolation: 'isolate',
+});
+
 export const EmptyState = style({
   display: 'flex',
   alignItems: 'center',
