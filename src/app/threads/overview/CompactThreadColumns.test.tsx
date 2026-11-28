@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
+import { useDndContext } from '@dnd-kit/core';
+import { hasSortableData } from '@dnd-kit/sortable';
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -10,6 +12,7 @@ import {
   getVisibleColumnCardIds,
   mergeVisibleSectionOrder,
 } from './compactColumnsLayout';
+import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
 import { CompactThreadColumns } from './CompactThreadColumns';
 import { useCompactColumnsBoard } from './useCompactColumnsBoard';
@@ -62,18 +65,19 @@ const makeRect = (left: number, width: number, height = 400): DOMRect => ({
 });
 
 /** Computes dynamic column rects from current DOM order and collapsed state (LTR or RTL). */
-const bindDynamicColumnRects = (container: HTMLElement) => {
+const bindDynamicColumnRects = (container: HTMLElement, width = 1000) => {
   const board = container.querySelector<HTMLElement>('[data-compact-columns-board]')!;
-  vi.spyOn(board, 'getBoundingClientRect').mockImplementation(() => makeRect(0, 1000, 400));
+  vi.spyOn(board, 'getBoundingClientRect').mockImplementation(() => makeRect(0, width));
   const computeRect = (col: HTMLElement): DOMRect => {
     const columns = Array.from(board.querySelectorAll<HTMLElement>('[data-compact-column]'));
-    const rtl = getComputedStyle(board).direction === 'rtl';
-    let cursor = rtl ? 1000 : 0;
+    const rtl =
+      (getComputedStyle(board).direction || board.closest('[dir]')?.getAttribute('dir')) === 'rtl';
+    let cursor = rtl ? width : 0;
     for (const item of columns) {
       const width =
         item.getAttribute('data-collapsed') === 'true' ? COMPACT_COLLAPSED_RAIL_WIDTH_PX : 320;
       const left = rtl ? cursor - width : cursor;
-      if (item === col) return makeRect(left, width);
+      if (item === col) return makeRect(left - board.scrollLeft, width);
       cursor = rtl ? left - COMPACT_COLUMN_GAP_PX : left + width + COMPACT_COLUMN_GAP_PX;
     }
     return makeRect(0, 0);
@@ -81,7 +85,7 @@ const bindDynamicColumnRects = (container: HTMLElement) => {
   return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
     this: HTMLElement
   ) {
-    if (this === board) return makeRect(0, 1000, 400);
+    if (this === board) return makeRect(0, width);
     const col = this.closest<HTMLElement>('[data-compact-column]');
     if (col && board.contains(col)) return computeRect(col);
     return makeRect(0, 0);
@@ -199,7 +203,7 @@ describe('CompactThreadColumns', () => {
     expect(onToggleFold).toHaveBeenCalledWith('done');
   });
 
-  it('caps each open column at 40 initial cards and reveals more via button, IntersectionObserver, and End key', () => {
+  it('reveals cards on demand and restores horizontal and column scroll by scope', () => {
     const manyIds = Array.from({ length: 95 }, (_, index) => `$item-${index}`);
     const bigSections: CompactThreadSection[] = [
       { id: 'needsYou', rootIds: manyIds },
@@ -222,20 +226,31 @@ describe('CompactThreadColumns', () => {
       }
     );
 
-    function ControlledBoard() {
+    function ControlledBoard({
+      scrollMemory,
+      scopeKey = '!room:test',
+    }: {
+      scrollMemory?: ScrollAnchorMemory;
+      scopeKey?: string;
+    }) {
       const viewRef = useRef<HTMLDivElement>(null);
       const board = useCompactColumnsBoard({
         viewRef,
-        scopeKey: '!room:test',
+        scopeKey,
+        scrollMemory,
         sections: bigSections,
         folded: ['done'],
       });
       return (
         <div ref={viewRef} data-compact-room-view="true">
           <CompactThreadColumns
+            dir="rtl"
+            boardRef={board.boardRef}
             sections={bigSections}
             folded={['done']}
             columnLimits={board.limits}
+            columnStates={board.columnStates}
+            scrollScopeKey={scopeKey}
             onShowMore={board.showMore}
             onToggleFold={vi.fn()}
             onReorder={vi.fn()}
@@ -249,7 +264,12 @@ describe('CompactThreadColumns', () => {
       );
     }
 
-    const { container, unmount } = render(<ControlledBoard />);
+    const scrollMemory: ScrollAnchorMemory = new Map();
+    const { container, unmount } = render(<ControlledBoard scrollMemory={scrollMemory} />);
+    const boardEl = (root: HTMLElement) =>
+      root.querySelector<HTMLElement>('[data-compact-columns-board]')!;
+    const columnBody = (root: HTMLElement) =>
+      root.querySelector<HTMLElement>('[data-compact-column-body="needsYou"]')!;
     expect(container.querySelectorAll('[data-test-card]')).toHaveLength(40);
     const moreBtn = container.querySelector<HTMLButtonElement>(
       '[data-compact-column-show-more="needsYou"]'
@@ -267,7 +287,25 @@ describe('CompactThreadColumns', () => {
     });
     expect(container.querySelectorAll('[data-test-card]')).toHaveLength(95);
     expect(container.querySelector('[data-compact-column-show-more="needsYou"]')).toBeNull();
+    boardEl(container).scrollLeft = -48;
+    fireEvent.scroll(boardEl(container));
+    columnBody(container).scrollTop = 500;
+    fireEvent.scroll(columnBody(container));
     unmount();
+
+    const restored = render(<ControlledBoard scrollMemory={scrollMemory} />);
+    const restoredBoard = boardEl(restored.container);
+    expect(restoredBoard.scrollLeft).toBe(-48);
+    expect(columnBody(restored.container).scrollTop).toBe(500);
+    expect(restored.container.querySelectorAll('[data-test-card]')).toHaveLength(95);
+    restored.rerender(<ControlledBoard scrollMemory={scrollMemory} scopeKey="!room:test:8448" />);
+    expect(restoredBoard.scrollLeft).toBe(0);
+    fireEvent.scroll(restoredBoard);
+    restored.rerender(<ControlledBoard scrollMemory={scrollMemory} />);
+    expect(restoredBoard.scrollLeft).toBe(-48);
+    restored.rerender(<ControlledBoard scrollMemory={scrollMemory} scopeKey="!room:test:8448" />);
+    expect(restoredBoard.scrollLeft).toBe(0);
+    restored.unmount();
 
     // Fresh mount: pressing End from card 0 expands past 40 and focuses card #94.
     const fresh = render(<ControlledBoard />);
@@ -389,7 +427,97 @@ describe('CompactThreadColumns', () => {
     await new Promise((resolve) => setTimeout(resolve, 60));
   });
 
-  it('plays 260ms FLIP on collapse/expand with zero motion on mount or prefers-reduced-motion', () => {
+  it('sorts an RTL rail against open columns and pans a touch drag within negative scroll bounds', async () => {
+    const onReorder = vi.fn();
+    const logical = ['needsYou', 'working', 'done'];
+    const physical = [...logical].reverse();
+    let containers: ReturnType<typeof useDndContext>['droppableContainers'] | undefined;
+    function SortableProbe() {
+      const { droppableContainers } = useDndContext();
+      useLayoutEffect(() => {
+        containers = droppableContainers;
+      }, [droppableContainers]);
+      return null;
+    }
+    const sortableIds = () => {
+      const rail = containers?.get('done');
+      return hasSortableData(rail) ? rail.data.current.sortable.items : undefined;
+    };
+    const html = document.documentElement;
+    const previousDir = html.getAttribute('dir');
+    vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+    try {
+      html.dir = 'ltr';
+      const { container } = render(
+        <div>
+          <CompactThreadColumns
+            sections={SECTIONS}
+            folded={['done']}
+            fullOrder={['needsYou', 'working', 'later', 'quiet', 'done']}
+            style={{ overflowX: 'auto' }}
+            onToggleFold={vi.fn()}
+            onReorder={onReorder}
+            renderCard={(id) => (id === '$alpha' ? <SortableProbe key={id} /> : null)}
+          />
+        </div>
+      );
+      expect(sortableIds()).toEqual(logical);
+      const changeDir = async (el: Element, dir: 'ltr' | 'rtl') => {
+        await act(async () => {
+          el.setAttribute('dir', dir);
+        });
+        expect(sortableIds()).toEqual(dir === 'rtl' ? physical : logical);
+      };
+      await changeDir(html, 'rtl');
+      await changeDir(container.firstElementChild!, 'ltr');
+      await changeDir(container.firstElementChild!, 'rtl');
+      expect(columnOrder(container)).toEqual(logical);
+
+      const board = container.querySelector<HTMLElement>('[data-compact-columns-board]')!;
+      bindDynamicColumnRects(container, 680);
+      Object.defineProperties(board, { clientWidth: { value: 680 }, scrollWidth: { value: 700 } });
+      const grip = container.querySelector<HTMLElement>(
+        '[data-compact-column-rail="done"] [data-compact-column-drag-grip]'
+      )!;
+      const touch = async (type: string, x: number) => {
+        await act(async () => {
+          grip.dispatchEvent(touchEvent(type, grip, x, 30));
+          await tick();
+        });
+      };
+      const advancePan = () =>
+        act(() => {
+          vi.advanceTimersToNextFrame();
+        });
+      await touch('touchstart', 12);
+      await touch('touchmove', 2);
+      advancePan();
+      expect(board.scrollLeft).toBeLessThan(0);
+      advancePan();
+      expect(board.scrollLeft).toBe(-20);
+      fireEvent.scroll(board);
+
+      await touch('touchmove', 180);
+      const working = container.querySelector<HTMLElement>('[data-compact-column="working"]')!;
+      expect(working.style.transform).toBe(
+        `translate3d(-${COMPACT_COLLAPSED_RAIL_WIDTH_PX + COMPACT_COLUMN_GAP_PX}px, 0px, 0)`
+      );
+      await touch('touchend', 180);
+      expect(onReorder).toHaveBeenCalledWith(['needsYou', 'done', 'later', 'quiet', 'working']);
+      await touch('touchmove', 675);
+      advancePan();
+      expect(board.scrollLeft).toBe(-20);
+    } finally {
+      cleanup();
+      if (previousDir === null) html.removeAttribute('dir');
+      else html.dir = previousDir;
+      vi.useRealTimers();
+      // Let the existing dnd-kit document click guard detach before the next test.
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+  });
+
+  it('plays 260ms FLIP and hands focus between open and folded triggers, with zero motion on mount or reduced motion', () => {
     const animateCalls: Array<{ col: string; options: KeyframeAnimationOptions }> = [];
     const origAnimate = HTMLElement.prototype.animate;
     HTMLElement.prototype.animate = vi.fn(function (
@@ -414,7 +542,7 @@ describe('CompactThreadColumns', () => {
             )
           }
           onReorder={vi.fn()}
-          renderCard={(id) => <div key={id} data-test-card={id} />}
+          renderCard={(id) => <button type="button" key={id} data-test-card={id} />}
         />
       );
     }
@@ -424,7 +552,21 @@ describe('CompactThreadColumns', () => {
       bindDynamicColumnRects(container);
       expect(animateCalls).toHaveLength(0);
 
-      fireEvent.click(container.querySelector('[data-compact-column-header="needsYou"]')!);
+      const header = container.querySelector<HTMLButtonElement>(
+        '[data-compact-column-header="needsYou"]'
+      )!;
+      // Safari clicks need not move focus off the card before the column folds.
+      container.querySelector<HTMLButtonElement>('[data-test-card="$alpha"]')!.focus();
+      fireEvent.click(header, { detail: 1 });
+      const rail = container.querySelector<HTMLButtonElement>(
+        '[data-compact-column-rail="needsYou"]'
+      )!;
+      expect(document.activeElement).toBe(rail);
+      // jsdom does not dispatch the button's native keyboard-generated click.
+      fireEvent.click(rail, { detail: 0 });
+      expect(document.activeElement).toBe(
+        container.querySelector('[data-compact-column-header="needsYou"]')
+      );
       expect(
         animateCalls.some(
           (call) => call.col === 'working' && call.options.duration === COLUMN_FLIP_DURATION_MS
@@ -452,7 +594,7 @@ describe('CompactThreadColumns', () => {
       const [order, setOrder] = useState<CompactThreadSectionId[]>(['needsYou', 'working', 'done']);
       const ordered = order.map((id) => SECTIONS.find((section) => section.id === id)!);
       return (
-        <div dir={dir} style={{ direction: dir }}>
+        <div dir={dir}>
           <CompactThreadColumns
             sections={ordered}
             folded={['done']}
@@ -469,12 +611,13 @@ describe('CompactThreadColumns', () => {
       const workingBtn = ltr.container.querySelector<HTMLButtonElement>(
         '[data-compact-column-header="working"]'
       )!;
+      const scrollIntoView = vi.fn();
+      workingBtn.scrollIntoView = scrollIntoView;
       workingBtn.focus();
       fireEvent.keyDown(workingBtn, { key: 'ArrowLeft', altKey: true });
       expect(columnOrder(ltr.container)).toEqual(['working', 'needsYou', 'done']);
-      expect(document.activeElement).toBe(
-        ltr.container.querySelector('[data-compact-column-header="working"]')
-      );
+      expect(document.activeElement).toBe(workingBtn);
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' });
 
       // Boundary press (already first column, Alt+ArrowLeft) must ALSO stop propagation to window.
       fireEvent.keyDown(workingBtn, { key: 'ArrowLeft', altKey: true });
@@ -485,8 +628,10 @@ describe('CompactThreadColumns', () => {
       const doneRail = ltr.container.querySelector<HTMLButtonElement>(
         '[data-compact-column-rail="done"]'
       )!;
+      doneRail.scrollIntoView = scrollIntoView;
       doneRail.focus();
       fireEvent.keyDown(doneRail, { key: 'ArrowRight', altKey: true });
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
       expect(windowKeydown).not.toHaveBeenCalled();
       ltr.unmount();
 

@@ -99,7 +99,7 @@ export function CompactRoomColumnsBody({
   const hadSavedRoomColumnsOnMountRef = useRef<boolean | undefined>(undefined);
   if (hadSavedRoomColumnsOnMountRef.current === undefined) {
     const prefix = `${room.roomId}:`;
-    let saved = false;
+    let saved = board.savedScrollLeft !== undefined;
     board.columnStates?.forEach((entry, key) => {
       if (
         key.startsWith(prefix) &&
@@ -188,6 +188,7 @@ export function CompactRoomColumnsBody({
       )}
       <CompactThreadColumns
         {...boardProps}
+        boardRef={board.boardRef}
         sections={sections}
         folded={folded}
         fullOrder={fullOrder}

@@ -15,16 +15,18 @@ export type CompactColumnViewState = {
 };
 
 const EMPTY_LIMITS: Readonly<Partial<Record<CompactThreadSectionId, number>>> = {};
-const columnStateMemories = new WeakMap<ScrollAnchorMemory, Map<string, CompactColumnViewState>>();
+type CompactColumnsMemory = {
+  columnStates: Map<string, CompactColumnViewState>;
+  boardScrollLeft: Map<string, number>;
+};
+const columnsMemories = new WeakMap<ScrollAnchorMemory, CompactColumnsMemory>();
 
-const getColumnStateMap = (
-  memory?: ScrollAnchorMemory
-): Map<string, CompactColumnViewState> | undefined => {
+const getColumnsMemory = (memory?: ScrollAnchorMemory): CompactColumnsMemory | undefined => {
   if (!memory) return undefined;
-  let states = columnStateMemories.get(memory);
+  let states = columnsMemories.get(memory);
   if (!states) {
-    states = new Map();
-    columnStateMemories.set(memory, states);
+    states = { columnStates: new Map(), boardScrollLeft: new Map() };
+    columnsMemories.set(memory, states);
   }
   return states;
 };
@@ -58,7 +60,7 @@ export type UseCompactColumnsBoardOptions = {
  * Shared board controller for Columns mode across CompactRoomView and SpaceThreadsList:
  * owns per-column progressive card caps, reveals target cards on demand (for `End`/arrow
  * navigation and deep links), registers full open-column card order with keyboard navigation,
- * and preserves per-column `{ scrollTop, limit }` state across List <-> Columns remounts.
+ * and preserves column state and horizontal scroll across List <-> Columns remounts.
  */
 export const useCompactColumnsBoard = ({
   viewRef,
@@ -68,7 +70,19 @@ export const useCompactColumnsBoard = ({
   scrollMemory,
   idOf,
 }: UseCompactColumnsBoardOptions) => {
-  const columnStates = useMemo(() => getColumnStateMap(scrollMemory), [scrollMemory]);
+  const { columnStates, boardScrollLeft } =
+    useMemo(() => getColumnsMemory(scrollMemory), [scrollMemory]) ?? {};
+  const boardRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    if (!board || !boardScrollLeft) return undefined;
+    board.scrollLeft = boardScrollLeft.get(scopeKey) ?? 0;
+    const save = () => {
+      boardScrollLeft.set(scopeKey, board.scrollLeft);
+    };
+    board.addEventListener('scroll', save, { passive: true });
+    return () => board.removeEventListener('scroll', save);
+  }, [boardScrollLeft, scopeKey]);
   const [limitState, setLimitState] = useState<{
     scopeKey: string;
     limits: Readonly<Partial<Record<CompactThreadSectionId, number>>>;
@@ -186,6 +200,8 @@ export const useCompactColumnsBoard = ({
   }, [allOpenIds, idOf, revealCard, viewRef, visibleIds]);
 
   return {
+    boardRef,
+    savedScrollLeft: boardScrollLeft?.get(scopeKey),
     limits,
     allOpenIds,
     visibleIds,

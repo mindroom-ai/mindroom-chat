@@ -96,6 +96,7 @@ export function SpaceThreadsColumnsBody({
         </Text>
       )}
       <CompactThreadColumns
+        boardRef={board.boardRef}
         sections={sections}
         folded={foldedSections}
         fullOrder={sectionOrder}

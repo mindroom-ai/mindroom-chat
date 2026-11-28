@@ -10,6 +10,7 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { playsMotion } from '../../ui/listMotion';
 import { mergeVisibleSectionOrder } from './compactColumnsLayout';
+import { isCompactBoardRtl } from './useCompactColumnDrag';
 import type { CompactThreadSectionId } from './compactThreadSections';
 
 export const COLUMN_FLIP_DURATION_MS = 260;
@@ -17,9 +18,6 @@ const COLUMN_FLIP_OPTIONS: KeyframeAnimationOptions = {
   duration: COLUMN_FLIP_DURATION_MS,
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
-
-const isRtlElement = (el: HTMLElement | null): boolean =>
-  !!el && typeof getComputedStyle === 'function' && getComputedStyle(el).direction === 'rtl';
 
 export type UseCompactColumnMotionOptions = {
   boardRef: RefObject<HTMLDivElement | null>;
@@ -45,7 +43,7 @@ export const useCompactColumnMotion = ({
 }: UseCompactColumnMotionOptions) => {
   const columnElsRef = useRef(new Map<CompactThreadSectionId, HTMLElement>());
   const pendingFlipRef = useRef<Map<CompactThreadSectionId, DOMRect> | null>(null);
-  const pendingFocusIdRef = useRef<CompactThreadSectionId | null>(null);
+  const pendingFocusRef = useRef<{ id: CompactThreadSectionId; reveal?: true } | null>(null);
   const runningAnimsRef = useRef(new Map<CompactThreadSectionId, Animation>());
   const latestRef = useLatestRef({ sectionIds, fullOrder, onToggleFold, onReorder });
 
@@ -72,35 +70,39 @@ export const useCompactColumnMotion = ({
     if (prevRects) {
       runningAnimsRef.current.forEach((anim) => anim.cancel?.());
       runningAnimsRef.current.clear();
-
-      columnElsRef.current.forEach((el, id) => {
-        const prevRect = prevRects.get(id);
-        if (!prevRect || !playsMotion(el)) return;
-        const dx = prevRect.left - el.getBoundingClientRect().left;
-        if (Math.abs(dx) < 0.5) return;
-        const anim = el.animate(
-          [{ transform: `translate3d(${dx}px, 0, 0)` }, { transform: 'translate3d(0, 0, 0)' }],
-          COLUMN_FLIP_OPTIONS
-        );
-        runningAnimsRef.current.set(id, anim);
-        const clear = () => {
-          if (runningAnimsRef.current.get(id) === anim) runningAnimsRef.current.delete(id);
-        };
-        anim?.finished?.then(clear, clear);
-      });
     }
 
-    const focusId = pendingFocusIdRef.current;
-    if (focusId) {
-      pendingFocusIdRef.current = null;
+    const scrollLeft = boardRef.current?.scrollLeft;
+    const focus = pendingFocusRef.current;
+    pendingFocusRef.current = null;
+    if (focus) {
       const trigger = columnElsRef.current
-        .get(focusId)
+        .get(focus.id)
         ?.querySelector<HTMLElement>('[data-compact-column-header], [data-compact-column-rail]');
       if (trigger && trigger.ownerDocument.activeElement !== trigger) {
         trigger.focus({ preventScroll: true });
       }
+      if (focus.reveal) trigger?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }
-  }, [layoutSignature]);
+
+    // Measure the destination after revealing it. Don't animate from the old viewport if it panned.
+    if (!prevRects || scrollLeft !== boardRef.current?.scrollLeft) return;
+    columnElsRef.current.forEach((el, id) => {
+      const prevRect = prevRects.get(id);
+      if (!prevRect || !playsMotion(el)) return;
+      const dx = prevRect.left - el.getBoundingClientRect().left;
+      if (Math.abs(dx) < 0.5) return;
+      const anim = el.animate(
+        [{ transform: `translate3d(${dx}px, 0, 0)` }, { transform: 'translate3d(0, 0, 0)' }],
+        COLUMN_FLIP_OPTIONS
+      );
+      runningAnimsRef.current.set(id, anim);
+      const clear = () => {
+        if (runningAnimsRef.current.get(id) === anim) runningAnimsRef.current.delete(id);
+      };
+      anim?.finished?.then(clear, clear);
+    });
+  }, [boardRef, layoutSignature]);
 
   useEffect(
     () => () => {
@@ -113,6 +115,8 @@ export const useCompactColumnMotion = ({
   const handleHeaderClick = useCallback(
     (id: CompactThreadSectionId) => () => {
       pendingFlipRef.current = captureRects();
+      const el = columnElsRef.current.get(id);
+      if (el?.contains(el.ownerDocument.activeElement)) pendingFocusRef.current = { id };
       latestRef.current.onToggleFold(id);
     },
     [captureRects, latestRef]
@@ -137,11 +141,11 @@ export const useCompactColumnMotion = ({
       const index = order.indexOf(id);
       if (index < 0) return;
       const step =
-        (event.key === 'ArrowRight' ? 1 : -1) * (isRtlElement(boardRef.current) ? -1 : 1);
+        (event.key === 'ArrowRight' ? 1 : -1) * (isCompactBoardRtl(boardRef.current) ? -1 : 1);
       const nextIndex = index + step;
       if (nextIndex < 0 || nextIndex >= order.length) return;
       pendingFlipRef.current = captureRects();
-      pendingFocusIdRef.current = id;
+      pendingFocusRef.current = { id, reveal: true };
       const nextVisible = arrayMove([...order], index, nextIndex);
       reorder(baseOrder ? mergeVisibleSectionOrder(baseOrder, nextVisible) : nextVisible);
     },

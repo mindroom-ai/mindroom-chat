@@ -15,7 +15,6 @@ import {
 import {
   DndContext,
   type DragEndEvent,
-  type DragStartEvent,
   type Modifier,
   MouseSensor,
   TouchSensor,
@@ -34,16 +33,14 @@ import { CSS } from '@dnd-kit/utilities';
 import classNames from 'classnames';
 import { Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import {
-  animateSortableLayoutDuringDrag,
-  preventClickDefaultsDuringPointerDrag,
-} from '../../lib/sortableDrag';
+import { animateSortableLayoutDuringDrag } from '../../lib/sortableDrag';
 import { motionAllowed } from '../../ui/listMotion';
 import { ThreadStreamingDot } from '../ThreadStreamingDot';
 import { useCompactCardSwipeList } from './CompactCardSwipe';
 import { SwipeList } from './CompactCardSwipe.css';
 import { handleCardArrowKey } from './compactCardKeys';
 import { COMPACT_COLUMN_INITIAL_CARDS, mergeVisibleSectionOrder } from './compactColumnsLayout';
+import { useCompactColumnDrag } from './useCompactColumnDrag';
 import { useCompactColumnMotion } from './useCompactColumnMotion';
 import type { CompactColumnViewState } from './useCompactColumnsBoard';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
@@ -389,12 +386,16 @@ export function CompactThreadColumns({
     onReorder,
   });
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    preventClickDefaultsDuringPointerDrag(event.activatorEvent);
-  }, []);
+  const { rtl, handleDragStart, stopPan } = useCompactColumnDrag(internalBoardRef);
+  // The strategy reads rects left to right; DOM and saved order stay in reading order.
+  const sortableIds = useMemo(
+    () => (rtl ? [...sectionIds].reverse() : sectionIds),
+    [rtl, sectionIds]
+  );
 
   const handleDragEnd = useCallback(
     ({ active, over }: DragEndEvent) => {
+      stopPan();
       if (!over || active.id === over.id) return;
       const from = sectionIds.indexOf(active.id as CompactThreadSectionId);
       const to = sectionIds.indexOf(over.id as CompactThreadSectionId);
@@ -402,7 +403,7 @@ export function CompactThreadColumns({
       const nextVisible = arrayMove(sectionIds, from, to);
       onReorder(fullOrder ? mergeVisibleSectionOrder(fullOrder, nextVisible) : nextVisible);
     },
-    [fullOrder, onReorder, sectionIds]
+    [fullOrder, onReorder, sectionIds, stopPan]
   );
 
   const openCount = sections.reduce(
@@ -417,10 +418,12 @@ export function CompactThreadColumns({
       collisionDetection={closestCenter}
       modifiers={[restrictToHorizontalAxis]}
       accessibility={{ announcements: silentAnnouncements }}
+      autoScroll={!rtl}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragCancel={stopPan}
     >
-      <SortableContext items={sectionIds} strategy={horizontalListSortingStrategy}>
+      <SortableContext items={sortableIds} strategy={horizontalListSortingStrategy}>
         <div
           ref={setBoardRef}
           className={classNames(css.Board, className)}
