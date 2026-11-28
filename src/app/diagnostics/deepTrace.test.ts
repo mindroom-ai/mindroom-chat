@@ -16,6 +16,7 @@ import {
   DEEP_TRACE_MAX_EVENTS,
   DEEP_TRACE_MAX_PENDING_EVENTS,
   getDeepTraceEnabled,
+  getDeepTraceHealthSnapshot,
   initializeDeepTraceRecorder,
   isDeepTraceRecording,
   measureDeepTracePhase,
@@ -617,7 +618,22 @@ describe('opt-in deep diagnostic trace', () => {
     ).toHaveLength(1);
   });
 
-  it('persists a Matrix request start before the request settles', async () => {
+  const readStoredNames = () =>
+    new Promise<string[]>((resolve, reject) => {
+      const request = indexedDB.open(DEEP_TRACE_DB_NAME);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const database = request.result;
+        const all = database.transaction('events', 'readonly').objectStore('events').getAll();
+        all.onerror = () => reject(all.error);
+        all.onsuccess = () => {
+          database.close();
+          resolve(all.result.map((event) => String(event.name)));
+        };
+      };
+    });
+
+  it('batches Matrix request starts on the flush timer instead of flushing immediately', async () => {
     let resolveFetch: ((response: Response) => void) | undefined;
     const baseFetch = vi.fn(
       () =>
@@ -625,34 +641,68 @@ describe('opt-in deep diagnostic trace', () => {
           resolveFetch = resolve;
         })
     );
-    const readStoredNames = () =>
-      new Promise<string[]>((resolve, reject) => {
-        const request = indexedDB.open(DEEP_TRACE_DB_NAME);
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const database = request.result;
-          const all = database.transaction('events', 'readonly').objectStore('events').getAll();
-          all.onerror = () => reject(all.error);
-          all.onsuccess = () => {
-            database.close();
-            resolve(all.result.map((event) => String(event.name)));
-          };
-        };
-      });
     await setDeepTraceEnabled(true, storage);
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
 
     const pending = traceDeepDiagnosticFetch(
       baseFetch,
       'https://matrix.example.test/_matrix/client/v3/sync'
     );
 
-    await vi.waitFor(async () => {
-      expect(await readStoredNames()).toContain('network.matrix.sync.get.start');
-    });
     expect(baseFetch).toHaveBeenCalledOnce();
+    expect(getDeepTraceHealthSnapshot()).toMatchObject({ pendingEventCount: 1, flushing: false });
+    await vi.advanceTimersByTimeAsync(499);
+    expect(getDeepTraceHealthSnapshot()).toMatchObject({ pendingEventCount: 1, flushing: false });
+    expect(await readStoredNames()).not.toContain('network.matrix.sync.get.start');
+
+    await vi.advanceTimersByTimeAsync(1);
+    await vi.waitFor(
+      () =>
+        expect(getDeepTraceHealthSnapshot()).toMatchObject({
+          pendingEventCount: 0,
+          flushing: false,
+        }),
+      { interval: 1 }
+    );
+    expect(await readStoredNames()).toContain('network.matrix.sync.get.start');
 
     resolveFetch?.(new Response('{}', { status: 200 }));
     await pending;
+    expect(getDeepTraceHealthSnapshot()).toMatchObject({ pendingEventCount: 1, flushing: false });
+    expect(await readStoredNames()).not.toContain('network.matrix.sync.get.complete');
+  });
+
+  it('flushes a Matrix request error immediately without waiting for the batch timer', async () => {
+    const baseFetch = vi.fn().mockRejectedValue(new TypeError('network down'));
+    await setDeepTraceEnabled(true, storage);
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'setTimeout', 'clearTimeout'] });
+
+    await expect(
+      traceDeepDiagnosticFetch(baseFetch, 'https://matrix.example.test/_matrix/client/v3/sync')
+    ).rejects.toThrow('network down');
+
+    expect(getDeepTraceHealthSnapshot().pendingEventCount).toBe(0);
+    await vi.waitFor(() => expect(getDeepTraceHealthSnapshot().flushing).toBe(false), {
+      interval: 1,
+      timeout: 100,
+    });
+    expect(await readStoredNames()).toEqual(
+      expect.arrayContaining(['network.matrix.sync.get.start', 'network.matrix.sync.get.error'])
+    );
+  });
+
+  it('serializes each recorded event once across queuing and persistence', async () => {
+    await setDeepTraceEnabled(true, storage);
+    await clearDeepTrace();
+    const stringifySpy = vi.spyOn(JSON, 'stringify');
+
+    recordDeepTraceEvent('test.single_serialize', { count: 1 });
+    const snapshot = await readDeepTraceSnapshot();
+
+    expect(stringifySpy).toHaveBeenCalledTimes(1);
+    stringifySpy.mockRestore();
+    expect(snapshot.events).toHaveLength(1);
+    expect(snapshot.stats.byteCount).toBe(JSON.stringify(snapshot.events[0]).length);
   });
 
   it('distinguishes an unknown response size from a zero-byte response', async () => {
