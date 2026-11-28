@@ -212,6 +212,7 @@ export function ComposerSendButton({
             ref={menuRef}
             role="menu"
             aria-label={menuLabel}
+            className={css.ComposerSendMenu}
             style={{ minWidth: toRem(240), maxWidth: toRem(320), pointerEvents: 'auto' }}
             onPointerEnter={onPointerEnter}
             onPointerLeave={onPointerLeave}
