@@ -1,8 +1,17 @@
-import { createClient, MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import {
+  createClient,
+  MatrixEvent,
+  ReceiptType,
+  RelationType,
+  Room,
+  RoomEvent,
+} from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { keepUnthreadedReceiptEvents } from '../../matrix/receiptReadTs';
 import { getThreadUnread } from './roomThreadList';
 import {
+  buildThreadRecordMap,
   buildThreadUnreadMap,
   createThreadRecordChanges,
   markThreadRecordChange,
@@ -122,4 +131,50 @@ describe('buildThreadUnreadMap reuse', () => {
     expect(third).not.toBe(second);
     expect([...third.keys()]).toEqual(['$b']);
   });
+});
+
+const recordUnreads = () => {
+  const records = buildThreadRecordMap({
+    room,
+    threadRootIds: threads.map(({ id }) => id),
+    currentUserId: ME,
+  });
+  return new Map([...records].map(([id, record]) => [id, record.status.isUnread]));
+};
+
+it.each([
+  ['unread map', () => buildThreadUnreadMap(room, threads, ME)],
+  ['record map', recordUnreads],
+] as const)('%s looks up each receipt target once per build', async (_, rebuild) => {
+  await room.addLiveEvents([message('$known', 1250)], { addToState: false });
+  const stop = keepUnthreadedReceiptEvents(room.client);
+  room.client.reEmitter.reEmit(room, [RoomEvent.Receipt]);
+  try {
+    room.addReceipt(
+      new MatrixEvent({
+        type: 'm.receipt',
+        room_id: ROOM_ID,
+        content: {
+          $known: { [ReceiptType.Read]: { [ME]: { ts: 3000 } } },
+          $late: { [ReceiptType.ReadPrivate]: { [ME]: { ts: 4000 } } },
+        },
+      })
+    );
+    const find = vi.spyOn(room, 'findEventById');
+    const targetCalls = () =>
+      find.mock.calls
+        .flat()
+        .filter((id) => id === '$known' || id === '$late')
+        .sort();
+
+    expect(Object.fromEntries(rebuild())).toEqual({ $a: false, $b: false });
+    expect(targetCalls()).toEqual(['$known', '$late']);
+
+    await room.addLiveEvents([message('$late', 1500)], { addToState: false });
+    find.mockClear();
+    expect(Object.fromEntries(rebuild())).toEqual({ $a: true, $b: true });
+    expect(targetCalls()).toEqual(['$known', '$late']);
+  } finally {
+    stop();
+  }
 });

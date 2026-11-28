@@ -2,7 +2,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { ReadReceipt } from 'matrix-js-sdk/lib/models/read-receipt';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
-import { unthreadedReceiptReadTs } from '../../matrix/receiptReadTs';
+import { unthreadedReceiptReadTs, type RoomReceiptLookup } from '../../matrix/receiptReadTs';
 
 /**
  * The loaded reply that the reader's thread receipt reads through an edit of it. A streamed reply
@@ -37,10 +37,18 @@ const replyEditedByReceipt = (thread: Thread, userId: string): string | null => 
  * names no loaded event, a receipt on an edit of a loaded reply reads that reply
  * (`replyEditedByReceipt`).
  */
-export const getThreadEventReadUpTo = (thread: Thread, userId: string): string | null =>
-  getReceiptEventReadUpTo(thread, userId) ?? replyEditedByReceipt(thread, userId);
+export const getThreadEventReadUpTo = (
+  thread: Thread,
+  userId: string,
+  lookup?: RoomReceiptLookup
+): string | null =>
+  getReceiptEventReadUpTo(thread, userId, lookup) ?? replyEditedByReceipt(thread, userId);
 
-const getReceiptEventReadUpTo = (thread: Thread, userId: string): string | null => {
+const getReceiptEventReadUpTo = (
+  thread: Thread,
+  userId: string,
+  lookup?: RoomReceiptLookup
+): string | null => {
   const lastEvent = thread.events?.at(-1);
   const oldestThreadReceiptTs = thread.room?.getOldestThreadedReceiptTs?.();
   const readByLegacyRule =
@@ -49,7 +57,7 @@ const getReceiptEventReadUpTo = (thread: Thread, userId: string): string | null 
     oldestThreadReceiptTs !== undefined &&
     lastEvent.getTs() < oldestThreadReceiptTs &&
     userId === thread.client?.getUserId?.();
-  const unthreadedTs = unthreadedReceiptReadTs(thread.room, userId, thread);
+  const unthreadedTs = unthreadedReceiptReadTs(thread.room, userId, thread, lookup);
   if (!readByLegacyRule && unthreadedTs === undefined) return thread.getEventReadUpTo(userId);
 
   const receiptEventId = ReadReceipt.prototype.getEventReadUpTo.call(thread, userId);

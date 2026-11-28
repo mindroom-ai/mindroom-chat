@@ -5,7 +5,7 @@ import { ReceiptType } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
-import { unthreadedReceiptReadTs } from '../../matrix/receiptReadTs';
+import { unthreadedReceiptReadTs, type RoomReceiptLookup } from '../../matrix/receiptReadTs';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
@@ -46,13 +46,14 @@ const findThreadReceiptEvent = (thread: Thread, eventId: string): MatrixEvent | 
 
 export const getThreadReadState = (
   thread: Thread | null | undefined,
-  userId: string | undefined
+  userId: string | undefined,
+  lookup?: RoomReceiptLookup
 ): { readEventIds: Set<string>; readUpToTs: number | undefined } | undefined => {
   if (!thread || !userId || typeof thread.getEventReadUpTo !== 'function') return undefined;
 
   // The SDK validates receipt targets against its timeline, which omits replies
   // known only through the bundled summary. Resolve those receipt IDs here too.
-  const readUpToId = getThreadEventReadUpTo(thread, userId);
+  const readUpToId = getThreadEventReadUpTo(thread, userId, lookup);
   const readEventIds = new Set([readUpToId]);
   for (const receiptType of [ReceiptType.Read, ReceiptType.ReadPrivate]) {
     // A retained local echo can mask a newer server receipt outside the timeline.
@@ -61,7 +62,7 @@ export const getThreadReadState = (
       if (receipt && receipt.data.thread_id === thread.id) readEventIds.add(receipt.eventId);
     }
   }
-  let readUpToTs = unthreadedReceiptReadTs(thread.room, userId, thread);
+  let readUpToTs = unthreadedReceiptReadTs(thread.room, userId, thread, lookup);
   const validReadEventIds = new Set<string>();
   for (const eventId of readEventIds) {
     if (!eventId) continue;
@@ -89,13 +90,14 @@ export const isReplyUnread = (
   thread: Thread,
   userId: string,
   reply: MatrixEvent,
-  readState?: { readEventIds: Set<string>; readUpToTs: number | undefined }
+  readState?: { readEventIds: Set<string>; readUpToTs: number | undefined },
+  lookup?: RoomReceiptLookup
 ): boolean => {
   if (reply.getSender() === userId) return false;
   const finish = getFinishingEdit(reply, thread);
   const finishId = finish?.getId();
   if (finishId && threadReceiptNamesEvent(thread, userId, finishId)) return false;
-  const resolvedReadState = readState ?? getThreadReadState(thread, userId);
+  const resolvedReadState = readState ?? getThreadReadState(thread, userId, lookup);
   const readUpToTs = resolvedReadState?.readUpToTs;
   // The finishing edit comes after its reply, though both may carry the same timestamp.
   const readUpToReply =
@@ -109,9 +111,13 @@ export const isReplyUnread = (
  * A thread is unread when its latest reply, not counting title notices (`isUnreadWorthyReply`), is
  * unread (`isReplyUnread`).
  */
-export const getThreadUnread = (thread: Thread, userId: string): boolean => {
+export const getThreadUnread = (
+  thread: Thread,
+  userId: string,
+  lookup?: RoomReceiptLookup
+): boolean => {
   const latestReply = getLatestReply(thread, isUnreadWorthyReply);
-  return !!latestReply && isReplyUnread(thread, userId, latestReply);
+  return !!latestReply && isReplyUnread(thread, userId, latestReply, undefined, lookup);
 };
 
 export const sortThreadsByActivity = (
