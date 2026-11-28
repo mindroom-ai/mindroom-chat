@@ -269,22 +269,31 @@ const decryptEvent = (event: MatrixEvent, content: Promise<object>) =>
 
 /** Shows the room's thread list; `list.current` is the hook's latest result. */
 const showList = (mx: MatrixClient, engine: Engine, room: Room, uncommittedBackPeek = false) => {
+  type ListProps = { enabled: boolean; peek: boolean };
+  let props: ListProps = { enabled: true, peek: uncommittedBackPeek };
   const list: { current?: ReturnType<typeof useRoomThreadList> } = {};
-  function Harness({ peek }: { peek: boolean }) {
-    list.current = useRoomThreadList(room, true, changes, 0, peek);
+  function Harness({ enabled, peek }: ListProps) {
+    list.current = useRoomThreadList(room, enabled, changes, 0, peek);
     return null;
   }
-  const render = (peek: boolean) => (
+  const render = () => (
     <MatrixClientProvider value={mx}>
       <SyncEngineProvider engine={engine}>
-        <Harness peek={peek} />
+        <Harness {...props} />
       </SyncEngineProvider>
     </MatrixClientProvider>
   );
   act(() => {
-    renderer = create(render(uncommittedBackPeek));
+    renderer = create(render());
   });
-  return Object.assign(list, { commit: () => act(() => renderer?.update(render(false))) });
+  const update = (next: Partial<ListProps>) => {
+    props = { ...props, ...next };
+    act(() => renderer?.update(render()));
+  };
+  return Object.assign(list, {
+    commit: () => update({ peek: false }),
+    setEnabled: (enabled: boolean) => update({ enabled }),
+  });
 };
 
 const closeList = async () => {
@@ -640,6 +649,48 @@ it('checks warm roots after paint, not while peeking or after a cancelled mount'
     expect(JSON.stringify(cached.rootEvent)).toContain('Edited while away');
   });
   expect(fetch).toHaveBeenCalledOnce();
+});
+
+it('shows an off-timeline thread created while the warm list was disabled without fetching again', async () => {
+  const { mx, room, engine } = setUpRoom();
+  listInPages(room).setPaginationToken(null, Direction.Backward);
+  const fetch = vi.spyOn(room, 'fetchRoomThreads').mockImplementation(async () => {
+    room.processThreadRoots([listedRoot('$known')], false);
+  });
+  const restore = vi.spyOn(eventRepository, 'loadCachedThreadRootsForRoom');
+  const list = showList(mx, engine, room);
+  const ids = () => list.current?.threads.map(({ id }) => id);
+  await act(async () => {
+    // Finish the initial cache restore before switching views.
+    await restore.mock.results[0]?.value;
+  });
+  expect(list.current?.fullyLoaded).toBe(true);
+  expect(ids()).toEqual(['$known']);
+
+  list.setEnabled(false);
+  const root = listedRoot('$new');
+  const reply = new MatrixEvent({
+    event_id: '$first-reply',
+    room_id: roomId,
+    sender: userId,
+    origin_server_ts: 2000,
+    type: 'm.room.message',
+    content: {
+      msgtype: 'm.text',
+      body: 'First reply',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$new' },
+    },
+  });
+  await act(async () => {
+    room.createThread('$new', root, [reply], false);
+  });
+  expect(room.getThread('$new')?.replyToEvent).toBe(reply);
+  expect(room.getUnfilteredTimelineSet().findEventById('$new')).toBeUndefined();
+
+  list.setEnabled(true);
+  await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(ids()).toEqual(['$new', '$known']);
 });
 
 it('saves encrypted listed roots once decrypted, and again when a failed one decrypts', async () => {

@@ -597,8 +597,12 @@ export const measureDeepTracePhase = <T>(
   } finally {
     const durationMs = nowMonotonic() - startedAt;
     if (durationMs >= SLOW_PHASE_THRESHOLD_MS) {
+      const receiptMs = details?.receipt_ms;
+      const presentationMs = details?.presentation_ms;
       recordDeepTraceEvent(DEEP_TRACE_PHASE_EVENTS[phase], {
         ...details,
+        ...(receiptMs === undefined ? {} : { receipt_ms: roundMetric(receiptMs) }),
+        ...(presentationMs === undefined ? {} : { presentation_ms: roundMetric(presentationMs) }),
         duration_ms: roundMetric(durationMs),
       });
     }

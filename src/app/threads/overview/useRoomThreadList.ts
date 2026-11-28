@@ -332,9 +332,11 @@ export const useRoomThreadList = (
   }, [enabled, room]);
 
   const rawThreads = useMemo(() => {
+    // The SDK can gain threads while our listeners are detached.
+    void enabled;
     void version;
     return room.getThreads();
-  }, [room, version]);
+  }, [enabled, room, version]);
   const userId = mx.getUserId() ?? '';
   // The marks of the last build. A count checks the threads it marked (a reply, the reader's
   // receipt in a thread), not every thread of the room, and keeps the map while no mark changed.

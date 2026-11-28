@@ -1004,7 +1004,13 @@ describe('opt-in deep diagnostic trace', () => {
     expect(measureDeepTracePhase('spaceThreads.collect', () => 42)).toBe(42);
 
     nowSpy.mockReturnValueOnce(200).mockReturnValueOnce(218.46);
-    expect(measureDeepTracePhase('spaceThreads.filterSort', () => 'sorted')).toBe('sorted');
+    expect(
+      measureDeepTracePhase('roomOverview.threadIndex', () => 'indexed', {
+        receipt_ms: 2.34,
+        presentation_ms: 5.67,
+        receipt_lookups: 4,
+      })
+    ).toBe('indexed');
 
     nowSpy.mockReturnValueOnce(300).mockReturnValueOnce(325.1);
     expect(() =>
@@ -1017,8 +1023,8 @@ describe('opt-in deep diagnostic trace', () => {
     const phases = snapshot.events.filter((e) => e.name.startsWith('performance.phase.'));
     expect(phases).toEqual([
       expect.objectContaining({
-        name: 'performance.phase.space_threads_filter_sort',
-        data: { duration_ms: 18.5 },
+        name: 'performance.phase.room_overview_thread_index',
+        data: { duration_ms: 18.5, receipt_ms: 2.3, presentation_ms: 5.7, receipt_lookups: 4 },
       }),
       expect.objectContaining({
         name: 'performance.phase.compact_blocks_layout',
