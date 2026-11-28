@@ -1,4 +1,4 @@
-import { createElement, useEffect, useReducer, useRef } from 'react';
+import { Activity, createElement, useEffect, useReducer, useRef } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -1020,6 +1020,49 @@ describe('useThreadReturnPlace', () => {
       undefined,
       undefined,
     ]);
+  });
+
+  it('restores scrollTop across Activity hide and reveal after WebKit resets scrollTop under display none', () => {
+    const scroller = scrolledRoomRows(720);
+    const memoryRef: { current: RoomRowsPlace | undefined } = { current: undefined };
+    function Rows() {
+      const scrollRef = useRef<HTMLElement | null>(scroller);
+      useThreadReturnPlace({
+        memoryRef,
+        roomId: '!room',
+        eventId: undefined,
+        roomRowsShown: true,
+        latestAtTop: true,
+        scrollRef,
+      });
+      return null;
+    }
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <Activity mode="visible">
+          <Rows />
+        </Activity>
+      );
+    });
+    act(() => {
+      renderer.update(
+        <Activity mode="hidden">
+          <Rows />
+        </Activity>
+      );
+    });
+    // Simulate WebKit resetting scrollTop to 0 while display: none is applied.
+    scroller.scrollTop = 0;
+    act(() => {
+      renderer.update(
+        <Activity mode="visible">
+          <Rows />
+        </Activity>
+      );
+    });
+    expect(scroller.scrollTop).toBe(720);
+    act(() => renderer.unmount());
   });
 });
 

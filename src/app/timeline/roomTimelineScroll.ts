@@ -181,15 +181,35 @@ export const useThreadReturnPlace = ({
   });
   // A thread renders before the rows it replaces save their place, in its own commit.
   const forThreadRef = useRef(!!threadId);
+  const savedScrollTopRef = useRef<{ roomId: string; scrollTop: number }>(undefined);
   const shownRef = useRef({ roomId, roomRowsShown, latestAtTop, scrollRef });
   shownRef.current = { roomId, roomRowsShown, latestAtTop, scrollRef };
   useLayoutEffect(() => {
     if (!forThreadRef.current) memoryRef.current = undefined;
+    const shownNow = shownRef.current;
+    const currentScroll = shownNow.scrollRef.current;
+    const pending = savedScrollTopRef.current;
+    if (
+      shownNow.roomRowsShown &&
+      currentScroll &&
+      pending?.roomId === shownNow.roomId &&
+      currentScroll.clientHeight > 0
+    ) {
+      if (currentScroll.scrollTop !== pending.scrollTop) {
+        currentScroll.scrollTop = pending.scrollTop;
+      }
+      savedScrollTopRef.current = undefined;
+    }
     return () => {
-      // Unmounting, while the rows are still on screen.
+      // Unmounting or hiding via <Activity>, while the rows are still laid out.
       const shown = shownRef.current;
       const scrollElement = shown.scrollRef.current;
       if (!shown.roomRowsShown || !scrollElement) return;
+      const rect = scrollElement.getBoundingClientRect();
+      if (typeof rect.height === 'number' && rect.height <= 0) return;
+      if (scrollElement.clientHeight > 0) {
+        savedScrollTopRef.current = { roomId: shown.roomId, scrollTop: scrollElement.scrollTop };
+      }
       memoryRef.current = isNearLatestEnd(scrollElement, shown.latestAtTop)
         ? undefined
         : readRoomRowsPlace(scrollElement, shown.roomId);

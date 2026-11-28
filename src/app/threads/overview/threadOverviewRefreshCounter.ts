@@ -154,8 +154,16 @@ const useThreadOverviewRefresh = (
     };
     // What happened to the room before these listeners heard it: since the render that built the
     // records shown, or while a thread was open. A list that waits for them has built none, and
-    // builds on this count.
-    mark();
+    // builds on this count. When a cold-mounted Compact preview starts while collapsed/passive,
+    // transition 0 -> 1 once so it renders; a warm <Activity> reveal already has count >= 1 and
+    // defers its refresh until uncollapsed.
+    if (starts === 'inCommit' && collapsedRef.current) {
+      markThreadRecordChange(overviewChanges);
+      dirtyRef.current = true;
+      setCounter((count) => (count === 0 ? 1 : count));
+    } else {
+      mark();
+    }
     const markEvent = (mEvent: MatrixEvent) => {
       // `useRoomActiveRuns` tracks `io.mindroom.active_runs` directly so heartbeats do not bump
       // the overview or rebuild base thread records.
@@ -286,7 +294,7 @@ const useThreadOverviewRefresh = (
       room.removeListener(ThreadEvent.NewReply, handleThread);
       room.removeListener(ThreadEvent.Delete, handleThread);
     };
-  }, [room, threadId, overviewChanges]);
+  }, [room, threadId, overviewChanges, starts]);
   useLayoutEffect(() => (starts === 'inCommit' ? listen() : undefined), [starts, listen]);
   useEffect(() => (starts === 'afterPaint' ? listen() : undefined), [starts, listen]);
   useLayoutEffect(() => {

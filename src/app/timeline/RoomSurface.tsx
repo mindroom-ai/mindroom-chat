@@ -11,8 +11,10 @@ import {
 import { Direction } from 'matrix-js-sdk';
 import { Box, Spinner } from 'folds';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { useInitialClientCatchup } from '../matrix/hooks/useInitialClientCatchup';
 import type { ThreadSortFreezeState } from '../event-store/threads/roomThreadOverviewModel';
+import type { ThreadRecord } from '../event-store/threads/types';
 import { RoomThreadOverview } from '../threads/overview/RoomThreadOverview';
 import { ThreadPeopleFilter } from '../threads/overview/ThreadPeopleFilter';
 import { useThreadSortFreezeController } from '../threads/overview/threadSortFreezeController';
@@ -81,6 +83,8 @@ import { RoomRowsTimeline } from './RoomRowsTimeline';
 import type { RoomTimelineProps } from './RoomTimeline';
 
 const NOOP = () => undefined;
+const EMPTY_PREWARM_TARGETS: Array<{ threadId: string }> = [];
+const EMPTY_THREAD_RECORD_MAP: ReadonlyMap<string, ThreadRecord> = new Map();
 const NOOP_THREAD_ID_REF: MutableRefObject<string | undefined> = { current: undefined };
 const ignoreSortFreeze: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = NOOP;
 
@@ -94,6 +98,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
   const { room, eventId, threadFilterState, viewMode } = props;
   const threadSortFreezeState = props.threadSortFreezeState ?? null;
   const hasMindroomAgents = props.hasMindroomAgents ?? true;
+  const paneCollapsed = usePaneCollapsed();
   const env = useTimelineEnvironment();
   const { mx, alive, engine, sessionId, settings, filters } = env;
   const compactViewRequested = viewMode === 'compact';
@@ -232,7 +237,9 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     sessionId,
     prefetchDepthRef,
     activeThreadId: undefined,
-    priorityTargets: windowState.priorityThreadSeedPrewarmRoots,
+    priorityTargets: paneCollapsed
+      ? EMPTY_PREWARM_TARGETS
+      : windowState.priorityThreadSeedPrewarmRoots,
     debugTraceId: roomDebugTraceId,
   });
   const beginThreadCacheWrite = useCallback(
@@ -365,6 +372,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     eventId,
     focusItemRef,
     mx,
+    paused: paneCollapsed,
     recalibrateFilterOptsRef: filterOptsRef,
     room,
     roomDebugTraceId,
@@ -380,6 +388,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     alive,
     eventId,
     eventsLength: renderableEvents.length,
+    paused: paneCollapsed,
     room,
     roomDebugTraceId,
     roomIdRef,
@@ -421,7 +430,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
   );
   useCompactCoverageBackfillController({
     roomId: room.roomId,
-    enabled: compactViewRequested && !eventId,
+    enabled: !paneCollapsed && compactViewRequested && !eventId,
     loadedEventCount: loadedRoomEventCount,
     hasZeroReplyRootCoverage: threadIndex.hasZeroReplyRootCoverage,
     canPaginateBack: canPaginateRoomBack,
@@ -429,7 +438,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     paginateBack: paginateRoom,
   });
   useCompactRootEditBackfillController({
-    enabled: compactViewRequested || threadIndex.roomThreadFilterActive,
+    enabled: !paneCollapsed && (compactViewRequested || threadIndex.roomThreadFilterActive),
     mx,
     overviewThreadRootIds: threadIndex.overviewThreadRootIds,
     beginRoomCacheWrite,
@@ -457,10 +466,14 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     room,
     mx,
     sessionId,
-    records: compactViewRequested
-      ? threadIndex.compactThreadRecordMap
-      : threadIndex.normalThreadRecordMap,
-    fetchMissing: peopleListOpened === room.roomId || (threadFilterState.people?.length ?? 0) > 0,
+    records: paneCollapsed
+      ? EMPTY_THREAD_RECORD_MAP
+      : compactViewRequested
+        ? threadIndex.compactThreadRecordMap
+        : threadIndex.normalThreadRecordMap,
+    fetchMissing:
+      !paneCollapsed &&
+      (peopleListOpened === room.roomId || (threadFilterState.people?.length ?? 0) > 0),
     onApplyThreadRelations: applyThreadRelations,
     onStoreThreadSummary: props.onStoreThreadSummary,
     beginThreadCacheWrite,

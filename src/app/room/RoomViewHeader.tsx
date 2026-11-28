@@ -265,7 +265,7 @@ export function RoomViewHeader({
   const room = useRoom();
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const { slots, headerRef, callGroupRef, mandatoryTailRef } = usePhoneHeaderSlots(mobile);
+  const { slots, headerRef, callGroupRef, mandatoryTailRef } = usePhoneHeaderSlots(mobile, passive);
   const mx = useMatrixClient();
   const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
   const [filterBarHidden, setFilterBarHidden] = useSetting(settingsAtom, 'hideThreadFilterBar');

@@ -29,6 +29,7 @@ export const useRoomCachedBackState = ({
   alive,
   eventId,
   eventsLength,
+  paused = false,
   room,
   roomDebugTraceId,
   roomIdRef,
@@ -42,6 +43,7 @@ export const useRoomCachedBackState = ({
   alive: () => boolean;
   eventId?: string;
   eventsLength: number;
+  paused?: boolean;
   room: Room;
   roomDebugTraceId: string;
   roomIdRef: MutableRefObject<string>;
@@ -53,6 +55,7 @@ export const useRoomCachedBackState = ({
   timeline: Timeline;
 }): void => {
   useEffect(() => {
+    if (paused) return undefined;
     if (threadId) {
       setRoomHasMoreCachedBack(false);
       return undefined;
@@ -107,6 +110,7 @@ export const useRoomCachedBackState = ({
     alive,
     eventId,
     eventsLength,
+    paused,
     room,
     roomDebugTraceId,
     roomIdRef,

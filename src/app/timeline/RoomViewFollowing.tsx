@@ -11,6 +11,7 @@ import {
   ThreadEvent,
 } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
+import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { EventReaders } from '../messages/EventReaders';
 import { Modal500 } from '../ui/Modal500';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -158,7 +159,12 @@ type RoomViewFollowingProps = {
  * pressing the names lists everyone who has seen it. It shows nothing while no one has, or
  * while the user shares no read receipts of their own.
  */
-export function RoomViewFollowing({ room, threadId }: RoomViewFollowingProps) {
+export function RoomViewFollowing(props: RoomViewFollowingProps) {
+  if (usePaneCollapsed()) return null;
+  return <RoomViewFollowingActive {...props} />;
+}
+
+function RoomViewFollowingActive({ room, threadId }: RoomViewFollowingProps) {
   const mx = useMatrixClient();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
   const following = useFollowers(room, threadId, mx.getUserId());

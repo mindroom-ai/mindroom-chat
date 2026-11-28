@@ -1,5 +1,5 @@
 import { MatrixEvent, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   loadRoomThreads,
   roomThreadListIsComplete,
@@ -9,6 +9,7 @@ import {
   buildThreadUnreadMap,
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
+import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import { useSyncEngine } from '../../event-store/engine/engineContext';
@@ -87,7 +88,11 @@ export const useRoomThreadList = (
 ) => {
   const mx = useMatrixClient();
   const engine = useSyncEngine();
-  const [loading, setLoading] = useState(enabled);
+  const collapsed = usePaneCollapsed();
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
+  const dirtyVersionRef = useRef(false);
+  const [loading, setLoading] = useState(enabled && !collapsed);
   const [loadedSuccessfully, setLoadedSuccessfully] = useState(false);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
@@ -95,7 +100,7 @@ export const useRoomThreadList = (
 
   useEffect(() => {
     // The SDK keeps the threads restored by the first mount; later ones come from the server list.
-    if (!enabled || restoredRooms.has(room)) return undefined;
+    if (!enabled || collapsed || restoredRooms.has(room)) return undefined;
     let cancelled = false;
     loadCachedThreadRootsForRoom(engine.sessionId, room.roomId)
       .then((roots) => {
@@ -130,7 +135,7 @@ export const useRoomThreadList = (
     return () => {
       cancelled = true;
     };
-  }, [enabled, engine.persist, engine.sessionId, mx, room]);
+  }, [collapsed, enabled, engine.persist, engine.sessionId, mx, room]);
 
   const handleThreadListProgress = useCallback(() => {
     setLoadedSuccessfully(true);
@@ -243,6 +248,7 @@ export const useRoomThreadList = (
       setError(undefined);
       return undefined;
     }
+    if (collapsed) return undefined;
 
     const abortController = new AbortController();
     lifecycleAbortControllerRef.current = abortController;
@@ -267,12 +273,16 @@ export const useRoomThreadList = (
         lifecycleAbortControllerRef.current = undefined;
       }
     };
-  }, [enabled, loadThreads]);
+  }, [collapsed, enabled, loadThreads]);
 
   useEffect(() => {
     if (!enabled) return undefined;
 
     const handleThreadUpdate = () => {
+      if (collapsedRef.current) {
+        dirtyVersionRef.current = true;
+        return;
+      }
       setVersion((current) => current + 1);
     };
 
@@ -286,8 +296,16 @@ export const useRoomThreadList = (
       room.removeListener(ThreadEvent.Update, handleThreadUpdate);
       room.removeListener(ThreadEvent.NewReply, handleThreadUpdate);
       room.removeListener(ThreadEvent.Delete, handleThreadUpdate);
+      if (collapsedRef.current) dirtyVersionRef.current = true;
     };
   }, [enabled, room]);
+
+  useLayoutEffect(() => {
+    if (!collapsed && dirtyVersionRef.current) {
+      dirtyVersionRef.current = false;
+      setVersion((current) => current + 1);
+    }
+  }, [collapsed]);
 
   const rawThreads = useMemo(() => {
     void version;

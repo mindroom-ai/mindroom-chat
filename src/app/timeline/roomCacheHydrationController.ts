@@ -42,6 +42,7 @@ export const useRoomCacheHydrationController = ({
   eventId,
   focusItemRef,
   mx,
+  paused = false,
   recalibrateFilterOptsRef,
   room,
   roomDebugTraceId,
@@ -61,6 +62,7 @@ export const useRoomCacheHydrationController = ({
   /** The jump to an event the timeline last made, if any. */
   focusItemRef: MutableRefObject<RoomTimelineFocusItem | undefined>;
   mx: MatrixClient;
+  paused?: boolean;
   recalibrateFilterOptsRef: RefObject<RecalibrateFilterOpts | undefined>;
   room: Room;
   roomDebugTraceId: string;
@@ -75,7 +77,7 @@ export const useRoomCacheHydrationController = ({
   threadIdRef?: MutableRefObject<string | undefined>;
 }): void => {
   useEffect(() => {
-    if (threadId || eventId) return undefined;
+    if (paused || threadId || eventId) return undefined;
 
     let cancelled = false;
     const hydrateRoomFromCache = async () => {
@@ -248,6 +250,7 @@ export const useRoomCacheHydrationController = ({
     eventId,
     focusItemRef,
     mx,
+    paused,
     recalibrateFilterOptsRef,
     room,
     roomDebugTraceId,

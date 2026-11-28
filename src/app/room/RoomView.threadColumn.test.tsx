@@ -1055,9 +1055,12 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   state.main!.threadReturnPlaceRef!.current = returnPlace;
   state.main!.compactRoomScrollStateRef!.current.set(room.roomId, compactScroll);
 
+  const warmMessages = screen.getByTestId('messages');
   state.thread = '$thread';
   rerender(tree({}, ScreenSize.Mobile));
-  expect(screen.queryByTestId('messages')).toBeNull();
+  // Warm phone room stays parked inside <Activity mode="hidden"> (display: none on its box).
+  expect(screen.getByTestId('messages')).toBe(warmMessages);
+  expect(warmMessages.parentElement?.style.display).toBe('none');
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
   expect(getDefaultStore().get(conversationUnderThreadAtom)).toBe(true);
 
@@ -1072,7 +1075,8 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   expect(live!.under.getAttribute('aria-hidden')).toBe('true');
   expect(live!.over).toBe(screen.getByTestId('thread-column'));
   expect(getDefaultStore().get(conversationUnderThreadAtom)).toBe(true);
-  expect(screen.getByTestId('messages')).toBeDefined();
+  expect(screen.getByTestId('messages')).toBe(warmMessages);
+  expect(warmMessages.parentElement?.style.display).not.toBe('none');
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
   const passiveHeaders = screen
     .getAllByTestId('room-header')
@@ -1080,7 +1084,7 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   expect(passiveHeaders).toHaveLength(1);
   expect(passiveHeaders[0]?.dataset.openThreadId).toBe('');
 
-  // Simulate timeline mount/unmount overwriting scroll refs during peek.
+  // Simulate timeline hide cleanup overwriting scroll refs during peek.
   state.main!.threadReturnPlaceRef!.current = undefined;
   state.main!.compactRoomScrollStateRef!.current.set(room.roomId, { scrollTop: 0, anchors: [] });
 
@@ -1089,7 +1093,8 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   });
   expect(live!.stage.hasAttribute(SWIPE_THREAD_STAGE)).toBe(false);
   expect(live!.under.hasAttribute(SWIPE_UNDER_THREAD)).toBe(false);
-  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(screen.getByTestId('messages')).toBe(warmMessages);
+  expect(warmMessages.parentElement?.style.display).toBe('none');
   expect(state.main!.threadReturnPlaceRef!.current).toEqual(returnPlace);
   expect(state.main!.compactRoomScrollStateRef!.current.get(room.roomId)).toEqual(compactScroll);
 });
@@ -1306,7 +1311,7 @@ it('plays live 2-layer forward push on Room -> Thread on phone and skips when Sp
       await Promise.resolve();
     });
     expect(isLiveSlideActive()).toBe(false);
-    expect(screen.queryByTestId('messages')).toBeNull();
+    expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
     rendered.unmount();
 
     // 3. Space-owned slide suppresses RoomView forward slide (no double animation).
@@ -1332,7 +1337,7 @@ it('plays live 2-layer forward push on Room -> Thread on phone and skips when Sp
       </div>
     );
     expect(isLiveSlideActive()).toBe(false);
-    expect(screen.queryByTestId('messages')).toBeNull();
+    expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
   } finally {
     rectSpy.mockRestore();
     vi.useRealTimers();
@@ -1395,7 +1400,7 @@ it('mounts ThreadColumn passively during end-edge forward peek, cleans up on can
   expect(state.viewMounts).toBe(2);
   expect(screen.getByTestId('thread-view').dataset.hidden).toBe('false');
   expect(screen.getByTestId('thread-view').dataset.passive).toBe('false');
-  expect(screen.queryByTestId('messages')).toBeNull();
+  expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
 });
 
@@ -1448,4 +1453,30 @@ it('cancelling a live room back-peek flushes preview unmount BEFORE restoring sc
     savedCompactScroll
   );
   expect(state.main!.threadReturnPlaceRef!.current).toEqual(savedReturnPlace);
+});
+
+it('unmounts a parked phone room Activity when switching rooms or resizing to desktop', () => {
+  state.thread = undefined;
+  const { rerender } = render(tree({}, ScreenSize.Mobile));
+  const warmMessages = screen.getByTestId('messages');
+
+  state.thread = '$thread';
+  rerender(tree({}, ScreenSize.Mobile));
+  expect(screen.getByTestId('messages')).toBe(warmMessages);
+  expect(warmMessages.parentElement?.style.display).toBe('none');
+
+  // Resizing phone -> desktop while in a filling thread drops the parked phone Activity.
+  rerender(tree({}, ScreenSize.Desktop));
+  expect(screen.queryByTestId('messages')).toBeNull();
+
+  // Back on phone in the room, then opening a thread parks it again; switching rooms drops it.
+  state.thread = undefined;
+  rerender(tree({}, ScreenSize.Mobile));
+  state.thread = '$thread';
+  rerender(tree({}, ScreenSize.Mobile));
+  expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
+
+  const otherRoom = new Room('!other-room:example.org', mx, '@alice:example.org');
+  rerender(tree({ room: otherRoom }, ScreenSize.Mobile));
+  expect(screen.queryByTestId('messages')).toBeNull();
 });

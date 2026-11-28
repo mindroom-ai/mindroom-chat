@@ -4,7 +4,8 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createEditor, Editor, Node, Transforms } from 'slate';
 import { withHistory } from 'slate-history';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useRoomInputDraft } from './useRoomInputDraft';
+import { PaneCollapsedContext } from '../lib/hooks/usePaneCollapsed';
+import { isDraftShown, useRoomInputDraft } from './useRoomInputDraft';
 import { resetEditor } from '../editor/utils';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
 
@@ -157,5 +158,48 @@ describe('composer draft lifecycle', () => {
     await mount(editor, '$b');
     await mount(editor, '$a');
     expect(Node.string(editor)).toBe('Failed captionNew draft continued');
+  });
+
+  it('skips Slate editor resets while PaneCollapsedContext is true and restores cleanly once active', async () => {
+    const editor = makeEditor();
+    const draftKey = getRoomInputDraftKey(USER, ROOM);
+    store.set(roomIdToMsgDraftAtomFamily(draftKey), [
+      { type: 'paragraph', children: [{ text: 'Saved draft' }] },
+    ]);
+    const insertSpy = vi.spyOn(Transforms, 'insertFragment');
+
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(
+            PaneCollapsedContext.Provider,
+            { value: true },
+            React.createElement(Harness, { editor })
+          )
+        )
+      );
+    });
+    expect(insertSpy).not.toHaveBeenCalled();
+    expect(isDraftShown(draftKey)).toBe(false);
+    expect(Node.string(editor)).toBe('');
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(
+            PaneCollapsedContext.Provider,
+            { value: false },
+            React.createElement(Harness, { editor })
+          )
+        )
+      );
+    });
+    expect(isDraftShown(draftKey)).toBe(true);
+    expect(Node.string(editor)).toBe('Saved draft');
+    insertSpy.mockRestore();
   });
 });

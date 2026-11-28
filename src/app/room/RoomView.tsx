@@ -373,8 +373,23 @@ export function RoomView({
   const renderedThreadId = openThreadId ?? peekingForwardThreadId ?? undefined;
   const renderColumn = columnOpen || peekingForwardThreadId !== null;
   const columnFillsOrPeeks = columnFills || peekingForwardOnly;
+  // Warm phone under-layer: once the user has seen this room uncollapsed on a phone, park its
+  // ConversationLayout in React <Activity> while a thread fills the page so swipe-back reveals it
+  // in O(1). Never pre-mount on a cold reload directly inside a thread.
+  const [warmPhoneRoomId, setWarmPhoneRoomId] = useState<string | null>(() =>
+    phone && !columnFills ? roomId : null
+  );
+  if (!phone) {
+    if (warmPhoneRoomId !== null) setWarmPhoneRoomId(null);
+  } else if (!columnFills) {
+    if (warmPhoneRoomId !== roomId) setWarmPhoneRoomId(roomId);
+  } else if (warmPhoneRoomId !== null && warmPhoneRoomId !== roomId) {
+    setWarmPhoneRoomId(null);
+  }
+
   const peekingOnly = columnFills && (peekingBack || slidingForward);
   const peekFocusEventId = columnFills && peekingBack ? liveLayer.focusEventId : undefined;
+  const keepRoomAlive = phone && warmPhoneRoomId === roomId && !peekFocusEventId;
 
   useLayoutEffect(() => {
     if ((!columnFills && peekingBack) || (columnFills && peekingForwardThreadId !== null)) {
@@ -618,14 +633,14 @@ export function RoomView({
           <>
             <RoomViewHeader
               hasMindroomAgents={hasMindroomAgents}
-              openThreadId={peekingOnly ? undefined : openThreadId}
-              passive={peekingOnly}
+              openThreadId={columnFills ? undefined : openThreadId}
+              passive={columnFills}
               threadFilterState={threadState.threadFilterState}
               onFocusComposer={focusScheduleComposer}
               canEditSchedule={composerShown && !hidden}
               {...headerProps}
             />
-            {!peekingOnly && <RoomHeaderSlot room={room} headerRef={headerRef} />}
+            {!columnFills && <RoomHeaderSlot room={room} headerRef={headerRef} />}
           </>
         )}
         timeline={<RoomTimeline {...timelineProps} />}
@@ -644,7 +659,9 @@ export function RoomView({
             />
           )
         }
+        passive={peekingOnly}
         collapsed={columnFills && liveLayer === null}
+        keepAlive={keepRoomAlive}
         conversationRef={conversationRef}
       >
         <ConversationCover key={roomId} room={room} conversationRef={conversationRef} />

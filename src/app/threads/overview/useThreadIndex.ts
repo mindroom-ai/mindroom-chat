@@ -6,6 +6,7 @@ import {
 } from '../../matrix/protocol/threadBackgroundJobs';
 import type { ThreadWorkflowCounts } from '../../event-store/threads/threadWorkflow';
 import { useMemo, useRef } from 'react';
+import { usePaneCollapsed } from '../../lib/hooks/usePaneCollapsed';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
@@ -601,9 +602,25 @@ export const useThreadIndex = ({
   const { jobs } = useRoomBackgroundJobs(room);
   const jobStates = useMemo(() => indexThreadBackgroundJobs(jobs), [jobs]);
   const { threads: activeRunThreads } = useRoomActiveRuns(room);
+  const paneCollapsed = usePaneCollapsed();
   // Keep base records only: background-job overlays never become reuse inputs.
-  const builtRecordMapsRef = useRef<ThreadIndexRecordMaps>(undefined);
+  const builtRecordMapsRef = useRef<{
+    room: Room;
+    threadId: string | undefined;
+    compactViewRequested: boolean;
+    maps: ThreadIndexRecordMaps;
+  }>(undefined);
   const baseRecordMaps = useMemo(() => {
+    const prev = builtRecordMapsRef.current;
+    if (
+      paneCollapsed &&
+      prev &&
+      prev.room === room &&
+      prev.threadId === threadId &&
+      prev.compactViewRequested === compactViewRequested
+    ) {
+      return prev.maps;
+    }
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
     const built = measureDeepTracePhase('roomOverview.threadIndex', () =>
@@ -624,14 +641,15 @@ export const useThreadIndex = ({
         threadResolutionMap,
         currentUserId,
         scheduledStatusMap,
-        previous: builtRecordMapsRef.current,
+        previous: prev?.maps,
         changes: overviewChanges,
       })
     );
     // An open thread has no records, so nothing is kept from before it.
-    builtRecordMapsRef.current = built;
+    builtRecordMapsRef.current = { room, threadId, compactViewRequested, maps: built };
     return built;
   }, [
+    paneCollapsed,
     threadId,
     compactViewRequested,
     room,
@@ -758,6 +776,7 @@ export const useThreadIndex = ({
   );
 
   useThreadOverviewCacheHydration({
+    paused: paneCollapsed,
     threadId,
     overviewThreadRootIds: snapshot.overviewThreadRootIds,
     overviewThreadMetadataCacheLimit: THREAD_OVERVIEW_METADATA_CACHE_LIMIT,

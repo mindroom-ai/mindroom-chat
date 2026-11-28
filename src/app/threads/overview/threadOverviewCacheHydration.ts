@@ -36,6 +36,7 @@ const OVERVIEW_CACHE_PUBLICATION_INTERVAL_MS = 250;
 const OVERVIEW_CACHE_EVENT_LIMIT = 32;
 
 type UseThreadOverviewCacheHydrationOptions = {
+  paused?: boolean;
   threadId?: string;
   overviewThreadRootIds: string[];
   overviewThreadMetadataCacheLimit: number;
@@ -378,6 +379,7 @@ export const mapCachedPagesForOverview = async (
 };
 
 export const useThreadOverviewCacheHydration = ({
+  paused = false,
   threadId,
   overviewThreadRootIds,
   overviewThreadMetadataCacheLimit,
@@ -408,6 +410,7 @@ export const useThreadOverviewCacheHydration = ({
   const [cacheRevision, setCacheRevision] = useState(0);
 
   useEffect(() => {
+    if (paused) return undefined;
     changedThreadsRef.current = new Map();
     let revision = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -423,10 +426,15 @@ export const useThreadOverviewCacheHydration = ({
       unsubscribe();
       clearTimeout(timer);
     };
-  }, [sessionId, room.roomId]);
+  }, [paused, sessionId, room.roomId]);
 
   useEffect(() => {
-    if (threadId || overviewThreadRootIds.length === 0 || overviewThreadMetadataCacheLimit <= 0)
+    if (
+      paused ||
+      threadId ||
+      overviewThreadRootIds.length === 0 ||
+      overviewThreadMetadataCacheLimit <= 0
+    )
       return;
 
     const changedThreads = new Map(changedThreadsRef.current);
@@ -606,6 +614,7 @@ export const useThreadOverviewCacheHydration = ({
       clearTimeout(publicationTimer);
     };
   }, [
+    paused,
     cacheRevision,
     cachedThreadLastActivityTsMap,
     cachedThreadCoverageMap,

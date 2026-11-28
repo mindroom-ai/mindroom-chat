@@ -1,4 +1,11 @@
-import { type CSSProperties, type ReactNode, type RefObject, useLayoutEffect, useRef } from 'react';
+import {
+  Activity,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+} from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -79,25 +86,33 @@ const useOverlayInsets = (
   headerRef: RefObject<HTMLElement | null>,
   footerRef: RefObject<HTMLElement | null>,
   dockRef: RefObject<HTMLElement | null>,
-  parts: string
+  parts: string,
+  collapsed: boolean,
+  passive: boolean
 ) => {
+  const measuredPartsRef = useRef<string>(undefined);
+  const lastInsetsRef = useRef<{ header?: number; composer?: number; footer?: number }>({});
   useLayoutEffect(() => {
+    if (measuredPartsRef.current !== parts) {
+      measuredPartsRef.current = undefined;
+      lastInsetsRef.current = {};
+    }
     const area = areaRef.current;
     if (!area || typeof ResizeObserver === 'undefined') return undefined;
-    let lastHeader: number | undefined;
-    let lastComposer: number | undefined;
-    let lastFooter: number | undefined;
+    if (collapsed || (passive && measuredPartsRef.current === parts)) return undefined;
     const measure = () => {
       const header = headerRef.current?.offsetHeight ?? 0;
       const composer = footerRef.current?.offsetHeight ?? 0;
       const footer = composer + (dockRef.current?.offsetHeight ?? 0);
-      if (header !== lastHeader) area.style.setProperty('--room-header-height', `${header}px`);
-      if (composer !== lastComposer)
+      const last = lastInsetsRef.current;
+      if (header !== last.header) area.style.setProperty('--room-header-height', `${header}px`);
+      if (composer !== last.composer)
         area.style.setProperty('--room-composer-height', `${composer}px`);
-      if (footer !== lastFooter) area.style.setProperty('--room-footer-height', `${footer}px`);
-      lastHeader = header;
-      lastComposer = composer;
-      lastFooter = footer;
+      if (footer !== last.footer) area.style.setProperty('--room-footer-height', `${footer}px`);
+      last.header = header;
+      last.composer = composer;
+      last.footer = footer;
+      if (!passive) measuredPartsRef.current = parts;
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -105,7 +120,7 @@ const useOverlayInsets = (
       if (ref.current) observer.observe(ref.current);
     });
     return () => observer.disconnect();
-  }, [areaRef, dockRef, footerRef, headerRef, parts]);
+  }, [areaRef, collapsed, dockRef, footerRef, headerRef, parts, passive]);
 };
 
 /**
@@ -155,6 +170,8 @@ export type ConversationLayoutProps = {
   composer?: ReactNode;
   /** Takes no room in its row and shows only `children` (the room under a filling thread). */
   collapsed?: boolean;
+  /** Parks inner content inside React `<Activity mode="hidden">` when collapsed instead of unmounting. */
+  keepAlive?: boolean;
   /** The element a plugin's cover hides: timeline, dock and footer. */
   conversationRef?: RefObject<HTMLDivElement | null>;
   /** Layers over the conversation, under the header: the plugin cover. */
@@ -181,6 +198,7 @@ export function ConversationLayout({
   notice,
   composer,
   collapsed = false,
+  keepAlive = false,
   conversationRef,
   children,
 }: ConversationLayoutProps) {
@@ -189,38 +207,44 @@ export function ConversationLayout({
   const dockRef = useRef<HTMLDivElement>(null);
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const parentCollapsed = usePaneCollapsed();
-  const paneCollapsed = collapsed || parentCollapsed;
-  const shownHeader = !collapsed && header;
+  const paneCollapsed = collapsed || passive || parentCollapsed;
+  const mountContent = !collapsed || keepAlive;
+  const shownHeader = mountContent && header;
+  const activityMode = collapsed ? 'hidden' : 'visible';
   useOverlayInsets(
     areaRef,
     headerRef,
     footerRef,
     dockRef,
-    `${threadId ?? ''}|${collapsed}|${!!shownHeader}`
+    `${room.roomId}|${threadId ?? ''}|${!!header}`,
+    collapsed,
+    passive
   );
 
   return (
     <PaneCollapsedContext.Provider value={paneCollapsed}>
       <div ref={areaRef} className={css.RoomArea} style={collapsed ? COLLAPSED_STYLE : AREA_STYLE}>
         {shownHeader && (
-          // The element draws the header's surface; the row inside shows it and paints none.
-          <div
-            ref={headerRef}
-            data-room-header="true"
-            data-glass-flat="true"
-            className={classNames(
-              overlay.Header,
-              css.HeaderInShortArea,
-              threadId && overlay.HeaderInThread
-            )}
-          >
-            <SurfaceProvider value>{shownHeader(headerRef)}</SurfaceProvider>
-          </div>
+          <Activity mode={activityMode}>
+            {/* The element draws the header's surface; the row inside shows it and paints none. */}
+            <div
+              ref={headerRef}
+              data-room-header="true"
+              data-glass-flat="true"
+              className={classNames(
+                overlay.Header,
+                css.HeaderInShortArea,
+                threadId && overlay.HeaderInThread
+              )}
+            >
+              <SurfaceProvider value>{shownHeader(headerRef)}</SurfaceProvider>
+            </div>
+          </Activity>
         )}
         {/* The element stays as the conversation goes: a plugin's cover keeps holding it. */}
         <div ref={conversationRef} style={CONVERSATION_STYLE}>
-          {!collapsed && (
-            <>
+          {mountContent && (
+            <Activity mode={activityMode}>
               <ThreadApprovalProvider
                 room={room}
                 // A message not yet on the server has no approvals, and no relations to ask for.
@@ -270,7 +294,7 @@ export function ConversationLayout({
                 {notice}
                 {composer}
               </div>
-            </>
+            </Activity>
           )}
         </div>
         {children}

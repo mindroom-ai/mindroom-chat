@@ -5,6 +5,7 @@ import { createClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
 import { ConversationLayout } from './ConversationLayout';
+import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { HeaderInShortArea } from './RoomView.css';
 
 const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@alice:example.org' });
@@ -241,6 +242,104 @@ it('skips rewriting overlay inset CSS properties when heights are unchanged on r
     notifyResize?.();
     expect(setProperty).toHaveBeenCalledTimes(1);
     expect(setProperty).toHaveBeenCalledWith('--room-header-height', '72px');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it('parks header and conversation inside Activity when keepAlive is set, freezes PaneCollapsedContext while passive, and preserves cached insets without forced reflow', () => {
+  vi.stubGlobal(
+    'ResizeObserver',
+    class {
+      observe() {}
+      disconnect() {}
+    }
+  );
+  const collapsedSeen: boolean[] = [];
+  function Probe() {
+    collapsedSeen.push(usePaneCollapsed());
+    return <div data-testid="probe" />;
+  }
+  try {
+    const areaRef = createRef<HTMLDivElement>();
+    const conversationRef = createRef<HTMLDivElement>();
+    const { rerender } = render(
+      layout({
+        areaRef,
+        conversationRef,
+        keepAlive: true,
+        header: () => <div data-testid="header" />,
+        timeline: <Probe />,
+        children: <div data-testid="cover" />,
+      })
+    );
+    const probeEl = screen.getByTestId('probe');
+    const headerWrap = screen.getByTestId('header').parentElement as HTMLElement;
+    let headerReads = 0;
+    Object.defineProperty(headerWrap, 'offsetHeight', {
+      configurable: true,
+      get: () => {
+        headerReads += 1;
+        return 56;
+      },
+    });
+    // Trigger initial measurement at real height.
+    rerender(
+      layout({
+        areaRef,
+        conversationRef,
+        keepAlive: true,
+        threadId: '$t1',
+        header: () => <div data-testid="header" />,
+        timeline: <Probe />,
+        children: <div data-testid="cover" />,
+      })
+    );
+    expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
+    expect(collapsedSeen.at(-1)).toBe(false);
+
+    // Park collapsed with keepAlive: DOM stays mounted inside hidden Activity, cover stays visible,
+    // and cached --room-header-height is NOT zeroed out.
+    headerReads = 0;
+    rerender(
+      layout({
+        areaRef,
+        conversationRef,
+        keepAlive: true,
+        collapsed: true,
+        threadId: '$t1',
+        header: () => <div data-testid="header" />,
+        timeline: <Probe />,
+        children: <div data-testid="cover" />,
+      })
+    );
+    expect(screen.getByTestId('cover')).toBeTruthy();
+    expect(screen.getByTestId('probe')).toBe(probeEl);
+    expect(probeEl.parentElement?.style.display).toBe('none');
+    expect(headerWrap.style.display).toBe('none');
+    expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
+    expect(headerReads).toBe(0);
+
+    // Passive reveal (back-peek): Activity becomes visible, same instance, PaneCollapsedContext
+    // stays true, and cached insets are reused with zero forced offsetHeight reads.
+    rerender(
+      layout({
+        areaRef,
+        conversationRef,
+        keepAlive: true,
+        collapsed: false,
+        passive: true,
+        threadId: '$t1',
+        header: () => <div data-testid="header" />,
+        timeline: <Probe />,
+        children: <div data-testid="cover" />,
+      })
+    );
+    expect(screen.getByTestId('probe')).toBe(probeEl);
+    expect(probeEl.parentElement?.style.display).not.toBe('none');
+    expect(collapsedSeen.at(-1)).toBe(true);
+    expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
+    expect(headerReads).toBe(0);
   } finally {
     vi.unstubAllGlobals();
   }
