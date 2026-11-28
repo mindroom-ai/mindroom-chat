@@ -6,7 +6,10 @@ import {
   DICTATION_WAV_HEADER_BYTES,
   type DictationSegment,
 } from './dictationSegmenter';
-import { stitchTranscript, type StitchSegmentInput } from './stitchTranscript';
+import { buildTrailingPrompt, stitchTranscript, type StitchSegmentInput } from './stitchTranscript';
+
+// Cap settled audio while keeping unsettled and failed audio retryable.
+export const DICTATION_MAX_RETAINED_WAV_BYTES = 50 * 1024 * 1024;
 
 export const REFINEMENT_MAX_GROUP_SECONDS = 16;
 export const REFINEMENT_MAX_GROUP_SEGMENTS = 4;
@@ -67,6 +70,41 @@ export type SessionRecordSummary = {
   completedSegments: number;
   hasPartialText: boolean;
   previewText: string;
+};
+
+const isSettledGroup = (
+  group: RefinementGroup,
+  records: readonly RefinementSegmentRecord[]
+): boolean => {
+  if (group.state !== 'refined' && group.state !== 'fallback') return false;
+  const coveredEnd = getRefinementGroupCoveredEnd(group);
+  for (let i = Math.max(group.startIndex, coveredEnd + 1); i <= group.endIndex; i += 1) {
+    const record = records[i];
+    if (record?.status !== 'completed' || !record.text?.trim()) return false;
+  }
+  return true;
+};
+
+/** Drops oldest settled audio in whole groups so voice fallback can keep their refined text. */
+export const pruneSettledGroupWavs = (
+  groups: readonly RefinementGroup[],
+  records: RefinementSegmentRecord[],
+  maxRetainedBytes = DICTATION_MAX_RETAINED_WAV_BYTES
+): number[] => {
+  let totalBytes = records.reduce((total, record) => total + (record.wav?.size ?? 0), 0);
+  const prunedIndices: number[] = [];
+  for (const group of groups) {
+    if (totalBytes <= maxRetainedBytes) break;
+    if (!isSettledGroup(group, records)) continue;
+    for (let i = group.startIndex; i <= group.endIndex; i += 1) {
+      const record = records[i];
+      if (!record?.wav) continue;
+      totalBytes -= record.wav.size;
+      record.wav = undefined;
+      prunedIndices.push(record.segment.index);
+    }
+  }
+  return prunedIndices;
 };
 
 type SliceableSegment = Pick<
@@ -227,7 +265,7 @@ export const canAffordRefinement = (
 };
 
 export const getRefinementGroupCoveredEnd = (group: RefinementGroup): number => {
-  if (!group.refinedText) return group.startIndex - 1;
+  if (!group.refinedText?.trim()) return group.startIndex - 1;
   const end = group.refinedEndIndex ?? (group.state === 'refined' ? group.endIndex : undefined);
   return end !== undefined ? Math.min(end, group.endIndex) : group.startIndex - 1;
 };
@@ -360,6 +398,31 @@ export const selectNextUpload = (
   return null;
 };
 
+const transcriptPartsInGroup = (
+  records: readonly StitchableSegmentRecord[],
+  group: RefinementGroup,
+  limit: number
+): StitchSegmentInput[] => {
+  const parts: StitchSegmentInput[] = [];
+  const end = Math.min(group.endIndex, limit - 1);
+  let primaryStart = group.startIndex;
+  const coveredEnd = getRefinementGroupCoveredEnd(group);
+  if (group.refinedText && coveredEnd >= group.startIndex && coveredEnd < limit) {
+    parts.push({
+      text: group.refinedText,
+      overlapped: records[group.startIndex]?.segment.overlapped ?? false,
+    });
+    primaryStart = coveredEnd + 1;
+  }
+  for (let i = primaryStart; i <= end; i += 1) {
+    const record = records[i];
+    if (record?.status === 'completed' && record.text !== undefined) {
+      parts.push({ text: record.text, overlapped: record.segment.overlapped });
+    }
+  }
+  return parts;
+};
+
 /** Stitches completed primaries and refined ranges up to `limit`, replacing covered ranges atomically. */
 export const stitchRefinedSegments = (
   records: readonly StitchableSegmentRecord[],
@@ -367,29 +430,42 @@ export const stitchRefinedSegments = (
   limit = records.length
 ): string => {
   const capped = Math.min(Math.max(0, limit), records.length);
-  if (capped === 0) return '';
-
   const parts: StitchSegmentInput[] = [];
   for (const group of groups) {
     if (group.startIndex >= capped) break;
-    const end = Math.min(group.endIndex, capped - 1);
-    let primaryStart = group.startIndex;
-    const coveredEnd = getRefinementGroupCoveredEnd(group);
-    if (group.refinedText && coveredEnd >= group.startIndex && coveredEnd < capped) {
-      parts.push({
-        text: group.refinedText,
-        overlapped: records[group.startIndex]?.segment.overlapped ?? false,
-      });
-      primaryStart = coveredEnd + 1;
-    }
-    for (let i = primaryStart; i <= end; i += 1) {
-      const record = records[i];
-      if (record?.status === 'completed' && record.text !== undefined) {
-        parts.push({ text: record.text, overlapped: record.segment.overlapped });
-      }
-    }
+    parts.push(...transcriptPartsInGroup(records, group, capped));
   }
   return stitchTranscript(parts);
+};
+
+export const buildRefinedTrailingPrompt = (
+  records: readonly StitchableSegmentRecord[],
+  groups: readonly RefinementGroup[],
+  limit: number,
+  maxChars: number
+): string | undefined => {
+  // Find the group containing (or immediately preceding) the last eligible record.
+  let lo = 0;
+  let hi = groups.length;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    if (groups[mid]!.startIndex < limit) lo = mid + 1;
+    else hi = mid;
+  }
+
+  const parts: StitchSegmentInput[] = [];
+  let chars = 0;
+  for (let i = lo - 1; i >= 0; i -= 1) {
+    for (const part of transcriptPartsInGroup(records, groups[i]!, limit).reverse()) {
+      const length = part.text.trim().length;
+      if (!length) continue;
+      parts.push(part);
+      // Include one preceding part for overlap deduplication at the boundary.
+      if (chars > maxChars) return buildTrailingPrompt(stitchTranscript(parts.reverse()), maxChars);
+      chars += length;
+    }
+  }
+  return buildTrailingPrompt(stitchTranscript(parts.reverse()), maxChars);
 };
 
 /** Summarizes upload counters and stitched live preview across primary records and refinement groups. */

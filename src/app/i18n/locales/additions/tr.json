@@ -1991,7 +1991,6 @@
       "sendFailedOffTarget": "{{room}} içindeki dikte edilen mesaj tamamlanamadı. Yeniden denemek için {{room}} odasını tekrar seçin.",
       "statusPendingRetry_one": "{{count}} bölüm yeniden deneme bekliyor",
       "statusPendingRetry_other": "{{count}} bölüm yeniden deneme bekliyor",
-      "capReached": "5:00 sınırına ulaşıldı",
       "micInterrupted": "Mikrofon bağlantısı kesildi. Sürdürün veya bitirin.",
       "failedSummary_one": "{{count}} bölüm metne dönüştürülemedi.",
       "failedSummary_other": "{{count}} bölüm metne dönüştürülemedi.",

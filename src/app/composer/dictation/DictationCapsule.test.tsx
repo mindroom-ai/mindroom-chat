@@ -47,7 +47,6 @@ const baseSnapshot = (overrides: Partial<DictationSnapshot> = {}): DictationSnap
   hasPartialText: false,
   hasVoiceAudio: false,
   previewText: '',
-  capReached: false,
   interrupted: false,
   recovered: false,
   hasClient: true,
@@ -310,7 +309,7 @@ describe('DictationCapsule', () => {
       <DictationCapsule
         snapshot={baseSnapshot({
           phase: 'paused',
-          elapsedMs: 65_000,
+          elapsedMs: 3_905_000,
           recovered: true,
           hasClient: false,
           pendingUploads: 2,
@@ -322,7 +321,7 @@ describe('DictationCapsule', () => {
       />
     );
 
-    expect(screen.getByText('composer.dictation.recoveredDuration:1:05')).toBeTruthy();
+    expect(screen.getByText('composer.dictation.recoveredDuration:1:05:05')).toBeTruthy();
     expect(screen.getByLabelText<HTMLButtonElement>('composer.dictation.resume').disabled).toBe(
       true
     );
@@ -337,7 +336,7 @@ describe('DictationCapsule', () => {
       <DictationCapsule
         snapshot={baseSnapshot({
           phase: 'paused',
-          elapsedMs: 65_000,
+          elapsedMs: 3_905_000,
           recovered: true,
           hasClient: true,
           pendingUploads: 0,

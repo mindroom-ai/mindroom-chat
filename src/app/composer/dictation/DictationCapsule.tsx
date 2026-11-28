@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Box, Button, Icon, Icons, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { millisecondsToMinutesAndSeconds } from '../../lib/common';
+import { formatClockDurationMs } from '../../lib/time';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../ui/glass/liquid/useLiquidGlass';
 import { useLiveCaptureCapsuleVisible } from '../capture/useLiveCaptureCapsuleVisible';
@@ -73,7 +73,6 @@ export function DictationCapsule({
     hasPartialText,
     hasVoiceAudio,
     previewText,
-    capReached,
     interrupted,
     recovered,
     hasClient,
@@ -208,9 +207,9 @@ export function DictationCapsule({
   const paused = phase === 'paused';
   const finishing = phase === 'finishing';
   const requesting = phase === 'requesting';
-  const pauseDisabled = requesting || finishing || capReached || sending || (paused && !hasClient);
+  const pauseDisabled = requesting || finishing || sending || (paused && !hasClient);
   const finishDisabled = requesting || finishing || sending;
-  const time = millisecondsToMinutesAndSeconds(elapsedMs);
+  const time = formatClockDurationMs(elapsedMs);
   const timerText = recovered ? t('composer.dictation.recoveredDuration', { time }) : time;
 
   let subtleStatus: string | undefined;
@@ -218,8 +217,6 @@ export function DictationCapsule({
     subtleStatus = sending
       ? t('composer.dictation.statusSending')
       : t('composer.dictation.statusFinishing');
-  } else if (capReached) {
-    subtleStatus = t('composer.dictation.capReached');
   } else if (interrupted) {
     subtleStatus = t('composer.dictation.micInterrupted');
   } else if (paused && !hasClient && (pendingUploads > 0 || failedSegments > 0)) {

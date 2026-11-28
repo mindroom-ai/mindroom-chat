@@ -177,7 +177,6 @@ const createMockSession = (opts?: {
     hasPartialText: false,
     hasVoiceAudio: false,
     previewText: '',
-    capReached: false,
     interrupted: false,
     recovered: false,
     hasClient: clientAttached,
@@ -1885,7 +1884,6 @@ describe('useRoomInputDictation', () => {
       recovered: {
         startedAt: 1_000,
         elapsedMs: 2_000,
-        capReached: false,
         originApiUrl: 'https://server-a.example',
         records: [
           {
@@ -1905,7 +1903,7 @@ describe('useRoomInputDictation', () => {
         ],
         groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
         initialSegmentIndex: 1,
-        initialActiveFrames: 20,
+        initialFramePos: 20,
       },
     });
     expect(session.hasClient()).toBe(false);

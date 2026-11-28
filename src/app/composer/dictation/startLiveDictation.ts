@@ -96,7 +96,6 @@ export const startLiveDictation = (
         journal = beginDictationJournal(sessionId, {
           startedAt,
           elapsedMs: 0,
-          capReached: false,
           ...(originApiUrl !== undefined ? { originApiUrl } : {}),
           ...(sessionOptions.roomId !== undefined ? { originRoomId: sessionOptions.roomId } : {}),
           segments: [],
@@ -193,13 +192,12 @@ const offerRecoveredDictation = async (
     recovered: {
       startedAt: meta.startedAt,
       elapsedMs: prepared.effectiveElapsedMs,
-      capReached: prepared.capReached,
       originApiUrl: sessionOriginApiUrl,
       originRoomId: roomId,
       records: prepared.records,
       groups: prepared.groups,
       initialSegmentIndex: prepared.initialSegmentIndex,
-      initialActiveFrames: prepared.initialActiveFrames,
+      initialFramePos: prepared.initialFramePos,
     },
   });
 
@@ -213,14 +211,14 @@ const offerRecoveredDictation = async (
     {
       startedAt: meta.startedAt,
       elapsedMs: prepared.effectiveElapsedMs,
-      capReached: prepared.capReached,
       originApiUrl: sessionOriginApiUrl,
       originRoomId: roomId,
       records: prepared.records,
       groups: prepared.groups,
     },
     prepared.tailSegments,
-    tailChunks.length
+    tailChunks.length,
+    meta.consumedThroughFramePos !== undefined
   );
 
   return true;

@@ -80,7 +80,6 @@ const dictationSession = (changes: Partial<DictationSnapshot> = {}) => {
     hasPartialText: true,
     hasVoiceAudio: false,
     previewText: 'Hello world',
-    capReached: false,
     interrupted: false,
     recovered: false,
     hasClient: true,
@@ -252,10 +251,10 @@ describe('LiveCaptureIndicator', () => {
     act(() =>
       store.set(
         liveCaptureAtom,
-        dictationSession({ phase: 'paused', recovered: true, elapsedMs: 65_000 }).entry
+        dictationSession({ phase: 'paused', recovered: true, elapsedMs: 3_905_000 }).entry
       )
     );
-    expect(dictationPill()?.textContent).toBe('Recovered dictation 1:05');
+    expect(dictationPill()?.textContent).toBe('Recovered dictation 1:05:05');
     expect(screen.getByRole('status').textContent).toBe('Recovered dictation');
 
     act(() => store.set(liveCaptureAtom, dictationSession({ phase: 'finishing' }).entry));

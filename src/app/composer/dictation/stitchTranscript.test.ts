@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   appendTranscriptSegment,
   buildTrailingPrompt,
@@ -73,6 +73,67 @@ describe('stitchTranscript overlap deduplication', () => {
       { text: '去了上海以后', overlapped: true },
     ]);
     expect(stitched).toBe('我昨天去了上海以后');
+  });
+
+  it('does not normalize an entire no-space CJK history for a short continuation', () => {
+    const history = '漢'.repeat(50_000);
+    const original = String.prototype.toLowerCase;
+    let longestNormalized = 0;
+    const spy = vi.spyOn(String.prototype, 'toLowerCase').mockImplementation(function (
+      this: string
+    ) {
+      longestNormalized = Math.max(longestNormalized, this.length);
+      return original.call(this);
+    });
+    let actual: string;
+    try {
+      actual = appendTranscriptSegment(`${history}去了上海。`, {
+        text: '去了上海以后',
+        overlapped: true,
+      });
+    } finally {
+      spy.mockRestore();
+    }
+    expect(actual).toBe(`${history}去了上海以后`);
+    expect(longestNormalized).toBe('去了上海以后'.length);
+  });
+
+  it('keeps matching suffix words after an oversized token and normalizes Unicode edges', () => {
+    const oversized = '𠀋'.repeat(100);
+    expect(
+      appendTranscriptSegment(`${oversized}  “İ” 𐐀!`, {
+        text: 'i 𐐨 continued',
+        overlapped: true,
+      })
+    ).toBe(`${oversized} i 𐐨 continued`);
+  });
+
+  it('preserves word overlap for a synthetic long leading token with interior punctuation', () => {
+    const token = `a${'!'.repeat(50_000)}b`;
+    const right = `${token} continued`;
+    expect(
+      appendTranscriptSegment(`intro ${token.toUpperCase()}?`, {
+        text: right,
+        overlapped: true,
+      })
+    ).toBe(`intro ${right}`);
+  });
+
+  it('deduplicates word and supplementary CJK overlap after a long transcript prefix', () => {
+    const prefix = 'Earlier words '.repeat(4_000);
+    expect(
+      appendTranscriptSegment(`${prefix}alpha beta!`, {
+        text: 'Alpha Beta continued.',
+        overlapped: true,
+      })
+    ).toBe(`${prefix}Alpha Beta continued.`);
+    const repeated = '𠀋'.repeat(12);
+    expect(
+      appendTranscriptSegment(`${prefix}去了${repeated}。`, {
+        text: `${repeated}以后`,
+        overlapped: true,
+      })
+    ).toBe(`${prefix}去了 ${repeated}以后`);
   });
 });
 

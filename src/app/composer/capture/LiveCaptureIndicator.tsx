@@ -7,7 +7,7 @@ import { Dialog, IconButton } from '../../ui/glass/GlassPrimitives';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { ModalLayer } from '../../ui/ModalLayer';
 import { coverNoticeSlotAtom, pageNoticeSlotAtom } from '../../ui/noticeSlots';
-import { millisecondsToMinutesAndSeconds } from '../../lib/common';
+import { formatClockDurationMs } from '../../lib/time';
 import { localizeVoiceErrorMessage } from '../voice/voiceErrorMessage';
 import { DiscardCaptureDialog } from './DiscardCaptureDialog';
 import {
@@ -62,7 +62,7 @@ export function LiveCaptureIndicator() {
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
   const slot = coverSlot ?? pageSlot;
   const shown = capture !== undefined && capsulesShown === 0 && slot !== null;
-  const time = millisecondsToMinutesAndSeconds(elapsedMs);
+  const time = formatClockDurationMs(elapsedMs);
 
   const isDictation = capture?.kind === 'dictation';
   const paused = phase === 'paused' || phase === 'finishing' || phase === 'failed';

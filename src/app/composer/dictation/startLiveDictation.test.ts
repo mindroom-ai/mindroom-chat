@@ -35,7 +35,11 @@ import {
   encodePcm16WavBuffer,
   SILENCE_RMS_FLOOR,
 } from './dictationSegmenter';
-import type { DictationCaptureFactory, DictationSessionOptions } from './dictationSession';
+import {
+  createDictationSession,
+  type DictationCaptureFactory,
+  type DictationSessionOptions,
+} from './dictationSession';
 import {
   dictationRestoresAtom,
   recoverDictationForAccount,
@@ -184,14 +188,13 @@ describe('startLiveDictation and recovery', () => {
     const journal = beginDictationJournal(SESSION_A, {
       startedAt: 10_000,
       elapsedMs: 0,
-      capReached: false,
       originApiUrl: 'https://trusted.example',
       originRoomId: '!joined:example.org',
       segments: [],
       groups: [],
     })!;
     const speechFrames = Array.from({ length: 10 }, () => makeFrame(0.3));
-    await journal.appendTail(0, encodePcm16Frames(speechFrames), 960, 0, 10);
+    await journal.appendTail(0, encodePcm16Frames(speechFrames), 960, 50, 60);
     journal.release();
     await waitForJournalSettled();
 
@@ -216,13 +219,13 @@ describe('startLiveDictation and recovery', () => {
     expect(capturedOpts[0]?.recovered?.records).toHaveLength(1);
     expect(capturedOpts[0]?.recovered?.elapsedMs).toBe(960);
     expect(capturedOpts[0]?.recovered?.initialSegmentIndex).toBe(1);
+    expect(capturedOpts[0]?.recovered?.initialFramePos).toBe(60);
     await deleteCapture(journal.id);
 
     // End-to-end hydration with real createDictationSession, IDB tail conversion, and attachClient upload.
     const journal2 = beginDictationJournal(SESSION_A, {
       startedAt: 20_000,
       elapsedMs: 0,
-      capReached: false,
       segments: [],
       groups: [],
     })!;
@@ -258,12 +261,11 @@ describe('startLiveDictation and recovery', () => {
     await live.session.discard();
   });
 
-  it('recovers text-only records with 0 remaining WAVs and deletes truly empty records', async () => {
+  it('resumes a legacy capped text-only record, clears its stale cursor, and deletes empty records', async () => {
     // 1. Truly empty record (no segments, only silent tail) -> dropped & deleted.
     const emptyJournal = beginDictationJournal(SESSION_A, {
       startedAt: 1_000,
       elapsedMs: 500,
-      capReached: false,
       segments: [],
       groups: [],
     })!;
@@ -272,10 +274,12 @@ describe('startLiveDictation and recovery', () => {
     emptyJournal.release();
 
     // 2. Newer text-only record with 0 WAVs on disk -> MUST recover!
+    const legacy = { capReached: true };
     const textOnlyJournal = beginDictationJournal(SESSION_A, {
       startedAt: 2_000,
-      elapsedMs: 6_000,
-      capReached: false,
+      elapsedMs: 300_000,
+      consumedThroughFramePos: 3_400,
+      ...legacy,
       segments: [
         {
           index: 0,
@@ -305,8 +309,23 @@ describe('startLiveDictation and recovery', () => {
 
     const store = createStore();
     store.set(computerServicePreferenceAtom, '');
-    await recoverDictationForAccount(store, makeMatrixClient(USER_A), {});
-    await waitForJournalSettled();
+    let pushFrame: ((frame: Float32Array) => void) | undefined;
+    await recoverDictationForAccount(
+      store,
+      makeMatrixClient(USER_A),
+      {},
+      {
+        createSession: (opts) =>
+          createDictationSession({
+            ...opts,
+            loadVad: () => new Promise(() => undefined),
+            captureFactory: async ({ onFrame }) => {
+              pushFrame = onFrame;
+              return { stopAndFlush: async () => undefined, dispose: () => undefined };
+            },
+          }),
+      }
+    );
 
     expect((await readJournalRow(emptyJournal.id)).recording).toBeUndefined();
     const live = store.get(liveCaptureAtom);
@@ -317,6 +336,22 @@ describe('startLiveDictation and recovery', () => {
       phase: 'paused',
       recovered: true,
       previewText: 'Preserved text without wav.',
+      elapsedMs: 300_000,
+    });
+    await waitFor(async () => {
+      const { recording } = await readJournalRow(textOnlyJournal.id);
+      expect(recording).toBeDefined();
+      expect(recording).not.toHaveProperty('capReached');
+      expect(recording).not.toHaveProperty('consumedThroughFramePos');
+    });
+    live.session.attachClient({ transcribe: vi.fn() });
+    expect(await live.session.resume()).toBe(true);
+    expect(live.session.getSnapshot().phase).toBe('recording');
+    const frame = makeFrame(0.3);
+    for (let i = 0; i < 10; i += 1) pushFrame?.(frame);
+    await waitFor(async () => {
+      const row = await readJournalRow(textOnlyJournal.id);
+      expect(row.chunks).toMatchObject([{ startFramePos: 3_400, endFramePos: 3_410 }]);
     });
     await live.session.discard();
   });
@@ -327,7 +362,6 @@ describe('startLiveDictation and recovery', () => {
       const baseMeta = {
         startedAt,
         elapsedMs: 2_000,
-        capReached: false,
         ...(originApiUrl !== undefined ? { originApiUrl } : {}),
         ...(originRoomId !== undefined ? { originRoomId } : {}),
         segments: [
@@ -427,7 +461,6 @@ describe('startLiveDictation and recovery', () => {
     const journal = beginDictationJournal(SESSION_A, {
       startedAt: 3_000,
       elapsedMs: 4_000,
-      capReached: false,
       segments: [
         {
           index: 0,
@@ -492,7 +525,6 @@ describe('startLiveDictation and recovery', () => {
     const journalA = beginDictationJournal(SESSION_A, {
       startedAt: 5_000,
       elapsedMs: 3_000,
-      capReached: false,
       originApiUrl: 'https://deploy.example',
       segments: [
         {
@@ -515,7 +547,6 @@ describe('startLiveDictation and recovery', () => {
     const journalB = beginDictationJournal(SESSION_A_OTHER_HS, {
       startedAt: 6_000,
       elapsedMs: 2_000,
-      capReached: false,
       segments: [
         {
           index: 0,
@@ -551,7 +582,6 @@ describe('startLiveDictation and recovery', () => {
     const journalB2 = beginDictationJournal(SESSION_A_OTHER_HS, {
       startedAt: 7_000,
       elapsedMs: 2_000,
-      capReached: false,
       segments: [
         {
           index: 0,
@@ -693,7 +723,6 @@ describe('startLiveDictation and recovery', () => {
     const journal = beginDictationJournal(SESSION_A, {
       startedAt: 4_000,
       elapsedMs: 7_500,
-      capReached: false,
       originApiUrl: 'https://deploy.example',
       originRoomId: '!room:example.org',
       segments: [
@@ -768,7 +797,6 @@ describe('startLiveDictation and recovery', () => {
     const journal = beginDictationJournal(SESSION_A, {
       startedAt: 30_000,
       elapsedMs: 0,
-      capReached: false,
       segments: [],
       groups: [],
     })!;
@@ -827,7 +855,6 @@ describe('startLiveDictation and recovery', () => {
     const journal = beginDictationJournal(SESSION_A, {
       startedAt: 40_000,
       elapsedMs: 0,
-      capReached: false,
       segments: [],
       groups: [],
     })!;
@@ -882,7 +909,6 @@ describe('startLiveDictation and recovery', () => {
     const longJournal = beginDictationJournal(SESSION_A, {
       startedAt: 41_000,
       elapsedMs: 0,
-      capReached: false,
       segments: [],
       groups: [],
     })!;
@@ -922,7 +948,6 @@ describe('startLiveDictation and recovery', () => {
     const zeroJournal = beginDictationJournal(SESSION_A, {
       startedAt: 50_000,
       elapsedMs: 1_000,
-      capReached: false,
       segments: [],
       groups: [],
     })!;
@@ -938,7 +963,6 @@ describe('startLiveDictation and recovery', () => {
     const floorJournal = beginDictationJournal(SESSION_A, {
       startedAt: 51_000,
       elapsedMs: 1_000,
-      capReached: false,
       segments: [],
       groups: [],
     })!;
@@ -975,7 +999,6 @@ describe('startLiveDictation and recovery', () => {
     const journal = beginDictationJournal(SESSION_A, {
       startedAt: 60_000,
       elapsedMs: 0,
-      capReached: false,
       segments: [],
       groups: [],
     })!;
@@ -1012,7 +1035,6 @@ describe('startLiveDictation and recovery', () => {
     const journal = beginDictationJournal(SESSION_A, {
       startedAt: 61_000,
       elapsedMs: 0,
-      capReached: false,
       segments: [],
       groups: [],
     })!;

@@ -279,18 +279,6 @@ describe('DictationSegmenter', () => {
     expect(header.sampleRate).toBe(16_000);
   });
 
-  it('enforces the 5-minute active frame cap and notifies once', () => {
-    const onCapReached = vi.fn();
-    const segmenter = new DictationSegmenter({
-      onSegment: () => undefined,
-      onCapReached,
-      maxActiveFrames: 5,
-    });
-
-    for (let i = 0; i < 10; i += 1) segmenter.pushFrame(makeFrame(0.1));
-    expect(onCapReached).toHaveBeenCalledTimes(1);
-  });
-
   it('records cutReason, leading/trailing quiet frames, and deterministic pauseBeforeMs across pauses and flush', async () => {
     const segments: DictationSegment[] = [];
     const segmenter = new DictationSegmenter({ onSegment: (seg) => segments.push(seg) });
@@ -381,42 +369,23 @@ describe('DictationSegmenter', () => {
     expect(onLongSilence).toHaveBeenCalledTimes(2);
   });
 
-  it('continues segment indices and enforces cap from initialSegmentIndex and initialActiveFrames', async () => {
+  it('continues segment indices and frame positions across a recovered start and flush', async () => {
     const segments: DictationSegment[] = [];
-    const onCapReached = vi.fn();
     const segmenter = new DictationSegmenter({
       onSegment: (seg) => segments.push(seg),
-      onCapReached,
       initialSegmentIndex: 3,
-      initialActiveFrames: 20,
-      maxActiveFrames: 32,
+      initialFramePos: 75_000,
     });
-    await segmenter.attachVad({
-      score: async (frame) => (Math.abs(frame[10] ?? 0) > 0.05 ? 0.9 : 0.05),
-    });
-
-    const positions: Array<number | null> = [];
-    // Push 4 speech + 8 quiet = 12 frames -> reaches maxActiveFrames (20 + 12 = 32) on the 12th frame.
-    for (let i = 0; i < 4; i += 1) positions.push(segmenter.pushFrame(makeFrame(0.3)));
-    for (let i = 0; i < 8; i += 1) positions.push(segmenter.pushFrame(makeFrame(0.001)));
-    // Further frames past the cap are ignored and return null.
-    positions.push(segmenter.pushFrame(makeFrame(0.3)));
+    expect(segmenter.getUnconsumedStartFramePos()).toBe(75_000);
+    expect(segmenter.pushFrame(makeFrame(0.3))).toBe(75_000);
+    expect(segmenter.pushFrame(makeFrame(0.3))).toBe(75_001);
     await segmenter.flush();
 
-    expect(positions.slice(0, 12)).toEqual([20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31]);
-    expect(positions[12]).toBeNull();
-    expect(onCapReached).toHaveBeenCalledTimes(1);
-    expect(segments).toHaveLength(1);
-    expect(segments[0]?.index).toBe(3);
+    expect(segments[0]).toMatchObject({ index: 3, consumedThroughFramePos: 75_002 });
     expect(segments[0]?.wavBuffer?.byteLength).toBe(segments[0]?.wav.size);
-
-    // Already at cap on construction rejects frames immediately.
-    const capped = new DictationSegmenter({
-      onSegment: () => undefined,
-      initialActiveFrames: 10,
-      maxActiveFrames: 10,
-    });
-    expect(capped.pushFrame(makeFrame(0.3))).toBeNull();
+    expect(segmenter.pushFrame(makeFrame(0.3))).toBe(75_002);
+    segmenter.clear();
+    expect(segmenter.pushFrame(makeFrame(0.3))).toBeNull();
   });
 
   it('tracks consumedThroughFramePos across pending frames, preSpeechPad, and hard-cut overlap', async () => {
@@ -458,7 +427,7 @@ describe('DictationSegmenter', () => {
     let idx = 0;
     const hardSeg = new DictationSegmenter({
       onSegment: (seg) => hardSegments.push(seg),
-      initialActiveFrames: 100,
+      initialFramePos: 100,
     });
     await hardSeg.attachVad({ score: async () => probs[idx++] ?? 0.9 });
     for (const frame of hardFrames) hardSeg.pushFrame(frame);

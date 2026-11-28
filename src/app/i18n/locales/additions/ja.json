@@ -1925,7 +1925,6 @@
       "sendFailedOffThread": "{{room}} の音声入力メッセージを完了できませんでした。開いて再試行してください。",
       "sendFailedOffTarget": "{{room}} の音声入力メッセージを完了できませんでした。再試行するには {{room}} をもう一度選択してください。",
       "statusPendingRetry_other": "{{count}}件の区間が再試行待ち",
-      "capReached": "5:00の上限に達しました",
       "micInterrupted": "マイクが切断されました。再開するか完了してください。",
       "failedSummary_other": "{{count}}件の区間を文字起こしできませんでした。",
       "discardDictation": "音声入力を破棄",

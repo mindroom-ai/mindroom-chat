@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   appendSegmentToGroups,
   buildMergedGroupWav,
+  buildRefinedTrailingPrompt,
   canAffordRefinement,
   computeSegmentSliceFrames,
+  DICTATION_MAX_RETAINED_WAV_BYTES,
   estimateMergedGroupSeconds,
   isRecordCoveredByRefinement,
+  pruneSettledGroupWavs,
   REFINEMENT_MAX_AUDIO_SECONDS_PER_MINUTE,
   REFINEMENT_MAX_REQUESTS_PER_MINUTE,
   REFINEMENT_RATE_WINDOW_MS,
@@ -310,6 +313,98 @@ describe('dictationRefinement', () => {
     expect(isRecordCoveredByRefinement(partialOpen, 1)).toBe(true);
     expect(isRecordCoveredByRefinement(partialOpen, 2)).toBe(true);
     expect(isRecordCoveredByRefinement(partialOpen, 3)).toBe(false);
+  });
+
+  it('builds a 200-character prompt from nearby groups without reading older text or later records', () => {
+    const oldText = vi.fn(() => 'old transcript');
+    const records: StitchableSegmentRecord[] = Array.from({ length: 256 }, () => ({
+      segment: { overlapped: false },
+      status: 'completed',
+      get text() {
+        return oldText();
+      },
+    }));
+    const groups: RefinementGroup[] = records.map((_, i) => ({
+      startIndex: i,
+      endIndex: i,
+      state: 'fallback',
+    }));
+    const boundary = 'Boundary history ends with alpha beta';
+    const refined = 'alpha beta ' + 'trailing context '.repeat(12) + 'last';
+    records.push(
+      { segment: { overlapped: false }, status: 'completed', text: boundary },
+      { segment: { overlapped: true }, status: 'queued' },
+      { segment: { overlapped: false }, status: 'queued' },
+      {
+        segment: { overlapped: false },
+        status: 'completed',
+        get text() {
+          return oldText();
+        },
+      }
+    );
+    groups.push(
+      { startIndex: 256, endIndex: 256, state: 'fallback' },
+      { startIndex: 257, endIndex: 258, state: 'refined', refinedText: refined },
+      { startIndex: 259, endIndex: 259, state: 'open' }
+    );
+    const prompt = buildRefinedTrailingPrompt(records, groups, 259, 200);
+    expect(prompt).toBe('context ' + 'trailing context '.repeat(11) + 'last');
+    expect(oldText).not.toHaveBeenCalled();
+  });
+
+  it('prunes the oldest whole settled groups and keeps WAVs for unsettled and failed groups', () => {
+    const statuses = [
+      'completed',
+      'failed',
+      'completed',
+      'completed',
+      'queued',
+      'uploading',
+      'completed',
+      'failed',
+    ] as const;
+    const wav = new Blob(['1234']);
+    const { wav: _wav, ...meta } = makeSegment({ voiced: 1 });
+    const records: RefinementSegmentRecord[] = statuses.map((status, i) => ({
+      segment: { ...meta, index: 100 + i },
+      status,
+      ...(status === 'completed' ? { text: 'Recorded text.' } : {}),
+      wav,
+    }));
+    const groups: RefinementGroup[] = [
+      { startIndex: 0, endIndex: 1, state: 'refined', refinedText: 'Finished together.' },
+      { startIndex: 2, endIndex: 2, state: 'fallback' },
+      { startIndex: 3, endIndex: 3, state: 'open' },
+      { startIndex: 4, endIndex: 4, state: 'queued' },
+      { startIndex: 5, endIndex: 5, state: 'uploading' },
+      { startIndex: 6, endIndex: 7, state: 'fallback' },
+    ];
+    expect(DICTATION_MAX_RETAINED_WAV_BYTES).toBe(50 * 1024 * 1024);
+    expect(pruneSettledGroupWavs(groups, records)).toEqual([]);
+    expect(pruneSettledGroupWavs(groups, records, 31)).toEqual([100, 101]);
+    expect(records.map((record) => record.wav)).toEqual([
+      undefined,
+      undefined,
+      ...statuses.slice(2).map(() => wav),
+    ]);
+    expect(pruneSettledGroupWavs(groups, records, 0)).toEqual([102]);
+    expect(records.slice(3).every((record) => record.wav === wav)).toBe(true);
+    expect(groups[0]?.refinedText).toBe('Finished together.');
+  });
+
+  it('keeps audio when neither completed primaries nor a refined range have non-blank text', () => {
+    const segment = makeSegment({ voiced: 1 });
+    const records: RefinementSegmentRecord[] = [
+      { segment, wav: segment.wav, status: 'completed', text: ' \t' },
+      { segment: { ...segment, index: 1 }, wav: segment.wav, status: 'completed' },
+    ];
+    const groups: RefinementGroup[] = [
+      { startIndex: 0, endIndex: 0, state: 'fallback' },
+      { startIndex: 1, endIndex: 1, state: 'refined', refinedText: ' \n' },
+    ];
+    expect(pruneSettledGroupWavs(groups, records, 0)).toEqual([]);
+    expect(records.map((record) => record.wav)).toEqual([segment.wav, segment.wav]);
   });
 
   it('selects live rolling or queued refinements chronologically and summarizes progressive coverage', () => {

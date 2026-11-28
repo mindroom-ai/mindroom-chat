@@ -2057,7 +2057,6 @@
       "statusPendingRetry_one": "{{count}} segmento pendiente de reintento",
       "statusPendingRetry_many": "{{count}} segmentos pendientes de reintento",
       "statusPendingRetry_other": "{{count}} segmentos pendientes de reintento",
-      "capReached": "Límite de 5:00 alcanzado",
       "micInterrupted": "Micrófono desconectado. Reanuda o finaliza.",
       "failedSummary_one": "No se pudo transcribir {{count}} segmento.",
       "failedSummary_many": "No se pudieron transcribir {{count}} segmentos.",
