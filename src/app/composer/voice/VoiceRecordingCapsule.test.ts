@@ -66,7 +66,7 @@ vi.mock('../../messages/content/voice/VoiceWaveform.css', () => ({
 describe('VoiceRecordingCapsule', () => {
   it('glides the waveform only while recording', () => {
     const props = {
-      elapsedMs: 12000,
+      elapsedMs: 3_905_000,
       waveform: createFallbackWaveform(),
       sampleCount: 7,
       canPause: true,
@@ -82,6 +82,7 @@ describe('VoiceRecordingCapsule', () => {
     });
     const liveCount = () => renderer.root.findByType(VoiceWaveform).props.liveSampleCount;
     expect(liveCount()).toBe(7);
+    expect(renderer.root.findByProps({ className: 'Timer' }).props.children).toBe('1:05:05');
 
     (['paused', 'sending'] as const).forEach((phase) => {
       act(() => renderer.update(React.createElement(VoiceRecordingCapsule, { ...props, phase })));

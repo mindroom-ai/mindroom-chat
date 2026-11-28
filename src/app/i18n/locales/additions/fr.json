@@ -2057,7 +2057,6 @@
       "statusPendingRetry_one": "{{count}} segment en attente de nouvel essai",
       "statusPendingRetry_many": "{{count}} segments en attente de nouvel essai",
       "statusPendingRetry_other": "{{count}} segments en attente de nouvel essai",
-      "capReached": "Limite de 5:00 atteinte",
       "micInterrupted": "Microphone déconnecté. Reprenez ou terminez.",
       "failedSummary_one": "Impossible de transcrire {{count}} segment.",
       "failedSummary_many": "Impossible de transcrire {{count}} segments.",

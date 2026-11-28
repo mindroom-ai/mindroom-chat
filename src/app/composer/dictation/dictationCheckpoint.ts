@@ -18,7 +18,6 @@ import {
   DICTATION_FRAME_SAMPLES,
   DICTATION_HARD_CUT_FRAMES,
   DICTATION_HARD_CUT_OVERLAP_FRAMES,
-  DICTATION_MAX_ACTIVE_FRAMES,
   DICTATION_MAX_SEGMENT_BYTES,
   DICTATION_SAMPLE_RATE,
   DICTATION_WAV_HEADER_BYTES,
@@ -50,19 +49,17 @@ export type RecoveredDictationRecord = {
 export type RecoveredDictationState = {
   startedAt: number;
   elapsedMs: number;
-  capReached: boolean;
   originApiUrl?: string;
   originRoomId?: string;
   records: RecoveredDictationRecord[];
   groups: RefinementGroup[];
   initialSegmentIndex: number;
-  initialActiveFrames: number;
+  initialFramePos: number;
 };
 
 export type SerializableDictationState = {
   startedAt: number;
   elapsedMs: number;
-  capReached: boolean;
   consumedThroughFramePos?: number;
   originApiUrl?: string;
   originRoomId?: string;
@@ -74,10 +71,13 @@ export type SerializableDictationState = {
 };
 
 export type DictationCheckpointer = {
-  checkpointState: (clearAllTail?: boolean) => Promise<void>;
+  checkpointState: (
+    pruneSegmentIndices?: readonly number[],
+    clearAllTail?: boolean
+  ) => Promise<void>;
   pushTailFrame: (frame: Float32Array, pos: number) => void;
   flushTailBuffer: () => void;
-  commitSegment: (segment: DictationSegment) => void;
+  commitSegment: (segment: DictationSegment, pruneSegmentIndices?: readonly number[]) => void;
   clearTailState: () => void;
   resetTailState: () => void;
   getJournalId: () => string | undefined;
@@ -99,8 +99,7 @@ export type PreparedDictationRecovery = {
   tailSegments: DictationSegment[];
   effectiveElapsedMs: number;
   initialSegmentIndex: number;
-  initialActiveFrames: number;
-  capReached: boolean;
+  initialFramePos: number;
   isEmpty: boolean;
 };
 
@@ -109,7 +108,6 @@ export const serializeDictationMeta = (
 ): DictationJournalMeta => ({
   startedAt: state.startedAt,
   elapsedMs: state.elapsedMs,
-  capReached: state.capReached,
   ...(state.consumedThroughFramePos !== undefined
     ? { consumedThroughFramePos: state.consumedThroughFramePos }
     : {}),
@@ -163,7 +161,8 @@ export const hydrateDictationRecords = (
 /** Manages live journal checkpoints and periodic delta PCM tail buffering. */
 export const createDictationCheckpointer = (
   initialJournal: DictationJournalHandle | undefined,
-  readState: () => Omit<SerializableDictationState, 'consumedThroughFramePos'>
+  readState: () => Omit<SerializableDictationState, 'consumedThroughFramePos'>,
+  getUnconsumedFramePos?: () => number | undefined
 ): DictationCheckpointer => {
   let journal = initialJournal;
   let tailFrames: Float32Array[] = [];
@@ -171,26 +170,19 @@ export const createDictationCheckpointer = (
   let tailEndPos = 0;
   let tailSeq = 0;
   let lastConsumedFramePos: number | undefined;
+  let lastPrunedDiskTailPos = -1;
+  let lastWrittenTailEndPos: number | undefined;
 
   const buildJournalMeta = (): DictationJournalMeta =>
     serializeDictationMeta({ ...readState(), consumedThroughFramePos: lastConsumedFramePos });
 
-  const checkpointState = (clearAllTail?: boolean): Promise<void> => {
+  const checkpointState = (
+    pruneSegmentIndices?: readonly number[],
+    clearAllTail?: boolean
+  ): Promise<void> => {
     if (!journal) return Promise.resolve();
-    return journal.updateState(buildJournalMeta(), undefined, clearAllTail).catch(() => undefined);
-  };
-
-  const flushTailBuffer = () => {
-    if (!journal || tailFrames.length === 0 || tailStartPos === undefined) return;
-    const framesToWrite = tailFrames;
-    const startPos = tailStartPos;
-    const endPos = tailEndPos;
-    tailFrames = [];
-    tailStartPos = undefined;
-    const seq = tailSeq;
-    tailSeq += 1;
-    void journal
-      .appendTail(seq, encodePcm16Frames(framesToWrite), readState().elapsedMs, startPos, endPos)
+    return journal
+      .updateState(buildJournalMeta(), pruneSegmentIndices, clearAllTail)
       .catch(() => undefined);
   };
 
@@ -207,6 +199,46 @@ export const createDictationCheckpointer = (
     }
   };
 
+  const flushTailBuffer = () => {
+    if (!journal) return;
+    const unconsumedPos = getUnconsumedFramePos?.();
+    pruneTailBufferThrough(unconsumedPos);
+    const pruneBefore =
+      unconsumedPos !== undefined &&
+      lastWrittenTailEndPos !== undefined &&
+      unconsumedPos > lastPrunedDiskTailPos
+        ? unconsumedPos
+        : undefined;
+    if (tailStartPos === undefined && pruneBefore === undefined) return;
+
+    const pcm16 = tailFrames.length > 0 ? encodePcm16Frames(tailFrames) : null;
+    if (pruneBefore !== undefined) {
+      lastPrunedDiskTailPos = pruneBefore;
+      if ((lastWrittenTailEndPos ?? 0) <= pruneBefore) lastWrittenTailEndPos = undefined;
+    }
+    if (pcm16) lastWrittenTailEndPos = tailEndPos;
+    void journal
+      .appendTail(
+        tailSeq++,
+        pcm16,
+        readState().elapsedMs,
+        tailStartPos ?? tailEndPos,
+        tailEndPos,
+        pruneBefore
+      )
+      .catch(() => undefined);
+    tailFrames = [];
+    tailStartPos = undefined;
+  };
+
+  const clearTailState = () => {
+    tailFrames = [];
+    tailStartPos = undefined;
+    lastConsumedFramePos = undefined;
+    lastWrittenTailEndPos = undefined;
+    lastPrunedDiskTailPos = -1;
+  };
+
   return {
     checkpointState,
     pushTailFrame: (frame, pos) => {
@@ -217,7 +249,7 @@ export const createDictationCheckpointer = (
       if (tailFrames.length >= TAIL_CHECKPOINT_FRAMES) flushTailBuffer();
     },
     flushTailBuffer,
-    commitSegment: (segment) => {
+    commitSegment: (segment, pruneSegmentIndices) => {
       pruneTailBufferThrough(segment.consumedThroughFramePos);
       if (segment.consumedThroughFramePos !== undefined) {
         lastConsumedFramePos = segment.consumedThroughFramePos;
@@ -225,21 +257,15 @@ export const createDictationCheckpointer = (
       if (!journal || !segment.wavBuffer) return;
       const journalMeta = buildJournalMeta();
       void journal
-        .commitSegment(segment.index, segment.wavBuffer, journalMeta)
+        .commitSegment(segment.index, segment.wavBuffer, journalMeta, pruneSegmentIndices)
         .catch(() => undefined);
       if (segment.cutReason === 'hard' && tailFrames.length > 0) flushTailBuffer();
     },
-    clearTailState: () => {
-      tailFrames = [];
-      tailStartPos = undefined;
-      lastConsumedFramePos = undefined;
-    },
+    clearTailState,
     resetTailState: () => {
-      tailFrames = [];
-      tailStartPos = undefined;
+      clearTailState();
       tailEndPos = 0;
       tailSeq = 0;
-      lastConsumedFramePos = undefined;
     },
     getJournalId: () => journal?.id,
     takeJournal: () => {
@@ -366,7 +392,6 @@ export const replayDictationTail = async ({
   const tailSegmenter = new DictationSegmenter({
     initialSegmentIndex,
     initialOverlapped,
-    maxActiveFrames: Infinity,
     onSegment: (seg) => segments.push(seg),
   });
   for (const frame of replayedFrames) tailSegmenter.pushFrame(frame);
@@ -443,7 +468,12 @@ export const prepareRecoveredDictation = async (
     records.reduce((total, record) => total + record.segment.seconds, 0) *
       (DICTATION_SAMPLE_RATE / DICTATION_FRAME_SAMPLES)
   );
-  const initialActiveFrames = elapsedFrames > 0 ? elapsedFrames : segmentFrames;
+  const maxTailEndPos = tailChunks.reduce((max, chunk) => Math.max(max, chunk.endFramePos), 0);
+  const initialFramePos = Math.max(
+    meta.consumedThroughFramePos ?? 0,
+    maxTailEndPos,
+    elapsedFrames > 0 ? elapsedFrames : segmentFrames
+  );
 
   return {
     records,
@@ -451,8 +481,7 @@ export const prepareRecoveredDictation = async (
     tailSegments,
     effectiveElapsedMs,
     initialSegmentIndex: records.length,
-    initialActiveFrames,
-    capReached: meta.capReached || initialActiveFrames >= DICTATION_MAX_ACTIVE_FRAMES,
+    initialFramePos,
     isEmpty,
   };
 };
@@ -465,9 +494,10 @@ export const persistRecoveredTail = (
   journal: DictationJournalHandle,
   state: SerializableDictationState,
   tailSegments: readonly DictationSegment[],
-  tailChunkCount: number
+  tailChunkCount: number,
+  hasConsumedCursor: boolean
 ): void => {
-  if (tailSegments.length === 0 && tailChunkCount === 0) return;
+  if (tailSegments.length === 0 && tailChunkCount === 0 && !hasConsumedCursor) return;
   const recoveredMeta = serializeDictationMeta(state);
   const putSegments = tailSegments
     .filter((seg): seg is DictationSegment & { wavBuffer: ArrayBuffer } => Boolean(seg.wavBuffer))

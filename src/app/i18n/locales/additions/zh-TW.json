@@ -1925,7 +1925,6 @@
       "sendFailedOffThread": "無法完成 {{room}} 中的聽寫訊息。請開啟並重試。",
       "sendFailedOffTarget": "無法完成 {{room}} 中的聽寫訊息。請再次選擇 {{room}} 以重試。",
       "statusPendingRetry_other": "{{count}} 個片段等待重試",
-      "capReached": "已達到 5:00 上限",
       "micInterrupted": "麥克風已中斷連線。請繼續或完成。",
       "failedSummary_other": "無法轉寫 {{count}} 個片段。",
       "discardDictation": "捨棄聽寫",

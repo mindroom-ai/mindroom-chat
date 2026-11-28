@@ -65,7 +65,6 @@ const makeSegment = (
 const makeMeta = (overrides: Partial<DictationJournalMeta> = {}): DictationJournalMeta => ({
   startedAt: 1_700_000_000_000,
   elapsedMs: 0,
-  capReached: false,
   originApiUrl: 'https://server.example.org',
   originRoomId: '!room:example.org',
   segments: [],
@@ -171,6 +170,32 @@ it('offers only unlocked voice records, and releases one the draft slot cannot t
   expect(again).not.toHaveBeenCalled();
 });
 
+it('prunes only fully obsolete tail rows and writes no empty or obsolete replacement', async () => {
+  const journal = beginDictationJournal(SESSION_A, makeMeta())!;
+  await journal.appendTail(0, pcmFrames(10, 1), 960, 0, 10);
+  await journal.appendTail(1, pcmFrames(10, 2), 1_920, 10, 20);
+  await journal.appendTail(2, pcmFrames(4, 3), 2_304, 8, 12, 12);
+  journal.release();
+  await Promise.resolve();
+
+  await recoverDictationJournal(SESSION_A, async ({ meta, tailChunks, journal: recovered }) => {
+    expect(meta.elapsedMs).toBe(2_304);
+    expect(tailChunks).toMatchObject([{ seq: 1, startFramePos: 10, endFramePos: 20 }]);
+    await recovered.appendTail(3, null, 2_400, 20, 20, 20);
+    recovered.release();
+    return true;
+  });
+  await Promise.resolve();
+  const offer = vi.fn(() => false);
+  await recoverDictationJournal(SESSION_A, offer);
+  expect(offer).toHaveBeenCalledExactlyOnceWith(
+    expect.objectContaining({
+      tailChunks: [],
+      meta: expect.objectContaining({ elapsedMs: 2_400 }),
+    })
+  );
+});
+
 it('persists dictation tail chunks, drops fully-consumed chunks via consumedThroughFramePos, and prunes locked WAVs', async () => {
   const journal = beginDictationJournal(SESSION_A, makeMeta())!;
   expect(journal).toBeDefined();
@@ -191,19 +216,8 @@ it('persists dictation tail chunks, drops fully-consumed chunks via consumedThro
   });
   await journal.commitSegment(0, wav0, metaAfterSeg0);
 
-  // Emit segment 1, then lock segment 0 and prune its WAV.
+  // Emit segment 1 and prune the now-settled segment 0 WAV in the same write.
   const wav1 = new Uint8Array([5, 6, 7, 8]).buffer;
-  const metaAfterSeg1 = makeMeta({
-    elapsedMs: 3_500,
-    consumedThroughFramePos: 18,
-    segments: [
-      makeSegment(0, { status: 'completed', text: 'hello' }),
-      makeSegment(1, { overlapped: true, cutReason: 'hard' }),
-    ],
-    groups: [{ startIndex: 0, endIndex: 1, state: 'open' }],
-  });
-  await journal.commitSegment(1, wav1, metaAfterSeg1);
-
   const metaPruned = makeMeta({
     elapsedMs: 3_500,
     consumedThroughFramePos: 18,
@@ -212,10 +226,11 @@ it('persists dictation tail chunks, drops fully-consumed chunks via consumedThro
       makeSegment(1, { overlapped: true, cutReason: 'hard' }),
     ],
     groups: [
-      { startIndex: 0, endIndex: 1, state: 'refined', refinedText: 'Hello', refinedEndIndex: 0 },
+      { startIndex: 0, endIndex: 0, state: 'fallback' },
+      { startIndex: 1, endIndex: 1, state: 'fallback' },
     ],
   });
-  await journal.updateState(metaPruned, [0]);
+  await journal.commitSegment(1, wav1, metaPruned, [0]);
 
   expect(await hasDictationJournalRecord(SESSION_A)).toBe(true);
   expect(await hasDictationJournalRecord(SESSION_B)).toBe(false);

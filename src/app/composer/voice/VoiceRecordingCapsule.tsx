@@ -2,7 +2,7 @@ import type { AriaRole, ReactNode } from 'react';
 import { Box, Icon, Icons, Spinner, Text, type IconSrc } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
-import { millisecondsToMinutesAndSeconds } from '../../lib/common';
+import { formatClockDurationMs } from '../../lib/time';
 import { VoiceWaveform } from '../../messages/content/voice/VoiceWaveform';
 import { VoiceRecorderPhase } from './useVoiceRecorder';
 import { useLiquidGlass } from '../../ui/glass/liquid/useLiquidGlass';
@@ -146,7 +146,7 @@ export function VoiceRecordingCapsule({
   const recording = phase === 'recording';
   const pendingReady = hasPendingSend && phase === 'idle';
   const pauseDisabled = pendingReady || busy || (!paused && (!recording || !canPause));
-  const time = millisecondsToMinutesAndSeconds(elapsedMs);
+  const time = formatClockDurationMs(elapsedMs);
   const statusText = pendingReady
     ? t('mindroomUi.voice.statusReadyToRetry')
     : t(getStatusKey(phase));

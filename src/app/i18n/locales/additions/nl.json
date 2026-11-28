@@ -1991,7 +1991,6 @@
       "sendFailedOffTarget": "Kan gedicteerd bericht in {{room}} niet voltooien. Kies {{room}} opnieuw om opnieuw te proberen.",
       "statusPendingRetry_one": "{{count}} fragment wacht op een nieuwe poging",
       "statusPendingRetry_other": "{{count}} fragmenten wachten op een nieuwe poging",
-      "capReached": "Limiet van 5:00 bereikt",
       "micInterrupted": "Microfoon verbroken. Hervat of voltooi.",
       "failedSummary_one": "Kan {{count}} fragment niet transcriberen.",
       "failedSummary_other": "Kan {{count}} fragmenten niet transcriberen.",

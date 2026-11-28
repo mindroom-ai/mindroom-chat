@@ -64,28 +64,53 @@ const extractMissingAudioPartialText = (
   return stitched.length > 0 ? stitched : undefined;
 };
 
-const computeWaveformFromPcm16 = (view: DataView, totalSamples: number): number[] => {
-  if (totalSamples <= 0) return normalizeMatrixWaveform([], VOICE_WAVEFORM_BAR_COUNT);
+type PcmPart = Blob | Uint8Array<ArrayBuffer>;
+
+const computeWaveformFromPcm16 = async (
+  parts: readonly PcmPart[],
+  totalSamples: number
+): Promise<number[]> => {
   const bucketCount = Math.min(VOICE_WAVEFORM_BAR_COUNT, totalSamples);
-  const points: number[] = [];
-  for (let bar = 0; bar < bucketCount; bar += 1) {
-    const start = Math.floor((bar * totalSamples) / bucketCount);
-    const end = Math.max(start + 1, Math.floor(((bar + 1) * totalSamples) / bucketCount));
-    let squareSum = 0;
-    for (let sampleIndex = start; sampleIndex < end; sampleIndex += 1) {
-      const sample = view.getInt16(sampleIndex * 2, true);
-      const normalized = sample < 0 ? sample / 0x8000 : sample / 0x7fff;
-      squareSum += normalized * normalized;
+  const ends = Array.from({ length: bucketCount }, (_, bar) =>
+    Math.floor(((bar + 1) * totalSamples) / bucketCount)
+  );
+  const squareSums = new Float64Array(bucketCount);
+  let sampleIndex = 0;
+  let bar = 0;
+  for (const part of parts) {
+    if (!(part instanceof Blob)) {
+      // Uint8Array parts are zero-filled silence pads, with no contribution to RMS.
+      sampleIndex += part.byteLength / 2;
+      while (bar < bucketCount && sampleIndex >= ends[bar]!) bar += 1;
+      continue;
     }
-    points.push(analyserRmsToMatrixPoint(Math.sqrt(squareSum / (end - start))));
+    // eslint-disable-next-line no-await-in-loop -- Only materialize one segment at a time.
+    const view = new DataView(await part.arrayBuffer());
+    const start = sampleIndex;
+    const end = start + view.byteLength / 2;
+    while (sampleIndex < end) {
+      const bucketEnd = ends[bar]!;
+      const stop = Math.min(bucketEnd, end);
+      let squareSum = squareSums[bar]!;
+      for (; sampleIndex < stop; sampleIndex += 1) {
+        const sample = view.getInt16((sampleIndex - start) * 2, true);
+        const normalized = sample < 0 ? sample / 0x8000 : sample / 0x7fff;
+        squareSum += normalized * normalized;
+      }
+      squareSums[bar] = squareSum;
+      if (sampleIndex === bucketEnd) bar += 1;
+    }
   }
+  const points = ends.map((end, i) =>
+    analyserRmsToMatrixPoint(Math.sqrt(squareSums[i]! / (end - (ends[i - 1] ?? 0))))
+  );
   return normalizeMatrixWaveform(points, VOICE_WAVEFORM_BAR_COUNT);
 };
 
 /**
  * Stitches captured dictation segment WAVs into a single 16 kHz mono PCM16 voice message File
  * with duration and 48-bar Matrix waveform. Removes hard-cut overlap frames seamlessly and
- * returns any partial transcript covering missing WAVs in legacy recovered journals.
+ * returns any partial transcript covering pruned or otherwise missing WAVs.
  */
 export const buildDictationVoiceAudio = async (
   records: readonly RefinementSegmentRecord[],
@@ -144,7 +169,7 @@ export const buildDictationVoiceAudio = async (
     };
   });
 
-  const pcmParts: BlobPart[] = [];
+  const pcmParts: PcmPart[] = [];
   for (let i = 0; i < slices.length; i += 1) {
     const slice = slices[i]!;
     if (slice.byteEnd > slice.byteStart) {
@@ -158,19 +183,21 @@ export const buildDictationVoiceAudio = async (
       if (padFrames > 0) pcmParts.push(new Uint8Array(padFrames * FRAME_BYTES));
     }
   }
-  const pcmBlob = new Blob(pcmParts);
-  if (pcmBlob.size < 2) return undefined;
+  const totalPcmBytes = pcmParts.reduce(
+    (total, part) => total + (part instanceof Blob ? part.size : part.byteLength),
+    0
+  );
+  if (totalPcmBytes < 2) return undefined;
 
   // Snapshot any missing-WAV partial text before awaiting Blob reads so caller mutations cannot race.
   const missingAudioPartialText = extractMissingAudioPartialText(records, groups);
 
-  const pcmBuffer = await pcmBlob.arrayBuffer();
-  const totalSamples = Math.floor(pcmBuffer.byteLength / 2);
+  const totalSamples = totalPcmBytes / 2;
   const duration = Math.max(1, Math.round((totalSamples / DICTATION_SAMPLE_RATE) * 1000));
-  const waveform = computeWaveformFromPcm16(new DataView(pcmBuffer), totalSamples);
+  const waveform = await computeWaveformFromPcm16(pcmParts, totalSamples);
   const timestamp = new Date(nowMs).toISOString().replace(/[:.]/g, '-');
   const file = new File(
-    [buildPcm16WavHeader(pcmBuffer.byteLength, DICTATION_SAMPLE_RATE), pcmBuffer],
+    [buildPcm16WavHeader(totalPcmBytes, DICTATION_SAMPLE_RATE), ...pcmParts],
     `voice-message-${timestamp}.wav`,
     { type: 'audio/wav' }
   );

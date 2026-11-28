@@ -142,15 +142,19 @@ export const formatDurationParts = (
 };
 
 /**
- * A moment of a call, from its start, as a clock: `m:ss`, from an hour on `h:mm:ss`; fractions
- * round down.
+ * An elapsed duration as a clock: `m:ss`, from an hour on `h:mm:ss`; fractions round down.
  */
-export const formatCallOffset = (seconds: number): string => {
-  const total = Math.max(0, Math.floor(seconds));
+export const formatClockDuration = (seconds: number): string => {
+  const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0;
   const hours = Math.floor(total / 3600);
   const clock = secondsToMinutesAndSeconds(total % 3600);
   return hours > 0 ? `${hours}:${clock.padStart(5, '0')}` : clock;
 };
+
+export const formatClockDurationMs = (milliseconds: number): string =>
+  formatClockDuration(milliseconds / 1000);
+
+export const formatCallOffset = (seconds: number): string => formatClockDuration(seconds);
 
 /** Whether both timestamps fall on the same local calendar day. */
 export const inSameDay = (ts1: number, ts2: number): boolean => {

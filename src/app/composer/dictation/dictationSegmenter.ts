@@ -5,8 +5,6 @@ export const DICTATION_FRAME_SAMPLES = 1_536;
 export const DICTATION_FRAME_MS = (DICTATION_FRAME_SAMPLES / DICTATION_SAMPLE_RATE) * 1000;
 export const DICTATION_WAV_HEADER_BYTES = 44;
 export const DICTATION_MAX_SEGMENT_BYTES = 1_000_000;
-/** Hard 5-minute active capture cap in 96 ms dictation frames. */
-export const DICTATION_MAX_ACTIVE_FRAMES = Math.floor((5 * 60 * 1000) / DICTATION_FRAME_MS);
 
 const POSITIVE_SPEECH_THRESHOLD = 0.5;
 const NEGATIVE_SPEECH_THRESHOLD = 0.35;
@@ -47,11 +45,9 @@ export type VadScorer = {
 export type DictationSegmenterOptions = {
   onSegment: (segment: DictationSegment) => void;
   onLongSilence?: () => void;
-  onCapReached?: () => void;
-  maxActiveFrames?: number;
   longSilenceFrames?: number;
   initialSegmentIndex?: number;
-  initialActiveFrames?: number;
+  initialFramePos?: number;
   initialOverlapped?: boolean;
 };
 
@@ -176,8 +172,6 @@ export const encodePcm16Wav = (
 export class DictationSegmenter {
   private readonly onSegment: (segment: DictationSegment) => void;
   private readonly onLongSilence?: () => void;
-  private readonly onCapReached?: () => void;
-  private readonly maxActiveFrames: number;
   private readonly longSilenceFrames: number;
 
   private scorer: VadScorer | null = null;
@@ -190,10 +184,8 @@ export class DictationSegmenter {
   private quietFrames = 0;
   private nextSegmentOverlapped = false;
 
-  private activeFrames: number;
   private pushedFramePos: number;
   private scoredFramePos: number;
-  private capReached: boolean;
   private segmentIndex: number;
   private silenceSinceLastSegmentFrames = 0;
   private longSilenceFired = false;
@@ -203,30 +195,21 @@ export class DictationSegmenter {
   constructor(options: DictationSegmenterOptions) {
     this.onSegment = options.onSegment;
     this.onLongSilence = options.onLongSilence;
-    this.onCapReached = options.onCapReached;
-    this.maxActiveFrames = options.maxActiveFrames ?? DICTATION_MAX_ACTIVE_FRAMES;
     this.longSilenceFrames = Math.max(1, options.longSilenceFrames ?? DEFAULT_LONG_SILENCE_FRAMES);
     this.segmentIndex = Math.max(0, options.initialSegmentIndex ?? 0);
-    this.activeFrames = Math.max(0, options.initialActiveFrames ?? 0);
-    this.pushedFramePos = this.activeFrames;
-    this.scoredFramePos = this.activeFrames;
-    this.capReached = this.activeFrames >= this.maxActiveFrames;
+    const initialFramePos = Math.max(0, options.initialFramePos ?? 0);
+    this.pushedFramePos = initialFramePos;
+    this.scoredFramePos = initialFramePos;
     this.nextSegmentOverlapped = Boolean(options.initialOverlapped);
   }
 
   /** Pushes one PCM frame and returns its monotonic frame position, or null when ignored. */
   pushFrame(frame: Float32Array): number | null {
-    if (this.cleared || this.capReached) return null;
+    if (this.cleared) return null;
 
     const pos = this.pushedFramePos;
     this.pushedFramePos += 1;
-    this.activeFrames += 1;
     this.pendingFrames.push({ frame, pos });
-    if (this.activeFrames >= this.maxActiveFrames) {
-      this.capReached = true;
-      this.onCapReached?.();
-    }
-    if (this.cleared) return null;
 
     if (this.scorer) void this.scheduleDrain();
     return pos;

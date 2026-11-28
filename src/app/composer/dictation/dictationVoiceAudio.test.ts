@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest';
-import { VOICE_WAVEFORM_BAR_COUNT, VOICE_WAVEFORM_MAX } from '../../lib/audioWaveform';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  analyserRmsToMatrixPoint,
+  normalizeMatrixWaveform,
+  VOICE_WAVEFORM_BAR_COUNT,
+  VOICE_WAVEFORM_MAX,
+} from '../../lib/audioWaveform';
 import {
   MIN_INTERNAL_GAP_FRAMES,
   type RefinementGroup,
@@ -148,10 +153,10 @@ describe('dictationVoiceAudio', () => {
     expect(Math.max(...result!.waveform)).toBeGreaterThan(800);
   });
 
-  it('pads multi-segment natural/soft pauses up to MIN_INTERNAL_GAP_FRAMES silence', async () => {
+  it('streams PCM slices across waveform buckets with exact RMS parity and silence padding', async () => {
     const seg0 = makeRecord({
       index: 0,
-      frames: [0.2, 0.3].map(makeConstFrame),
+      frames: [0.2, -0.3].map(makeConstFrame),
       cutReason: 'flush',
     });
     const seg1 = makeRecord({
@@ -160,7 +165,16 @@ describe('dictationVoiceAudio', () => {
       cutReason: 'natural',
     });
 
-    const result = await buildDictationVoiceAudio([seg0, seg1], [], NOW);
+    const originalRead = Blob.prototype.arrayBuffer;
+    const sizes: number[] = [];
+    const reads = vi.spyOn(Blob.prototype, 'arrayBuffer').mockImplementation(function (this: Blob) {
+      sizes.push(this.size);
+      return originalRead.call(this);
+    });
+    const result = await buildDictationVoiceAudio([seg0, seg1], [], NOW).finally(() =>
+      reads.mockRestore()
+    );
+    expect(sizes).toEqual([2 * FRAME_BYTES, 2 * FRAME_BYTES]);
     expect(result).toBeDefined();
 
     const parsed = await readWavHeaderAndSamples(result!.file);
@@ -170,9 +184,24 @@ describe('dictationVoiceAudio', () => {
       Array.from({ length: MIN_INTERNAL_GAP_FRAMES }, () => 0)
     );
     expect(parsed.frameValues[0]).toBeGreaterThan(0);
-    expect(parsed.frameValues[1]).toBeGreaterThan(parsed.frameValues[0]!);
-    expect(parsed.frameValues[2 + MIN_INTERNAL_GAP_FRAMES]).toBeGreaterThan(parsed.frameValues[1]!);
+    expect(parsed.frameValues[1]).toBeLessThan(0);
+    expect(parsed.frameValues[2 + MIN_INTERNAL_GAP_FRAMES]).toBeGreaterThan(0);
     expect(result!.duration).toBe(Math.round((4 + MIN_INTERNAL_GAP_FRAMES) * DICTATION_FRAME_MS));
+
+    const view = new DataView(await result!.file.arrayBuffer(), DICTATION_WAV_HEADER_BYTES);
+    const total = view.byteLength / 2;
+    const points = Array.from({ length: VOICE_WAVEFORM_BAR_COUNT }, (_, bar) => {
+      const start = Math.floor((bar * total) / VOICE_WAVEFORM_BAR_COUNT);
+      const end = Math.floor(((bar + 1) * total) / VOICE_WAVEFORM_BAR_COUNT);
+      let squareSum = 0;
+      for (let i = start; i < end; i += 1) {
+        const sample = view.getInt16(i * 2, true);
+        const normalized = sample / (sample < 0 ? 0x8000 : 0x7fff);
+        squareSum += normalized * normalized;
+      }
+      return analyserRmsToMatrixPoint(Math.sqrt(squareSum / (end - start)));
+    });
+    expect(result!.waveform).toEqual(normalizeMatrixWaveform(points, VOICE_WAVEFORM_BAR_COUNT));
   });
 
   it('removes hard-cut overlap frames with zero gap across single and chained hard cuts', async () => {

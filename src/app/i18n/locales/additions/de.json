@@ -1991,7 +1991,6 @@
       "sendFailedOffTarget": "Die diktierte Nachricht in {{room}} konnte nicht abgeschlossen werden. Wähle {{room}} erneut aus, um es erneut zu versuchen.",
       "statusPendingRetry_one": "{{count}} Abschnitt wartet auf Wiederholung",
       "statusPendingRetry_other": "{{count}} Abschnitte warten auf Wiederholung",
-      "capReached": "Limit von 5:00 erreicht",
       "micInterrupted": "Mikrofon getrennt. Fortsetzen oder beenden.",
       "failedSummary_one": "{{count}} Abschnitt konnte nicht transkribiert werden.",
       "failedSummary_other": "{{count}} Abschnitte konnten nicht transkribiert werden.",

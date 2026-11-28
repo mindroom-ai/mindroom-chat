@@ -1991,7 +1991,6 @@
       "sendFailedOffTarget": "{{room}} में डिक्टेट किया गया संदेश समाप्त नहीं हो सका। पुनः प्रयास करने के लिए {{room}} को फिर से चुनें।",
       "statusPendingRetry_one": "{{count}} खंड पुनः प्रयास के लिए लंबित",
       "statusPendingRetry_other": "{{count}} खंड पुनः प्रयास के लिए लंबित",
-      "capReached": "5:00 सीमा पूरी हो गई",
       "micInterrupted": "माइक्रोफ़ोन डिस्कनेक्ट हो गया। फिर से शुरू करें या समाप्त करें।",
       "failedSummary_one": "{{count}} खंड का ट्रांसक्रिप्शन नहीं हो सका।",
       "failedSummary_other": "{{count}} खंडों का ट्रांसक्रिप्शन नहीं हो सका।",

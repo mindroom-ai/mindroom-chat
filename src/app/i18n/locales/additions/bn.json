@@ -1991,7 +1991,6 @@
       "sendFailedOffTarget": "{{room}}-এ ডিকটেট করা বার্তা শেষ করা যায়নি। আবার চেষ্টা করতে পুনরায় {{room}} বেছে নিন।",
       "statusPendingRetry_one": "{{count}}টি অংশ পুনরায় চেষ্টার অপেক্ষায়",
       "statusPendingRetry_other": "{{count}}টি অংশ পুনরায় চেষ্টার অপেক্ষায়",
-      "capReached": "5:00 সীমা পূর্ণ হয়েছে",
       "micInterrupted": "মাইক্রোফোন বিচ্ছিন্ন হয়েছে। আবার শুরু করুন বা শেষ করুন।",
       "failedSummary_one": "{{count}}টি অংশ ট্রান্সক্রাইব করা যায়নি।",
       "failedSummary_other": "{{count}}টি অংশ ট্রান্সক্রাইব করা যায়নি।",

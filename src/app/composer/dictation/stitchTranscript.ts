@@ -22,18 +22,26 @@ type WordSpan = {
 const normalizeWord = (word: string): string =>
   word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
 
-const scanWords = (text: string): WordSpan[] => {
+const scanTrailingWords = (text: string, maxWords: number): WordSpan[] => {
+  const spans: WordSpan[] = [];
+  let start = text.length;
+  while (start > 0 && spans.length < maxWords) {
+    while (start > 0 && /\s/.test(text.charAt(start - 1))) start -= 1;
+    const end = start;
+    while (start > 0 && /\S/.test(text.charAt(start - 1))) start -= 1;
+    if (start < end) spans.push({ norm: normalizeWord(text.slice(start, end)), start, end });
+  }
+  return spans.reverse();
+};
+
+const scanLeadingWords = (text: string, maxWords: number): WordSpan[] => {
   const spans: WordSpan[] = [];
   const matcher = /\S+/g;
-  let match: RegExpExecArray | null = matcher.exec(text);
-  while (match !== null) {
+  while (spans.length < maxWords) {
+    const match = matcher.exec(text);
+    if (!match) break;
     const raw = match[0];
-    spans.push({
-      norm: normalizeWord(raw),
-      start: match.index,
-      end: match.index + raw.length,
-    });
-    match = matcher.exec(text);
+    spans.push({ norm: normalizeWord(raw), start: match.index, end: match.index + raw.length });
   }
   return spans;
 };
@@ -54,7 +62,7 @@ export const needsSpaceBetween = (left: string, right: string): boolean => {
   if (GLUED_LEADING_PUNCTUATION.test(firstChar)) return false;
   if (
     OPENING_NO_SPACE.test(lastChar) ||
-    OPENING_ASCII_QUOTE.test(left) ||
+    OPENING_ASCII_QUOTE.test(left.slice(-2)) ||
     CJK_CLOSING_PUNCTUATION.test(lastChar)
   ) {
     return false;
@@ -90,8 +98,8 @@ export const buildTrailingPrompt = (text: string, maxChars = 200): string | unde
 };
 
 const deduplicateOverlap = (left: string, right: string): string => {
-  const leftWords = scanWords(left);
-  const rightWords = scanWords(right);
+  const leftWords = scanTrailingWords(left, MAX_OVERLAP_WORDS);
+  const rightWords = scanLeadingWords(right, MAX_OVERLAP_WORDS);
   const maxK = Math.min(MAX_OVERLAP_WORDS, leftWords.length, rightWords.length);
 
   for (let k = maxK; k >= 1; k -= 1) {
@@ -110,17 +118,22 @@ const deduplicateOverlap = (left: string, right: string): string => {
       return joinTranscriptParts(prefix, right);
     }
   }
-  if (CJK_CHAR.test(left) && CJK_CHAR.test(right)) {
-    const leftTrimmed = left.trimEnd().replace(/[。、，！？.,!?]+$/, '');
-    const rightTrimmed = right.trimStart();
-    const leftChars = Array.from(leftTrimmed);
-    const rightChars = Array.from(rightTrimmed);
+  const leftTrimmed = left.trimEnd();
+  let suffixEnd = leftTrimmed.length;
+  while (suffixEnd > 0 && /[。、，！？.,!?]/.test(leftTrimmed.charAt(suffixEnd - 1)))
+    suffixEnd -= 1;
+  const rightTrimmed = right.trimStart();
+  const leftTail = leftTrimmed.slice(Math.max(0, suffixEnd - MAX_CJK_OVERLAP_CHARS * 2), suffixEnd);
+  const rightHead = rightTrimmed.slice(0, MAX_CJK_OVERLAP_CHARS * 2);
+  if (CJK_CHAR.test(leftTail) && CJK_CHAR.test(rightHead)) {
+    const leftChars = Array.from(leftTail);
+    const rightChars = Array.from(rightHead);
     const maxChars = Math.min(MAX_CJK_OVERLAP_CHARS, leftChars.length, rightChars.length);
     for (let k = maxChars; k >= MIN_CJK_OVERLAP_CHARS; k -= 1) {
       const suffix = leftChars.slice(leftChars.length - k).join('');
       const prefix = rightChars.slice(0, k).join('');
       if (suffix === prefix && PURE_CJK_RUN.test(suffix)) {
-        const kept = leftChars.slice(0, leftChars.length - k).join('');
+        const kept = leftTrimmed.slice(0, suffixEnd - suffix.length);
         return joinTranscriptParts(kept, rightTrimmed);
       }
     }

@@ -2123,7 +2123,6 @@
       "statusPendingRetry_few": "{{count}} фрагмента ожидают повтора",
       "statusPendingRetry_many": "{{count}} фрагментов ожидают повтора",
       "statusPendingRetry_other": "{{count}} фрагмента ожидают повтора",
-      "capReached": "Достигнут лимит 5:00",
       "micInterrupted": "Микрофон отключен. Возобновите или завершите.",
       "failedSummary_one": "Не удалось расшифровать {{count}} фрагмент.",
       "failedSummary_few": "Не удалось расшифровать {{count}} фрагмента.",

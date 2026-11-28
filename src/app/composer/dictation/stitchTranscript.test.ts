@@ -74,6 +74,23 @@ describe('stitchTranscript overlap deduplication', () => {
     ]);
     expect(stitched).toBe('我昨天去了上海以后');
   });
+
+  it('deduplicates word and supplementary CJK overlap after a long transcript prefix', () => {
+    const prefix = 'Earlier words '.repeat(4_000);
+    expect(
+      appendTranscriptSegment(`${prefix}alpha beta!`, {
+        text: 'Alpha Beta continued.',
+        overlapped: true,
+      })
+    ).toBe(`${prefix}Alpha Beta continued.`);
+    const repeated = '𠀋'.repeat(12);
+    expect(
+      appendTranscriptSegment(`${prefix}去了${repeated}。`, {
+        text: `${repeated}以后`,
+        overlapped: true,
+      })
+    ).toBe(`${prefix}去了 ${repeated}以后`);
+  });
 });
 
 describe('buildTrailingPrompt', () => {

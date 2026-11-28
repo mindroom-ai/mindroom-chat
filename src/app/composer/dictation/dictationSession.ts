@@ -21,9 +21,12 @@ import {
 import {
   appendSegmentToGroups,
   buildGroupMergedWav,
+  buildRefinedTrailingPrompt,
   canAffordRefinement,
   createDictationRateBudget,
+  DICTATION_MAX_RETAINED_WAV_BYTES,
   isRecordCoveredByRefinement,
+  pruneSettledGroupWavs,
   recordDictationUpload,
   sealRefinementGroup,
   selectNextUpload,
@@ -41,7 +44,6 @@ import {
   type DictationVoiceAudio,
 } from './dictationVoiceAudio';
 import { loadSileroVad, type SileroVadInstance } from './sileroVad';
-import { buildTrailingPrompt } from './stitchTranscript';
 
 export type {
   DictationAudioCaptureOptions,
@@ -78,7 +80,6 @@ export type DictationSnapshot = {
   hasPartialText: boolean;
   hasVoiceAudio: boolean;
   previewText: string;
-  capReached: boolean;
   interrupted: boolean;
   recovered: boolean;
   hasClient: boolean;
@@ -111,7 +112,7 @@ export type DictationSessionOptions = DictationAudioCaptureOptions & {
   originApiUrl?: string;
   journal?: DictationJournalHandle;
   recovered?: RecoveredDictationState;
-  maxActiveFrames?: number;
+  maxRetainedWavBytes?: number;
   loadVad?: (signal?: AbortSignal) => Promise<SileroVadInstance>;
   captureFactory?: DictationCaptureFactory;
   now?: () => number;
@@ -161,7 +162,6 @@ const idleSnapshot = (hasClient: boolean, errorMessage?: string): DictationSnaps
   sampleCount: 0,
   ...EMPTY_STATS,
   hasVoiceAudio: false,
-  capReached: false,
   interrupted: false,
   recovered: false,
   hasClient,
@@ -198,7 +198,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     now = () => Date.now(),
     sleep = defaultSleep,
     finishPolishTimeoutMs = DEFAULT_FINISH_POLISH_TIMEOUT_MS,
-    maxActiveFrames,
+    maxRetainedWavBytes = DICTATION_MAX_RETAINED_WAV_BYTES,
     recovered,
   } = options;
   const captureFactory = options.captureFactory ?? createBrowserCaptureFactory(options);
@@ -241,7 +241,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     ? summarizeSessionRecords(records, groups)
     : EMPTY_STATS;
   let nextInitialSegmentIndex = recovered?.initialSegmentIndex ?? 0;
-  let nextInitialActiveFrames = recovered?.initialActiveFrames ?? 0;
+  let nextInitialFramePos = recovered?.initialFramePos ?? 0;
   let queuePromise: Promise<void> | undefined;
   let deferQueuePumpDepth = 0;
 
@@ -254,7 +254,6 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
         hasVoiceAudio: hasVoiceAudio(),
         phase: 'paused',
         elapsedMs: accumulatedMs,
-        capReached: recovered.capReached,
         recovered: true,
         hasClient: Boolean(activeClient),
       }
@@ -270,10 +269,9 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   const getPhase = (): DictationPhase => snapshot.phase;
   const isStale = (activeGen: number) =>
     generation !== activeGen || Boolean(sessionAbort?.signal.aborted);
-  const stitchCompleted = (limit = records.length): string =>
-    stitchRefinedSegments(records, groups, limit);
+  const stitchCompleted = (): string => stitchRefinedSegments(records, groups);
   const promptBefore = (index: number): string | undefined =>
-    index === 0 ? undefined : buildTrailingPrompt(stitchCompleted(index), 200);
+    buildRefinedTrailingPrompt(records, groups, index, 200);
 
   const applyRetryAfter = (error: unknown): number | undefined => {
     const retryAfterMs =
@@ -289,21 +287,23 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       ? accumulatedMs
       : Math.max(0, Math.round(accumulatedMs + (now() - recordingStartedAt)));
 
-  const checkpointer = createDictationCheckpointer(options.journal, () => ({
-    startedAt,
-    elapsedMs: currentElapsedMs(),
-    capReached: snapshot.capReached,
-    originApiUrl: activeOriginApiUrl,
-    originRoomId: activeRoomId,
-    records,
-    groups,
-  }));
+  const checkpointer = createDictationCheckpointer(
+    options.journal,
+    () => ({
+      startedAt,
+      elapsedMs: currentElapsedMs(),
+      originApiUrl: activeOriginApiUrl,
+      originRoomId: activeRoomId,
+      records,
+      groups,
+    }),
+    () => segmenter?.getUnconsumedStartFramePos()
+  );
 
   const publish = (patch: Partial<DictationSnapshot> = {}) => {
     snapshot = {
       ...snapshot,
       ...segmentStats,
-      hasVoiceAudio: hasVoiceAudio(),
       hasClient: Boolean(activeClient),
       ...patch,
     };
@@ -312,7 +312,14 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
 
   const publishRecords = (patch: Partial<DictationSnapshot> = {}) => {
     segmentStats = summarizeSessionRecords(records, groups);
-    publish(patch);
+    publish({ hasVoiceAudio: hasVoiceAudio(), ...patch });
+  };
+
+  const pruneWavs = () => pruneSettledGroupWavs(groups, records, maxRetainedWavBytes);
+  const checkpointSettlement = (clearAllTail?: boolean): Promise<void> => {
+    const written = checkpointer.checkpointState(pruneWavs(), clearAllTail);
+    publishRecords();
+    return written;
   };
 
   const stopTimer = () => {
@@ -358,7 +365,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     groups = [];
     segmentStats = EMPTY_STATS;
     nextInitialSegmentIndex = 0;
-    nextInitialActiveFrames = 0;
+    nextInitialFramePos = 0;
     checkpointer.resetTailState();
     queuePromise = undefined;
     deferQueuePumpDepth = 0;
@@ -449,8 +456,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
         record.error = undefined;
         record.retryable = false;
         record.status = 'completed';
-        publishRecords();
-        void checkpointer.checkpointState();
+        void checkpointSettlement();
         return;
       } catch (error) {
         if (isStale(activeGen)) return;
@@ -492,8 +498,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       } else {
         group.state = 'fallback';
       }
-      publishRecords();
-      void checkpointer.checkpointState();
+      void checkpointSettlement();
     };
     const merged =
       group.mergedWav && group.mergedSeconds !== undefined
@@ -547,8 +552,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
         group.state = 'open';
         sealRefinementGroup(group, records);
       }
-      publishRecords();
-      void checkpointer.checkpointState();
+      void checkpointSettlement();
     } catch (error) {
       if (isStale(activeGen)) return;
       applyRetryAfter(error);
@@ -592,8 +596,8 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     } = segment;
     records.push({ segment: meta, wav, status: 'queued', retryable: true, autoRetried: false });
     appendSegmentToGroups(groups, records);
+    checkpointer.commitSegment(segment, pruneWavs());
     publishRecords();
-    checkpointer.commitSegment(segment);
     if (deferQueuePumpDepth === 0) void pumpQueue(activeGen);
   };
 
@@ -630,12 +634,11 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     }
     checkpointer.clearTailState();
     sealOpenGroup();
-    publishRecords();
-    await checkpointer.checkpointState(true);
+    await checkpointSettlement(true);
     return !isStale(activeGen);
   };
 
-  const pauseWithReason = async (reason: 'user' | 'interrupted' | 'capReached'): Promise<void> => {
+  const pauseWithReason = async (reason: 'user' | 'interrupted'): Promise<void> => {
     if (snapshot.phase !== 'recording') return;
     const activeGen = generation;
     accumulatedMs = currentElapsedMs();
@@ -643,7 +646,6 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     publish({
       phase: 'paused',
       elapsedMs: accumulatedMs,
-      capReached: reason === 'capReached' ? true : snapshot.capReached,
       interrupted: reason === 'interrupted' ? true : snapshot.interrupted,
     });
     if (!(await flushAndSeal(activeGen))) return;
@@ -654,22 +656,17 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
   const createSegmenterForSession = (
     activeGen: number,
     initialSegmentIndex: number,
-    initialActiveFrames: number
+    initialFramePos: number
   ) =>
     new DictationSegmenter({
       initialSegmentIndex,
-      initialActiveFrames,
-      maxActiveFrames,
+      initialFramePos,
       onSegment: (segment) => enqueueSegment(segment, activeGen),
       onLongSilence: () => {
         if (isStale(activeGen)) return;
         if (!sealOpenGroup()) return;
-        publishRecords();
-        void checkpointer.checkpointState();
+        void checkpointSettlement();
         if (deferQueuePumpDepth === 0) void pumpQueue(activeGen);
-      },
-      onCapReached: () => {
-        void pauseWithReason('capReached');
       },
     });
 
@@ -830,14 +827,14 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
     },
     pause: () => pauseWithReason('user'),
     resume: async () => {
-      if (snapshot.phase !== 'paused' || snapshot.capReached || !activeClient) return false;
+      if (snapshot.phase !== 'paused' || !activeClient) return false;
       const activeGen = generation;
       pauseAllMediaElements();
       if (!segmenter) {
         segmenter = createSegmenterForSession(
           activeGen,
           nextInitialSegmentIndex,
-          nextInitialActiveFrames
+          nextInitialFramePos
         );
       }
       requestMode = 'resume';

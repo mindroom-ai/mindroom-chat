@@ -15,6 +15,7 @@ import type { ClientSessions } from '../../computer/clientSessions';
 import { DictationApiError, DictationClient } from './api';
 import { createDictationRateBudget } from './dictationRefinement';
 import {
+  DICTATION_FRAME_MS,
   DICTATION_FRAME_SAMPLES,
   DICTATION_SAMPLE_RATE,
   encodePcm16Wav,
@@ -1202,7 +1203,6 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     beginDictationJournal(USER, {
       startedAt: 1_000,
       elapsedMs: 0,
-      capReached: false,
       originApiUrl,
       originRoomId: roomId,
       segments: [],
@@ -1344,7 +1344,6 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
       recovered: {
         startedAt: 1_000,
         elapsedMs: 12_000,
-        capReached: false,
         originApiUrl: 'https://dictation.example',
         records: [
           {
@@ -1373,7 +1372,7 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
           },
         ],
         initialSegmentIndex: 1,
-        initialActiveFrames: 125,
+        initialFramePos: 125,
       },
     });
 
@@ -1411,7 +1410,6 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
       recovered: {
         startedAt: 1_000,
         elapsedMs: 8_000,
-        capReached: false,
         records: [
           {
             segment: {
@@ -1448,7 +1446,7 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
           { startIndex: 1, endIndex: 1, state: 'fallback' },
         ],
         initialSegmentIndex: 2,
-        initialActiveFrames: 83,
+        initialFramePos: 83,
       },
     });
 
@@ -1500,7 +1498,6 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
       recovered: {
         startedAt: 1_000,
         elapsedMs: 5_000,
-        capReached: false,
         records: [
           {
             segment: {
@@ -1535,7 +1532,7 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
         ],
         groups: [{ startIndex: 0, endIndex: 1, state: 'fallback' }],
         initialSegmentIndex: 2,
-        initialActiveFrames: 50,
+        initialFramePos: 50,
       },
     });
     await waitForJournalSettled();
@@ -1565,7 +1562,6 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
       recovered: {
         startedAt: 1_000,
         elapsedMs: 4_000,
-        capReached: false,
         records: [
           {
             segment: {
@@ -1584,7 +1580,7 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
         ],
         groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
         initialSegmentIndex: 1,
-        initialActiveFrames: 42,
+        initialFramePos: 42,
       },
     });
 
@@ -1857,36 +1853,103 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     await deleteCapture(journal.id);
   });
 
-  it('honors initialActiveFrames cap across resumed recovered sessions', async () => {
+  it('records and transcribes past five minutes without pausing', async () => {
+    const rig = createFakeCaptureRig();
+    const transcribe = vi.fn(async () => ({ text: 'After five minutes.', seconds: 1 }));
+    let clock = 0;
+    const session = createDictationSession({
+      client: { transcribe },
+      now: () => clock,
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+    });
+
+    expect(await session.start()).toBe(true);
+    const silence = makeFrame(0);
+    while (clock <= 300_000) {
+      clock += DICTATION_FRAME_MS;
+      rig.pushFrame(silence);
+    }
+    expect(session.getSnapshot().phase).toBe('recording');
+    pushSpeechAndPause(rig.pushFrame);
+    clock += 12 * DICTATION_FRAME_MS;
+    await session.pause();
+    expect(session.getSnapshot().elapsedMs).toBeGreaterThan(300_000);
+    await expect(session.finish()).resolves.toEqual({
+      status: 'completed',
+      text: 'After five minutes.',
+    });
+  });
+
+  it('journals only the pre-speech pad and unscored frames during sustained silence', async () => {
     const journal = makeJournal();
     const rig = createFakeCaptureRig();
     const session = createDictationSession({
-      client: { transcribe: vi.fn(async () => ({ text: 'Capped.', seconds: 1 })) },
+      client: { transcribe: vi.fn() },
       journal,
-      maxActiveFrames: 25,
       loadVad: async () => makeVad(),
       captureFactory: rig.captureFactory,
-      recovered: {
-        startedAt: 1_000,
-        elapsedMs: 2_000,
-        capReached: false,
-        records: [],
-        groups: [],
-        initialSegmentIndex: 2,
-        initialActiveFrames: 20,
-      },
+    });
+    await session.start();
+    await flushMicrotasks();
+    const quiet = makeFrame(0);
+    for (let i = 0; i < 60; i += 1) {
+      rig.pushFrame(quiet);
+      // Let VAD score as it would between real-time frames.
+      // eslint-disable-next-line no-await-in-loop
+      await flushMicrotasks();
+    }
+    await vi.waitFor(async () => {
+      const { chunks } = await readJournalRow(journal.id);
+      expect(chunks).toHaveLength(1);
+      expect(chunks[0]).toMatchObject({ startFramePos: 55, endFramePos: 60 });
+      expect(chunks[0]?.bytes.byteLength).toBe(5 * DICTATION_FRAME_SAMPLES * 2);
+    });
+    await session.discard();
+  });
+
+  it('prunes an over-budget group only once sealed and keeps its refined text for voice fallback', async () => {
+    const journal = makeJournal();
+    const rig = createFakeCaptureRig();
+    const transcribe = vi
+      .fn<DictationTranscriber['transcribe']>()
+      .mockResolvedValueOnce({ text: 'Rough.', seconds: 1 })
+      .mockResolvedValueOnce({ text: 'Refined first two segments.', seconds: 2 })
+      .mockRejectedValue(new DictationApiError('Bad request', 400));
+    const session = createDictationSession({
+      client: { transcribe },
+      journal,
+      maxRetainedWavBytes: 0,
+      loadVad: async () => makeVad(),
+      captureFactory: rig.captureFactory,
+    });
+    await session.start();
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(30);
+    pushSpeechAndPause(rig.pushFrame);
+    await flushMicrotasks(30);
+    expect(session.getSnapshot()).toMatchObject({
+      previewText: 'Refined first two segments.',
+      hasVoiceAudio: true,
+    });
+    await vi.waitFor(async () => {
+      expect(
+        (await readJournalRow(journal.id)).chunks.filter((c) => c.seq < TAIL_SEQ_OFFSET)
+      ).toHaveLength(2);
     });
 
-    expect(await session.resume()).toBe(true);
-    await flushMicrotasks();
-    // 5 frames hit maxActiveFrames = 25 -> auto-pauses with capReached: true and refuses further resume.
-    for (let i = 0; i < 6; i += 1) rig.pushFrame(makeFrame(0.3));
-    await waitForJournalSettled(60);
+    await session.pause();
+    expect(session.getSnapshot().hasVoiceAudio).toBe(false);
+    expect((await readJournalRow(journal.id)).chunks).toEqual([]);
 
-    expect(session.getSnapshot()).toMatchObject({ phase: 'paused', capReached: true });
-    expect(await session.resume()).toBe(false);
-    const row = await readJournalRow(journal.id);
-    expect(row.recording?.capReached).toBe(true);
+    await session.resume();
+    pushSpeechAndPause(rig.pushFrame);
+    await expect(session.finish()).resolves.toMatchObject({ status: 'failed', failedSegments: 1 });
+    expect(session.getSnapshot().hasVoiceAudio).toBe(true);
+    await expect(session.buildVoiceAudio()).resolves.toMatchObject({
+      missingAudioPartialText: 'Refined first two segments.',
+    });
+    expect((await readJournalRow(journal.id)).chunks.map((c) => c.seq)).toEqual([2]);
     await session.discard();
   });
 
@@ -1900,7 +1963,6 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
       recovered: {
         startedAt: 1_000,
         elapsedMs: 6_000,
-        capReached: false,
         records: [
           {
             segment: {
@@ -1934,7 +1996,7 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
         ],
         groups: [{ startIndex: 0, endIndex: 1, state: 'queued' }],
         initialSegmentIndex: 2,
-        initialActiveFrames: 60,
+        initialFramePos: 60,
       },
     });
 

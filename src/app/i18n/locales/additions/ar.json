@@ -2255,7 +2255,6 @@
       "statusPendingRetry_few": "⁨{{count}}⁩ مقاطع بانتظار إعادة المحاولة",
       "statusPendingRetry_many": "⁨{{count}}⁩ مقطعًا بانتظار إعادة المحاولة",
       "statusPendingRetry_other": "⁨{{count}}⁩ مقطع بانتظار إعادة المحاولة",
-      "capReached": "تم بلوغ حد 5:00 دقائق",
       "micInterrupted": "انقطع اتصال الميكروفون. يمكنك الاستئناف أو الإنهاء.",
       "failedSummary_zero": "تعذّر نسخ ⁨{{count}}⁩ مقاطع.",
       "failedSummary_one": "تعذّر نسخ مقطع واحد (⁨{{count}}⁩).",

@@ -1991,7 +1991,6 @@
       "sendFailedOffTarget": "Could not finish dictated message in {{room}}. Choose {{room}} again to retry.",
       "statusPendingRetry_one": "{{count}} segment pending retry",
       "statusPendingRetry_other": "{{count}} segments pending retry",
-      "capReached": "5:00 limit reached",
       "micInterrupted": "Microphone disconnected. Resume or finish.",
       "failedSummary_one": "Could not transcribe {{count}} segment.",
       "failedSummary_other": "Could not transcribe {{count}} segments.",

@@ -128,7 +128,6 @@ const makeMockSession = (
     hasPartialText: false,
     hasVoiceAudio: Boolean(voiceAudio),
     previewText: '',
-    capReached: false,
     interrupted: false,
     recovered: false,
     hasClient: true,

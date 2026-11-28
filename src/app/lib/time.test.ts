@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   daysToMs,
+  formatCallOffset,
+  formatClockDuration,
+  formatClockDurationMs,
   formatCompactRelativeTime,
   formatLifetime,
   formatRelativeTime,
@@ -8,6 +11,23 @@ import {
   minutesToMs,
   secondsToMs,
 } from './time';
+
+describe('formatClockDuration', () => {
+  it.each([
+    [-1, '0:00'],
+    [NaN, '0:00'],
+    [Infinity, '0:00'],
+    [59.9, '0:59'],
+    [3599.999, '59:59'],
+    [3600, '1:00:00'],
+    [3905, '1:05:05'],
+    [36_002, '10:00:02'],
+  ])('formats %s elapsed seconds as %s', (seconds, expected) => {
+    expect(formatClockDuration(seconds)).toBe(expected);
+    expect(formatClockDurationMs(seconds * 1000)).toBe(expected);
+    expect(formatCallOffset(seconds)).toBe(expected);
+  });
+});
 
 describe('formatRelativeTime', () => {
   beforeEach(() => {

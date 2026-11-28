@@ -29,7 +29,6 @@ export type PersistedRefinementGroup = {
 export type DictationJournalMeta = {
   startedAt: number;
   elapsedMs: number;
-  capReached: boolean;
   consumedThroughFramePos?: number;
   originApiUrl?: string;
   originRoomId?: string;
@@ -53,15 +52,17 @@ export type DictationJournalHandle = {
   readonly id: string;
   appendTail: (
     seq: number,
-    pcm16: ArrayBuffer,
+    pcm16: ArrayBuffer | null,
     elapsedMs: number,
     startFramePos: number,
-    endFramePos: number
+    endFramePos: number,
+    pruneBeforeFramePos?: number
   ) => Promise<void>;
   commitSegment: (
     segmentIndex: number,
     wav: ArrayBuffer,
-    meta: DictationJournalMeta
+    meta: DictationJournalMeta,
+    pruneSegmentIndices?: readonly number[]
   ) => Promise<void>;
   updateState: (
     meta: DictationJournalMeta,
@@ -92,6 +93,7 @@ type VoiceRecordingRow = {
 type DictationRecordingRow = DictationJournalMeta & {
   id: string;
   kind: 'dictation';
+  capReached?: boolean; // Legacy v1 dictation rows only.
   /** Stores sessionId (`createSessionId(baseUrl, userId)`) in the existing v1 `'userId'` index. */
   userId: string;
 };
@@ -214,6 +216,16 @@ const guardedWrite = (id: string, work: (tx: WriteTx) => Promise<unknown>) =>
     })
   );
 
+const pruneDictationTail = async (tx: WriteTx, id: string, cutoff: number): Promise<void> => {
+  const chunks = tx.objectStore('chunks');
+  const rows = await chunks.getAll(tailChunksOf(id));
+  await Promise.all(
+    rows
+      .filter((row) => isDictationTailChunkRow(row) && row.endFramePos <= cutoff)
+      .map((row) => chunks.delete([id, row.seq]))
+  );
+};
+
 type WriteEnqueue = (work: () => Promise<void>) => Promise<void>;
 
 const createWriteQueue = (id: string, ready: Promise<boolean>): WriteEnqueue => {
@@ -334,22 +346,35 @@ const createDictationJournalHandle = (
   id,
   remove: () => deleteCapture(id),
   release: () => releaseCapture(id),
-  appendTail: (seq, pcm16, elapsedMs, startFramePos, endFramePos) =>
+  appendTail: (seq, pcm16, elapsedMs, startFramePos, endFramePos, pruneBeforeFramePos) =>
     enqueue(async () => {
-      await guardedWrite(id, (tx) =>
-        tx.objectStore('chunks').put({
-          id,
-          seq: TAIL_SEQ_OFFSET + seq,
-          bytes: pcm16,
-          type: DICTATION_TAIL_MIME,
-          elapsedMs,
-          startFramePos,
-          endFramePos,
-        })
-      );
+      await guardedWrite(id, async (tx) => {
+        if (pruneBeforeFramePos !== undefined)
+          await pruneDictationTail(tx, id, pruneBeforeFramePos);
+        if (pcm16 && (pruneBeforeFramePos === undefined || endFramePos > pruneBeforeFramePos)) {
+          await tx.objectStore('chunks').put({
+            id,
+            seq: TAIL_SEQ_OFFSET + seq,
+            bytes: pcm16,
+            type: DICTATION_TAIL_MIME,
+            elapsedMs,
+            startFramePos,
+            endFramePos,
+          });
+        } else {
+          // Preserve the clock even when all buffered PCM is disposable.
+          const store = tx.objectStore('recordings');
+          const row = await store.get(id);
+          if (row && isDictationRow(row) && elapsedMs > row.elapsedMs) {
+            const { capReached: _legacyCapReached, ...current } = row;
+            await store.put({ ...current, elapsedMs });
+          }
+        }
+      });
     }),
-  commitSegment: (segmentIndex, wav, meta) => {
+  commitSegment: (segmentIndex, wav, meta, pruneSegmentIndices) => {
     const snapshot = cloneDictationMeta(meta);
+    const prune = pruneSegmentIndices?.slice();
     return enqueue(async () => {
       await guardedWrite(id, async (tx) => {
         const chunksStore = tx.objectStore('chunks');
@@ -368,14 +393,9 @@ const createDictationJournalHandle = (
             ...snapshot,
           }),
         ];
+        prune?.forEach((segIdx) => ops.push(chunksStore.delete([id, segIdx])));
         if (snapshot.consumedThroughFramePos !== undefined) {
-          const cutoff = snapshot.consumedThroughFramePos;
-          const tailRows = await chunksStore.getAll(tailChunksOf(id));
-          for (const row of tailRows) {
-            if (isDictationTailChunkRow(row) && row.endFramePos <= cutoff) {
-              ops.push(chunksStore.delete([id, row.seq]));
-            }
-          }
+          ops.push(pruneDictationTail(tx, id, snapshot.consumedThroughFramePos));
         }
         await Promise.all(ops);
       });
@@ -440,7 +460,7 @@ export const recoverDictationJournal = (
   offer: (recovered: RecoveredDictationJournal) => boolean | Promise<boolean>
 ): Promise<void> =>
   recoverLockedRecords(sessionId, isDictationRow, (row, chunks) => {
-    const { id, kind: _kind, userId: _userId, ...meta } = row;
+    const { id, kind: _kind, userId: _userId, capReached: _legacyCapReached, ...meta } = row;
     const wavs = new Map<number, ArrayBuffer>();
     const tailChunks: DictationTailChunk[] = [];
     for (const chunk of chunks) {

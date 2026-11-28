@@ -143,7 +143,6 @@ const IDLE_SNAPSHOT: DictationSnapshot = {
   hasPartialText: false,
   hasVoiceAudio: false,
   previewText: '',
-  capReached: false,
   interrupted: false,
   recovered: false,
   hasClient: false,
