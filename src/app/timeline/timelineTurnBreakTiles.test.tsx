@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { renderTimelineTiles, timelineRowSizing } from './roomTimelineRows';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import { viewThreadTurnFolds, type ThreadTurnFold } from './threadTurnFolds';
-import { estimateMessageRowHeight } from './timelineRowEstimate';
+import { estimateThreadRowHeight } from './timelineRowEstimate';
 import { NO_VOICE_TRANSCRIPTS } from '../messages/voiceTranscripts';
 import { NO_MODEL_CHANGES } from '../messages/modelChanges';
 
@@ -166,9 +166,14 @@ describe('the estimates of a folded turn', () => {
   };
 
   it('price the break alone while folded and above its row once open', () => {
-    const plain = events.map((row) => estimateMessageRowHeight(row, { compact: false }));
-    const [root, first, second, answer] = plain;
-    expect(estimates(false)).toEqual([root, 42, second, answer]);
-    expect(estimates(true)).toEqual([root, first! + 42, second, answer]);
+    const [root, first, second, answer] = events;
+    const rootPx = estimateThreadRowHeight(root!, undefined, { compact: false });
+    const firstPx = estimateThreadRowHeight(first!, root, { compact: false });
+    // While folded, $a1 is closed so $a2 sees ROOT above it; once open, $a2 follows $a1.
+    const secondFoldedPx = estimateThreadRowHeight(second!, root, { compact: false });
+    const secondOpenPx = estimateThreadRowHeight(second!, first, { compact: false });
+    const answerPx = estimateThreadRowHeight(answer!, second, { compact: false });
+    expect(estimates(false)).toEqual([rootPx, 42, secondFoldedPx, answerPx]);
+    expect(estimates(true)).toEqual([rootPx, firstPx + 42, secondOpenPx, answerPx]);
   });
 });

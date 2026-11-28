@@ -33,9 +33,9 @@ import { getShownHistoryReplies } from '../event-store/timeline/classicHistoryRe
 import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
 import {
-  estimateMessageRowHeight,
+  columnWrapCharsForWidth,
   estimateRoomRowHeight,
-  roomWrapCharsForWidth,
+  estimateThreadRowHeight,
 } from './timelineRowEstimate';
 import { replyNeedingNoQuote } from './pluginHiddenRows';
 import { isRowlessTimelineEvent } from '../event-store/timeline/timelineRowTypes';
@@ -165,7 +165,7 @@ const ROOM_ROW_ESTIMATE_PX = { compact: 96, comfortable: 68 } as const;
  * even mount to be measured.
  */
 const ROOM_ROW_UNMEASURED_PX = 0.5;
-const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
+const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 28, comfortable: 30 } as const;
 /** A turn's break (`TurnBreak`): its pill and the padding around it. */
 const TURN_BREAK_ESTIMATE_PX = 42;
 
@@ -205,10 +205,15 @@ export const timelineRowSizing = (o: {
   /** The room's list as it last rendered (`useMembershipFoldRowSizes`). */
   renderedRoomRowsRef?: MutableRefObject<RenderedRoomRows>;
   columnWidth?: number;
+  coarsePointer?: boolean;
+  timelineSet?: Pick<EventTimelineSet, 'relations'>;
+  getRowTimelineSet?: (event: MatrixEvent) => Pick<EventTimelineSet, 'relations'> | undefined;
+  showToolCalls?: boolean;
+  longTextCacheOwner?: object;
 }) => {
   const threadLeadingOffset = o.threadId && o.hasThreadLoadOlder ? 1 : 0;
   const roomLeadingOffset = !o.threadId && o.hasRoomIntro ? 1 : 0;
-  const roomWrapChars = roomWrapCharsForWidth(o.columnWidth);
+  const wrapChars = columnWrapCharsForWidth(o.columnWidth);
   const estimateSize = (index?: number): number => {
     if (!o.threadId) {
       if (roomLeadingOffset && index === 0) return ROOM_LEADING_ESTIMATE_PX;
@@ -235,14 +240,19 @@ export const timelineRowSizing = (o: {
       return (
         estimateRoomRowHeight(event, rows[position - 1], {
           threadBadge,
-          wrapChars: roomWrapChars,
+          wrapChars,
+          coarsePointer: o.coarsePointer,
+          showToolCalls: o.showToolCalls,
+          timelineSet: o.timelineSet,
+          longTextCacheOwner: o.longTextCacheOwner,
         }) +
         ROOM_ROW_UNMEASURED_PX +
         breakPx
       );
     }
     if (threadLeadingOffset && index === 0) return THREAD_LOAD_OLDER_ESTIMATE_PX;
-    const event = index === undefined ? undefined : o.threadEvents?.[index - threadLeadingOffset];
+    const eventIndex = index === undefined ? undefined : index - threadLeadingOffset;
+    const event = eventIndex === undefined ? undefined : o.threadEvents?.[eventIndex];
     if (!event) {
       return o.compactLayout
         ? THREAD_ONE_LINE_ESTIMATE_PX.compact
@@ -252,7 +262,32 @@ export const timelineRowSizing = (o: {
     if (o.hiddenIds?.has(id)) return 0;
     const open = o.turnFolds?.breaks.get(id)?.open;
     if (open === false) return TURN_BREAK_ESTIMATE_PX;
-    const row = estimateMessageRowHeight(event, { compact: o.compactLayout });
+    let above: MatrixEvent | undefined;
+    if (o.threadEvents && eventIndex !== undefined) {
+      for (let prev = eventIndex - 1; prev >= 0; prev -= 1) {
+        const candidate = o.threadEvents[prev];
+        if (!candidate) continue;
+        const candidateId = candidate.getId() ?? '';
+        if (
+          o.hiddenIds?.has(candidateId) ||
+          o.turnFolds?.breaks.get(candidateId)?.open === false ||
+          reactionOrEditEvent(candidate) ||
+          isRowlessTimelineEvent(candidate)
+        ) {
+          continue;
+        }
+        above = candidate;
+        break;
+      }
+    }
+    const row = estimateThreadRowHeight(event, above, {
+      compact: o.compactLayout,
+      wrapChars,
+      coarsePointer: o.coarsePointer,
+      showToolCalls: o.showToolCalls,
+      timelineSet: o.getRowTimelineSet ? o.getRowTimelineSet(event) : o.timelineSet,
+      longTextCacheOwner: o.longTextCacheOwner,
+    });
     return open ? row + TURN_BREAK_ESTIMATE_PX : row;
   };
   const getItemKey = (index: number): string | number => {

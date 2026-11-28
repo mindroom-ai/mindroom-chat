@@ -48,6 +48,8 @@ import { useVoiceTranscriptPlan } from '../messages/voiceTranscripts';
 import { useReplyCardPlan } from './replyCards';
 import { useModelChangePlan } from '../messages/modelChanges';
 import { useDrawnSecretRequestIds } from '../messages/inlineSecretRequests';
+import { useToolCallsShown } from '../messages/toolCallVisibility';
+import { forkPrefixThreadId, rowEditTimelineSet, rowEventRoom } from './forkPrefixTimelineSet';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { getKnownThreadReplyCount } from '../event-store/threads/threadRecord';
@@ -481,6 +483,18 @@ export function ThreadTimeline(props: Omit<RoomTimelineProps, 'threadId'> & { th
     pluginHiddenThreadIds,
     turnFolds.view,
   ]);
+  const [showToolCalls] = useToolCallsShown(room.roomId, threadId);
+  const coarsePointer =
+    phone || (typeof window !== 'undefined' && !!window.matchMedia?.('(pointer: coarse)')?.matches);
+  const getRowTimelineSet =
+    forkPrefixEventIds.size === 0
+      ? undefined
+      : (event: MatrixEvent) => {
+          const prefix = forkPrefixThreadId(event, event.getId() ?? '', forkPrefixEventIds);
+          return prefix
+            ? rowEditTimelineSet(rowEventRoom(mx, room, event, prefix), prefix, rowTimelineSet)
+            : rowTimelineSet;
+        };
   const { estimateSize, getItemKey } = timelineRowSizing({
     threadId,
     compactLayout: env.compactLayout,
@@ -488,7 +502,12 @@ export function ThreadTimeline(props: Omit<RoomTimelineProps, 'threadId'> & { th
     hasThreadLoadOlder: showThreadLoadOlder,
     turnFolds: turnFolds.view,
     hiddenIds: threadHiddenIds,
-    columnWidth: phone ? undefined : 960,
+    columnWidth: scrollElement?.clientWidth || (phone ? 390 : 960),
+    coarsePointer,
+    timelineSet: rowTimelineSet,
+    getRowTimelineSet,
+    showToolCalls,
+    longTextCacheOwner: mx,
   });
   const list = useTimelineListLedger(scroll, {
     estimateSize,
