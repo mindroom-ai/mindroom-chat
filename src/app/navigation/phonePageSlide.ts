@@ -145,7 +145,7 @@ const prepareLayers = (
   over.setAttribute(SWIPE_OVER_THREAD, '');
   over.setAttribute('data-swiping', '');
   over.setAttribute('data-swipe-shadow', '');
-  if (isForward) over.style.translate = overAt(0);
+  over.style.translate = overAt(0);
   if (under) {
     under.setAttribute('data-swiping', '');
     under.style.translate = underAt(0);
@@ -295,7 +295,6 @@ export const playLiveSlide = ({
     over,
     under
   );
-  over.style.translate = overAt(0);
   const shield = mountShield(stage);
   const abortController = new AbortController();
   let ended = false;

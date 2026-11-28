@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -63,6 +64,7 @@ import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { InsetScrollbar } from '../ui/InsetScrollbar';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { TimelineMinimap } from './TimelineMinimap';
+import { notifyTimelineRowsChanged } from './typing/RoomViewTyping';
 import type { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useFooterBottomPin } from './useFooterBottomPin';
 import {
@@ -473,6 +475,10 @@ export type TimelineViewportProps = {
 
 export function TimelineViewport(p: TimelineViewportProps) {
   const { t } = useTranslation();
+  useLayoutEffect(() => {
+    notifyTimelineRowsChanged();
+  }, []);
+  useEffect(() => () => notifyTimelineRowsChanged(), []);
   const { env, scroll, list, feature, minimap, latestAtTop = false } = p;
   const latestEndAnchor = (
     <span ref={scroll.atBottomAnchorRef} style={{ display: 'block', height: 0 }} />

@@ -5,6 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { stubCompactLayout, tickFrames as tick } from './compactBlocks.test.shared';
+import { PassivePeekContext } from '../../lib/hooks/usePaneCollapsed';
 import { useCompactBlocks } from './useCompactBlocks';
 
 const ids = Array.from({ length: 96 }, (_, i) => `$row${i}`);
@@ -28,6 +29,7 @@ type Props = {
   records?: ReadonlyMap<string, ThreadRecord>;
   protectedId?: string;
   indexPending?: boolean;
+  focusRequest?: boolean;
   onIds?: (ids: string[]) => void;
   onEnd?: (prepareEnd: () => void) => void;
   roomId?: string;
@@ -524,4 +526,55 @@ it('caches getComputedStyle and reads view.scrollTop once per scroll pass when f
   // stubCompactLayout reads scrollTop once per row rect; layout() itself reads scrollTop once.
   expect(scrollTopReads - rectsDuringScroll).toBeLessThanOrEqual(2);
   computedSpy.mockRestore();
+});
+
+it('freezes discovery during warm passive back-peek remount while still allowing cold focusRequest discovery', () => {
+  const observeSpy = vi.fn();
+  const prevRO = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class {
+    observe = observeSpy;
+    disconnect = vi.fn();
+    unobserve = vi.fn();
+  };
+  try {
+    const warmMemory: ScrollAnchorMemory = new Map();
+    const warm = render(<List roomId="!warm-room:example.org" memory={warmMemory} />);
+    const view = warm.container.querySelector<HTMLElement>('[data-view]')!;
+    tick(6);
+    layout.scroll(view, 420);
+    warm.unmount();
+
+    observeSpy.mockClear();
+    const peek = render(
+      <PassivePeekContext.Provider value>
+        <List roomId="!warm-room:example.org" memory={warmMemory} />
+      </PassivePeekContext.Provider>
+    );
+    expect(observeSpy).not.toHaveBeenCalled();
+    peek.rerender(
+      <PassivePeekContext.Provider value={false}>
+        <List roomId="!warm-room:example.org" memory={warmMemory} />
+      </PassivePeekContext.Provider>
+    );
+    expect(observeSpy).toHaveBeenCalled();
+    peek.unmount();
+
+    observeSpy.mockClear();
+    const coldMemory: ScrollAnchorMemory = new Map([
+      ['!cold-room:example.org', { scrollTop: 1, anchors: [{ key: '$row30', offset: 160 }] }],
+    ]);
+    const cold = render(
+      <PassivePeekContext.Provider value>
+        <List roomId="!cold-room:example.org" memory={coldMemory} focusRequest />
+      </PassivePeekContext.Provider>
+    );
+    const coldView = cold.container.querySelector<HTMLElement>('[data-view]')!;
+    tick(6);
+    expect(observeSpy).toHaveBeenCalled();
+    expect(coldView.dataset.ready).toBe('true');
+    expect(anchor(coldView, '$row30')).not.toBeNull();
+    cold.unmount();
+  } finally {
+    globalThis.ResizeObserver = prevRO;
+  }
 });

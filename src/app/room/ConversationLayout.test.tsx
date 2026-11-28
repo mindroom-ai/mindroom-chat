@@ -4,6 +4,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { createClient, Room } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HeaderInThread } from '../ui/styles/RoomOverlay.css';
+import { usePaneCollapsed, usePassivePeek } from '../lib/hooks/usePaneCollapsed';
 import { ConversationLayout } from './ConversationLayout';
 import { HeaderInShortArea } from './RoomView.css';
 
@@ -244,4 +245,40 @@ it('skips rewriting overlay inset CSS properties when heights are unchanged on r
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it('keeps composer, typing, jobs, and following visible during passive peek and unmounts all chrome when collapsed', () => {
+  const states: Array<{ collapsed: boolean; passive: boolean }> = [];
+  function Probe() {
+    states.push({ collapsed: usePaneCollapsed(), passive: usePassivePeek() });
+    return <div data-testid="probe" />;
+  }
+  const { rerender } = render(
+    layout({
+      passive: true,
+      header: () => <div data-testid="header" />,
+      timeline: <Probe />,
+      composer: <div data-testid="composer" />,
+    })
+  );
+  expect(states.at(-1)).toEqual({ collapsed: false, passive: true });
+  expect(screen.getByTestId('header')).toBeTruthy();
+  expect(screen.getByTestId('typing')).toBeTruthy();
+  expect(screen.getByTestId('jobs')).toBeTruthy();
+  expect(screen.getByTestId('following')).toBeTruthy();
+  expect(screen.getByTestId('composer')).toBeTruthy();
+
+  rerender(
+    layout({
+      collapsed: true,
+      header: () => <div data-testid="header" />,
+      timeline: <Probe />,
+      composer: <div data-testid="composer" />,
+    })
+  );
+  expect(screen.queryByTestId('probe')).toBeNull();
+  expect(screen.queryByTestId('composer')).toBeNull();
+  expect(screen.queryByTestId('typing')).toBeNull();
+  expect(document.querySelector('[data-room-header="true"]')).toBeNull();
+  expect(document.querySelector('[data-room-footer="true"]')).toBeNull();
 });

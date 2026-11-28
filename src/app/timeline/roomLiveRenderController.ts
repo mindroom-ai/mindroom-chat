@@ -41,7 +41,7 @@ import {
   isThreadSummaryEvent,
 } from '../matrix/protocol/threadSummary';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
+import { usePanePaused } from '../lib/hooks/usePaneCollapsed';
 import { hasTerminalStreamMetadata } from '../matrix/protocol/aiRun';
 import {
   markMainTimelineAsRead,
@@ -184,10 +184,11 @@ export const useRoomLiveRenderController = (o: LiveRenderOptions): void => {
   } = o;
   // Automatic read receipts wait until the reader sees the timeline (`useReaderSees`).
   const readerSees = useReaderSees();
-  const collapsed = usePaneCollapsed();
-  const collapsedRef = useRef(collapsed);
-  collapsedRef.current = collapsed;
+  const paused = usePanePaused();
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
   const dirtyRepaintRef = useRef(false);
+  const dirtyGrowRef = useRef(0);
   const { setTimeline } = o;
 
   // A reply decrypted after the reader left its thread was not watched there.
@@ -196,7 +197,7 @@ export const useRoomLiveRenderController = (o: LiveRenderOptions): void => {
   // Same rows, same range, new object: whatever derives from the window computes again. A
   // repaint never touches the range, which another hook may have just changed (a removed row).
   const repaint = () => {
-    if (collapsedRef.current) {
+    if (pausedRef.current) {
       dirtyRepaintRef.current = true;
       return;
     }
@@ -204,18 +205,28 @@ export const useRoomLiveRenderController = (o: LiveRenderOptions): void => {
   };
 
   useLayoutEffect(() => {
-    if (!collapsed && dirtyRepaintRef.current) {
-      dirtyRepaintRef.current = false;
-      setTimeline((current) => ({ ...current }));
-    }
-  }, [collapsed, setTimeline]);
+    if (paused || (!dirtyRepaintRef.current && dirtyGrowRef.current === 0)) return;
+    const growth = dirtyGrowRef.current;
+    dirtyRepaintRef.current = false;
+    dirtyGrowRef.current = 0;
+    setTimeline((current) =>
+      growth > 0
+        ? { ...current, range: { start: current.range.start, end: current.range.end + growth } }
+        : { ...current }
+    );
+  }, [paused, setTimeline]);
 
   // The window takes in the one row that arrived at its end.
-  const grow = () =>
+  const grow = () => {
+    if (pausedRef.current) {
+      dirtyGrowRef.current += 1;
+      return;
+    }
     o.setTimeline((current) => ({
       ...current,
       range: { start: current.range.start, end: current.range.end + 1 },
     }));
+  };
 
   const requestBottomPin = (smooth: boolean) => {
     const request = scrollToBottomRef.current;

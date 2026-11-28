@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useReducer, useRef, type RefObject } from 'react';
 import { flushSync } from 'react-dom';
 import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
+import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 
 const BLOCK_CARDS = 12;
@@ -40,6 +41,7 @@ type Options = {
   protectedId?: string;
   records?: ReadonlyMap<string, unknown>;
   indexPending?: boolean;
+  focusRequest?: boolean;
   getRowId?: (row: Element) => string | undefined;
 };
 
@@ -181,6 +183,7 @@ export function useCompactBlocks(options: Options) {
     }
     return group;
   });
+  const freezeDiscovery = usePanePaused() && !options.focusRequest;
   const mounted = useRef<string[]>([]);
   const liveIds =
     projectedIds.length === mounted.current.length &&
@@ -188,6 +191,7 @@ export function useCompactBlocks(options: Options) {
       ? mounted.current
       : projectedIds;
   useEffect(() => {
+    if (freezeDiscovery) return undefined;
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return undefined;
     // Heights last with the place to go back to; else for the last eight rooms that mounted.
@@ -287,7 +291,7 @@ export function useCompactBlocks(options: Options) {
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);
     };
-  }, [contentRef, geometry, getRowId, memory, roomId, scrollRef, state]);
+  }, [contentRef, freezeDiscovery, geometry, getRowId, memory, roomId, scrollRef, state]);
   useLayoutEffect(() => {
     const view = scrollRef.current;
     const pending = savedScrollTopRef.current;

@@ -2,8 +2,11 @@ import React, { useEffect } from 'react';
 import { RoomEvent, ThreadEvent, type Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
-import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
+import { PaneCollapsedContext, PassivePeekContext } from '../../lib/hooks/usePaneCollapsed';
+import {
+  useThreadOverviewListenedFirst,
+  useThreadOverviewRefreshCounter,
+} from './threadOverviewRefreshCounter';
 
 const makeRoom = () => {
   const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
@@ -129,5 +132,35 @@ describe('useThreadOverviewRefreshCounter', () => {
     await act(async () => {
       renderer?.unmount();
     });
+  });
+
+  it('skips waiting on passive back-peek mount, buffers live events while peeking, and flushes on commit', async () => {
+    const room = makeRoom();
+    const seen: Array<number | 'waiting' | undefined> = [];
+    function Harness() {
+      const value = useThreadOverviewListenedFirst(room, undefined, true);
+      seen.push(value === 'waiting' ? 'waiting' : value?.overviewRefreshCounter);
+      return null;
+    }
+    const wrap = (passive: boolean) =>
+      React.createElement(
+        PassivePeekContext.Provider,
+        { value: passive },
+        React.createElement(Harness)
+      );
+    let renderer: ReturnType<typeof create> | undefined;
+    await act(async () => {
+      renderer = create(wrap(true));
+    });
+    await act(async () => {
+      room.emit(RoomEvent.Receipt, undefined, room);
+      room.emit(ThreadEvent.Update);
+    });
+    expect(seen).toEqual([1]);
+    await act(async () => {
+      renderer?.update(wrap(false));
+    });
+    expect(seen.at(-1)).toBe(2);
+    await act(async () => renderer?.unmount());
   });
 });

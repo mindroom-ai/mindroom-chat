@@ -650,6 +650,7 @@ export function RoomView({
             />
           )
         }
+        passive={peekingOnly}
         collapsed={columnFills && liveLayer === null}
         conversationRef={conversationRef}
       >

@@ -11,6 +11,7 @@ import {
 import { Direction } from 'matrix-js-sdk';
 import { Box, Spinner } from 'folds';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { usePanePaused } from '../lib/hooks/usePaneCollapsed';
 import { useInitialClientCatchup } from '../matrix/hooks/useInitialClientCatchup';
 import type { ThreadSortFreezeState } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomThreadOverview } from '../threads/overview/RoomThreadOverview';
@@ -81,6 +82,8 @@ import { RoomRowsTimeline } from './RoomRowsTimeline';
 import type { RoomTimelineProps } from './RoomTimeline';
 
 const NOOP = () => undefined;
+const EMPTY_PREWARM_TARGETS: Array<{ threadId: string }> = [];
+const EMPTY_THREAD_RECORD_MAP: ReadonlyMap<string, never> = new Map<string, never>();
 const NOOP_THREAD_ID_REF: MutableRefObject<string | undefined> = { current: undefined };
 const ignoreSortFreeze: Dispatch<SetStateAction<ThreadSortFreezeState | null>> = NOOP;
 
@@ -94,6 +97,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
   const { room, eventId, threadFilterState, viewMode, uncommittedBackPeek = false } = props;
   const threadSortFreezeState = props.threadSortFreezeState ?? null;
   const hasMindroomAgents = props.hasMindroomAgents ?? true;
+  const paused = usePanePaused();
   const env = useTimelineEnvironment();
   const { mx, alive, engine, sessionId, settings, filters } = env;
   const compactViewRequested = viewMode === 'compact';
@@ -159,6 +163,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     uncommittedBackPeek,
     threadId: undefined,
     eventId,
+    focusEventInRoom: props.focusEventInRoom,
     focusedRoomOverviewRequested: viewState.focusedRoomOverviewRequested,
     compactViewRequested,
     effectiveViewMode: viewMode,
@@ -233,7 +238,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     sessionId,
     prefetchDepthRef,
     activeThreadId: undefined,
-    priorityTargets: windowState.priorityThreadSeedPrewarmRoots,
+    priorityTargets: paused ? EMPTY_PREWARM_TARGETS : windowState.priorityThreadSeedPrewarmRoots,
     debugTraceId: roomDebugTraceId,
   });
   const beginThreadCacheWrite = useCallback(
@@ -366,6 +371,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     eventId,
     focusItemRef,
     mx,
+    paused,
     recalibrateFilterOptsRef: filterOptsRef,
     room,
     roomDebugTraceId,
@@ -381,6 +387,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     alive,
     eventId,
     eventsLength: renderableEvents.length,
+    paused,
     room,
     roomDebugTraceId,
     roomIdRef,
@@ -422,7 +429,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
   );
   useCompactCoverageBackfillController({
     roomId: room.roomId,
-    enabled: compactViewRequested && !eventId,
+    enabled: !paused && compactViewRequested && !eventId,
     loadedEventCount: loadedRoomEventCount,
     hasZeroReplyRootCoverage: threadIndex.hasZeroReplyRootCoverage,
     canPaginateBack: canPaginateRoomBack,
@@ -430,7 +437,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     paginateBack: paginateRoom,
   });
   useCompactRootEditBackfillController({
-    enabled: compactViewRequested || threadIndex.roomThreadFilterActive,
+    enabled: !paused && (compactViewRequested || threadIndex.roomThreadFilterActive),
     mx,
     overviewThreadRootIds: threadIndex.overviewThreadRootIds,
     beginRoomCacheWrite,
@@ -458,17 +465,20 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     room,
     mx,
     sessionId,
-    records: compactViewRequested
-      ? threadIndex.compactThreadRecordMap
-      : threadIndex.normalThreadRecordMap,
-    fetchMissing: peopleListOpened === room.roomId || (threadFilterState.people?.length ?? 0) > 0,
+    records: paused
+      ? EMPTY_THREAD_RECORD_MAP
+      : compactViewRequested
+        ? threadIndex.compactThreadRecordMap
+        : threadIndex.normalThreadRecordMap,
+    fetchMissing:
+      !paused && (peopleListOpened === room.roomId || (threadFilterState.people?.length ?? 0) > 0),
     onApplyThreadRelations: applyThreadRelations,
     onStoreThreadSummary: props.onStoreThreadSummary,
     beginThreadCacheWrite,
   });
   useThreadOverviewResumeController({
     alive,
-    enabled: !uncommittedBackPeek,
+    enabled: !uncommittedBackPeek && !paused,
     activeTimelineRange: stateRange,
     compactFilteredThreadRootIds: threadIndex.compactFilteredThreadRootIds,
     compactViewRequested,

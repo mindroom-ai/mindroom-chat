@@ -123,6 +123,13 @@ const NOBODY: ReadonlySet<string> = new Set();
 const sameMembers = (a: ReadonlySet<string>, b: ReadonlySet<string>) =>
   a.size === b.size && Array.from(a).every((member) => b.has(member));
 
+const timelineRowsListeners = new Set<() => void>();
+
+/** Notifies active typing observers when a `[data-timeline-rows]` container mounts or unmounts. */
+export const notifyTimelineRowsChanged = (): void => {
+  timelineRowsListeners.forEach((listener) => listener());
+};
+
 /** Polling fallback interval when IntersectionObserver is unavailable (jsdom tests). */
 const ON_SCREEN_CHECK_MS = 250;
 
@@ -144,6 +151,10 @@ const useStreamingRepliesOnScreen = (
     const typingSet = new Set(agentsTyping.split(' ').filter(Boolean));
     const scopeRoot = containerRef?.current ?? document.body;
     const timelineRows = scopeRoot.querySelector<HTMLElement>('[data-timeline-rows]');
+    if (!timelineRows && containerRef) {
+      setOnScreen((previous) => (previous.size === 0 ? previous : NOBODY));
+      return;
+    }
     const scrollRoot = timelineRows
       ? findScrollRoot(timelineRows, containerRef?.current?.parentElement ?? null)
       : null;
@@ -191,7 +202,6 @@ const useStreamingRepliesOnScreen = (
     let ioRoot: Element | null | undefined;
     let mo: MutationObserver | undefined;
     let moTarget: Element | null = null;
-    let moSubtree = false;
 
     const publish = () => {
       const next = new Set(visible.values());
@@ -205,6 +215,20 @@ const useStreamingRepliesOnScreen = (
         cachedScrollRoot = timelineRows
           ? findScrollRoot(timelineRows, containerRef?.current?.parentElement ?? null)
           : null;
+      }
+      if (!timelineRows && containerRef) {
+        if (mo) {
+          mo.disconnect();
+          mo = undefined;
+          moTarget = null;
+        }
+        if (observed.size > 0 || visible.size > 0) {
+          for (const el of observed.keys()) io?.unobserve(el);
+          observed.clear();
+          visible.clear();
+          publish();
+        }
+        return;
       }
       if (!io || ioRoot !== cachedScrollRoot) {
         io?.disconnect();
@@ -255,24 +279,19 @@ const useStreamingRepliesOnScreen = (
       }
       publish();
 
-      const nextMoTarget = timelineRows ?? containerRef?.current ?? null;
-      const nextMoSubtree = !timelineRows;
-      if (nextMoTarget !== moTarget || nextMoSubtree !== moSubtree) {
+      if (timelineRows !== moTarget) {
         mo?.disconnect();
         mo = undefined;
-        moTarget = nextMoTarget;
-        moSubtree = nextMoSubtree;
-        if (nextMoTarget) {
+        moTarget = timelineRows;
+        if (timelineRows) {
           mo = new MutationObserver(syncTargets);
-          mo.observe(
-            nextMoTarget,
-            nextMoSubtree ? { childList: true, subtree: true } : { childList: true }
-          );
+          mo.observe(timelineRows, { childList: true });
         }
       }
     };
 
     syncTargets();
+    timelineRowsListeners.add(syncTargets);
     const onRoomTimeline = (_event: MatrixEvent, eventRoom: Room | undefined) => {
       if (!eventRoom || eventRoom.roomId === room.roomId) syncTargets();
     };
@@ -284,6 +303,7 @@ const useStreamingRepliesOnScreen = (
     mx.on(MatrixEventEvent.Replaced, onMatrixEvent);
     mx.on(MatrixEventEvent.Decrypted, onMatrixEvent);
     return () => {
+      timelineRowsListeners.delete(syncTargets);
       room.removeListener(RoomEvent.Timeline, onRoomTimeline);
       room.removeListener(RoomEvent.Redaction, onRoomTimeline);
       mx.removeListener(MatrixEventEvent.Replaced, onMatrixEvent);

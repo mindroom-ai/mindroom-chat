@@ -25,14 +25,22 @@ export function selectPhoneHeaderActions(
 }
 
 const pixels = (value: string) => Number.parseFloat(value) || 0;
+let lastMeasuredSlots: { width: number; slots: number } | undefined;
 
-export function usePhoneHeaderSlots(phone: boolean) {
+export function usePhoneHeaderSlots(phone: boolean, passive = false) {
   const headerRef = useRef<HTMLElement>(null);
   const callGroupRef = useRef<HTMLDivElement>(null);
   const mandatoryTailRef = useRef<HTMLDivElement>(null);
-  const [slots, setSlots] = useState(0);
+  const [slots, setSlots] = useState(() =>
+    phone &&
+    passive &&
+    typeof window !== 'undefined' &&
+    lastMeasuredSlots?.width === window.innerWidth
+      ? lastMeasuredSlots.slots
+      : 0
+  );
   const measure = useCallback(() => {
-    if (!phone) return;
+    if (!phone || passive) return;
     const header = headerRef.current;
     const tail = mandatoryTailRef.current;
     const more = tail?.querySelector('[data-room-more-options]');
@@ -48,19 +56,22 @@ export function usePhoneHeaderSlots(phone: boolean) {
     const callWidth = callGroupRef.current?.getBoundingClientRect().width ?? 0;
     const mandatoryWidth =
       tail.getBoundingClientRect().width + (callWidth > 0 ? callWidth + gap : 0);
-    setSlots(getPhoneHeaderSlots(contentWidth, mandatoryWidth, slotWidth));
-  }, [phone]);
+    const next = getPhoneHeaderSlots(contentWidth, mandatoryWidth, slotWidth);
+    if (typeof window !== 'undefined')
+      lastMeasuredSlots = { width: window.innerWidth, slots: next };
+    setSlots(next);
+  }, [passive, phone]);
   useLayoutEffect(measure, [measure]);
   // Observe only fixed groups, not the whole actions row: promotions never change these widths.
   // The call group observes zero width too, while the call controls are suspended or unavailable.
   const observedElements = useCallback(
     () =>
-      phone
+      phone && !passive
         ? [headerRef.current, callGroupRef.current, mandatoryTailRef.current].filter(
             (element): element is HTMLElement => element !== null
           )
         : [],
-    [phone]
+    [passive, phone]
   );
   useResizeObserver(measure, observedElements);
   return { slots: phone ? slots : 0, headerRef, callGroupRef, mandatoryTailRef };

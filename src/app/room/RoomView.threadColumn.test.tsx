@@ -1058,6 +1058,9 @@ it('live room peek uncollapses inert ConversationLayout with passive header, sin
   state.thread = '$thread';
   rerender(tree({}, ScreenSize.Mobile));
   expect(screen.queryByTestId('messages')).toBeNull();
+  expect(screen.queryByLabelText('Message')).toBeNull();
+  expect(screen.getByLabelText('Reply')).toBeTruthy();
+  expect(screen.getAllByTestId('room-header')).toHaveLength(1);
   expect(screen.getAllByTestId('header-slot')).toHaveLength(1);
   expect(getDefaultStore().get(conversationUnderThreadAtom)).toBe(true);
 

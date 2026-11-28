@@ -1,5 +1,5 @@
-import { MatrixEvent, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MatrixEvent, Room, ThreadEvent, type IEvent, type Thread } from 'matrix-js-sdk';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   loadRoomThreads,
   roomThreadListIsComplete,
@@ -10,6 +10,7 @@ import {
   buildThreadUnreadMap,
   type ThreadRecordChanges,
 } from '../../event-store/threads/threadRecord';
+import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { measureDeepTracePhase } from '../../diagnostics/deepTrace';
 import { useSyncEngine } from '../../event-store/engine/engineContext';
@@ -33,6 +34,14 @@ import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils
  * reads, all through WebKit's networking process.
  */
 const restoredRooms = new WeakSet<Room>();
+let lastWarmThreadList: {
+  room: Room;
+  userId: string;
+  rawThreads: Thread[];
+  threadUnreads: ReadonlyMap<string, boolean>;
+  threads: Thread[];
+} | null = null;
+const EMPTY_UNREADS: ReadonlyMap<string, boolean> = new Map();
 const savedRootRevisions = new WeakMap<
   Room,
   { isCurrent: () => boolean; revisions: Map<string, number> }
@@ -94,28 +103,35 @@ const afterRoomPaint = (run: () => void) => {
  * The room's threads, unread first and then by activity, and their unread marks.
  * `overviewChanges` and `overviewRefreshCounter` are the room's (`useThreadOverviewRefreshCounter`):
  * each count checks the marks of the threads it may have changed (`buildThreadUnreadMap`).
+ * `allowWarmCache` controls snapshot reuse, not whether automatic work resumes.
  */
 export const useRoomThreadList = (
   room: Room,
   enabled: boolean,
   overviewChanges: ThreadRecordChanges,
   overviewRefreshCounter: number,
-  uncommittedBackPeek = false
+  uncommittedBackPeek = false,
+  allowWarmCache = true
 ) => {
   const mx = useMatrixClient();
   const engine = useSyncEngine();
+  const paused = usePanePaused() || uncommittedBackPeek;
+  const pausedRef = useRef(paused);
+  pausedRef.current = paused;
+  const dirtyVersionRef = useRef(false);
   // A list can look complete before server support is known. Use the first SDK load as proof.
   const alreadyListed = enabled && roomThreadListIsListed(room);
   // A cold peek is pending even though it defers automatic work.
   const [loading, setLoading] = useState(enabled && !alreadyListed);
   const [loadedSuccessfully, setLoadedSuccessfully] = useState(alreadyListed);
+  const [peekRetried, setPeekRetried] = useState(false);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
   const lifecycleAbortControllerRef = useRef<AbortController>(undefined);
 
   useEffect(() => {
     // The SDK keeps the threads restored by the first mount; later ones come from the server list.
-    if (!enabled || uncommittedBackPeek || restoredRooms.has(room)) return undefined;
+    if (!enabled || paused || restoredRooms.has(room)) return undefined;
     let cancelled = false;
     const restore = async () => {
       try {
@@ -158,7 +174,7 @@ export const useRoomThreadList = (
       cancelled = true;
       cancelRestore?.();
     };
-  }, [enabled, engine.persist, engine.sessionId, mx, room, uncommittedBackPeek]);
+  }, [enabled, engine.persist, engine.sessionId, mx, paused, room]);
 
   const handleThreadListProgress = useCallback(() => {
     setLoadedSuccessfully(true);
@@ -254,6 +270,8 @@ export const useRoomThreadList = (
     const signal = lifecycleAbortControllerRef.current?.signal;
     if (!signal || signal.aborted) return;
 
+    // An explicit retry shows fresh results even if the peek had a warm snapshot.
+    if (paused) setPeekRetried(true);
     setLoading(true);
     setLoadedSuccessfully(false);
     setError(undefined);
@@ -266,9 +284,10 @@ export const useRoomThreadList = (
     } finally {
       if (!signal.aborted) setLoading(false);
     }
-  }, [enabled, loadThreads]);
+  }, [enabled, loadThreads, paused]);
 
   useEffect(() => {
+    setPeekRetried(false);
     if (!enabled) {
       setLoading(false);
       setLoadedSuccessfully(false);
@@ -287,12 +306,12 @@ export const useRoomThreadList = (
     // A peek can be abandoned without loading anything; Retry still has a live signal.
     const signal = abortController.signal;
     const cancelRootCheck =
-      !uncommittedBackPeek && listed
+      !paused && listed
         ? afterRoomPaint(() => {
             void loadThreads(signal, true);
           })
         : undefined;
-    if (!uncommittedBackPeek && !listed) {
+    if (!paused && !listed) {
       loadThreads(signal)
         .catch((err: unknown) => {
           if (signal.aborted) return;
@@ -310,12 +329,16 @@ export const useRoomThreadList = (
         lifecycleAbortControllerRef.current = undefined;
       }
     };
-  }, [enabled, loadThreads, room, uncommittedBackPeek]);
+  }, [enabled, loadThreads, paused, room]);
 
   useEffect(() => {
     if (!enabled) return undefined;
 
     const handleThreadUpdate = () => {
+      if (pausedRef.current) {
+        dirtyVersionRef.current = true;
+        return;
+      }
       setVersion((current) => current + 1);
     };
 
@@ -332,32 +355,56 @@ export const useRoomThreadList = (
     };
   }, [enabled, room]);
 
+  useLayoutEffect(() => {
+    if (!paused && dirtyVersionRef.current) {
+      dirtyVersionRef.current = false;
+      setVersion((current) => current + 1);
+    }
+  }, [paused]);
+
+  const userId = mx.getUserId() ?? '';
+  const warmList =
+    enabled &&
+    paused &&
+    allowWarmCache &&
+    !peekRetried &&
+    lastWarmThreadList?.room === room &&
+    lastWarmThreadList.userId === userId
+      ? lastWarmThreadList
+      : undefined;
   const rawThreads = useMemo(() => {
+    if (warmList) return warmList.rawThreads;
     // The SDK can gain threads while our listeners are detached.
     void enabled;
     void version;
     return room.getThreads();
-  }, [enabled, room, version]);
-  const userId = mx.getUserId() ?? '';
+  }, [enabled, room, version, warmList]);
   // The marks of the last build. A count checks the threads it marked (a reply, the reader's
   // receipt in a thread), not every thread of the room, and keeps the map while no mark changed.
   const builtUnreadsRef = useRef<ReadonlyMap<string, boolean>>(undefined);
   const threadUnreads = useMemo(() => {
     // A receipt raises the count and leaves the list as it was.
     void overviewRefreshCounter;
-    if (!enabled) return new Map<string, boolean>();
+    if (warmList) return warmList.threadUnreads;
+    if (!enabled) return EMPTY_UNREADS;
     const built = buildThreadUnreadMap(room, rawThreads, userId, {
       previous: builtUnreadsRef.current,
       changes: overviewChanges,
     });
     builtUnreadsRef.current = built;
     return built;
-  }, [enabled, room, rawThreads, userId, overviewRefreshCounter, overviewChanges]);
+  }, [enabled, room, rawThreads, userId, overviewRefreshCounter, overviewChanges, warmList]);
   const threads = useMemo(
     // Non-compact surfaces still use known roots for deep links, but not this ordering.
-    () => (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),
-    [enabled, rawThreads, threadUnreads]
+    () =>
+      warmList?.threads ??
+      (enabled ? sortThreadsByActivity(rawThreads, threadUnreads) : rawThreads),
+    [enabled, rawThreads, threadUnreads, warmList]
   );
+  useLayoutEffect(() => {
+    if (enabled && !paused)
+      lastWarmThreadList = { room, userId, rawThreads, threadUnreads, threads };
+  }, [enabled, paused, rawThreads, room, threadUnreads, threads, userId]);
   const fullyLoaded = roomThreadListIsComplete(room);
 
   return {

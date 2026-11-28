@@ -84,6 +84,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<!-- App uses exempt encryption only (TLS and Matrix E2EE libraries) -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
