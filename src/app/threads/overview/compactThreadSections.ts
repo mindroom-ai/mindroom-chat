@@ -21,6 +21,30 @@ export const COMPACT_THREAD_SECTION_ORDER: readonly CompactThreadSectionId[] = [
   'done',
 ];
 
+const isCompactThreadSectionId = (value: unknown): value is CompactThreadSectionId =>
+  COMPACT_THREAD_SECTION_ORDER.some((id) => id === value);
+
+/** Keeps valid unique saved section IDs and appends any missing IDs in canonical order. */
+export const normalizeCompactSectionOrder = (order: unknown): CompactThreadSectionId[] => {
+  const seen = new Set<CompactThreadSectionId>();
+  const normalized: CompactThreadSectionId[] = [];
+  if (Array.isArray(order)) {
+    for (const id of order) {
+      if (isCompactThreadSectionId(id) && !seen.has(id)) {
+        seen.add(id);
+        normalized.push(id);
+      }
+    }
+  }
+  for (const id of COMPACT_THREAD_SECTION_ORDER) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      normalized.push(id);
+    }
+  }
+  return normalized;
+};
+
 /** One section of a Compact room's cards, in its order. */
 export type CompactThreadSection = { id: CompactThreadSectionId; rootIds: string[] };
 
@@ -32,6 +56,7 @@ type BuildCompactThreadSectionsInput = {
   pinnedRootIds: readonly string[];
   now: number;
   quietNow?: number;
+  sectionOrder?: readonly CompactThreadSectionId[];
 };
 
 type Compare = (left: ThreadRecord, right: ThreadRecord) => number;
@@ -50,6 +75,7 @@ export const buildCompactThreadSections = ({
   pinnedRootIds,
   now,
   quietNow = now,
+  sectionOrder,
 }: BuildCompactThreadSectionsInput): {
   sections: CompactThreadSection[];
   nextQuietWakeTs?: number;
@@ -128,7 +154,10 @@ export const buildCompactThreadSections = ({
       return compare(left, right);
     };
 
-  const sections = COMPACT_THREAD_SECTION_ORDER.flatMap((id) =>
+  const orderedIds = sectionOrder
+    ? normalizeCompactSectionOrder(sectionOrder)
+    : COMPACT_THREAD_SECTION_ORDER;
+  const sections = orderedIds.flatMap((id) =>
     grouped[id].length > 0
       ? [
           {

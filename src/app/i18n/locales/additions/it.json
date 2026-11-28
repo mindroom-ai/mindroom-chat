@@ -2594,6 +2594,12 @@
     "emptyForMe": "Non ci sono ancora thread per te",
     "group": "Raggruppa",
     "groupHint": "Raggruppa per stato",
+    "columns": "Colonne",
+    "columnsHint": "Mostra colonne di stato",
+    "collapseColumn": "Comprimi {{section}} ({{count}})",
+    "expandColumn": "Espandi {{section}} ({{count}})",
+    "foldColumn": "Riduci",
+    "showMoreInColumn": "Mostra altri {{count}}",
     "sections": {
       "working": "In corso",
       "later": "Più tardi",

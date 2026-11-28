@@ -2837,6 +2837,12 @@
     "emptyForMe": "لا توجد سلاسل محادثات لك بعد",
     "group": "تجميع",
     "groupHint": "تجميع حسب الحالة",
+    "columns": "أعمدة",
+    "columnsHint": "عرض أعمدة الحالة",
+    "collapseColumn": "طي ⁨{{section}}⁩ (⁨{{count}}⁩)",
+    "expandColumn": "توسيع ⁨{{section}}⁩ (⁨{{count}}⁩)",
+    "foldColumn": "طي",
+    "showMoreInColumn": "عرض ⁨{{count}}⁩ إضافية",
     "sections": {
       "working": "قيد العمل",
       "later": "لاحقًا",

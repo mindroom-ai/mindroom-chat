@@ -2513,6 +2513,12 @@
     "emptyForMe": "Henüz sizin için konu yok",
     "group": "Grupla",
     "groupHint": "Duruma göre grupla",
+    "columns": "Sütunlar",
+    "columnsHint": "Durum sütunlarını göster",
+    "collapseColumn": "{{section}} sütununu daralt ({{count}})",
+    "expandColumn": "{{section}} sütununu genişlet ({{count}})",
+    "foldColumn": "Daralt",
+    "showMoreInColumn": "{{count}} tane daha göster",
     "sections": {
       "working": "Çalışıyor",
       "later": "Sonra",

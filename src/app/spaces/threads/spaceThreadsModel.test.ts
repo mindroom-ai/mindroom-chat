@@ -43,6 +43,7 @@ const runFilter = (
     simpleMode?: boolean;
     hasMindroomAgents?: boolean;
     groupSections?: boolean;
+    sectionOrder?: readonly ("needsYou" | "working" | "later" | "quiet" | "done")[];
     pinnedKeys?: readonly string[];
   } = {}
 ) =>
@@ -55,6 +56,7 @@ const runFilter = (
     snoozeNow: NOW,
     hasMindroomAgents: overrides.hasMindroomAgents ?? true,
     groupSections: overrides.groupSections ?? false,
+    sectionOrder: overrides.sectionOrder,
     pinnedKeys: overrides.pinnedKeys,
   });
 
@@ -253,6 +255,17 @@ describe('spaceThreadsModel', () => {
       'later',
       'quiet',
       'done',
+    ]);
+    const reordered = runFilter(entries, {
+      groupSections: true,
+      sectionOrder: ['done', 'working', 'later'],
+    });
+    expect(reordered.sections.map((section) => section.id)).toEqual([
+      'done',
+      'working',
+      'later',
+      'needsYou',
+      'quiet',
     ]);
     expect(
       grouped.sections[2]?.rootIds.map((key) => grouped.entryByKey.get(key)?.threadRootId)

@@ -2675,6 +2675,12 @@
     "emptyForMe": "Пока нет веток для вас",
     "group": "Группы",
     "groupHint": "Группировать по статусу",
+    "columns": "Колонки",
+    "columnsHint": "Показать колонки статусов",
+    "collapseColumn": "Свернуть {{section}} ({{count}})",
+    "expandColumn": "Развернуть {{section}} ({{count}})",
+    "foldColumn": "Свернуть",
+    "showMoreInColumn": "Показать ещё {{count}}",
     "sections": {
       "working": "В работе",
       "later": "Позже",

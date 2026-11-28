@@ -2513,6 +2513,12 @@
     "emptyForMe": "अभी आपके लिए कोई थ्रेड नहीं हैं",
     "group": "समूह",
     "groupHint": "स्थिति के अनुसार समूह बनाएँ",
+    "columns": "कॉलम",
+    "columnsHint": "स्थिति कॉलम दिखाएं",
+    "collapseColumn": "{{section}} समेटें ({{count}})",
+    "expandColumn": "{{section}} फैलाएं ({{count}})",
+    "foldColumn": "समेटें",
+    "showMoreInColumn": "{{count}} और दिखाएं",
     "sections": {
       "working": "काम जारी",
       "later": "बाद में",

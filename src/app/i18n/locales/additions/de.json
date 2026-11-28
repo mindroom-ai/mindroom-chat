@@ -2513,6 +2513,12 @@
     "emptyForMe": "Noch keine Threads für dich",
     "group": "Gruppieren",
     "groupHint": "Nach Status gruppieren",
+    "columns": "Spalten",
+    "columnsHint": "Statusspalten anzeigen",
+    "collapseColumn": "{{section}} einklappen ({{count}})",
+    "expandColumn": "{{section}} ausklappen ({{count}})",
+    "foldColumn": "Einklappen",
+    "showMoreInColumn": "{{count}} weitere anzeigen",
     "sections": {
       "working": "In Arbeit",
       "later": "Später",

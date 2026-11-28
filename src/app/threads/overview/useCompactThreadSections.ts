@@ -10,7 +10,11 @@ import {
   type CrossRoomThreadIndexEntry,
 } from '../cross-room/crossRoomThreadIndex';
 import { getThreadSignalsReader } from '../cross-room/threadSignalsReader';
-import { buildCompactThreadSections, type CompactThreadSection } from './compactThreadSections';
+import {
+  buildCompactThreadSections,
+  type CompactThreadSection,
+  type CompactThreadSectionId,
+} from './compactThreadSections';
 
 const MAX_TIMEOUT_MS = 2 ** 31 - 1;
 
@@ -63,12 +67,14 @@ export const useCompactThreadSections = ({
   threadRootIds,
   threadRecordMap,
   pinnedRootIds,
+  sectionOrder,
 }: {
   room: Room;
   now: number | undefined;
   threadRootIds: string[];
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
   pinnedRootIds: readonly string[];
+  sectionOrder?: readonly CompactThreadSectionId[];
 }): CompactThreadSection[] | undefined => {
   const enabled = now !== undefined;
   const entries = useAtomValue(
@@ -102,10 +108,21 @@ export const useCompactThreadSections = ({
       pinnedRootIds,
       now,
       quietNow,
+      sectionOrder,
     });
     // roomUnread only triggers the rebuild; the signals read the counts themselves.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entries, now, pinnedRootIds, quietNow, room, roomUnread, threadRecordMap, threadRootIds]);
+  }, [
+    entries,
+    now,
+    pinnedRootIds,
+    quietNow,
+    room,
+    roomUnread,
+    sectionOrder,
+    threadRecordMap,
+    threadRootIds,
+  ]);
 
   const nextQuietWakeTs = result?.nextQuietWakeTs;
   useEffect(() => {
