@@ -1,7 +1,8 @@
 import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
+import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
 import { getThreadSummaryInfo, hasThreadSummary } from '../../matrix/protocol/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
-import { getLatestEdit } from '../../matrix/room';
+import { getLatestEdit, trimReplyFromBody } from '../../matrix/room';
 import { countCacheProbe } from '../cache/cacheProbe';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
@@ -100,23 +101,25 @@ export const shouldAutoPaginateThreadBack = ({
 // The base and line sizes were calibrated against measured virtualizer tiles;
 // the fold budget tracks CollapsibleMessage's preview with an overlaid control.
 // Tile rectangles exclude inter-row margins, as does the virtualizer cache.
-const THREAD_ROW_BASE_PX = 10;
-const THREAD_ROW_BASE_COMPACT_PX = 6;
-const THREAD_ROW_LINE_PX = 20;
+// MessageBase vertical padding (S100 * 2 = 8px) and Folds T400 line height (22px).
+export const THREAD_ROW_BASE_PX = 8;
+export const THREAD_ROW_BASE_COMPACT_PX = 6;
+export const THREAD_ROW_LINE_PX = 22;
 // CollapsibleMessage previews 11em; its collapsed control adds no row height.
-const THREAD_ROW_FOLD_CONTENT_LINES = 9;
-const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
-// Always-expanded rows render their whole body; the estimate is line-based
-// and bounded (a pathological body should not produce a megapixel row).
-const THREAD_ROW_MAX_ESTIMATED_LINES = 48;
-const THREAD_ROW_BODY_SCAN_CHARS = 4096;
+export const THREAD_ROW_FOLD_CONTENT_LINES = 9;
+export const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
+// Always-expanded rows (agent replies, legacy summaries) render in full; keep a
+// ceiling high enough for long replies on 390 px phones while bounding abuse.
+export const THREAD_ROW_MAX_ESTIMATED_LINES = 240;
+const THREAD_ROW_BODY_SCAN_CHARS = 16_384;
 
-const estimateBodyLines = (body: string, wrapChars = THREAD_ROW_WRAP_CHARS_PER_LINE): number => {
+const estimateBodyLines = (
+  body: string,
+  wrapChars = THREAD_ROW_WRAP_CHARS_PER_LINE,
+  maxLines = THREAD_ROW_MAX_ESTIMATED_LINES
+): number => {
   const scanned =
     body.length > THREAD_ROW_BODY_SCAN_CHARS ? body.slice(0, THREAD_ROW_BODY_SCAN_CHARS) : body;
-  // Wrap is counted PER PHYSICAL LINE: the previous newlines-plus-
-  // global-length formula double-counted every wrapped line's newline
-  // (part of the systematic over-estimate the calibration removed).
   let lines = 0;
   let lineStart = 0;
   for (let i = 0; i <= scanned.length; i += 1) {
@@ -124,16 +127,26 @@ const estimateBodyLines = (body: string, wrapChars = THREAD_ROW_WRAP_CHARS_PER_L
       const lineLength = i - lineStart;
       lines += Math.max(1, Math.ceil(lineLength / wrapChars));
       lineStart = i + 1;
-      if (lines >= THREAD_ROW_MAX_ESTIMATED_LINES) return THREAD_ROW_MAX_ESTIMATED_LINES;
+      if (lines >= maxLines) return maxLines;
     }
   }
-  if (body.length > scanned.length) return THREAD_ROW_MAX_ESTIMATED_LINES;
-  return Math.min(lines, THREAD_ROW_MAX_ESTIMATED_LINES);
+  if (body.length > scanned.length) return maxLines;
+  return Math.min(lines, maxLines);
 };
 
 export const estimateThreadEventRowHeight = (
   mEvent: MatrixEvent,
-  { compact, wrapChars = THREAD_ROW_WRAP_CHARS_PER_LINE }: { compact: boolean; wrapChars?: number }
+  {
+    compact,
+    wrapChars = THREAD_ROW_WRAP_CHARS_PER_LINE,
+    content: resolvedContent,
+    showsInFull: showsInFullOverride,
+  }: {
+    compact: boolean;
+    wrapChars?: number;
+    content?: Record<string, unknown>;
+    showsInFull?: boolean;
+  }
 ): number => {
   const base = compact ? THREAD_ROW_BASE_COMPACT_PX : THREAD_ROW_BASE_PX;
   const relationType = mEvent.getRelation()?.rel_type;
@@ -142,18 +155,18 @@ export const estimateThreadEventRowHeight = (
   if (relationType === RelationType.Replace || relationType === RelationType.Annotation) {
     return 0;
   }
-  const content = mEvent.getContent();
-  const contentRecord = content as Record<string, unknown>;
-  const body = typeof content.body === 'string' ? content.body : '';
+  const contentRecord = resolvedContent ?? mEvent.getContent<Record<string, unknown>>();
+  const body = typeof contentRecord.body === 'string' ? trimReplyFromBody(contentRecord.body) : '';
   // Thread rows render a summary as a one-line marker under the reply before it.
   if (getThreadSummaryInfo(contentRecord)?.summaryText) return base + THREAD_ROW_LINE_PX;
-  const lines = estimateBodyLines(body, wrapChars);
-  // Always-expanded rows (legacy thread summaries) never fold: the body
-  // renders in full.
-  const shown = hasThreadSummary(contentRecord)
-    ? lines
-    : Math.min(lines, THREAD_ROW_FOLD_CONTENT_LINES);
-  return base + shown * THREAD_ROW_LINE_PX;
+  // Always-expanded rows (agent replies and legacy thread summaries) never fold:
+  // plain-text and inline-HTML agent replies render in full.
+  const inFull =
+    showsInFullOverride ??
+    (isMindroomAgentUserId(mEvent.getSender() ?? undefined) || hasThreadSummary(contentRecord));
+  const maxLines = inFull ? THREAD_ROW_MAX_ESTIMATED_LINES : THREAD_ROW_FOLD_CONTENT_LINES;
+  const lines = estimateBodyLines(body, wrapChars, maxLines);
+  return base + lines * THREAD_ROW_LINE_PX;
 };
 
 export const isThreadOnlyRoomActivity = (room: Room, mEvt: MatrixEvent): boolean => {

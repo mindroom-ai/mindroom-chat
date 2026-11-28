@@ -251,7 +251,7 @@ describe('estimateThreadEventRowHeight', () => {
   const modern = { compact: false };
 
   it('estimates a one-liner at base + one text line', () => {
-    expect(estimateThreadEventRowHeight(makeMessageEvent('$short'), modern)).toBe(30);
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$short'), modern)).toBe(8 + 22);
   });
 
   it('adds a line per newline for short bodies', () => {
@@ -263,10 +263,10 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(70);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(8 + 3 * 22);
   });
 
-  it('caps anything past the fold at the collapsed height (long body)', () => {
+  it('caps human messages past the fold at the collapsed height (long body)', () => {
     const event = new MatrixEvent({
       content: { body: 'x'.repeat(2000), msgtype: 'm.text' },
       event_id: '$long',
@@ -275,10 +275,10 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(190);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(8 + 9 * 22);
   });
 
-  it('caps short-but-many-lines bodies at the collapsed height too', () => {
+  it('caps short-but-many-lines human bodies at the collapsed height too', () => {
     const event = new MatrixEvent({
       content: { body: 'a\nb\nc\nd\ne\nf\ng\nh\ni\nj', msgtype: 'm.text' },
       event_id: '$lines',
@@ -287,7 +287,43 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(190);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(8 + 9 * 22);
+  });
+
+  it('never caps MindRoom agent replies at the human fold and prices past 48 lines', () => {
+    const body = Array.from({ length: 65 }, (_v, i) => `Step ${i + 1}: verify Service X`).join(
+      '\n'
+    );
+    const agent = new MatrixEvent({
+      content: { body, msgtype: 'm.text' },
+      event_id: '$agent-long',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@mindroom_dev:example.org',
+      type: 'm.room.message',
+    });
+    const px = estimateThreadEventRowHeight(agent, modern);
+    expect(px).toBe(8 + 65 * 22);
+    expect(px).toBeGreaterThan(960);
+  });
+
+  it('scans past 4 KiB for long always-expanded agent replies', () => {
+    const body = Array.from(
+      { length: 120 },
+      (_v, i) => `Item ${i + 1}: Service X passed verification check with nominal latency.`
+    ).join('\n');
+    expect(body.length).toBeGreaterThan(4096);
+    const agent = new MatrixEvent({
+      content: { body, msgtype: 'm.text' },
+      event_id: '$agent-very-long',
+      origin_server_ts: 1,
+      room_id: '!room:example.org',
+      sender: '@mindroom_dev:example.org',
+      type: 'm.room.message',
+    });
+    expect(estimateThreadEventRowHeight(agent, { compact: false, wrapChars: 38 })).toBe(
+      8 + 240 * 22
+    );
   });
 
   it.each(['m.replace', 'm.annotation'])('reserves no scroll space for %s relations', (relType) => {
@@ -307,7 +343,7 @@ describe('estimateThreadEventRowHeight', () => {
   });
 
   it('estimates a thread summary at its one-line marker', () => {
-    const summary = 'Fixing iOS push token refresh while the app is suspended\n'.repeat(4);
+    const summary = 'Service X rollout summary\n'.repeat(4);
     const event = new MatrixEvent({
       content: {
         body: summary,
@@ -320,11 +356,13 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@code:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(30);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(8 + 22);
   });
 
   it('uses the smaller compact base', () => {
-    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(26);
+    expect(estimateThreadEventRowHeight(makeMessageEvent('$compact'), { compact: true })).toBe(
+      6 + 22
+    );
   });
 
   it('estimates always-expanded legacy thread-summary rows uncapped', () => {
@@ -341,8 +379,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    // 10 physical lines, none wrapping at 48 chars = 10 lines; base 10 + 10*20.
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 10 * 20);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(8 + 10 * 22);
   });
 
   it('bounds pathological always-expanded bodies at the line cap', () => {
@@ -358,7 +395,7 @@ describe('estimateThreadEventRowHeight', () => {
       sender: '@alice:example.org',
       type: 'm.room.message',
     });
-    expect(estimateThreadEventRowHeight(event, modern)).toBe(10 + 48 * 20);
+    expect(estimateThreadEventRowHeight(event, modern)).toBe(8 + 240 * 22);
   });
 });
 

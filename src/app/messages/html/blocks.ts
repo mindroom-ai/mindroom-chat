@@ -28,7 +28,7 @@ export const MINDROOM_TOOL_REF_ICON = '🔧';
 // Contract for matching formatted_body markers emitted by the server (v2).
 export const MINDROOM_TOOL_REF_HTML_REG_G = /🔧 <code>([^<]+)<\/code> \[(\d+)\]( ⏳)?/g;
 
-const MINDROOM_TOOL_REF_TEXT_REG = /^\s*🔧\s+`([^`]+)`\s+\[(\d+)\](?:\s+(⏳))?\s*$/u;
+export const MINDROOM_TOOL_REF_TEXT_REG = /^\s*🔧\s+`([^`]+)`\s+\[(\d+)\](?:\s+(⏳))?\s*$/u;
 
 const parseToolRefMatch = (match: RegExpExecArray): ToolRefParseResult | undefined => {
   const toolName = match[1]?.trim();

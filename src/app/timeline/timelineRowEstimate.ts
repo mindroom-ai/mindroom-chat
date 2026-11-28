@@ -1,225 +1,451 @@
-import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
+import { EventType, RelationType, type EventTimelineSet, type MatrixEvent } from 'matrix-js-sdk';
+import { getSyncedEdit } from '../matrix/client/syncedEdits';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
-import { getAiRunInfo, getStreamStatusFromContent } from '../matrix/protocol/aiRun';
-import { hasThreadSummary } from '../matrix/protocol/threadSummary';
+import {
+  getAiRunInfo,
+  getStreamStatusFromContent,
+  isFinishedAgentReply,
+} from '../matrix/protocol/aiRun';
+import { getAiRunCompactModelLabel } from '../matrix/protocol/aiRunModelLabel';
+import {
+  INTERACTIVE_INSTRUCTION_TEXT,
+  readInteractiveQuestion,
+  readQuestionAnswer,
+  type InteractiveQuestion,
+} from '../matrix/protocol/interactiveQuestion';
+import {
+  getCachedLongTextContent,
+  getLongTextSource,
+  type LongTextSource,
+} from '../matrix/protocol/longText';
+import { getThreadSummaryInfo, hasThreadSummary } from '../matrix/protocol/threadSummary';
+import { sanitizeContent } from '../matrix/protocol/untrustedContent';
+import {
+  getEditedEvent,
+  getEventReactions,
+  getLatestMessageContent,
+  trimReplyFromBody,
+} from '../matrix/room';
+import { isRecord } from '../lib/isRecord';
+import { matchesEnum } from '../lib/matchesEnum';
 import { inSameDay } from '../lib/time';
-import { estimateThreadEventRowHeight } from '../event-store/threads/threadRenderUtils';
-import { startsAuthorGroup } from './timelineRowFold';
+import {
+  estimateThreadEventRowHeight,
+  THREAD_ROW_LINE_PX as LINE_PX,
+  THREAD_ROW_MAX_ESTIMATED_LINES as MAX_LINES,
+} from '../event-store/threads/threadRenderUtils';
 import {
   getTimelineMessageKind,
   MEDIA_MAX_SIZE,
   NOTICE_STATE_EVENT_TYPES,
 } from '../event-store/timeline/timelineRowTypes';
+import {
+  formatMarkdownTextBodyAsHtml,
+  MINDROOM_TOOL_REF_HTML_REG_G as TOOL_REF_HTML_G,
+  MINDROOM_TOOL_REF_ICON as TOOL_ICON,
+  MINDROOM_TOOL_REF_TEXT_REG as TOOL_REF_TEXT,
+} from '../messages/html/blocks';
+import { genuineReplyEventId, startsAuthorGroup } from './timelineRowFold';
 
-/*
- * Heights a timeline row is given before it is measured. A row priced far from its real height
- * moves the rows around it when it mounts, so the estimates follow what the row will show: the
- * text estimate of threadRenderUtils, rich HTML (code blocks, lists, tables) and media sized by
- * their content, and in the room the author line that starts each group of messages.
- */
+/* Pre-mount row height estimates from CSS/component invariants (Folds T400 22 px, MessageBase 8 px,
+ * SenderLine 22/44 px, ModelBadge 94/114 px, CodeBlock 16-line collapse, ScrollableTable, folds). */
+const COL = { wrap: 48, minWrap: 24, chromePx: 80, charPx: 8, fold: 9, gap: 0.4 } as const;
+const CODE = { wrap: 80, collapseLines: 16, collapsedPx: 270, linePx: 19.5 } as const;
+const CODE_HEAD = { collapsed: { fine: 36, coarse: 53 }, open: { fine: 52, coarse: 71 } } as const;
+const TABLE = { cellWrap: 44, rowPx: 17, narrowWrap: 55, wideCols: 3, ctrlPx: 66 } as const;
+const QUESTION = { chromePx: 30, optionPx: 42, fallbackDeltaPx: 20 } as const;
+const ROW = { compact: 6, base: 8, work: 28, toolRun: 38, reply: 24 } as const;
+const EXTRA = { day: 34, state: 28, badge: 31, file: 56, media: 240 } as const;
+const PTR = {
+  header: { fine: 38, coarse: 60 },
+  authorMin: { fine: 68, coarse: 90 },
+  modelMin: { fine: 94, coarse: 114 },
+  toolCog: { fine: 26, coarse: 36 },
+} as const;
 
-/** One line of message text; the text estimate counts lines of this height. */
-const LINE_PX = 20;
-/** Room for padding above and below a row's text (thread text estimate, Modern layout). */
-const ROW_BASE_PX = { compact: 6, comfortable: 10 } as const;
-/** A folding message shows this many lines until it is expanded (11em). */
-const FOLDED_LINES = 9;
-/** No estimate grows past this many lines, however long the content. */
-const MAX_LINES = 48;
-/** Characters per wrapped line in narrow columns (threads, phones), as the text estimate counts them. */
-const WRAP_CHARS = 48;
-/** Horizontal chrome (avatar, gap, padding) and average glyph width in the classic room column. */
-const ROOM_ROW_CHROME_WIDTH_PX = 96;
-const CHAR_WIDTH_PX = 8;
+/** Characters per wrapped line for a timeline scroll container width; falls back to 48. */
+export const columnWrapCharsForWidth = (w: number | undefined): number =>
+  w && w > 0 ? Math.max(COL.minWrap, Math.floor((w - COL.chromePx) / COL.charPx)) : COL.wrap;
 
-/** Characters per wrapped line for a room scroll container width; falls back to `WRAP_CHARS`. */
-export const roomWrapCharsForWidth = (widthPx: number | undefined): number =>
-  widthPx && widthPx > 0
-    ? Math.max(WRAP_CHARS, Math.floor((widthPx - ROOM_ROW_CHROME_WIDTH_PX) / CHAR_WIDTH_PX))
-    : WRAP_CHARS;
-/** A code block's language bar and padding around its lines. */
-const CODE_BLOCK_CHROME_PX = 50;
-/** A table row's cell padding, in lines. */
-const TABLE_ROW_LINES = 1.6;
-/** The gap between two blocks of rich text, in lines. */
-const BLOCK_GAP_LINES = 0.4;
-
-/** The room's first message of a group: the avatar beside the author line sets its least height. */
-const AUTHOR_ROW_MIN_PX = 68;
-/** The author line above a group's first message. */
-const AUTHOR_LINE_PX = 22;
-/** A membership, name, topic or avatar change: one line of text. */
-const STATE_ROW_PX = 28;
-/** A date separator above the first message of a day. */
-const DAY_DIVIDER_PX = 34;
-/** The thread badge under a message of the threaded room view. */
-const THREAD_BADGE_PX = 31;
-/** Media without size information, and file or audio cards. */
-const MEDIA_FALLBACK_PX = 240;
-const FILE_CARD_PX = 56;
-const BLOCK_MARKUP = /<(pre|ul|ol|table|blockquote|h[1-6])\b/i;
 const CODE_BLOCK = /<pre\b[^>]*>([\s\S]*?)<\/pre>/gi;
+const PRE_OR_TOOL = new RegExp(`(<pre\\b[^>]*>[\\s\\S]*?<\\/pre>)|${TOOL_REF_HTML_G.source}`, 'gi');
+const MX_REPLY = /<mx-reply\b[^>]*>[\s\S]*?<\/mx-reply>/gi;
 const BLOCK_END = /<\/(p|li|h[1-6]|blockquote|div|dt|dd)>|<br\s*\/?>/gi;
-const TABLE_ROW = /<tr\b/gi;
-const BLOCK_START = /<(p|ul|ol|table|blockquote|h[1-6])\b/gi;
 const ANY_TAG = /<[^>]+>/g;
 
-const wrappedLines = (text: string, wrapChars = WRAP_CHARS): number =>
-  text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0)
-    .reduce((lines, line) => lines + Math.ceil(line.length / wrapChars), 0);
+const decodeEntities = (s: string) => s.replace(/&(?:#\d+|#x[\da-f]+|[a-z][\da-z]+);/gi, 'x');
+const stripHtml = (s: string) => decodeEntities(s.replace(BLOCK_END, '\n').replace(ANY_TAG, ''));
+const hasVisibleHtml = (s: string) =>
+  s.replace(ANY_TAG, '').trim() !== '' || /<(?:img|video|audio)\b/i.test(s);
+type ContentRecord = Record<string, unknown>;
+const recordOf = (v: unknown) => (isRecord(v) ? v : undefined);
+const keysOf = (obj: ContentRecord | undefined) => (obj ? Object.keys(obj).length : 0);
+const sameItems = (a: readonly unknown[], b: readonly unknown[]) => a.every((v, i) => v === b[i]);
 
-const richHeights = new WeakMap<object, { wrapChars: number; height: number | undefined }>();
+const wrappedLines = (text: string, wrap: number = COL.wrap): number =>
+  text.split('\n').reduce((n, r) => (r.trim() ? n + Math.ceil(r.trim().length / wrap) : n), 0);
 
-/**
- * The height of a message's HTML when it has block structure (code, lists, tables, quotes,
- * headings), before any folding; undefined for plain text and inline-only HTML, which the text
- * estimate prices well.
- */
-export const estimateFormattedBodyPx = (
-  content: unknown,
-  wrapChars = WRAP_CHARS
-): number | undefined => {
-  // Content comes from the network; only an object can key the cache.
-  if (!content || typeof content !== 'object') return undefined;
-  const cached = richHeights.get(content);
-  if (cached && cached.wrapChars === wrapChars) return cached.height;
-  const fields = content as Record<string, unknown>;
-  const html = fields.format === 'org.matrix.custom.html' ? fields.formatted_body : undefined;
-  let height: number | undefined;
-  if (typeof html === 'string' && BLOCK_MARKUP.test(html)) {
-    let codePx = 0;
-    let codeBlocks = 0;
-    const prose = html.replace(CODE_BLOCK, (_block, code: string) => {
-      const codeLines = code.replace(ANY_TAG, '').replace(/\n$/, '').split('\n').length;
-      codePx += CODE_BLOCK_CHROME_PX + codeLines * LINE_PX;
-      codeBlocks += 1;
+const blocksPx = (extraPx: number, text: string, blocks: number, wrap: number, blankLines = 0) =>
+  Math.round(
+    extraPx + (wrappedLines(text, wrap) + blankLines + Math.max(0, blocks - 1) * COL.gap) * LINE_PX
+  );
+
+const countRuns = (n: number, splitAt: (i: number) => boolean): number => {
+  let runs = 1;
+  for (let i = 1; i < n; i += 1) if (splitAt(i)) runs += 1;
+  return runs;
+};
+
+const estimateCodeBlockPx = (plainCode: string, wrap: number, coarse: boolean): number => {
+  const ptr = coarse ? 'coarse' : 'fine';
+  const lines = plainCode.replace(/\n$/, '').split('\n');
+  let logical = 0;
+  for (const line of lines) {
+    logical += Math.max(1, Math.ceil(line.length / CODE.wrap));
+    if (logical > CODE.collapseLines) return CODE_HEAD.collapsed[ptr] + CODE.collapsedPx;
+  }
+  const codeWrap = Math.max(COL.minWrap, wrap - 2);
+  const rendered = lines.reduce((n, line) => n + Math.max(1, Math.ceil(line.length / codeWrap)), 0);
+  return CODE_HEAD.open[ptr] + rendered * CODE.linePx;
+};
+
+const estimateTablePx = (tableHtml: string, wrap: number): number => {
+  let px = 0;
+  let maxCols = 0;
+  for (const row of tableHtml.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)) {
+    let cols = 0;
+    let rowLines = 1;
+    for (const cell of (row[1] ?? '').matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)) {
+      cols += 1;
+      rowLines = Math.max(rowLines, wrappedLines(stripHtml(cell[1] ?? ''), TABLE.cellWrap));
+    }
+    maxCols = Math.max(maxCols, cols);
+    px += TABLE.rowPx + rowLines * LINE_PX;
+  }
+  return px + (wrap < TABLE.narrowWrap && maxCols >= TABLE.wideCols ? TABLE.ctrlPx : 0);
+};
+
+const estimateRichHtmlPx = (html: string, wrap: number, coarse: boolean): number => {
+  let extraPx = 0;
+  let extraBlocks = 0;
+  const prose = html
+    .replace(CODE_BLOCK, (_m, code: string) => {
+      extraPx += estimateCodeBlockPx(decodeEntities(code.replace(ANY_TAG, '')), wrap, coarse);
+      extraBlocks += 1;
+      return '\n';
+    })
+    .replace(/<table\b[^>]*>([\s\S]*?)<\/table>/gi, (_m, tableHtml: string) => {
+      extraPx += estimateTablePx(tableHtml, wrap);
+      extraBlocks += 1;
       return '\n';
     });
-    const tableRows = prose.match(TABLE_ROW)?.length ?? 0;
-    const blocks = (prose.match(BLOCK_START)?.length ?? 0) + codeBlocks;
-    const text = prose.replace(/<\/(td|th)>/gi, ' ').replace(BLOCK_END, '\n');
-    // Table cells share a line per row; the rest wraps like plain text.
-    const textLines = wrappedLines(
-      text.replace(/<tr\b[\s\S]*?<\/tr>/gi, '\n').replace(ANY_TAG, ''),
-      wrapChars
-    );
-    const lines =
-      textLines + tableRows * TABLE_ROW_LINES + Math.max(0, blocks - 1) * BLOCK_GAP_LINES;
-    height = Math.round(codePx + lines * LINE_PX);
-  }
-  richHeights.set(content, { wrapChars, height });
-  return height;
+  const text = stripHtml(prose);
+  if (extraPx === 0 && !text.trim()) return 0;
+  const blankBrs = prose.match(/<br\s*\/?>\s*(?=<br\s*\/?>)/gi)?.length ?? 0;
+  const blocks = (prose.match(/<(p|ul|ol|table|blockquote|h[1-6])\b/gi)?.length ?? 0) + extraBlocks;
+  return blocksPx(extraPx, text, blocks, wrap, blankBrs);
 };
 
-/** Images and videos by their stated size, file and audio as a card; undefined for text. */
-const estimateMediaPx = (content: Record<string, unknown>, type: string): number | undefined => {
+const customHtml = (c: unknown): string | undefined => {
+  if (!isRecord(c) || c.format !== 'org.matrix.custom.html') return undefined;
+  const fb = typeof c.formatted_body === 'string' ? c.formatted_body : undefined;
+  const stripped =
+    fb && /<mx-reply\b/i.test(fb) && /<\/mx-reply>/i.test(fb) ? fb.replace(MX_REPLY, '') : fb;
+  return stripped && stripped.trim() ? stripped : undefined;
+};
+
+/** Height of custom HTML before folding; undefined when `formatted_body` is absent or empty. */
+export const estimateFormattedBodyPx = (c: unknown, wrap: number = COL.wrap, coarse = false) => {
+  const html = customHtml(c);
+  return html ? estimateRichHtmlPx(html, wrap, coarse) || undefined : undefined;
+};
+
+const hasLongText = (c?: ContentRecord) => c?.['io.mindroom.long_text'] !== undefined;
+const hasLongTextTag = (c?: ContentRecord) =>
+  hasLongText(c) || hasLongText(recordOf(c?.['m.new_content']));
+
+const estimateMediaPx = (content: ContentRecord, type: string): number | undefined => {
   const msgtype = type === 'm.sticker' ? 'm.image' : content.msgtype;
-  if (msgtype === 'm.file' || msgtype === 'm.audio') return FILE_CARD_PX;
+  if (msgtype === 'm.file' && hasLongTextTag(content)) return undefined;
+  if (msgtype === 'm.file' || msgtype === 'm.audio') return EXTRA.file;
   if (msgtype !== 'm.image' && msgtype !== 'm.video') return undefined;
-  const info = content.info as { w?: unknown; h?: unknown } | undefined;
-  const width = typeof info?.w === 'number' && info.w > 0 ? info.w : undefined;
-  const height = typeof info?.h === 'number' && info.h > 0 ? info.h : undefined;
-  if (!width || !height) return MEDIA_FALLBACK_PX;
-  const scale = Math.min(1, MEDIA_MAX_SIZE.width / width, MEDIA_MAX_SIZE.height / height);
-  return Math.round(height * scale);
+  const { w, h } = recordOf(content.info) ?? {};
+  return typeof w === 'number' && typeof h === 'number' && w > 0 && h > 0
+    ? Math.round(h * Math.min(1, MEDIA_MAX_SIZE.width / w, MEDIA_MAX_SIZE.height / h))
+    : EXTRA.media;
 };
 
-/** Whether the message always shows in full: agent replies and summaries. */
-const showsInFull = (event: MatrixEvent, content: Record<string, unknown>): boolean =>
-  isMindroomAgentUserId(event.getSender() ?? undefined) || hasThreadSummary(content);
+const hasReasoning = (c: ContentRecord) =>
+  [c['io.mindroom.live_reasoning'], recordOf(c['io.mindroom.reasoning'])?.text].some(
+    (v) => typeof v === 'string' && v.trim() !== ''
+  );
+
+type Layout = {
+  compact: boolean;
+  wrapChars: number;
+  coarse: boolean;
+  showToolCalls: boolean;
+  expandAll: boolean;
+};
+
+const estimateToolWorkPx = (
+  content: ContentRecord,
+  html: string | undefined,
+  body: string,
+  { wrapChars: wrap, coarse, showToolCalls, expandAll }: Layout,
+  plainPx: (text: string) => number
+): number | undefined => {
+  const foldsFinished = isFinishedAgentReply(content) && !expandAll;
+  const r = hasReasoning(content);
+  const controls = (runs: number) => {
+    if (showToolCalls) return (r ? ROW.work : 0) + runs * ROW.toolRun;
+    return r ? ROW.work : PTR.toolCog[coarse ? 'coarse' : 'fine'];
+  };
+  if (html?.includes(TOOL_ICON)) {
+    const matches = [...html.matchAll(PRE_OR_TOOL)].filter((m) => !m[1]);
+    if (matches.length === 0) return undefined;
+    const stripTools = (s: string) => s.replace(PRE_OR_TOOL, (_m, pre?: string) => pre ?? '');
+    const fragPx = (s: string) => estimateRichHtmlPx(s, wrap, coarse);
+    const last = matches.at(-1)!;
+    const start = last.index ?? 0;
+    const end = start + last[0].length;
+    const noCut = /^[\s]*(?:<br\s*\/?>[\s]*)*<\/(?:li|blockquote|h[1-6]|td|th)>/i;
+    if (foldsFinished && !noCut.test(html.slice(end))) {
+      const tail = html.slice(end).replace(/^(?:[\s]+|<br\s*\/?>|<\/p>)+/i, '');
+      if (hasVisibleHtml(stripTools(html.slice(0, start))) && hasVisibleHtml(tail)) {
+        return ROW.work + fragPx(tail);
+      }
+    }
+    const runs = countRuns(matches.length, (i) => {
+      const prevEnd = (matches[i - 1]!.index ?? 0) + matches[i - 1]![0].length;
+      return hasVisibleHtml(html.slice(prevEnd, matches[i]!.index ?? prevEnd));
+    });
+    const cleaned = stripTools(html).replace(/<p\b[^>]*>[\s]*(?:<br\s*\/?>[\s]*)*<\/p>/gi, '');
+    return controls(runs) + fragPx(cleaned);
+  }
+  if (!body.includes(TOOL_ICON)) return undefined;
+  const lines = body.split('\n');
+  const idxs = lines.flatMap((l, i) => (TOOL_REF_TEXT.test(l) ? [i] : []));
+  if (idxs.length === 0) return undefined;
+  const lastIdx = idxs.at(-1)!;
+  if (foldsFinished) {
+    const head = lines.slice(0, lastIdx).some((l) => l.trim() !== '' && !TOOL_REF_TEXT.test(l));
+    const rest = lines.slice(lastIdx + 1);
+    const tail = rest.join('\n').trim();
+    if (head && tail) return ROW.work + plainPx(tail);
+  }
+  const runs = countRuns(idxs.length, (i) =>
+    lines.slice(idxs[i - 1]! + 1, idxs[i]).some((l) => l.trim() !== '')
+  );
+  const cleaned = lines
+    .filter((l) => !TOOL_REF_TEXT.test(l))
+    .join('\n')
+    .trim();
+  return controls(runs) + (cleaned ? plainPx(cleaned) : 0);
+};
+
+export type MessageRowEstimateOptions = {
+  compact: boolean;
+  wrapChars?: number;
+  coarsePointer?: boolean;
+  showToolCalls?: boolean;
+  expandAll?: boolean;
+  timelineSet?: Pick<EventTimelineSet, 'relations'>;
+  longTextCacheOwner?: object;
+};
 
 const priceMessageRow = (
   event: MatrixEvent,
-  content: Record<string, unknown>,
-  compact: boolean,
-  wrapChars: number
+  content: ContentRecord,
+  layout: Layout,
+  q?: { total: number; shown: number }
 ): number => {
-  const textPx = estimateThreadEventRowHeight(event, { compact, wrapChars });
-  if (textPx === 0) return 0;
   const relation = event.getRelation()?.rel_type;
   if (relation === RelationType.Replace || relation === RelationType.Annotation) return 0;
-  const base = compact ? ROW_BASE_PX.compact : ROW_BASE_PX.comfortable;
+  const { compact, wrapChars: wrap, coarse } = layout;
+  const base = compact ? ROW.compact : ROW.base;
+  if (getThreadSummaryInfo(content)?.summaryText) return base + LINE_PX;
   const mediaPx = estimateMediaPx(content, event.getType());
-  if (mediaPx !== undefined) return Math.max(textPx, base + mediaPx);
-  const richPx = estimateFormattedBodyPx(content, wrapChars);
-  if (richPx === undefined) return textPx;
-  const capLines = showsInFull(event, content) ? MAX_LINES : FOLDED_LINES;
-  return Math.max(textPx, base + Math.min(richPx, capLines * LINE_PX));
+  const textH = (src: ContentRecord, showsInFull?: boolean) =>
+    estimateThreadEventRowHeight(event, { compact, wrapChars: wrap, content: src, showsInFull });
+  if (mediaPx !== undefined) return Math.max(textH(content), base + mediaPx);
+  const isAgent = isMindroomAgentUserId(event.getSender() ?? undefined);
+  const inFull = isAgent || hasThreadSummary(content);
+  const body = typeof content.body === 'string' ? trimReplyFromBody(content.body) : '';
+  const rawHtml = customHtml(content);
+  const html =
+    rawHtml ?? (inFull && body ? formatMarkdownTextBodyAsHtml(body) || undefined : undefined);
+  const plainPx = (text: string, src?: ContentRecord) =>
+    Math.max(0, textH(src ?? { msgtype: 'm.text', body: text }, inFull) - base);
+
+  let innerPx =
+    (isAgent ? estimateToolWorkPx(content, html, body, layout, plainPx) : undefined) ??
+    (isAgent && hasReasoning(content) ? ROW.work : 0) +
+      ((html ? estimateRichHtmlPx(html, wrap, coarse) || undefined : undefined) ??
+        plainPx(body, content));
+
+  if (q) {
+    const hasFb =
+      body.includes(INTERACTIVE_INSTRUCTION_TEXT) || !!html?.includes(INTERACTIVE_INSTRUCTION_TEXT);
+    const minCard = QUESTION.chromePx + q.shown * QUESTION.optionPx;
+    innerPx = hasFb
+      ? Math.max(
+          minCard,
+          innerPx + q.shown * QUESTION.fallbackDeltaPx - (q.total - q.shown) * LINE_PX
+        )
+      : innerPx + minCard;
+  }
+  return base + Math.min(innerPx, (inFull ? MAX_LINES : COL.fold) * LINE_PX);
 };
 
 type RowEstimate = {
-  content: object;
-  keyCount: number;
-  compact: boolean;
-  wrapChars: number;
+  key: readonly unknown[];
+  resolvedEdit?: MatrixEvent;
+  editSnap?: readonly [unknown, number, unknown, number];
+  longTextSource?: LongTextSource;
+  hydratedContent?: object;
+  question?: InteractiveQuestion;
+  questionAnswered?: boolean;
   px: number;
+  ownRun: boolean;
+  hasModelBadge: boolean;
+  isSummaryMarker: boolean;
 };
 
-/**
- * The last estimate of each row. The virtual list prices every unmeasured row again at each
- * render, and a long thread has hundreds, so a row keeps its estimate while what it shows stays:
- * the same content object (an edit, a decryption or a pending local redaction gives another),
- * with as many keys (an older edit's metadata is written into the shown content, and the
- * server's redaction deletes its keys), in the same layout. This holds while content changes in
- * place only by gaining or losing keys, never by a key taking another value.
- */
+/** Avoids edit resolution and HTML/Markdown parsing on unchanged cache hits. */
 const rowEstimates = new WeakMap<MatrixEvent, RowEstimate>();
 
-/**
- * A message row's height without an author line: the text estimate, or the rich HTML or media
- * it shows when those are taller. Edits and reactions have no row and stay at zero.
- */
-export const estimateMessageRowHeight = (
-  event: MatrixEvent,
-  { compact, wrapChars = WRAP_CHARS }: { compact: boolean; wrapChars?: number }
-): number => {
-  const content = event.getContent<Record<string, unknown>>();
-  const keyCount = Object.keys(content).length;
+const snapshotEdit = (edit: MatrixEvent): readonly [unknown, number, unknown, number] => {
+  const content = recordOf(edit.getContent());
+  const nc = recordOf(content?.['m.new_content']);
+  return [content, keysOf(content), nc, keysOf(nc)];
+};
+
+const resolveRowEstimate = (event: MatrixEvent, opts: MessageRowEstimateOptions): RowEstimate => {
+  const { compact, wrapChars = COL.wrap, timelineSet, longTextCacheOwner } = opts;
+  const coarse = opts.coarsePointer ?? false;
+  const showToolCalls = opts.showToolCalls ?? false;
+  const expandAll = opts.expandAll ?? false;
+  const layout: Layout = { compact, wrapChars, coarse, showToolCalls, expandAll };
+  const raw = recordOf(event.getContent()) ?? {};
+  const repl = event.replacingEvent?.() ?? undefined;
+  const replContent = recordOf(repl?.getContent());
+  const id = event.getId?.();
+  const syncedEdit = id ? getSyncedEdit(id) : undefined;
+  const rels = id ? timelineSet?.relations : undefined;
+  const msgRel = rels?.getChildEventsForEvent(id!, RelationType.Replace, EventType.RoomMessage);
+  const type = event.getType();
+  const typeRel = !matchesEnum(type, EventType.RoomMessage)
+    ? rels?.getChildEventsForEvent(id!, RelationType.Replace, type)
+    : undefined;
+  const msgRelCount = msgRel?.getRelations().length ?? 0;
+  const typeRelCount = typeRel?.getRelations().length ?? 0;
+  const bundledEdit = recordOf(event.getUnsigned?.()?.['m.relations'])?.[RelationType.Replace];
+  const k1 = [raw, keysOf(raw), repl, replContent, keysOf(replContent), syncedEdit];
+  const k2 = [syncedEdit?.getContent(), msgRel, msgRelCount, typeRel, typeRelCount, bundledEdit];
+  const key: readonly unknown[] = [
+    ...k1,
+    ...k2,
+    compact,
+    wrapChars,
+    coarse,
+    showToolCalls,
+    expandAll,
+  ];
+  const sender = event.getSender() ?? undefined;
+  const cachedSidecar = (src: LongTextSource | undefined) =>
+    src && longTextCacheOwner ? getCachedLongTextContent(src, longTextCacheOwner) : undefined;
+  const isAnswered = (iq: InteractiveQuestion) => {
+    const list = id && timelineSet ? getEventReactions(timelineSet, id)?.getRelations() : undefined;
+    return !!list?.length && !!readQuestionAnswer(list, iq, sender);
+  };
+
   const known = rowEstimates.get(event);
   if (
     known &&
-    known.content === content &&
-    known.keyCount === keyCount &&
-    known.compact === compact &&
-    known.wrapChars === wrapChars
+    sameItems(known.key, key) &&
+    (!known.resolvedEdit ||
+      (!known.resolvedEdit.isRedacted?.() &&
+        sameItems(known.editSnap!, snapshotEdit(known.resolvedEdit)))) &&
+    (!known.longTextSource || cachedSidecar(known.longTextSource) === known.hydratedContent) &&
+    (!known.question || isAnswered(known.question) === known.questionAnswered)
   ) {
-    return known.px;
+    return known;
   }
-  const px = priceMessageRow(event, content, compact, wrapChars);
-  rowEstimates.set(event, { content, keyCount, compact, wrapChars, px });
-  return px;
+
+  const hasEdit =
+    !!repl || msgRelCount > 0 || typeRelCount > 0 || !!syncedEdit || bundledEdit !== undefined;
+  const resolvedEdit = hasEdit ? getEditedEvent(id ?? '', event, timelineSet) : undefined;
+  const base = (resolvedEdit ? getLatestMessageContent(event, resolvedEdit) : raw) as Record<
+    string,
+    unknown
+  >;
+  const longTextSource = hasLongTextTag(base) ? getLongTextSource(base) : undefined;
+  const hydratedContent = cachedSidecar(longTextSource);
+  const isAgent = isMindroomAgentUserId(sender);
+  const content: ContentRecord = hydratedContent
+    ? {
+        ...base,
+        format: undefined,
+        formatted_body: undefined,
+        ...sanitizeContent(hydratedContent, isAgent),
+      }
+    : base;
+
+  const q = isAgent ? readInteractiveQuestion(content, event.getOriginalContent?.()) : undefined;
+  const answered = !!q && isAnswered(q);
+  const qCounts = q && { total: q.options.length, shown: answered ? 1 : q.options.length };
+  const px = priceMessageRow(event, content, layout, qCounts);
+  const aiRun = getAiRunInfo(content);
+  const entry: RowEstimate = {
+    key,
+    resolvedEdit,
+    editSnap: resolvedEdit ? snapshotEdit(resolvedEdit) : undefined,
+    longTextSource,
+    hydratedContent,
+    question: q,
+    questionAnswered: q ? answered : undefined,
+    px,
+    ownRun: !!aiRun || (isAgent && !!getStreamStatusFromContent(content)),
+    hasModelBadge: !!aiRun && !!getAiRunCompactModelLabel(aiRun),
+    isSummaryMarker: !!getThreadSummaryInfo(content)?.summaryText,
+  };
+  rowEstimates.set(event, entry);
+  return entry;
 };
 
-/**
- * A room row in the Modern or Bubble layout: state changes as a line or nothing, messages with
- * the author line that starts a group (or that an agent reply keeps, as Message does) and the
- * thread badge the threaded view puts under them, and the date separator above a new day.
- */
+/** A message row's height without an author header; edits and reactions stay at zero. */
+export const estimateMessageRowHeight = (event: MatrixEvent, opts: MessageRowEstimateOptions) =>
+  resolveRowEstimate(event, opts).px;
+
+/** A thread row: body height plus reply quote, non-compact author header, ModelBadge floor, and day divider. */
+export const estimateThreadRowHeight = (
+  event: MatrixEvent,
+  above: MatrixEvent | undefined,
+  opts: MessageRowEstimateOptions
+): number => {
+  const entry = resolveRowEstimate(event, opts);
+  if (entry.px === 0) return 0;
+  const replyId = event.getType() !== 'm.sticker' ? genuineReplyEventId(event) : undefined;
+  const bodyPx = entry.px + (replyId && replyId !== above?.getId() ? ROW.reply : 0);
+  const dayPx = above && !inSameDay(above.getTs(), event.getTs()) ? EXTRA.day : 0;
+  if (opts.compact || entry.isSummaryMarker || (!startsAuthorGroup(above, event) && !entry.ownRun))
+    return bodyPx + dayPx;
+  const ptr = opts.coarsePointer ? 'coarse' : 'fine';
+  const minPx = (entry.hasModelBadge ? PTR.modelMin : PTR.authorMin)[ptr];
+  return Math.max(minPx, bodyPx + PTR.header[ptr]) + dayPx;
+};
+
+/** A room row in Modern/Bubble layout: state notices, messages with header/ModelBadge/badge/day divider. */
 export const estimateRoomRowHeight = (
   event: MatrixEvent,
   above: MatrixEvent | undefined,
-  {
-    threadBadge = false,
-    wrapChars = WRAP_CHARS,
-  }: { threadBadge?: boolean; wrapChars?: number } = {}
+  opts: Omit<MessageRowEstimateOptions, 'compact'> & { threadBadge?: boolean } = {}
 ): number => {
   const type = event.getType();
   if (event.getStateKey() !== undefined)
-    return NOTICE_STATE_EVENT_TYPES.has(type) ? STATE_ROW_PX : 0;
+    return NOTICE_STATE_EVENT_TYPES.has(type) ? EXTRA.state : 0;
   if (!getTimelineMessageKind(type)) return 0;
-  const bodyPx = estimateMessageRowHeight(event, { compact: false, wrapChars });
-  if (bodyPx === 0) return 0;
-  const content = event.getContent<Record<string, unknown>>();
-  const ownRun =
-    !!getAiRunInfo(content) ||
-    (isMindroomAgentUserId(event.getSender()) && !!getStreamStatusFromContent(content));
-  const rowPx =
-    startsAuthorGroup(above, event) || ownRun
-      ? Math.max(AUTHOR_ROW_MIN_PX, bodyPx + AUTHOR_LINE_PX)
-      : bodyPx;
-  const newDay = !!above && !inSameDay(above.getTs(), event.getTs());
-  return rowPx + (threadBadge ? THREAD_BADGE_PX : 0) + (newDay ? DAY_DIVIDER_PX : 0);
+  const rowPx = estimateThreadRowHeight(event, above, { ...opts, compact: false });
+  return rowPx === 0 ? 0 : rowPx + (opts.threadBadge ? EXTRA.badge : 0);
 };
