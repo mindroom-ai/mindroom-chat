@@ -194,18 +194,27 @@ const describeUploadError = (error: unknown): string =>
 
 export const createDictationSession = (options: DictationSessionOptions): DictationSession => {
   const {
+    getUserMedia,
+    createAudioContext,
+    workletUrl,
+    client,
+    rateBudget: explicitRateBudget,
+    roomId,
+    originApiUrl,
+    journal,
+    recovered,
+    maxRetainedWavBytes = DICTATION_MAX_RETAINED_WAV_BYTES,
     loadVad = loadSileroVad,
+    captureFactory = createBrowserCaptureFactory({ getUserMedia, createAudioContext, workletUrl }),
     now = () => Date.now(),
     sleep = defaultSleep,
     finishPolishTimeoutMs = DEFAULT_FINISH_POLISH_TIMEOUT_MS,
-    maxRetainedWavBytes = DICTATION_MAX_RETAINED_WAV_BYTES,
-    recovered,
   } = options;
-  const captureFactory = options.captureFactory ?? createBrowserCaptureFactory(options);
-  let activeClient: DictationTranscriber | undefined = options.client;
-  let activeRoomId: string | undefined = options.roomId;
-  let activeOriginApiUrl: string | undefined = options.originApiUrl ?? recovered?.originApiUrl;
-  let rateBudget = options.rateBudget ?? options.client?.rateBudget ?? createDictationRateBudget();
+  const hasExplicitRateBudget = Boolean(explicitRateBudget);
+  let activeClient = client;
+  let activeRoomId = roomId;
+  let activeOriginApiUrl = originApiUrl ?? recovered?.originApiUrl;
+  let rateBudget = explicitRateBudget ?? client?.rateBudget ?? createDictationRateBudget();
 
   const listeners = new Set<() => void>();
   let generation = 0;
@@ -288,7 +297,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       : Math.max(0, Math.round(accumulatedMs + (now() - recordingStartedAt)));
 
   const checkpointer = createDictationCheckpointer(
-    options.journal,
+    journal,
     () => ({
       startedAt,
       elapsedMs: currentElapsedMs(),
@@ -922,7 +931,7 @@ export const createDictationSession = (options: DictationSessionOptions): Dictat
       if (activeOriginApiUrl === undefined && nextOriginApiUrl !== undefined) {
         activeOriginApiUrl = nextOriginApiUrl;
       }
-      if (!options.rateBudget && nextClient.rateBudget) {
+      if (!hasExplicitRateBudget && nextClient.rateBudget) {
         rateBudget = nextClient.rateBudget;
       }
       publish({ hasClient: true });

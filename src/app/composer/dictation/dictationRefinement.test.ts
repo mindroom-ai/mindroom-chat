@@ -369,6 +369,7 @@ describe('dictationRefinement', () => {
     const records: RefinementSegmentRecord[] = statuses.map((status, i) => ({
       segment: { ...meta, index: 100 + i },
       status,
+      ...(status === 'completed' ? { text: 'Recorded text.' } : {}),
       wav,
     }));
     const groups: RefinementGroup[] = [
@@ -390,6 +391,20 @@ describe('dictationRefinement', () => {
     expect(pruneSettledGroupWavs(groups, records, 0)).toEqual([102]);
     expect(records.slice(3).every((record) => record.wav === wav)).toBe(true);
     expect(groups[0]?.refinedText).toBe('Finished together.');
+  });
+
+  it('keeps audio when neither completed primaries nor a refined range have non-blank text', () => {
+    const segment = makeSegment({ voiced: 1 });
+    const records: RefinementSegmentRecord[] = [
+      { segment, wav: segment.wav, status: 'completed', text: ' \t' },
+      { segment: { ...segment, index: 1 }, wav: segment.wav, status: 'completed' },
+    ];
+    const groups: RefinementGroup[] = [
+      { startIndex: 0, endIndex: 0, state: 'fallback' },
+      { startIndex: 1, endIndex: 1, state: 'refined', refinedText: ' \n' },
+    ];
+    expect(pruneSettledGroupWavs(groups, records, 0)).toEqual([]);
+    expect(records.map((record) => record.wav)).toEqual([segment.wav, segment.wav]);
   });
 
   it('selects live rolling or queued refinements chronologically and summarizes progressive coverage', () => {

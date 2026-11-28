@@ -8,6 +8,7 @@ import {
 } from './dictationSegmenter';
 import { buildTrailingPrompt, stitchTranscript, type StitchSegmentInput } from './stitchTranscript';
 
+// Cap settled audio while keeping unsettled and failed audio retryable.
 export const DICTATION_MAX_RETAINED_WAV_BYTES = 50 * 1024 * 1024;
 
 export const REFINEMENT_MAX_GROUP_SECONDS = 16;
@@ -71,6 +72,19 @@ export type SessionRecordSummary = {
   previewText: string;
 };
 
+const isSettledGroup = (
+  group: RefinementGroup,
+  records: readonly RefinementSegmentRecord[]
+): boolean => {
+  if (group.state !== 'refined' && group.state !== 'fallback') return false;
+  const coveredEnd = getRefinementGroupCoveredEnd(group);
+  for (let i = Math.max(group.startIndex, coveredEnd + 1); i <= group.endIndex; i += 1) {
+    const record = records[i];
+    if (record?.status !== 'completed' || !record.text?.trim()) return false;
+  }
+  return true;
+};
+
 /** Drops oldest settled audio in whole groups so voice fallback can keep their refined text. */
 export const pruneSettledGroupWavs = (
   groups: readonly RefinementGroup[],
@@ -81,15 +95,7 @@ export const pruneSettledGroupWavs = (
   const prunedIndices: number[] = [];
   for (const group of groups) {
     if (totalBytes <= maxRetainedBytes) break;
-    if (
-      group.state !== 'refined' &&
-      (group.state !== 'fallback' ||
-        !records
-          .slice(group.startIndex, group.endIndex + 1)
-          .every((record) => record.status === 'completed'))
-    ) {
-      continue;
-    }
+    if (!isSettledGroup(group, records)) continue;
     for (let i = group.startIndex; i <= group.endIndex; i += 1) {
       const record = records[i];
       if (!record?.wav) continue;
@@ -259,7 +265,7 @@ export const canAffordRefinement = (
 };
 
 export const getRefinementGroupCoveredEnd = (group: RefinementGroup): number => {
-  if (!group.refinedText) return group.startIndex - 1;
+  if (!group.refinedText?.trim()) return group.startIndex - 1;
   const end = group.refinedEndIndex ?? (group.state === 'refined' ? group.endIndex : undefined);
   return end !== undefined ? Math.min(end, group.endIndex) : group.startIndex - 1;
 };

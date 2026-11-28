@@ -1953,6 +1953,59 @@ describe('createDictationSession checkpointing, recovery, and lifecycle', () => 
     await session.discard();
   });
 
+  // Run with `vitest run --execArgv=--expose-gc` to assert collection in the fork.
+  it.skipIf(!globalThis.gc)(
+    'releases recovered WAVs after settlement while the session stays alive',
+    async () => {
+      const makeRecoveredSession = () => {
+        const wav = encodePcm16Wav([makeFrame(0.3)]);
+        const session = createDictationSession({
+          maxRetainedWavBytes: 0,
+          recovered: {
+            startedAt: 1_000,
+            elapsedMs: DICTATION_FRAME_MS,
+            initialSegmentIndex: 1,
+            initialFramePos: 1,
+            groups: [{ startIndex: 0, endIndex: 0, state: 'fallback' }],
+            records: [
+              {
+                segment: {
+                  index: 0,
+                  seconds: DICTATION_FRAME_MS / 1000,
+                  cutReason: 'flush',
+                  overlapped: false,
+                  leadingQuietFrames: 0,
+                  trailingQuietFrames: 0,
+                  pauseBeforeMs: Infinity,
+                },
+                wav,
+                status: 'queued',
+                retryable: true,
+              },
+            ],
+          },
+        });
+        return { session, wavRef: new WeakRef(wav) };
+      };
+      const { session, wavRef } = makeRecoveredSession();
+      expect(session.getSnapshot().hasVoiceAudio).toBe(true);
+      session.attachClient({
+        transcribe: async () => ({ text: 'Recovered text.', seconds: 0.096 }),
+      });
+      await vi.waitFor(() => expect(session.getSnapshot().hasVoiceAudio).toBe(false));
+      // WeakRef protects its target until the construction turn ends.
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+      globalThis.gc?.();
+      expect(wavRef.deref()).toBeUndefined();
+      expect(session.getSnapshot()).toMatchObject({
+        phase: 'paused',
+        previewText: 'Recovered text.',
+      });
+    }
+  );
+
   it('preserves queued refinement group across offline finish so attaching a client refines all segments', async () => {
     const journal = makeJournal();
     const wav0 = encodePcm16Wav([makeFrame(0.3), makeFrame(0.3), makeFrame(0.3)]);

@@ -7,6 +7,7 @@ import {
 } from '../../lib/audioWaveform';
 import {
   MIN_INTERNAL_GAP_FRAMES,
+  pruneSettledGroupWavs,
   type RefinementGroup,
   type RefinementSegmentRecord,
 } from './dictationRefinement';
@@ -282,6 +283,29 @@ describe('dictationVoiceAudio', () => {
     expect(result!.file.size).toBe(DICTATION_WAV_HEADER_BYTES + 6);
     expect(result!.duration).toBe(1); // minimum 1 ms clamp
     expect(result!.waveform).toHaveLength(VOICE_WAVEFORM_BAR_COUNT);
+  });
+
+  it('prunes a partially refined fallback group whole and exports the uncovered blank segment as audio', async () => {
+    const records = [
+      makeRecord({ index: 0, status: 'completed', text: 'First rough.' }),
+      makeRecord({ index: 1, status: 'queued' }),
+      makeRecord({ index: 2, status: 'completed', text: 'Third segment.' }),
+      makeRecord({ index: 3, status: 'completed', text: ' \t' }),
+    ];
+    const groups: RefinementGroup[] = [
+      {
+        startIndex: 0,
+        endIndex: 2,
+        state: 'fallback',
+        refinedText: 'First and second refined.',
+        refinedEndIndex: 1,
+      },
+      { startIndex: 3, endIndex: 3, state: 'fallback' },
+    ];
+    expect(pruneSettledGroupWavs(groups, records, 0)).toEqual([0, 1, 2]);
+    const result = await buildDictationVoiceAudio(records, groups, NOW);
+    expect(result?.missingAudioPartialText).toBe('First and second refined. Third segment.');
+    expect(result?.file.size).toBe(DICTATION_WAV_HEADER_BYTES + 2 * FRAME_BYTES);
   });
 
   it('extracts missingAudioPartialText for legacy journals with pruned earlier WAVs', async () => {

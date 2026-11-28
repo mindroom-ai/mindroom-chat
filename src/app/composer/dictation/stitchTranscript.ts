@@ -4,6 +4,7 @@ export type StitchSegmentInput = {
 };
 
 const MAX_OVERLAP_WORDS = 6;
+const WORD_CHAR = /[\p{L}\p{N}]/u;
 const MIN_CJK_OVERLAP_CHARS = 2;
 const MAX_CJK_OVERLAP_CHARS = 12;
 const GLUED_LEADING_PUNCTUATION = /^[,.;:!?…)\]}>。、，！？：；」』】）]/;
@@ -19,16 +20,45 @@ type WordSpan = {
   end: number;
 };
 
-const normalizeWord = (word: string): string =>
-  word.toLowerCase().replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+const previousCodePointStart = (text: string, end: number): number => {
+  const last = text.charCodeAt(end - 1);
+  if (last >= 0xdc00 && last <= 0xdfff) {
+    const first = text.charCodeAt(end - 2);
+    if (first >= 0xd800 && first <= 0xdbff) return end - 2;
+  }
+  return end - 1;
+};
 
-const scanTrailingWords = (text: string, maxWords: number): WordSpan[] => {
+const normalizeWord = (word: string): string => {
+  const lower = word.toLowerCase();
+  const start = lower.search(WORD_CHAR);
+  if (start === -1) return '';
+  // Walking in from the ends avoids backtracking over large interior punctuation runs.
+  let end = lower.length;
+  while (end > start) {
+    const prev = previousCodePointStart(lower, end);
+    if (WORD_CHAR.test(lower.slice(prev, end))) break;
+    end = prev;
+  }
+  return lower.slice(start, end);
+};
+
+const scanTrailingWords = (text: string, maxWords: number, maxRightNormLen: number): WordSpan[] => {
   const spans: WordSpan[] = [];
+  if (!maxRightNormLen) return spans;
   let start = text.length;
   while (start > 0 && spans.length < maxWords) {
     while (start > 0 && /\s/.test(text.charAt(start - 1))) start -= 1;
     const end = start;
-    while (start > 0 && /\S/.test(text.charAt(start - 1))) start -= 1;
+    let wordChars = 0;
+    while (start > 0 && /\S/.test(text.charAt(start - 1))) {
+      const prev = previousCodePointStart(text, start);
+      if (WORD_CHAR.test(text.slice(prev, start))) wordChars += 1;
+      // Case conversion and edge trimming preserve at least one code unit per letter/number.
+      // Keep two units of headroom; no suffix match can cross a token larger than every candidate.
+      if (wordChars > maxRightNormLen + 2) return spans.reverse();
+      start = prev;
+    }
     if (start < end) spans.push({ norm: normalizeWord(text.slice(start, end)), start, end });
   }
   return spans.reverse();
@@ -98,8 +128,9 @@ export const buildTrailingPrompt = (text: string, maxChars = 200): string | unde
 };
 
 const deduplicateOverlap = (left: string, right: string): string => {
-  const leftWords = scanTrailingWords(left, MAX_OVERLAP_WORDS);
   const rightWords = scanLeadingWords(right, MAX_OVERLAP_WORDS);
+  const maxRightNormLen = Math.max(0, ...rightWords.map((word) => word.norm.length));
+  const leftWords = scanTrailingWords(left, MAX_OVERLAP_WORDS, maxRightNormLen);
   const maxK = Math.min(MAX_OVERLAP_WORDS, leftWords.length, rightWords.length);
 
   for (let k = maxK; k >= 1; k -= 1) {
