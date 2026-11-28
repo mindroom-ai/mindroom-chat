@@ -1,8 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import type { MatrixClient } from 'matrix-js-sdk';
-import { splitFinishedWork } from './finishedWorkSplit';
+import { isText, type ChildNode } from 'domhandler';
+import { sanitizeCustomHtml, sanitizeText } from '../../rich-text/sanitize';
+import { splitFinishedWorkDom } from './finishedWorkSplit';
+import { parseRenderedHtml } from './replyDom';
+import { isDomElementNode } from './toolRefDom';
 import backendBodies from '../__fixtures__/backendToolMarkerBodies.json';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../html/react-custom-html-parser';
+
+const VOID_TAGS = new Set(['br', 'hr', 'img', 'input', 'wbr']);
+const serializeDom = (nodes: readonly ChildNode[]): string =>
+  nodes
+    .map((node) => {
+      if (isText(node)) return sanitizeText(node.data);
+      if (!isDomElementNode(node)) return '';
+      const attrs = Object.entries(node.attribs)
+        .map(([name, value]) => ` ${name}="${sanitizeText(value)}"`)
+        .join('');
+      return VOID_TAGS.has(node.name)
+        ? `<${node.name}${attrs}>`
+        : `<${node.name}${attrs}>${serializeDom(node.children)}</${node.name}>`;
+    })
+    .join('');
 
 const mx = {
   getHomeserverUrl: () => 'https://example.org',
@@ -12,15 +31,31 @@ const mx = {
 const baseOpts = getReactCustomHtmlParser(mx, undefined, {
   linkifyOpts: LINKIFY_OPTS,
 });
-const split = (html: string) => splitFinishedWork(html, baseOpts, {});
+const split = (html: string) => {
+  const dom = parseRenderedHtml(sanitizeCustomHtml(html, {}), baseOpts);
+  const result = splitFinishedWorkDom(dom, baseOpts).split;
+  return result
+    ? { head: serializeDom(result.work), tail: serializeDom(result.answer) }
+    : undefined;
+};
 
 const marker = (name: string, n: number) => `<p>🔧 <code>${name}</code> [${n}]</p>`;
 // Text before the calls, without which a reply does not fold.
 const note = '<p>Checking.</p>';
 
-describe('splitFinishedWork', () => {
+describe('splitFinishedWorkDom', () => {
   it('returns undefined without a tool marker', () => {
     expect(split('<p>hi</p>')).toBeUndefined();
+  });
+
+  it('returns toolCallIndexes alongside the split result', () => {
+    const dom = parseRenderedHtml(
+      sanitizeCustomHtml(`${note}${marker('shell', 1)}${marker('grep', 2)}<p>Done.</p>`, {}),
+      baseOpts
+    );
+    const result = splitFinishedWorkDom(dom, baseOpts);
+    expect(result.toolCallIndexes).toEqual([1, 2]);
+    expect(result.split).toBeDefined();
   });
 
   it('returns undefined when the reply ends in a tool marker', () => {
@@ -84,9 +119,9 @@ describe('splitFinishedWork', () => {
     expect(split(`${work}<p>Answer</p>`)).toEqual({ head: work, tail: '<p>Answer</p>' });
   });
 
-  it('folds the work as the HTML says, not as finding its last call left it', () => {
+  it('folds the work as the DOM says, not as finding its last call left it', () => {
     // Chromium writes a paragraph that starts with line breaks this way; drawing its call takes
-    // one of them, so the work must be cut from the HTML itself.
+    // one of them, so the work must be cut from the unmodified DOM.
     const work = `${note}${marker('shell', 1)}<p><br><br>🔧 <code>grep</code> [2]</p>${marker(
       'read',
       3

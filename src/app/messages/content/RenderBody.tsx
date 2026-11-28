@@ -1,6 +1,6 @@
 import { ReactNode, memo, useMemo } from 'react';
-import { isText } from 'domhandler';
-import { DOMNode, HTMLReactParserOptions } from 'html-react-parser';
+import { isText, type ChildNode } from 'domhandler';
+import { DOMNode, HTMLReactParserOptions, domToReact } from 'html-react-parser';
 import { parseHtml } from '../../rich-text/parseHtml';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { color } from 'folds';
@@ -8,6 +8,7 @@ import { MessageEmptyContent } from './FallbackContent';
 import { useClientConfig } from '../../config/useClientConfig';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { useBodySanitizeOptions } from './useBodySanitizeOptions';
+import { cloneDomNodes } from '../agent-run/replyDomNodes';
 import { FootnoteScopeProvider } from '../../rich-text/Footnote';
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { InlineMediaContext, type InlineMediaContextValue } from '../html/InlineImage';
@@ -74,6 +75,8 @@ interface RenderBodyProps {
   body: string;
   /** Sanitized and rendered instead of `body` when it is a non-empty string. */
   customBody?: string;
+  /** Pre-sanitized, pre-parsed DOM nodes (skips sanitization and HTML parsing when provided). */
+  parsedDom?: readonly ChildNode[];
   /** Options, or a factory called once per parse for options that keep state while parsing. */
   htmlReactParserOptions: HtmlReactParserOptionsSource;
   highlightRegex?: RegExp;
@@ -89,6 +92,7 @@ interface RenderBodyProps {
 export const RenderBody = memo(function RenderBody({
   body,
   customBody,
+  parsedDom,
   highlightRegex,
   linkifyOpts,
   htmlReactParserOptions,
@@ -100,12 +104,18 @@ export const RenderBody = memo(function RenderBody({
   const sanitizeOptions = useBodySanitizeOptions();
 
   const customContent = useMemo(() => {
+    if (parsedDom !== undefined) {
+      return domToReact(
+        cloneDomNodes(parsedDom),
+        withHighlight(resolveHtmlReactParserOptions(htmlReactParserOptions), highlightRegex)
+      );
+    }
     if (!customBody) return undefined;
     return parseHtml(
       sanitizeCustomHtml(customBody, sanitizeOptions),
       withHighlight(resolveHtmlReactParserOptions(htmlReactParserOptions), highlightRegex)
     );
-  }, [customBody, highlightRegex, htmlReactParserOptions, sanitizeOptions]);
+  }, [parsedDom, customBody, highlightRegex, htmlReactParserOptions, sanitizeOptions]);
 
   const plainContent = useMemo(() => {
     if (customContent !== undefined || body === '') return undefined;

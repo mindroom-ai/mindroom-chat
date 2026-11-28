@@ -1,13 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import React, { ReactNode, type JSX, use, useContext, useMemo, useRef } from 'react';
-import {
-  type DOMNode,
-  Element,
-  HTMLReactParserOptions,
-  Text as DOMText,
-  domToReact,
-} from 'html-react-parser';
-import { parseHtmlToDom } from '../../rich-text/parseHtml';
+import { type DOMNode, Element, HTMLReactParserOptions, domToReact } from 'html-react-parser';
+import { cloneDomNodes } from '../agent-run/replyDomNodes';
 import { ChildNode, isDocument } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
@@ -718,19 +712,6 @@ function ToolRun({
   );
 }
 
-const cloneDomChildNode = (node: ChildNode): ChildNode => {
-  if (isDomTextNode(node)) {
-    return new DOMText(node.data);
-  }
-
-  if (isDomElementNode(node)) {
-    const clonedChildren = node.children.map((child) => cloneDomChildNode(child));
-    return new Element(node.name, { ...node.attribs }, clonedChildren);
-  }
-
-  return new DOMText('');
-};
-
 const normalizeLeadingToolRefBoundaryInPlace = (element: Element): boolean => {
   if (!['p', 'div', 'li'].includes(element.name)) return false;
   const children = element.children;
@@ -958,7 +939,7 @@ const createToolTraceMarkerParserOptions = (
                 ? new Element(
                     trailingElement.name,
                     { ...trailingElement.attribs },
-                    restChildren.map((child) => cloneDomChildNode(child))
+                    cloneDomNodes(restChildren)
                   )
                 : undefined;
           }
@@ -1008,36 +989,31 @@ const collectToolRunIndexes = (node: ReactNode, into: number[]): void => {
   else collectToolRunIndexes(node.props.children, into);
 };
 
-/** The HTML's top-level nodes, as the renderer parses it. */
-export const parseRenderedHtml = (html: string, baseOpts: HTMLReactParserOptions): DOMNode[] =>
-  parseHtmlToDom(html, baseOpts.htmlparser2 ?? { lowerCaseAttributeNames: false });
-
 type RenderedToolCalls = {
   /** The calls drawn as tool blocks, by index, in the order they are drawn. */
   indexes: number[];
   /**
-   * The last top-level node that draws a call, or that a run drawn before it takes in and so draws
-   * nothing itself; -1 without a call.
+   * The last top-level node index in `nodes` that draws a call, or that a run drawn before it
+   * takes in and so draws nothing itself; -1 without a call.
    */
   lastNode: number;
 };
 
 /**
- * The tool calls the renderer draws for this sanitized HTML, read from its own parse with the
- * message's base parser options, so the reasoning, the compaction seams and the fold of a reply's
- * work go where its calls show. Where runs split changes which calls a run holds, not which draw.
+ * The tool calls the renderer draws for this already-parsed DOM with the message's base parser
+ * options, so the reasoning, the compaction seams, and the fold of a reply's work go where its
+ * calls show. Clones before drawing so in-place parser mutations never affect the caller's DOM.
  */
-export const readRenderedToolCalls = (
-  html: string,
+export const inspectRenderedToolCalls = (
+  nodes: readonly ChildNode[],
   baseOpts: HTMLReactParserOptions
 ): RenderedToolCalls => {
-  // Its own parse, which drawing changes (a marker's leading line break goes).
-  const nodes = parseRenderedHtml(html, baseOpts);
+  const cloned = cloneDomNodes(nodes);
   const opts = createToolTraceMarkerParserOptions(baseOpts, undefined, undefined, new Set());
   const indexes: number[] = [];
   let lastNode = -1;
   let inRun = false;
-  nodes.forEach((node, nodeIndex) => {
+  cloned.forEach((node, nodeIndex) => {
     const count = indexes.length;
     const drawn = domToReact([node], opts);
     collectToolRunIndexes(drawn, indexes);

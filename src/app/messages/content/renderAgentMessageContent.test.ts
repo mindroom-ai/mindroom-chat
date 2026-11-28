@@ -59,6 +59,7 @@ vi.mock('./BrokenContent', () => ({
 vi.mock('../agent-run/Reasoning.css', () => ({}));
 vi.mock('../html/HtmlBlocks', () => ({
   useToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
+  inspectRenderedToolCalls: vi.fn(() => ({ indexes: [], lastNode: -1 })),
 }));
 
 vi.mock('../../ui-actions/ChatUiActionButton', () => ({

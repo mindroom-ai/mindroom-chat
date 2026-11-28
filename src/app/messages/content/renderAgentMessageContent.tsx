@@ -1,12 +1,15 @@
-import { useContext, useMemo, type ComponentProps, type ReactNode } from 'react';
+import { useContext, useMemo, type JSX, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MsgType, type MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, Icons, Spinner, Text as FText, config } from 'folds';
+import type { ChildNode } from 'domhandler';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import {
   resolveHtmlReactParserOptions,
   type HtmlReactParserOptionsSource,
 } from '../../rich-text/htmlReactParserOptions';
+import { FootnoteScopeProvider } from '../../rich-text/Footnote';
+import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { INLINE_MEDIA_CONTENT_KEY, readInlineMedia } from '../../matrix/protocol/inlineMedia';
@@ -24,11 +27,11 @@ import { getLongTextSource, type LongTextSource } from '../../matrix/protocol/lo
 import { useResolvedMessageContent } from './useResolvedMessageContent';
 import { PasteAttachmentContent } from './PasteAttachmentContent';
 import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
-import { withReasoning } from '../agent-run/Reasoning';
+import { ReplyReasoning } from '../agent-run/Reasoning';
 import { FinishedWorkFold } from '../agent-run/FinishedWorkFold';
-import { splitFinishedWork } from '../agent-run/finishedWorkSplit';
 import { RestartSeam, RunErrorCard } from '../agent-run/RunErrorCard';
-import { parseRestartSeamNode, prepareRunErrorBody } from '../agent-run/runErrorHtml';
+import { stripTrailingRunErrorText } from '../agent-run/runErrorHtml';
+import { getReplySlot, parseRenderedHtml, prepareAgentReplyDom } from '../agent-run/replyDom';
 import { LIVE_COMPACTIONS_KEY } from '../live/useLiveReplyContent';
 import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
 import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
@@ -71,9 +74,13 @@ import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import { readInteractiveQuestion } from '../../matrix/protocol/interactiveQuestion';
 import { QuestionCard } from '../question/QuestionCard';
-import { QuestionReply } from '../question/QuestionReply';
 import { ownDirectionLine } from '../../ui/directional';
 import { matchesEnum } from '../../lib/matchesEnum';
+
+const useStableJson = <T,>(value: T | undefined): T | undefined => {
+  const key = value === undefined ? undefined : JSON.stringify(value);
+  return useMemo(() => (key === undefined ? undefined : (JSON.parse(key) as T)), [key]);
+};
 
 const withoutCompactions = (content: Record<string, unknown>): Record<string, unknown> => {
   if (!(COMPACTIONS_CONTENT_KEY in content) && !(LIVE_COMPACTIONS_KEY in content)) return content;
@@ -85,27 +92,20 @@ const withToolRefFormattedBodyFallback = (
   bodyContent: Record<string, unknown>,
   fromMindroomAgent: boolean
 ) => {
-  if (typeof bodyContent.formatted_body === 'string') return bodyContent;
-  if (typeof bodyContent.body !== 'string') return bodyContent;
-
-  // MindRoom writes an agent's HTML from its Markdown body; a reply that arrives with the body
-  // alone renders as that HTML would have.
+  if (typeof bodyContent.formatted_body === 'string' || typeof bodyContent.body !== 'string') {
+    return bodyContent;
+  }
   const formattedBody =
     (fromMindroomAgent && formatMarkdownTextBodyAsHtml(bodyContent.body)) ||
     formatMessageTextBodyAsHtml(bodyContent.body);
-  if (!formattedBody) return bodyContent;
-
-  return {
-    ...bodyContent,
-    format: 'org.matrix.custom.html',
-    formatted_body: formattedBody,
-  };
+  return formattedBody
+    ? { ...bodyContent, format: 'org.matrix.custom.html', formatted_body: formattedBody }
+    : bodyContent;
 };
 
 const getRenderableLongTextSource = (bodyContent: Record<string, unknown>) => {
   const source = getLongTextSource(bodyContent);
   if (!source) return undefined;
-
   const { previewContent } = source;
   if (
     (typeof previewContent.formatted_body === 'string' &&
@@ -114,19 +114,17 @@ const getRenderableLongTextSource = (bodyContent: Record<string, unknown>) => {
   ) {
     return source;
   }
-
-  const trimmedBody = trimReplyFromBody(previewContent.body);
-  const formattedBody = formatMarkdownTextBodyAsHtml(trimmedBody);
-  if (!formattedBody) return source;
-
-  return {
-    ...source,
-    previewContent: {
-      ...previewContent,
-      format: 'org.matrix.custom.html',
-      formatted_body: formattedBody,
-    },
-  };
+  const formattedBody = formatMarkdownTextBodyAsHtml(trimReplyFromBody(previewContent.body));
+  return formattedBody
+    ? {
+        ...source,
+        previewContent: {
+          ...previewContent,
+          format: 'org.matrix.custom.html',
+          formatted_body: formattedBody,
+        },
+      }
+    : source;
 };
 
 export type RenderAgentMessageContentOptions = {
@@ -155,28 +153,54 @@ export type RenderAgentMessageContentOptions = {
   disableRunErrorUi?: boolean;
 };
 
-type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
-  htmlReactParserOptions: HTMLReactParserOptions;
-  /** The content whose tool and paste markers the body renders. */
-  markerContent: Record<string, unknown>;
-  metadataStatus?: ToolMetadataStatus;
-  /** Whether a tool marker draws a row: only an agent's does. */
-  toolRows: boolean;
-  mEvent?: MatrixEvent;
-  /** Whether the HTML contains service-restart seam sentinels to replace. */
-  restartSeams?: boolean;
+/** Renders RunErrorCard outside MessageTextBody so it never inherits P400/P300 opacity dimming. */
+const renderRunErrorCard = (
+  options: RenderAgentMessageContentOptions,
+  bodyContent: Record<string, unknown>
+): ReactNode => {
+  if (
+    !options.fromMindroomAgent ||
+    options.disableRunErrorUi ||
+    options.highlightRegex !== undefined
+  ) {
+    return null;
+  }
+  const aiRun = getAiRunInfo(bodyContent) ?? getAiRunInfo(options.content);
+  if (!aiRun?.error) return null;
+  return (
+    <RunErrorCard
+      error={aiRun.error}
+      aiRun={aiRun}
+      mEvent={options.mEvent}
+      roomId={options.roomId ?? options.mEvent?.getRoomId()}
+      threadId={options.threadId}
+      readOnly={options.readOnly}
+      linkifyOpts={options.linkifyOpts}
+    />
+  );
 };
 
-/** A body with MindRoom's markers, parsed again only when that message changes. */
+type AgentRenderBodyProps = {
+  options: RenderAgentMessageContentOptions;
+  body: string;
+  parsedDom?: readonly ChildNode[];
+  markerContent: Record<string, unknown>;
+  metadataStatus?: ToolMetadataStatus;
+  hasSlots: boolean;
+  renderQuestionCard?: (showText: boolean) => JSX.Element;
+};
+
+/** A body with MindRoom's markers and reply slots, parsed again only when that message changes. */
 function AgentRenderBody({
-  htmlReactParserOptions,
+  options,
+  body,
+  parsedDom,
   markerContent,
   metadataStatus,
-  toolRows,
-  mEvent,
-  restartSeams = false,
-  ...props
+  hasSlots,
+  renderQuestionCard,
 }: AgentRenderBodyProps) {
+  const { mEvent, fromMindroomAgent = false, htmlReactParserOptions } = options;
   const rawInlineMedia = markerContent[INLINE_MEDIA_CONTENT_KEY];
   const inlineMedia = useMemo(() => {
     const entries = readInlineMedia(rawInlineMedia);
@@ -186,95 +210,223 @@ function AgentRenderBody({
     htmlReactParserOptions,
     markerContent,
     metadataStatus,
-    toolRows
+    fromMindroomAgent || !mEvent
   );
   const parserOptions = useMemo<HtmlReactParserOptionsSource>(() => {
-    if (!restartSeams) return toolOptions;
+    if (!hasSlots) return toolOptions;
     return () => {
       const resolved = resolveHtmlReactParserOptions(toolOptions);
       return {
         ...resolved,
         replace: (domNode, index) => {
-          const restartCount = parseRestartSeamNode(domNode);
-          if (restartCount !== undefined) return <RestartSeam count={restartCount} />;
+          const slot = getReplySlot(domNode);
+          if (slot) {
+            return slot.kind === 'restartSeam' ? (
+              <RestartSeam count={slot.count} />
+            ) : (
+              (renderQuestionCard?.(true) ?? null)
+            );
+          }
           return resolved.replace?.(domNode, index);
         },
       };
     };
-  }, [restartSeams, toolOptions]);
+  }, [hasSlots, toolOptions, renderQuestionCard]);
 
-  return <RenderBody {...props} inlineMedia={inlineMedia} htmlReactParserOptions={parserOptions} />;
-}
-
-type AgentWorkBodyProps = {
-  /** The body's HTML; undefined for a plain body or the thinking placeholder. */
-  html?: string;
-  foldKey: string;
-  /** Whether the reply finished and may fold its work. */
-  finished: boolean;
-  durationMs?: number;
-  /** The body of the given HTML. */
-  renderHtml: (customBody: string | undefined) => ReactNode;
-  /** The reasoning header and tool-call cog around a body. */
-  wrapWithReasoning: (body: ReactNode) => ReactNode;
-  /** The base parser options the body renders with, which decide where its work ends. */
-  htmlReactParserOptions: HTMLReactParserOptions;
-};
-
-/**
- * An agent reply, in the same tree from its first streamed frame on, with or without tool calls,
- * so the state inside it, such as collapsed reasoning, stays as they come; its work folded once it
- * finished with an answer after its last tool call and text or media before it
- * (`splitFinishedWork`).
- */
-function AgentWorkBody({
-  html,
-  foldKey,
-  finished,
-  durationMs,
-  renderHtml,
-  wrapWithReasoning,
-  htmlReactParserOptions,
-}: AgentWorkBodyProps) {
-  // While a request of its calls waits, under it, the work stays open: the call it blocks shows.
-  const waiting = useSecretRequestWaiting(useContext(ToolCallMessageContext)?.eventId);
-  const sanitizeOptions = useBodySanitizeOptions();
-  // A timeline renders its rows again on each streamed edit of any reply; the split waits for this
-  // reply's own HTML to change, and for it to finish.
-  const split = useMemo(
-    () =>
-      finished && !waiting && html !== undefined
-        ? splitFinishedWork(html, htmlReactParserOptions, sanitizeOptions)
-        : undefined,
-    [finished, waiting, html, htmlReactParserOptions, sanitizeOptions]
-  );
   return (
-    <FinishedWorkFold
-      foldKey={foldKey}
-      durationMs={durationMs}
-      whole={wrapWithReasoning(renderHtml(html))}
-      folded={
-        split && {
-          work: wrapWithReasoning(renderHtml(split.head)),
-          answer: renderHtml(split.tail),
-        }
-      }
+    <RenderBody
+      body={body}
+      parsedDom={parsedDom}
+      highlightRegex={options.highlightRegex}
+      linkifyOpts={options.linkifyOpts}
+      inlineMedia={inlineMedia}
+      htmlReactParserOptions={parserOptions}
     />
   );
 }
 
-type AgentTextKind = 'text' | 'emote' | 'notice';
+type AgentReplyBodyProps = {
+  options: RenderAgentMessageContentOptions;
+  bodyContent: Record<string, unknown>;
+  plainBody?: string;
+  customBody?: string;
+  thinkingPlaceholder?: ReactNode;
+  metadataStatus?: ToolMetadataStatus;
+  canFold?: boolean;
+  allowFallback?: boolean;
+  allowRunError?: boolean;
+};
 
-type RenderMessageBodyFn = (
-  bodyContent: Record<string, unknown>,
-  props: { body: string; customBody?: string },
-  options?: {
-    canFold?: boolean;
-    metadataStatus?: ToolMetadataStatus;
-    allowFallback?: boolean;
-    allowRunError?: boolean;
-  }
-) => ReactNode;
+/**
+ * Single-sanitize, single-parse agent reply body with 2-layer memoization and a fixed 2-slot
+ * FootnoteScopeProvider so thinking, tool disclosures, and late questions keep tree identity.
+ */
+function AgentReplyBody({
+  options,
+  bodyContent,
+  plainBody,
+  customBody,
+  thinkingPlaceholder,
+  metadataStatus,
+  canFold = true,
+  allowFallback = true,
+  allowRunError = true,
+}: AgentReplyBodyProps) {
+  const {
+    mEvent,
+    fromMindroomAgent = false,
+    content: outerContent,
+    htmlReactParserOptions,
+  } = options;
+  const renderableContent =
+    customBody === undefined && allowFallback && plainBody !== undefined
+      ? withToolRefFormattedBodyFallback({ ...bodyContent, body: plainBody }, fromMindroomAgent)
+      : bodyContent;
+  const html =
+    customBody ??
+    (allowFallback && typeof renderableContent.formatted_body === 'string'
+      ? renderableContent.formatted_body
+      : undefined);
+
+  const waiting = useSecretRequestWaiting(useContext(ToolCallMessageContext)?.eventId);
+  const sanitizeOptions = useBodySanitizeOptions();
+  const { htmlparser2 } = htmlReactParserOptions;
+
+  // Layer 1: sanitize and parse the reply HTML ONCE.
+  const canonicalDom = useMemo(
+    () =>
+      html
+        ? parseRenderedHtml(sanitizeCustomHtml(html, sanitizeOptions), { htmlparser2 })
+        : undefined,
+    [html, sanitizeOptions, htmlparser2]
+  );
+
+  const foldEventId = options.eventId ?? mEvent?.getId();
+  const foldsWork = fromMindroomAgent && options.highlightRegex === undefined;
+  const finalEditTs = mEvent?.replacingEvent()?.getTs();
+  const workDurationMs =
+    finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
+  const shouldFold =
+    foldsWork &&
+    foldEventId !== undefined &&
+    isFinishedAgentReply(outerContent) &&
+    canFold &&
+    !waiting &&
+    !thinkingPlaceholder;
+
+  const runErrorEnabled =
+    fromMindroomAgent &&
+    !options.disableRunErrorUi &&
+    options.highlightRegex === undefined &&
+    allowRunError;
+  const runError = useStableJson(
+    runErrorEnabled
+      ? (getAiRunInfo(renderableContent) ?? getAiRunInfo(outerContent))?.error
+      : undefined
+  );
+  const question = useStableJson(
+    fromMindroomAgent && mEvent
+      ? readInteractiveQuestion(outerContent, mEvent.getOriginalContent())
+      : undefined
+  );
+  const renderQuestionCard = useMemo(
+    () =>
+      question && mEvent
+        ? (showText: boolean) => (
+            <QuestionCard
+              question={question}
+              mEvent={mEvent}
+              roomId={options.roomId ?? mEvent.getRoomId()}
+              threadId={options.threadId}
+              readOnly={options.readOnly}
+              showText={showText}
+            />
+          )
+        : undefined,
+    [question, mEvent, options.roomId, options.threadId, options.readOnly]
+  );
+
+  // Layer 2: DOM-native structural transforms on the cached canonical DOM.
+  const plan = useMemo(
+    () =>
+      canonicalDom
+        ? prepareAgentReplyDom({
+            canonicalDom,
+            runErrorEnabled,
+            runError,
+            question,
+            shouldFold,
+            baseOpts: htmlReactParserOptions,
+          })
+        : undefined,
+    [canonicalDom, runErrorEnabled, runError, question, shouldFold, htmlReactParserOptions]
+  );
+
+  const plainStripped =
+    canonicalDom === undefined && runErrorEnabled && runError && plainBody !== undefined
+      ? stripTrailingRunErrorText(plainBody, runError)
+      : undefined;
+  const bodyEmpty = plan
+    ? plan.bodyEmpty
+    : Boolean(plainStripped?.stripped && plainStripped.body === '');
+  const reasoningContent = fromMindroomAgent
+    ? renderableContent
+    : withoutCompactions(renderableContent);
+
+  const renderDom = (nodes: readonly ChildNode[] | undefined): ReactNode => {
+    if (thinkingPlaceholder !== undefined) return thinkingPlaceholder;
+    if (bodyEmpty) return null;
+    return (
+      <AgentRenderBody
+        options={options}
+        body={plainStripped?.body ?? plainBody ?? ''}
+        parsedDom={nodes}
+        markerContent={renderableContent}
+        metadataStatus={metadataStatus}
+        hasSlots={plan?.hasSlots ?? false}
+        renderQuestionCard={plan?.questionPlaced ? renderQuestionCard : undefined}
+      />
+    );
+  };
+
+  const wrapReasoning = (body: ReactNode) => (
+    <ReplyReasoning
+      content={reasoningContent}
+      html={bodyEmpty ? undefined : html}
+      parsedDom={bodyEmpty ? undefined : plan?.nodes}
+      toolCallIndexes={plan?.toolCallIndexes}
+      htmlReactParserOptions={htmlReactParserOptions}
+    >
+      {body}
+    </ReplyReasoning>
+  );
+
+  const main =
+    foldsWork && foldEventId !== undefined ? (
+      <FinishedWorkFold
+        foldKey={`finished-work:${foldEventId}`}
+        durationMs={workDurationMs}
+        whole={wrapReasoning(renderDom(plan?.nodes))}
+        folded={
+          plan?.split && {
+            work: wrapReasoning(renderDom(plan.split.work)),
+            answer: renderDom(plan.split.answer),
+          }
+        }
+      />
+    ) : (
+      wrapReasoning(renderDom(plan?.nodes))
+    );
+
+  return (
+    <FootnoteScopeProvider>
+      {main}
+      {!plan?.questionPlaced && renderQuestionCard ? renderQuestionCard(false) : null}
+    </FootnoteScopeProvider>
+  );
+}
+
+type AgentTextKind = 'text' | 'emote' | 'notice';
 
 type AgentTextMessageProps = {
   options: RenderAgentMessageContentOptions;
@@ -284,16 +436,12 @@ type AgentTextMessageProps = {
   renderableContent: Record<string, unknown>;
   longTextSource?: LongTextSource;
   isStreaming: boolean;
-  renderBody: RenderMessageBodyFn;
-  renderThinkingBody: (bodyContent: Record<string, unknown>) => ReactNode;
-  renderRunErrorCard: (bodyContent: Record<string, unknown>) => ReactNode;
 };
 
 /**
  * Unified text/notice/emote/long-text message component. Keeps one tree identity across
  * ThinkingPlaceholder -> streamed m.notice -> m.text -> m.file sidecar -> live m.text -> final
- * sidecar while resolving sidecar content, canvas sidecar receipts, wake/poke markers, and call
- * transcripts through one seam (`useResolvedMessageContent`).
+ * sidecar via `useResolvedMessageContent`.
  */
 function AgentTextMessage({
   options,
@@ -303,32 +451,15 @@ function AgentTextMessage({
   renderableContent,
   longTextSource,
   isStreaming,
-  renderBody,
-  renderThinkingBody,
-  renderRunErrorCard,
 }: AgentTextMessageProps) {
-  const {
-    mEvent,
-    fromMindroomAgent = false,
-    displayName,
-    roomId,
-    ts,
-    edited,
-    content: outerContent,
-    pendingSend,
-    failedSend,
-    highlightRegex,
-    linkifyOpts,
-    renderUrlsPreview,
-    hydrateLongText = true,
-  } = options;
+  const { mEvent, fromMindroomAgent = false, content: outerContent } = options;
   const { t } = useTranslation();
   const resolved = useResolvedMessageContent({
     outerContent,
     content: renderableContent,
     longTextSource,
     fromMindroomAgent,
-    hydrate: hydrateLongText,
+    hydrate: options.hydrateLongText ?? true,
   });
 
   if (longTextSource && isFileMessage && outerContent[CANVAS_RESPONSE_KEY]) {
@@ -340,21 +471,21 @@ function AgentTextMessage({
       return (
         <CanvasResponseReceipt
           receipt={receipt}
-          delivered={!pendingSend && !failedSend}
-          renderStateSuffix={getMessageStateSuffixRenderer({ edited, pendingSend, failedSend })}
+          delivered={!options.pendingSend && !options.failedSend}
+          renderStateSuffix={getMessageStateSuffixRenderer(options)}
         />
       );
     }
   }
 
-  if (!highlightRegex && fromMindroomAgent && kind !== 'emote') {
+  if (!options.highlightRegex && fromMindroomAgent && kind !== 'emote') {
     const triggerWake = readTriggerWake(resolved.content);
     if (triggerWake) {
       return (
         <TriggerWakeMarker
           wake={triggerWake}
-          ts={ts ?? mEvent?.getTs()}
-          roomId={roomId ?? mEvent?.getRoomId()}
+          ts={options.ts ?? mEvent?.getTs()}
+          roomId={options.roomId ?? mEvent?.getRoomId()}
         />
       );
     }
@@ -363,42 +494,54 @@ function AgentTextMessage({
       return (
         <TodoPokeMarker
           poke={todoPoke}
-          ts={ts ?? mEvent?.getTs()}
-          senderDisplayName={displayName}
+          ts={options.ts ?? mEvent?.getTs()}
+          senderDisplayName={options.displayName}
         />
       );
     }
   }
 
   const textProps = {
-    edited: isThinkingPlaceholder ? undefined : edited,
+    edited: isThinkingPlaceholder ? undefined : options.edited,
     renderStateSuffix: getMessageStateSuffixRenderer({
-      edited,
-      pendingSend,
-      failedSend,
+      ...options,
       renderStateSuffix:
         isStreaming && !isThinkingPlaceholder ? renderStreamingIndicator : undefined,
     }),
     content: resolved.content,
     renderBody: isThinkingPlaceholder
-      ? () => renderThinkingBody(resolved.content)
-      : (props: { body: string; customBody?: string }) =>
-          renderBody(resolved.content, props, {
-            canFold: resolved.canFold,
-            metadataStatus: resolved.toolMetadataStatus,
-            allowFallback: !longTextSource,
-          }),
-    renderAfterBody: renderRunErrorCard(resolved.content),
+      ? () => (
+          // In the reply's own tree, so its reasoning stays as the first text replaces this.
+          <AgentReplyBody
+            options={options}
+            bodyContent={resolved.content}
+            thinkingPlaceholder={<ThinkingPlaceholder startedAt={mEvent?.getTs()} />}
+            canFold={false}
+            allowFallback={false}
+          />
+        )
+      : (props: { body: string; customBody?: string }) => (
+          <AgentReplyBody
+            options={options}
+            bodyContent={resolved.content}
+            plainBody={props.body}
+            customBody={props.customBody}
+            canFold={resolved.canFold}
+            metadataStatus={resolved.toolMetadataStatus}
+            allowFallback={!longTextSource}
+          />
+        ),
+    renderAfterBody: renderRunErrorCard(options, resolved.content),
     renderUrlsPreview:
       isThinkingPlaceholder || resolved.toolMetadataStatus === 'loading'
         ? undefined
-        : renderUrlsPreview,
+        : options.renderUrlsPreview,
   };
 
   const textElement = (
     <>
       {kind === 'emote' ? (
-        <MEmote displayName={displayName} {...textProps} />
+        <MEmote displayName={options.displayName} {...textProps} />
       ) : (
         <MText {...textProps} />
       )}
@@ -414,220 +557,25 @@ function AgentTextMessage({
   );
 
   const callTranscript = fromMindroomAgent ? readCallTranscript(resolved.content) : undefined;
-  if (callTranscript) {
-    return (
-      <CallTranscriptCard
-        transcript={callTranscript}
-        sender={mEvent?.getSender()}
-        roomId={roomId ?? mEvent?.getRoomId()}
-        fallback={textElement}
-        highlightRegex={highlightRegex}
-        linkifyOpts={linkifyOpts}
-      />
-    );
-  }
-
-  return textElement;
+  return callTranscript ? (
+    <CallTranscriptCard
+      transcript={callTranscript}
+      sender={mEvent?.getSender()}
+      roomId={options.roomId ?? mEvent?.getRoomId()}
+      fallback={textElement}
+      highlightRegex={options.highlightRegex}
+      linkifyOpts={options.linkifyOpts}
+    />
+  ) : (
+    textElement
+  );
 }
 
 export const renderAgentMessageContent = (
   options: RenderAgentMessageContentOptions
 ): ReactNode | undefined => {
-  const {
-    mEvent,
-    fromMindroomAgent = false,
-    displayName,
-    eventType,
-    roomId,
-    eventId,
-    threadId,
-    msgType,
-    ts,
-    edited,
-    content,
-    pendingSend,
-    failedSend,
-    highlightRegex,
-    htmlReactParserOptions,
-    linkifyOpts,
-    readOnly,
-    disableRunErrorUi = false,
-  } = options;
-  // A MindRoom agent's question shows as a card with a button per option.
-  const question = fromMindroomAgent
-    ? readInteractiveQuestion(content, mEvent?.getOriginalContent())
-    : undefined;
-  const renderQuestionCard =
-    question && mEvent
-      ? (showText: boolean) => (
-          <QuestionCard
-            question={question}
-            mEvent={mEvent}
-            roomId={roomId ?? mEvent.getRoomId()}
-            threadId={threadId}
-            readOnly={readOnly}
-            showText={showText}
-          />
-        )
-      : undefined;
-  // Anyone can type a tool marker, so only an agent's draws a row, as only an agent's trace counts.
-  // Content without an event is the app's own (a sub-agent's run), not something a member sent.
-  const toolRows = fromMindroomAgent || !mEvent;
-
-  // The reply's HTML goes along whole: its tool markers place the reasoning segments.
-  // A reply's compactions count only from an agent for this viewer, as a compaction notice does.
-  const wrapWithReasoning = (
-    bodyContent: Record<string, unknown>,
-    html: string | undefined,
-    body: ReactNode
-  ) =>
-    withReasoning(
-      fromMindroomAgent ? bodyContent : withoutCompactions(bodyContent),
-      body,
-      htmlReactParserOptions,
-      linkifyOpts,
-      html
-    );
-
-  // A finished reply folds its work, everything up to its last tool call, behind one row, as
-  // T3 Code folds a finished turn; the answer after it stays. The work took from the reply's first
-  // event to its final edit. Search results and highlighted rows show the whole reply. A
-  // regenerated reply keeps its previous answer's run status, so a stream status of its own must
-  // also say it ended well.
-  const foldEventId = eventId ?? mEvent?.getId();
-  const outerAiRun = getAiRunInfo(content);
-  const foldsWork = fromMindroomAgent && highlightRegex === undefined;
-  const finished = isFinishedAgentReply(content);
-  const finalEditTs = mEvent?.replacingEvent()?.getTs();
-  const workDurationMs =
-    finalEditTs === undefined || mEvent === undefined ? undefined : finalEditTs - mEvent.getTs();
-
-  // Search previews disable run-error UI explicitly (even when highlightRegex is undefined,
-  // e.g. an m.replace hit with no highlights), and highlighted hits also stay intact.
-  const showRunErrorUi = fromMindroomAgent && !disableRunErrorUi && highlightRegex === undefined;
-
-  /**
-   * Renders RunErrorCard outside MessageTextBody (via renderAfterBody) so the card and its
-   * interactive controls never inherit MessageTextBody's P400/P300 opacity dimming.
-   */
-  const renderRunErrorCard = (bodyContent: Record<string, unknown>): ReactNode => {
-    if (!showRunErrorUi) return null;
-    const aiRun = getAiRunInfo(bodyContent) ?? outerAiRun;
-    if (!aiRun?.error) return null;
-    return (
-      <RunErrorCard
-        error={aiRun.error}
-        aiRun={aiRun}
-        mEvent={mEvent}
-        roomId={roomId ?? mEvent?.getRoomId()}
-        threadId={threadId}
-        readOnly={readOnly}
-        linkifyOpts={linkifyOpts}
-      />
-    );
-  };
-
-  /** The reply's reasoning and body, folded work, question card, and restart seam. */
-  const wrapAgentBody = (
-    bodyContent: Record<string, unknown>,
-    html: string | undefined,
-    renderHtml: (
-      customBody: string | undefined,
-      restartSeams: boolean,
-      effectiveBody: string | undefined
-    ) => ReactNode,
-    canFold = true,
-    plainBody?: string,
-    allowRunError = true
-  ) => {
-    const runErrorEnabled = showRunErrorUi && allowRunError;
-    const prepared = prepareRunErrorBody({
-      enabled: runErrorEnabled,
-      body: plainBody,
-      html,
-      aiRun: runErrorEnabled ? (getAiRunInfo(bodyContent) ?? outerAiRun) : undefined,
-    });
-
-    const renderEffectiveHtml = (customBody: string | undefined): ReactNode =>
-      prepared.bodyEmpty ? null : renderHtml(customBody, prepared.hasRestartSeam, prepared.body);
-
-    const wrap = (
-      render: (customBody: string | undefined) => ReactNode,
-      bodyHtml: string | undefined = prepared.html
-    ) => {
-      if (!foldsWork || foldEventId === undefined) {
-        return wrapWithReasoning(bodyContent, bodyHtml, render(bodyHtml));
-      }
-      return (
-        <AgentWorkBody
-          html={bodyHtml}
-          foldKey={`finished-work:${foldEventId}`}
-          finished={finished && canFold}
-          durationMs={workDurationMs}
-          renderHtml={render}
-          wrapWithReasoning={(body) => wrapWithReasoning(bodyContent, bodyHtml, body)}
-          htmlReactParserOptions={htmlReactParserOptions}
-        />
-      );
-    };
-
-    return (
-      <QuestionReply
-        html={prepared.html}
-        question={question}
-        renderCard={renderQuestionCard}
-        renderHtml={renderEffectiveHtml}
-        renderBody={wrap}
-      />
-    );
-  };
-
-  const renderMessageBody: RenderMessageBodyFn = (
-    bodyContent,
-    props,
-    { canFold = true, metadataStatus, allowFallback = true, allowRunError = true } = {}
-  ) => {
-    const { body, customBody: providedCustomBody } = props;
-    const renderableContent =
-      providedCustomBody === undefined && allowFallback
-        ? withToolRefFormattedBodyFallback({ ...bodyContent, body }, fromMindroomAgent)
-        : bodyContent;
-    const customBody =
-      providedCustomBody ??
-      (allowFallback && typeof renderableContent.formatted_body === 'string'
-        ? renderableContent.formatted_body
-        : undefined);
-    return wrapAgentBody(
-      renderableContent,
-      customBody,
-      (html, restartSeams, effectiveBody) => (
-        <AgentRenderBody
-          {...props}
-          body={effectiveBody ?? body}
-          customBody={html}
-          highlightRegex={highlightRegex}
-          htmlReactParserOptions={htmlReactParserOptions}
-          markerContent={renderableContent}
-          metadataStatus={metadataStatus}
-          toolRows={toolRows}
-          mEvent={mEvent}
-          restartSeams={restartSeams}
-          linkifyOpts={linkifyOpts}
-        />
-      ),
-      canFold,
-      body,
-      allowRunError
-    );
-  };
-
-  const getMessageStateSuffix = (renderStateSuffix?: () => ReactNode) =>
-    getMessageStateSuffixRenderer({
-      edited,
-      pendingSend,
-      failedSend,
-      renderStateSuffix,
-    });
+  const { mEvent, fromMindroomAgent = false, content, msgType } = options;
+  const getMessageStateSuffix = () => getMessageStateSuffixRenderer(options);
 
   const isTextMessage = matchesEnum(msgType, MsgType.Text);
   const isFileMessage = matchesEnum(msgType, MsgType.File);
@@ -636,7 +584,7 @@ export const renderAgentMessageContent = (
     return (
       <CanvasResponseReceipt
         receipt={canvasReceipt}
-        delivered={!pendingSend && !failedSend}
+        delivered={!options.pendingSend && !options.failedSend}
         renderStateSuffix={getMessageStateSuffix()}
       />
     );
@@ -646,38 +594,42 @@ export const renderAgentMessageContent = (
   if (threadSummaryInfo) {
     return (
       <ThreadSummaryCard
-        edited={edited}
+        edited={options.edited}
         summaryInfo={threadSummaryInfo}
-        renderBody={(props) => renderMessageBody(content, props, { allowRunError: false })}
+        renderBody={(props) => (
+          <AgentReplyBody
+            options={options}
+            bodyContent={content}
+            plainBody={props.body}
+            customBody={props.customBody}
+            allowRunError={false}
+          />
+        )}
       />
     );
   }
 
-  // An open thread shows these as marker rows of their own (useTimelineMessageFeature); other
-  // views, such as threads shown in the room, keep the message row with the marker as its body.
-  // Search results pass highlightRegex so matches stay visible inline instead of collapsing.
   const notice =
-    fromMindroomAgent && !highlightRegex
+    fromMindroomAgent && !options.highlightRegex
       ? readAgentNoticeMarker(
           content,
-          ts ?? mEvent?.getTs(),
-          roomId ?? mEvent?.getRoomId(),
-          displayName
+          options.ts ?? mEvent?.getTs(),
+          options.roomId ?? mEvent?.getRoomId(),
+          options.displayName
         )
       : null;
   if (notice) return notice;
 
-  // Workflow run and question notices render as cards only when sent by a MindRoom agent.
-  const workflowRoomId = roomId ?? mEvent?.getRoomId();
+  const workflowRoomId = options.roomId ?? mEvent?.getRoomId();
   if (fromMindroomAgent && workflowRoomId) {
     const common = {
       roomId: workflowRoomId,
-      threadId: threadId ?? mEvent?.threadRootId ?? null,
-      eventId: eventId ?? mEvent?.getId(),
-      readOnly,
+      threadId: options.threadId ?? mEvent?.threadRootId ?? null,
+      eventId: options.eventId ?? mEvent?.getId(),
+      readOnly: options.readOnly,
     };
     const runCard = parseWorkflowRunCard(content);
-    if (runCard)
+    if (runCard) {
       return (
         <WorkflowRunCard
           card={runCard}
@@ -686,14 +638,13 @@ export const renderAgentMessageContent = (
           {...common}
         />
       );
+    }
     const workflowQuestion = parseWorkflowRunQuestion(content);
     if (workflowQuestion) return <WorkflowQuestionCard question={workflowQuestion} {...common} />;
   }
 
-  // An agent asking for a key; any member can write this content, which then renders as its body.
-  // The answer goes to the sender's own MindRoom server.
   const secretRequest = fromMindroomAgent ? parseSecretRequestContent(content) : null;
-  const secretRequestRoomId = roomId ?? mEvent?.getRoomId();
+  const secretRequestRoomId = options.roomId ?? mEvent?.getRoomId();
   const secretRequestSender = mEvent?.getSender();
   if (secretRequest && secretRequestRoomId && secretRequestSender) {
     return (
@@ -701,22 +652,23 @@ export const renderAgentMessageContent = (
         request={secretRequest}
         roomId={secretRequestRoomId}
         agentUserId={secretRequestSender}
-        eventId={eventId ?? mEvent?.getId()}
-        readOnly={readOnly}
+        eventId={options.eventId ?? mEvent?.getId()}
+        readOnly={options.readOnly}
       />
     );
   }
 
-  if (eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
-    // Only MindRoom sends approval cards; any member can post this event type.
-    const approval = fromMindroomAgent ? parseToolApprovalContent(eventType, content) : null;
+  if (options.eventType === MINDROOM_TOOL_APPROVAL_EVENT) {
+    const approval = fromMindroomAgent
+      ? parseToolApprovalContent(options.eventType, content)
+      : null;
     return approval ? (
       <ToolApprovalCard
         approval={approval}
-        roomId={roomId}
-        eventId={eventId}
-        threadId={threadId}
-        readOnly={readOnly}
+        roomId={options.roomId}
+        eventId={options.eventId}
+        threadId={options.threadId}
+        readOnly={options.readOnly}
       />
     ) : (
       <BrokenContent />
@@ -739,14 +691,14 @@ export const renderAgentMessageContent = (
     textKind = 'emote';
   } else if (matchesEnum(msgType, MsgType.Notice)) {
     const uiAction = content[CHAT_UI_ACTION_KEY];
-    // Canvas updates are edits of the request, so an edited canvas keeps its button.
     const editableUiAction =
       !!uiAction &&
       typeof uiAction === 'object' &&
       (uiAction as Record<string, unknown>).action === 'show_canvas';
-    if (mEvent && uiAction && (!edited || editableUiAction)) {
-      // The body of a canvas request tells other Matrix clients to open MindRoom Chat; Chat names the canvas.
+    if (mEvent && uiAction && (!options.edited || editableUiAction)) {
       const canvasTitle = fromMindroomAgent ? readCanvasNoticeTitle(content) : undefined;
+      const uiActionButton = !options.readOnly && <ChatUiActionButton event={mEvent} />;
+      const runErrorCard = renderRunErrorCard(options, content);
       const noticeElement = (
         <MNotice
           content={content}
@@ -758,27 +710,29 @@ export const renderAgentMessageContent = (
                     <span {...ownDirectionLine}>{canvasTitle}</span>
                   </Box>
                 )
-              : (props) => renderMessageBody(content, props)
+              : (props) => (
+                  <AgentReplyBody
+                    options={options}
+                    bodyContent={content}
+                    plainBody={props.body}
+                    customBody={props.customBody}
+                  />
+                )
           }
-          // A read-only row (a fork's parent message) answers nothing: its canvas is the parent's.
-          // An inline page still shows there, display-only.
-          renderAfterBody={(() => {
-            const uiActionButton = !readOnly && <ChatUiActionButton event={mEvent} />;
-            const runErrorCard = renderRunErrorCard(content);
-            if (uiActionButton && runErrorCard) {
-              return (
-                <>
-                  {uiActionButton}
-                  {runErrorCard}
-                </>
-              );
-            }
-            return uiActionButton || runErrorCard;
-          })()}
+          renderAfterBody={
+            uiActionButton && runErrorCard ? (
+              <>
+                {uiActionButton}
+                {runErrorCard}
+              </>
+            ) : (
+              uiActionButton || runErrorCard
+            )
+          }
         />
       );
       return canvasTitle ? (
-        <InlineCanvasFrame event={mEvent} readOnly={readOnly} fallback={noticeElement} />
+        <InlineCanvasFrame event={mEvent} readOnly={options.readOnly} fallback={noticeElement} />
       ) : (
         noticeElement
       );
@@ -791,15 +745,12 @@ export const renderAgentMessageContent = (
   const longTextSource = getRenderableLongTextSource(content);
   if (!longTextSource && isFileMessage) {
     const pasteAttachment = getPasteAttachmentFile(content);
-    if (pasteAttachment) {
-      return (
-        <PasteAttachmentContent
-          owner={getEventAttachmentOwner(mEvent)}
-          attachment={pasteAttachment}
-        />
-      );
-    }
-    return undefined;
+    return pasteAttachment ? (
+      <PasteAttachmentContent
+        owner={getEventAttachmentOwner(mEvent)}
+        attachment={pasteAttachment}
+      />
+    ) : undefined;
   }
 
   const isStreaming = isAiRunStreaming(content);
@@ -822,17 +773,6 @@ export const renderAgentMessageContent = (
         longTextSource ? { ...longTextSource, owner: getEventAttachmentOwner(mEvent) } : undefined
       }
       isStreaming={isStreaming}
-      renderBody={renderMessageBody}
-      renderThinkingBody={(bodyContent) =>
-        // In the reply's own tree, so its reasoning stays as the first text replaces this.
-        wrapAgentBody(
-          bodyContent,
-          undefined,
-          () => <ThinkingPlaceholder startedAt={mEvent?.getTs()} />,
-          false
-        )
-      }
-      renderRunErrorCard={renderRunErrorCard}
     />
   );
 };

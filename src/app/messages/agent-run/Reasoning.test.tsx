@@ -7,7 +7,8 @@ import { ClientConfigProvider } from '../../config/useClientConfig';
 import { loadLiveMarkdown, renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { renderAgentMessageContent } from '../content/renderAgentMessageContent';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
-import { readRenderedToolCalls } from '../html/HtmlBlocks';
+import { inspectRenderedToolCalls } from '../html/HtmlBlocks';
+import { domContainsText } from './replyDom';
 import { showToolCalls } from '../../../test/utils/showToolCalls';
 
 // The real renderer, watched for when it is requested.
@@ -30,7 +31,7 @@ vi.mock('../../rich-text/sanitize', async (importOriginal) => {
 // The real reader of the calls a body draws, watched for when the placement reads them.
 vi.mock('../html/HtmlBlocks', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../html/HtmlBlocks')>();
-  return { ...actual, readRenderedToolCalls: vi.fn(actual.readRenderedToolCalls) };
+  return { ...actual, inspectRenderedToolCalls: vi.fn(actual.inspectRenderedToolCalls) };
 });
 
 // The real RenderBody under an MText that renders the body.
@@ -905,8 +906,8 @@ describe('MindroomReasoning', () => {
         });
         const markerReads = () =>
           vi
-            .mocked(readRenderedToolCalls)
-            .mock.calls.filter(([html]) => html.includes('<p>Reading.</p>')).length;
+            .mocked(inspectRenderedToolCalls)
+            .mock.calls.filter(([nodes]) => domContainsText(nodes, 'Reading.')).length;
         const reads = markerReads();
         expect(reads).toBeGreaterThan(0);
 
