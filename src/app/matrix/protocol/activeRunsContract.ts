@@ -121,21 +121,47 @@ const activeRunsRoomState = (room: Room): MatrixEvent[] =>
     (event) => !event.isRedacted?.()
   );
 
+let pinnedActiveRunsRoom: Room | null = null;
+let pinnedActiveRunsSnapshot: ActiveRunsSnapshot | undefined;
+
+/**
+ * Reuses one `roomActiveRuns(room)` snapshot across a synchronous batch (e.g. building all thread
+ * records of a room) without bypassing callers or mocks of `getThreadStreamingState`.
+ */
+export const withRoomActiveRunsSnapshot = <T>(room: Room, fn: () => T): T => {
+  if (!room.currentState?.getStateEvents) return fn();
+  const prevRoom = pinnedActiveRunsRoom;
+  const prevSnapshot = pinnedActiveRunsSnapshot;
+  pinnedActiveRunsRoom = room;
+  pinnedActiveRunsSnapshot = undefined;
+  try {
+    return fn();
+  } finally {
+    pinnedActiveRunsRoom = prevRoom;
+    pinnedActiveRunsSnapshot = prevSnapshot;
+  }
+};
+
 /** Cached per-room active runs snapshot; recomputes on state/redaction change or once `nextExpiryTs` passes. */
-export const roomActiveRuns = (room: Room | null, now = Date.now()): ActiveRunsSnapshot => {
+export const roomActiveRuns = (room: Room | null, now?: number): ActiveRunsSnapshot => {
   if (!room) return EMPTY_SNAPSHOT;
+  const isPinned = now === undefined && room === pinnedActiveRunsRoom;
+  if (isPinned && pinnedActiveRunsSnapshot) return pinnedActiveRunsSnapshot;
+  const effectiveNow = now ?? Date.now();
   const events = activeRunsRoomState(room);
   const contents = events.map((e) => e.getContent());
   const prev = cache.get(room);
   if (
     prev &&
-    now >= prev.validFrom &&
-    (prev.snapshot.nextExpiryTs === undefined || now < prev.snapshot.nextExpiryTs) &&
+    effectiveNow >= prev.validFrom &&
+    (prev.snapshot.nextExpiryTs === undefined || effectiveNow < prev.snapshot.nextExpiryTs) &&
     prev.events.length === events.length &&
     events.every((e, i) => e === prev.events[i] && contents[i] === prev.contents[i])
-  )
+  ) {
+    if (isPinned) pinnedActiveRunsSnapshot = prev.snapshot;
     return prev.snapshot;
-  const next = selectActiveRuns(events, now);
+  }
+  const next = selectActiveRuns(events, effectiveNow);
   const sameThreads = !!prev && sameSet(prev.snapshot.threads, next.threads);
   const sameRunList = sameThreads && sameRuns(prev.snapshot.runs, next.runs);
   const snapshot =
@@ -148,6 +174,7 @@ export const roomActiveRuns = (room: Room | null, now = Date.now()): ActiveRunsS
             nextExpiryTs: next.nextExpiryTs,
           }
         : next;
-  cache.set(room, { events, contents, validFrom: now, snapshot });
+  cache.set(room, { events, contents, validFrom: effectiveNow, snapshot });
+  if (isPinned) pinnedActiveRunsSnapshot = snapshot;
   return snapshot;
 };

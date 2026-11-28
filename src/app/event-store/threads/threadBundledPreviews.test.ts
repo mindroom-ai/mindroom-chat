@@ -567,4 +567,26 @@ describe('bundled secret-request previews', () => {
         .latestReplyPreviewText
     ).toBe('Final answer with dates');
   });
+
+  it('reuses detached bundled MatrixEvents while still reacting to live redaction and encryption', () => {
+    const { room, root } = fixture();
+
+    const first = getBundledThreadPreviews(room, root);
+    const second = getBundledThreadPreviews(room, root);
+    expect(first.title).toBeDefined();
+    expect(first.reply).toBeDefined();
+    expect(second.title).toBe(first.title);
+    expect(second.reply).toBe(first.reply);
+
+    // Redacting the bundled edit invalidates the replaced copy and returns the unedited reply.
+    room.redactedBundledEdits.add('$edit');
+    const afterEditRedacted = getBundledThreadPreviews(room, root);
+    expect(afterEditRedacted.reply).not.toBe(first.reply);
+    expect(afterEditRedacted.reply?.getContent().body).toBe('Draft answer');
+    expect(afterEditRedacted.title).toBe(first.title);
+
+    // Turning on room encryption suppresses bundled previews immediately.
+    room.hasEncryptionStateEvent = () => true;
+    expect(getBundledThreadPreviews(room, root)).toEqual({});
+  });
 });

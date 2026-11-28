@@ -6,12 +6,13 @@ import {
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { getThreadStreamingState } from './useThreadStreamingState';
+import { withRoomActiveRunsSnapshot } from '../../matrix/protocol/activeRunsContract';
 import type { getBundledThreadPreviews } from './threadBundledPreviews';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { resolveRecentThreadSummaryText } from './recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { getThreadUnread, roomThreadListIsListed } from './roomThreadList';
-import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
+import { getMainTimelineReadTs, isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
 import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
   getThreadPrimarySummaryText,
@@ -29,7 +30,10 @@ import {
   isFailedLocalEchoEvent,
   isPendingLocalEchoEvent,
 } from '../../matrix/protocol/pendingLocalEcho';
-import { getPendingThreadEvents } from '../cache/pendingThreadEvents';
+import {
+  getPendingThreadEvents,
+  getPendingThreadEventsByThread,
+} from '../cache/pendingThreadEvents';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
 import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilter';
 import { RESOLVED_TAG, SNOOZED_TAG, type TagMetadata } from './threadTags';
@@ -157,13 +161,35 @@ export type ThreadRecordReuse = {
   previous: ReadonlyMap<string, ThreadRecord> | undefined;
   changes: ThreadRecordChanges;
   beside?: ReadonlyMap<string, ThreadRecord>;
+  /**
+   * Identifies a single synchronous build pass shared between a map and its `beside` sibling so
+   * `beside` only reuses records freshly built in this pass (never older records kept from `previous`).
+   */
+  pass?: symbol;
 };
+
+type RoomSources = readonly [listed: boolean, seenVersion: number, receiptVersion: number];
 
 type ThreadRecordSources = {
   options: BuildThreadRecordOptions;
   builtAt: number;
-  roomSources: readonly unknown[];
+  roomSources: RoomSources;
+  pass?: symbol;
 };
+
+/** Per-pass room snapshots computed lazily at most once per `buildThreadRecordMap` call. */
+type BuildThreadRecordContext = {
+  room: Room;
+  currentUserId: string | undefined;
+  serverListed: boolean;
+  mainTimelineReadTs?: number;
+  hasMainTimelineReadTs?: boolean;
+  pendingByThread?: ReadonlyMap<string, MatrixEvent[]> | null;
+  memberDisplayNames: Map<string, string | undefined>;
+};
+
+const EMPTY_PENDING_EVENTS: MatrixEvent[] = [];
+let activeBuildContext: BuildThreadRecordContext | undefined;
 
 /** What each kept record was built from. */
 const recordSources = new WeakMap<ThreadRecord, ThreadRecordSources>();
@@ -174,16 +200,29 @@ const recordSources = new WeakMap<ThreadRecord, ThreadRecordSources>();
  * device, and the receipt events a room came to hold or lost (a receipt reads up to its event's
  * time, or to when the server took it).
  */
-const getRoomSources = (room: Room): readonly unknown[] => [
+const getRoomSources = (room: Room): RoomSources => [
   roomThreadListIsListed(room),
   seenThreadRootsVersion(),
   receiptEventsVersion(room),
 ];
 
+const sameRoomSources = (left: RoomSources, right: RoomSources): boolean =>
+  left[0] === right[0] && left[1] === right[1] && left[2] === right[2];
+
 /** The same value, or two lists or objects that hold the same values. */
 const sameOption = (left: unknown, right: unknown): boolean => {
   if (Object.is(left, right)) return true;
-  if (!isRecordOrList(left) || !isRecordOrList(right)) return false;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return left.length === right.length && left.every((value, i) => Object.is(value, right[i]));
+  }
+  if (
+    !isRecordOrList(left) ||
+    !isRecordOrList(right) ||
+    Array.isArray(left) ||
+    Array.isArray(right)
+  ) {
+    return false;
+  }
   const keys = Object.keys(left);
   return (
     keys.length === Object.keys(right).length &&
@@ -196,9 +235,25 @@ const isRecordOrList = (value: unknown): value is Record<string, unknown> =>
 
 /** The same values but for the place in the list, which a build only copies into its record. */
 const sameOptions = (left: BuildThreadRecordOptions, right: BuildThreadRecordOptions): boolean =>
-  (Object.keys(left) as Array<keyof BuildThreadRecordOptions>).every(
-    (key) => key === 'absoluteIndex' || sameOption(left[key], right[key])
-  );
+  left.room === right.room &&
+  left.threadRootId === right.threadRootId &&
+  left.threadRootEvent === right.threadRootEvent &&
+  left.currentUserId === right.currentUserId &&
+  left.rootPreviewText === right.rootPreviewText &&
+  left.fallbackLatestReplyPreviewText === right.fallbackLatestReplyPreviewText &&
+  left.fallbackLastSenderId === right.fallbackLastSenderId &&
+  Object.is(left.fallbackReplyCount, right.fallbackReplyCount) &&
+  Object.is(left.fallbackLatestReplyTs, right.fallbackLatestReplyTs) &&
+  Object.is(left.fallbackMessageCount, right.fallbackMessageCount) &&
+  Object.is(left.fallbackLastActivityTs, right.fallbackLastActivityTs) &&
+  left.isStreaming === right.isStreaming &&
+  left.bundledPreviews === right.bundledPreviews &&
+  sameOption(left.summaryInfo, right.summaryInfo) &&
+  sameOption(left.fallbackSummaryInfo, right.fallbackSummaryInfo) &&
+  sameOption(left.fallbackParticipantIds, right.fallbackParticipantIds) &&
+  sameOption(left.threadResolution, right.threadResolution) &&
+  sameOption(left.scheduledStatus, right.scheduledStatus) &&
+  sameOption(left.cacheCoverage, right.cacheCoverage);
 
 const getLoadedThreadEvents = (thread: ReturnType<Room['getThread']>): MatrixEvent[] | undefined =>
   thread?.events && thread.events.length > 0
@@ -369,7 +424,11 @@ export const buildThreadRecord = ({
     : false;
   // Once the room's whole thread list is in, the SDK thread holds the server's count and every
   // change since. The cache and older copies of the root may still count a reply redacted since.
-  const serverCounted = !!thread && roomThreadListIsListed(room);
+  const context =
+    activeBuildContext?.room === room && activeBuildContext.currentUserId === currentUserId
+      ? activeBuildContext
+      : undefined;
+  const serverCounted = !!thread && (context ? context.serverListed : roomThreadListIsListed(room));
   const resolvedFallbackReplyCount =
     serverCounted || (fallbackReplyCount === undefined && fallbackMessageCount === undefined)
       ? undefined
@@ -416,6 +475,7 @@ export const buildThreadRecord = ({
       : Math.max(fallbackMessageCount ?? 0, recordReplyCount ?? 0),
     fallbackParticipantIds,
     visibleReplyEvents,
+    memberDisplayNameCache: context?.memberDisplayNames,
   });
   // The newest reply's sender (the server's bundled reply counts), the loaded repliers, the
   // other known writers, then the root's sender.
@@ -443,17 +503,41 @@ export const buildThreadRecord = ({
       getEffectiveThreadRootActivityTs(resolvedThreadRootEvent)
     ) || undefined;
   // An unread root counts toward the room's unread badge, so its thread is unread too.
-  const isUnread =
-    !!currentUserId &&
-    ((!!thread && getThreadUnread(thread, currentUserId)) ||
-      (!!resolvedThreadRootEvent &&
-        isMainTimelineMessageUnread(room, resolvedThreadRootEvent, currentUserId)));
+  let isUnread = false;
+  if (currentUserId) {
+    if (thread && getThreadUnread(thread, currentUserId)) {
+      isUnread = true;
+    } else if (resolvedThreadRootEvent) {
+      let mainTimelineReadTs: number | undefined;
+      if (context) {
+        if (!context.hasMainTimelineReadTs) {
+          context.mainTimelineReadTs = getMainTimelineReadTs(room, currentUserId);
+          context.hasMainTimelineReadTs = true;
+        }
+        mainTimelineReadTs = context.mainTimelineReadTs;
+      }
+      isUnread = isMainTimelineMessageUnread(
+        room,
+        resolvedThreadRootEvent,
+        currentUserId,
+        mainTimelineReadTs
+      );
+    }
+  }
   const isResolved = threadResolution?.isResolved ?? false;
   const snooze = parseThreadSnooze(
     threadResolution?.tags?.[SNOOZED_TAG] as TagMetadata | undefined
   );
   const isStreaming = providedIsStreaming ?? getThreadStreamingState(room, threadRootId);
-  const pendingReplyEvents = getPendingThreadEvents(room, threadRootId);
+  let pendingReplyEvents: MatrixEvent[];
+  if (context) {
+    if (context.pendingByThread === undefined) {
+      context.pendingByThread = getPendingThreadEventsByThread(room) ?? null;
+    }
+    pendingReplyEvents = context.pendingByThread?.get(threadRootId) ?? EMPTY_PENDING_EVENTS;
+  } else {
+    pendingReplyEvents = getPendingThreadEvents(room, threadRootId);
+  }
   const hasPendingSend = getThreadPendingSend(
     resolvedThreadRootEvent,
     visibleReplyEvents,
@@ -536,66 +620,85 @@ export const buildThreadRecordMap = ({
   const records = new Map<string, ThreadRecord>();
   const roomSources = getRoomSources(room);
   const builtAt = reuse?.changes.count ?? 0;
-
-  threadRootIds.forEach((threadRootId) => {
-    const options: BuildThreadRecordOptions = {
-      room,
-      threadRootId,
-      threadRootEvent: threadRootEventMap?.get(threadRootId),
-      summaryInfo: summaryMap?.get(threadRootId),
-      fallbackSummaryInfo: fallbackSummaryMap?.get(threadRootId),
-      fallbackReplyCount: fallbackReplyCountMap?.get(threadRootId),
-      rootPreviewText: rootPreviewTextMap?.get(threadRootId),
-      fallbackLatestReplyPreviewText: fallbackLatestReplyPreviewMap?.get(threadRootId),
-      fallbackLatestReplyTs: fallbackLatestReplyTsMap?.get(threadRootId),
-      fallbackLastSenderId: fallbackLastSenderIdMap?.get(threadRootId),
-      fallbackMessageCount: fallbackMessageCountMap?.get(threadRootId),
-      fallbackLastActivityTs: fallbackLastActivityTsMap?.get(threadRootId),
-      fallbackParticipantIds: fallbackParticipantMap?.get(threadRootId),
-      threadResolution: threadResolutionMap?.get(threadRootId),
-      currentUserId,
-      scheduledStatus: scheduledStatusMap?.get(threadRootId),
-      cacheCoverage: cacheCoverageMap?.get(threadRootId),
-      absoluteIndex: absoluteIndexMap?.get(threadRootId),
-    };
-    /** `held` if it still stands for these values, with their place. */
-    const standing = (held: ThreadRecord | undefined): ThreadRecord | undefined => {
-      const heldFrom = held && recordSources.get(held);
-      if (
-        !reuse ||
-        !held ||
-        !heldFrom ||
-        !unchangedSince(reuse.changes, threadRootId, heldFrom.builtAt) ||
-        !sameOption(heldFrom.roomSources, roomSources) ||
-        !sameOptions(heldFrom.options, options)
-      ) {
-        return undefined;
-      }
-      // The room's threads trade places with every reply; a thread that only moved keeps its
-      // record, with its new place.
-      const index = options.absoluteIndex ?? 0;
-      if (held.absoluteIndex === index) return held;
-      const moved = { ...held, absoluteIndex: index };
-      recordSources.set(moved, heldFrom);
-      return moved;
-    };
-    let record =
-      standing(reuse?.previous?.get(threadRootId)) ?? standing(reuse?.beside?.get(threadRootId));
-    if (!record) {
-      record = buildThreadRecord(options);
-      if (reuse) recordSources.set(record, { options, builtAt, roomSources });
+  const pass = reuse?.pass;
+  const standing = (
+    held: ThreadRecord | undefined,
+    threadRootId: string,
+    options: BuildThreadRecordOptions,
+    fromBeside: boolean
+  ): ThreadRecord | undefined => {
+    const heldFrom = held && recordSources.get(held);
+    if (
+      !reuse ||
+      !held ||
+      !heldFrom ||
+      (fromBeside && pass !== undefined && heldFrom.pass !== pass) ||
+      !unchangedSince(reuse.changes, threadRootId, heldFrom.builtAt) ||
+      !sameRoomSources(heldFrom.roomSources, roomSources) ||
+      !sameOptions(heldFrom.options, options)
+    ) {
+      return undefined;
     }
-    records.set(threadRootId, record);
-  });
+    // The room's threads trade places with every reply; a thread that only moved keeps its
+    // record, with its new place.
+    const index = options.absoluteIndex ?? 0;
+    if (held.absoluteIndex === index) return held;
+    const moved = { ...held, absoluteIndex: index };
+    recordSources.set(moved, heldFrom);
+    return moved;
+  };
 
-  return records;
+  const prevContext = activeBuildContext;
+  activeBuildContext = {
+    room,
+    currentUserId,
+    serverListed: roomSources[0],
+    memberDisplayNames: new Map(),
+  };
+  try {
+    return withRoomActiveRunsSnapshot(room, () => {
+      threadRootIds.forEach((threadRootId) => {
+        const options: BuildThreadRecordOptions = {
+          room,
+          threadRootId,
+          threadRootEvent: threadRootEventMap?.get(threadRootId),
+          summaryInfo: summaryMap?.get(threadRootId),
+          fallbackSummaryInfo: fallbackSummaryMap?.get(threadRootId),
+          fallbackReplyCount: fallbackReplyCountMap?.get(threadRootId),
+          rootPreviewText: rootPreviewTextMap?.get(threadRootId),
+          fallbackLatestReplyPreviewText: fallbackLatestReplyPreviewMap?.get(threadRootId),
+          fallbackLatestReplyTs: fallbackLatestReplyTsMap?.get(threadRootId),
+          fallbackLastSenderId: fallbackLastSenderIdMap?.get(threadRootId),
+          fallbackMessageCount: fallbackMessageCountMap?.get(threadRootId),
+          fallbackLastActivityTs: fallbackLastActivityTsMap?.get(threadRootId),
+          fallbackParticipantIds: fallbackParticipantMap?.get(threadRootId),
+          threadResolution: threadResolutionMap?.get(threadRootId),
+          currentUserId,
+          scheduledStatus: scheduledStatusMap?.get(threadRootId),
+          cacheCoverage: cacheCoverageMap?.get(threadRootId),
+          absoluteIndex: absoluteIndexMap?.get(threadRootId),
+        };
+        let record =
+          standing(reuse?.previous?.get(threadRootId), threadRootId, options, false) ??
+          standing(reuse?.beside?.get(threadRootId), threadRootId, options, true);
+        if (!record) {
+          record = buildThreadRecord(options);
+          if (reuse) recordSources.set(record, { options, builtAt, roomSources, pass });
+        }
+        records.set(threadRootId, record);
+      });
+      return records;
+    });
+  } finally {
+    activeBuildContext = prevContext;
+  }
 };
 
 /** What a map of unread marks was built from. */
 type ThreadUnreadSources = {
   builtAt: number;
   userId: string;
-  roomSources: readonly unknown[];
+  roomSources: RoomSources;
   threads: ReadonlyMap<string, Thread>;
 };
 
@@ -618,7 +721,9 @@ export const buildThreadUnreadMap = (
   const previous = reuse?.changes.listened ? reuse.previous : undefined;
   const from = previous && unreadSources.get(previous);
   const keptFrom =
-    from && from.userId === userId && sameOption(from.roomSources, roomSources) ? from : undefined;
+    from && from.userId === userId && sameRoomSources(from.roomSources, roomSources)
+      ? from
+      : undefined;
   const unreads = new Map<string, boolean>();
   const checked = new Map<string, Thread>();
   let changed = false;

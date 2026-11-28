@@ -94,13 +94,14 @@ export const buildThreadIndexRecordMaps = ({
     cacheCoverageMap: cachedMetadata.coverageMap,
   };
 
+  const pass = Symbol('thread-index-pass');
   const normalThreadRecordMap = buildThreadRecordMap({
     ...sharedRecordOptions,
     threadRootIds: visibleThreadRootData.ids,
     threadRootEventMap: visibleThreadRootEventMap,
     rootPreviewTextMap: visibleThreadRootData.bodyMap,
     absoluteIndexMap: visibleThreadRootData.indexMap,
-    reuse: { previous: previous?.normalThreadRecordMap, changes },
+    reuse: { previous: previous?.normalThreadRecordMap, changes, pass },
   });
   const compactThreadRecordMap = compactViewRequested
     ? buildThreadRecordMap({
@@ -109,13 +110,13 @@ export const buildThreadIndexRecordMaps = ({
         threadRootEventMap: compactThreadRootEventMap,
         rootPreviewTextMap: compactThreadRootBodyMap,
         absoluteIndexMap: compactThreadRootData.indexMap,
-        // A build with nothing from before makes the record of a thread both maps list with the
-        // same values once. Not a later build: the normal map then keeps records from before,
-        // which stand for what it showed and not for what a record built now reads.
+        // Share records from `normalThreadRecordMap` only when they were freshly built in this
+        // same synchronous `pass`, never older records kept from `previous`.
         reuse: {
           previous: previous?.compactThreadRecordMap,
           changes,
-          beside: previous ? undefined : normalThreadRecordMap,
+          beside: normalThreadRecordMap,
+          pass,
         },
       })
     : normalThreadRecordMap;

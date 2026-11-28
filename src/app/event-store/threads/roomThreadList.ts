@@ -89,16 +89,19 @@ export const isReplyUnread = (
   thread: Thread,
   userId: string,
   reply: MatrixEvent,
-  readState = getThreadReadState(thread, userId)
+  readState?: { readEventIds: Set<string>; readUpToTs: number | undefined }
 ): boolean => {
   if (reply.getSender() === userId) return false;
   const finish = getFinishingEdit(reply, thread);
   const finishId = finish?.getId();
   if (finishId && threadReceiptNamesEvent(thread, userId, finishId)) return false;
-  const readUpToTs = readState?.readUpToTs;
+  const resolvedReadState = readState ?? getThreadReadState(thread, userId);
+  const readUpToTs = resolvedReadState?.readUpToTs;
   // The finishing edit comes after its reply, though both may carry the same timestamp.
   const readUpToReply =
-    !!finish && readUpToTs === reply.getTs() && !!readState?.readEventIds.has(reply.getId() ?? '');
+    !!finish &&
+    readUpToTs === reply.getTs() &&
+    !!resolvedReadState?.readEventIds.has(reply.getId() ?? '');
   return readUpToTs === undefined || (finish ?? reply).getTs() > readUpToTs || readUpToReply;
 };
 
