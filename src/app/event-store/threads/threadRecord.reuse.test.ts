@@ -1,4 +1,5 @@
-import { MatrixEvent, ReceiptType } from 'matrix-js-sdk';
+import { EventStatus, MatrixEvent, ReceiptType } from 'matrix-js-sdk';
+import { trackPendingThreadEvent } from '../cache/pendingThreadEvents';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSeenThreadRoots, rememberSeenThreadRoot } from '../../matrix/seenThreadRoots';
@@ -251,5 +252,69 @@ describe('buildThreadRecordMap reuse', () => {
     expect(second.get('$a')).not.toBe(first.get('$a'));
     expect(second.get('$b')).not.toBe(first.get('$b'));
     expect(mocked.receiptEventsVersion).toHaveBeenLastCalledWith(room);
+  });
+
+  it('reads main-timeline receipts, active runs, and repeated member names once per map pass', () => {
+    const ids = Array.from({ length: 10 }, (_, i) => `$t_${i}`);
+    const manyRoots = new Map(ids.map((id) => [id, root(id)]));
+    const getReadReceiptForUserId = vi.fn(() => null);
+    const getStateEvents = vi.fn(() => []);
+    const getMembers = vi.fn(() => [
+      { userId: '@alice:example.org', rawDisplayName: 'Alice', membership: 'join' },
+    ]);
+    const member = { userId: '@alice:example.org', rawDisplayName: 'Alice', membership: 'join' };
+    const spyRoom = {
+      ...room,
+      currentState: { getStateEvents },
+      findEventById: (id: string) => manyRoots.get(id),
+      getMember: vi.fn((userId: string) => (userId === '@alice:example.org' ? member : null)),
+      getMembers,
+      getReadReceiptForUserId,
+    } as unknown as Room;
+    const fallbackParticipantMap = new Map(ids.map((id) => [id, ['@alice:example.org']]));
+
+    const built = buildThreadRecordMap({
+      room: spyRoom,
+      threadRootIds: ids,
+      threadRootEventMap: manyRoots,
+      fallbackParticipantMap,
+      currentUserId: ME,
+      reuse: { previous: undefined, changes: createThreadRecordChanges() },
+    });
+
+    expect(built.size).toBe(ids.length);
+    // Main-timeline readTs checks 2 receipt types x 2 synthesized flags ONCE for the whole room.
+    expect(getReadReceiptForUserId).toHaveBeenCalledTimes(4);
+    // Active-runs state is read ONCE for the whole room instead of once per thread.
+    expect(getStateEvents).toHaveBeenCalledTimes(1);
+    // Repeated sender display name is resolved ONCE instead of scanning room members per thread.
+    expect(getMembers).toHaveBeenCalledTimes(1);
+  });
+
+  it('tracks pending local echo sends per thread accurately across a batch build', () => {
+    const pending = new MatrixEvent({
+      event_id: '$pending_reply',
+      room_id: ROOM_ID,
+      sender: ME,
+      type: 'm.room.message',
+      origin_server_ts: 2500,
+      content: {
+        body: 'Sending...',
+        msgtype: 'm.text',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$a' },
+      },
+    });
+    pending.setStatus(EventStatus.SENDING);
+    trackPendingThreadEvent(pending, room);
+
+    const built = build();
+    expect(built.get('$a')?.status.hasPendingSend).toBe(true);
+    expect(built.get('$b')?.status.hasPendingSend).toBe(false);
+
+    pending.setStatus(null);
+    trackPendingThreadEvent(pending, room);
+    markThreadRecordChange(changes, '$a');
+    const settled = build(built);
+    expect(settled.get('$a')?.status.hasPendingSend).toBe(false);
   });
 });

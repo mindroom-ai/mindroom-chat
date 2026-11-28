@@ -346,27 +346,32 @@ describe('the Compact records of a build that also builds the normal ones', () =
     expect(built.compactThreadRecordMap.size).toBe(4);
   });
 
-  it('takes nothing in a later build, whose normal map keeps records from before', () => {
-    // B's root can be redacted in place, as a redaction that no listener marks leaves it.
-    let redacted = false;
-    const rootOfB = {
-      ...makeEvent({ eventId: '$b' }),
-      getContent: () => (redacted ? {} : { body: 'body', msgtype: 'm.text' }),
-      getUnsigned: () => (redacted ? { redacted_because: {} } : undefined),
-      isRedacted: () => redacted,
-    } as unknown as MatrixEvent;
-    const withRoot = new Map([...events, ['$b', rootOfB]]);
+  it('takes only records freshly built in the same pass, never older records kept by normal', () => {
+    // A and B's roots can be redacted in place, as a redaction that no listener marks leaves them.
+    let redactedA = false;
+    let redactedB = false;
+    const makeMutableRoot = (eventId: string, isRedacted: () => boolean) =>
+      ({
+        ...makeEvent({ eventId }),
+        getContent: () => (isRedacted() ? {} : { body: 'body', msgtype: 'm.text' }),
+        getUnsigned: () => (isRedacted() ? { redacted_because: {} } : undefined),
+        isRedacted,
+      }) as unknown as MatrixEvent;
+    const rootOfA = makeMutableRoot('$a', () => redactedA);
+    const rootOfB = makeMutableRoot('$b', () => redactedB);
+    const withRoots = new Map([...events, ['$a', rootOfA], ['$b', rootOfB]]);
     const options = {
       ...bothLists(),
-      visibleThreadRootEventMap: withRoot,
-      compactThreadRootEventMap: withRoot,
+      visibleThreadRootEventMap: withRoots,
+      compactThreadRootEventMap: withRoots,
       // Compact shows a cached preview of B: its record of B is its own.
       compactThreadRootBodyMap: new Map([...bodies, ['$b', 'cached preview of $b']]),
     };
     const first = expectAsBuiltAlone(options);
     expect(['$a', '$b', '$c'].map((id) => taken(first, id))).toEqual([true, false, true]);
 
-    // A change of A alone: each map keeps its own records of the other threads, and builds A's.
+    // A change of A alone: each map keeps its own records of the other threads, and A is rebuilt
+    // once in normal and shared into Compact within this same pass.
     markThreadRecordChange(options.changes, '$a');
     const second = expectAsBuiltAlone(
       options,
@@ -377,22 +382,57 @@ describe('the Compact records of a build that also builds the normal ones', () =
       expect(second.compactThreadRecordMap.get(id)).toBe(first.compactThreadRecordMap.get(id));
     });
     expect(second.normalThreadRecordMap.get('$a')).not.toBe(first.normalThreadRecordMap.get('$a'));
-    expect(taken(second, '$a')).toBe(false);
+    expect(taken(second, '$a')).toBe(true);
 
     // B's root is redacted with no mark, and Compact's preview of B becomes the normal one. The
-    // normal map keeps its record of B by its rule; the Compact one has none for these values,
-    // and builds B from the room as it is, not from what the normal map kept.
-    redacted = true;
+    // normal map keeps its record of B from `first`; the Compact map must not take that older
+    // record and instead builds B fresh from the room as it is now.
+    redactedB = true;
     const later = { ...options, compactThreadRootBodyMap: bodies };
     const third = buildThreadIndexRecordMaps({ ...later, previous: second });
-    const kept = third.normalThreadRecordMap.get('$b');
-    expect(kept).toBe(first.normalThreadRecordMap.get('$b'));
-    expect(kept?.status.isUnread).toBe(true);
+    const keptB = third.normalThreadRecordMap.get('$b');
+    expect(keptB).toBe(first.normalThreadRecordMap.get('$b'));
+    expect(keptB?.status.isUnread).toBe(true);
     expect(third.compactThreadRecordMap.get('$b')?.status.isUnread).toBe(false);
     expect([...third.compactThreadRecordMap]).toEqual([...builtAlone(later).compact]);
     expect(taken(third, '$b')).toBe(false);
     ['$a', '$c', '$d'].forEach((id) =>
       expect(third.compactThreadRecordMap.get(id)).toBe(second.compactThreadRecordMap.get(id))
     );
+
+    // Even for A — whose normal record was built at the current `changes.count` in `second` —
+    // a later pass with no new mark must not let Compact take `second`'s kept normal record.
+    redactedA = true;
+    const compactOnlyA = {
+      ...later,
+      compactThreadRootBodyMap: new Map([...bodies, ['$a', 'cached preview of $a']]),
+    };
+    const fourth = buildThreadIndexRecordMaps({ ...compactOnlyA, previous: third });
+    const fifth = buildThreadIndexRecordMaps({ ...later, previous: fourth });
+    expect(fifth.normalThreadRecordMap.get('$a')).toBe(second.normalThreadRecordMap.get('$a'));
+    expect(fifth.normalThreadRecordMap.get('$a')?.status.isUnread).toBe(true);
+    expect(fifth.compactThreadRecordMap.get('$a')?.status.isUnread).toBe(false);
+    expect(taken(fifth, '$a')).toBe(false);
+  });
+
+  it('builds every shared thread once on a room-wide invalidation instead of doubling the work', () => {
+    const options = bothLists();
+    const first = expectAsBuiltAlone(options);
+
+    markThreadRecordChange(options.changes);
+    const second = expectAsBuiltAlone(
+      options,
+      buildThreadIndexRecordMaps({ ...options, previous: first })
+    );
+
+    expect(['$a', '$b', '$c', '$d'].map((id) => taken(second, id))).toEqual([
+      true,
+      true,
+      true,
+      false,
+    ]);
+    ['$a', '$b', '$c', '$d'].forEach((id) => {
+      expect(second.compactThreadRecordMap.get(id)).not.toBe(first.compactThreadRecordMap.get(id));
+    });
   });
 });

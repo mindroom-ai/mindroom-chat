@@ -174,7 +174,7 @@ export type ThreadPreviewLocalization =
   | { kind: 'tools'; count: number; prose: string };
 
 /** Preview text and, for generated copy such as the tool badge, where it came from. */
-type ThreadPreview = {
+export type ThreadPreview = {
   text: string | undefined;
   localization: ThreadPreviewLocalization | undefined;
 };
@@ -299,7 +299,7 @@ const getMediaFallbackPreview = (content: Record<string, unknown>): ThreadPrevie
 
 // The preview text and the origin of its generated copy come from one
 // analysis, so a localized preview reads the body once.
-const resolveThreadPreview = (
+export const resolveThreadPreview = (
   content: Record<string, unknown> | null | undefined
 ): ThreadPreview => {
   if (!content || !isRecord(content)) return NO_PREVIEW;
@@ -343,12 +343,31 @@ export const getThreadMessagePreviewText = (
   content: Record<string, unknown> | null | undefined
 ): string | undefined => resolveThreadPreview(content).text;
 
+const canProduceThreadPreviewLocalization = (
+  content: Record<string, unknown> | null | undefined
+): boolean => {
+  if (!content || !isRecord(content)) return false;
+  const newContent = isRecord(content['m.new_content']) ? content['m.new_content'] : undefined;
+  const msgtype = newContent && 'msgtype' in newContent ? newContent.msgtype : content.msgtype;
+  if (
+    msgtype === ENCRYPTED_MSGTYPE ||
+    msgtype === MsgType.Audio ||
+    msgtype === MsgType.Image ||
+    msgtype === MsgType.Video ||
+    msgtype === MsgType.File
+  ) {
+    return true;
+  }
+  const body = newContent && 'body' in newContent ? newContent.body : content.body;
+  return typeof body === 'string' && body.includes('🔧');
+};
+
 /** Carry the origin of generated copy to the UI without translating user text or cached data. */
 export const getThreadPreviewLocalization = (
   content: Record<string, unknown> | null | undefined,
   previewText: string | undefined
 ): ThreadPreviewLocalization | undefined => {
-  if (!previewText) return undefined;
+  if (!previewText || !canProduceThreadPreviewLocalization(content)) return undefined;
   const preview = resolveThreadPreview(content);
   return preview.text === previewText ? preview.localization : undefined;
 };

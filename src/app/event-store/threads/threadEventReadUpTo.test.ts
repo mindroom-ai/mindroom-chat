@@ -223,4 +223,26 @@ describe('getThreadEventReadUpTo', () => {
     thread.addEvent(message('$later', 4000, '$root'), false);
     expect(getThreadUnread(thread, USER_ID)).toBe(true);
   });
+
+  it('skips computing full thread read state when the user sent the latest reply', async () => {
+    const ownReply = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: ROOM_ID,
+      event_id: '$own_reply',
+      sender: USER_ID,
+      origin_server_ts: 2000,
+      content: {
+        msgtype: 'm.text',
+        body: 'My reply',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      },
+    });
+    const { thread } = await setupThread([ownReply]);
+    const readUpToSpy = vi.spyOn(thread, 'getEventReadUpTo');
+    const receiptSpy = vi.spyOn(thread, 'getReadReceiptForUserId');
+
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+    expect(readUpToSpy).not.toHaveBeenCalled();
+    expect(receiptSpy).not.toHaveBeenCalled();
+  });
 });

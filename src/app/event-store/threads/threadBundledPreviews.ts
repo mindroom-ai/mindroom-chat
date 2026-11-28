@@ -7,6 +7,23 @@ import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 const object = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
+type CachedBundledEvent = {
+  roomId: string;
+  rootId: string;
+  title: boolean;
+  content: unknown;
+  unsigned: unknown;
+  redactedBecause: unknown;
+  replacement: unknown;
+  replacementContent: unknown;
+  appliedReplacement: boolean;
+  event: MatrixEvent | undefined;
+};
+
+// Reuse detached preview MatrixEvents across overview rebuilds for unchanged raw bundle entries;
+// redaction, room encryption, and viewer-scoped folding are still checked live on every read.
+const bundledEventCache = new WeakMap<object, CachedBundledEvent>();
+
 /** Detached presentation events: reading a bundle must not load a thread or advance receipts. */
 export const getBundledThreadPreviews = (
   room: Room,
@@ -47,9 +64,11 @@ export const getBundledThreadPreviews = (
     if (marked !== title) return undefined;
     const known = room.getThread(rootId)?.findEventById(raw.event_id);
     if (known?.isRedacted()) return undefined;
-    const event = new MatrixEvent({ ...raw, room_id: room.roomId });
-    if (event.isRedacted()) return undefined;
-    const replacement: unknown = event.getUnsigned()['m.relations']?.['m.replace'];
+    const rawUnsigned = object(raw.unsigned) ? raw.unsigned : undefined;
+    const rawRelations =
+      rawUnsigned && object(rawUnsigned['m.relations']) ? rawUnsigned['m.relations'] : undefined;
+    const replacement: unknown = rawRelations?.['m.replace'];
+    let validReplacement: Record<string, unknown> | undefined;
     // A root's summary keeps the edits of its events as the server sent them: the room may hold
     // one as an event and have redacted it since, and a copy of the root the room does not hold
     // keeps every edit (eventRevision.ts).
@@ -67,11 +86,52 @@ export const getBundledThreadPreviews = (
         target.rel_type === 'm.replace' &&
         target.event_id === raw.event_id
       ) {
-        event.makeReplaced(new MatrixEvent({ ...replacement, room_id: room.roomId }));
+        validReplacement = replacement;
       }
     }
-    // The client's own title rule reads the edited content, as it does for loaded events.
-    if (isThreadSummaryEvent(event) !== title) return undefined;
+    const appliedReplacement = !!validReplacement;
+    const replacementContent = validReplacement?.content;
+    const redactedBecause = rawUnsigned?.redacted_because;
+    const cached = bundledEventCache.get(raw);
+    let event: MatrixEvent | undefined;
+    if (
+      cached &&
+      cached.roomId === room.roomId &&
+      cached.rootId === rootId &&
+      cached.title === title &&
+      cached.content === raw.content &&
+      cached.unsigned === raw.unsigned &&
+      cached.redactedBecause === redactedBecause &&
+      cached.replacement === replacement &&
+      cached.replacementContent === replacementContent &&
+      cached.appliedReplacement === appliedReplacement
+    ) {
+      event = cached.event;
+    } else {
+      const built = new MatrixEvent({ ...raw, room_id: room.roomId });
+      if (!built.isRedacted()) {
+        if (validReplacement) {
+          built.makeReplaced(new MatrixEvent({ ...validReplacement, room_id: room.roomId }));
+        }
+        // The client's own title rule reads the edited content, as it does for loaded events.
+        if (isThreadSummaryEvent(built) === title) {
+          event = built;
+        }
+      }
+      bundledEventCache.set(raw, {
+        roomId: room.roomId,
+        rootId,
+        title,
+        content: raw.content,
+        unsigned: raw.unsigned,
+        redactedBecause,
+        replacement,
+        replacementContent,
+        appliedReplacement,
+        event,
+      });
+    }
+    if (!event) return undefined;
     if (!title && isFoldedSecretRequestEvent(event, room.myUserId || undefined)) return undefined;
     return event;
   };

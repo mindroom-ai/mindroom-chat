@@ -4,14 +4,18 @@ import type { TFunction } from 'i18next';
 import {
   getThreadPreviewLocalization,
   localizeThreadPreview,
+  resolveThreadPreview,
+  type ThreadPreview,
   type ThreadPreviewLocalization,
 } from './threadMessagePreview';
 import {
   getThreadSummaryInfosFromEventSources,
   getThreadSummaryEventInfo,
+  isThreadSummaryEvent,
   pickLatestThreadSummaryInfo,
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
+import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 import { isFoldedSecretRequestEvent } from '../../matrix/protocol/secretRequestPreview';
 import { getMemberDisplayName } from '../../matrix/room';
 import {
@@ -24,12 +28,10 @@ import {
   pickPreferredThreadRootPreviewText,
 } from './compactThreadRootData';
 import {
-  getLatestRenderableVisibleThreadReplyEvent,
   getEventPreviewContent,
   getPreferredVisibleThreadReplyEvents,
   getVisibleThreadEventBodyPreviewText,
   getVisibleThreadMessageCount,
-  isRenderableThreadReplyPreviewEvent,
   isVisibleThreadReplyEvent,
   type VisibleThreadEventCollectionLike,
 } from './threadUtils';
@@ -78,8 +80,11 @@ export const resolveThreadRootPreviewText = ({
   threadRootId,
   rootEvent,
   preferredPreviewText,
-}: ResolveThreadRootPreviewTextOptions): string | undefined =>
-  pickPreferredThreadRootPreviewText({
+}: ResolveThreadRootPreviewTextOptions): string | undefined => {
+  if (preferredPreviewText && !hasLikelyIncompleteStreamingBody(preferredPreviewText)) {
+    return preferredPreviewText;
+  }
+  return pickPreferredThreadRootPreviewText({
     preferredPreviewText,
     fallbackPreviewText:
       getCompactThreadRootBodyPreviewText(rootEvent, {
@@ -87,6 +92,18 @@ export const resolveThreadRootPreviewText = ({
         room,
       }) ?? getVisibleThreadEventBodyPreviewText(rootEvent),
   });
+};
+
+const resolveRenderableReplyPreview = (
+  event: MatrixEvent | undefined,
+  viewerUserId: string | undefined
+): ThreadPreview | undefined => {
+  if (!event || isThreadSummaryEvent(event) || isFoldedSecretRequestEvent(event, viewerUserId)) {
+    return undefined;
+  }
+  const preview = resolveThreadPreview(getEventPreviewContent(event));
+  return preview.text ? preview : undefined;
+};
 
 type ResolveThreadPresentationSnapshotOptions = {
   bundledPreviews?: ReturnType<typeof getBundledThreadPreviews>;
@@ -104,6 +121,8 @@ type ResolveThreadPresentationSnapshotOptions = {
   thread?: VisibleThreadEventCollectionLike | null;
   threadRootId: string;
   visibleReplyEvents?: MatrixEvent[];
+  /** Per-pass member display-name memo shared across records in one room build. */
+  memberDisplayNameCache?: Map<string, string | undefined>;
 };
 
 export const resolveThreadPresentationSnapshot = ({
@@ -121,6 +140,7 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackLatestReplyTs,
   fallbackLastActivityTs,
   bundledPreviews,
+  memberDisplayNameCache,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
   const viewerUserId = room.myUserId || undefined;
   const isFolded = (event: MatrixEvent) => isFoldedSecretRequestEvent(event, viewerUserId);
@@ -154,7 +174,17 @@ export const resolveThreadPresentationSnapshot = ({
     title: bundle.title,
     reply: outgrown || bundledReplyFolded ? undefined : bundle.reply,
   };
-  const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents, viewerUserId);
+  let loadedPreviewEvent: MatrixEvent | undefined;
+  let loadedPreview: ThreadPreview | undefined;
+  for (let i = replyEvents.length - 1; i >= 0; i -= 1) {
+    const candidate = replyEvents[i]!;
+    const preview = resolveRenderableReplyPreview(candidate, viewerUserId);
+    if (preview) {
+      loadedPreviewEvent = candidate;
+      loadedPreview = preview;
+      break;
+    }
+  }
   // The SDK restores the bundled reply before loading the thread timeline.
   // Use it for presentation without treating one event as the full reply count. Like the server's
   // bundled reply, it replaces a cached copy of the reply older than its newest revision.
@@ -179,26 +209,28 @@ export const resolveThreadPresentationSnapshot = ({
         replyTs: fallbackLatestReplyTs,
         lastSenderId: fallbackLastSenderId,
       };
-  const candidatePreviewEvent =
+  const bundledReplyPreview =
     (!cachedFallback?.previewText ||
       (bundledReply &&
         cachedReplyTs !== undefined &&
         getThreadPreviewRevisionTs(bundledReply) > cachedReplyTs)) &&
     bundledReply &&
     isVisibleThreadReplyEvent(bundledReply) &&
-    isRenderableThreadReplyPreviewEvent(bundledReply, viewerUserId) &&
     (!loadedPreviewEvent ||
       (bundledReply.getId() === loadedPreviewEvent.getId()
         ? getThreadPreviewRevisionTs(bundledReply) > getThreadPreviewRevisionTs(loadedPreviewEvent)
         : bundledReply.getTs() > loadedPreviewEvent.getTs()))
-      ? bundledReply
-      : loadedPreviewEvent;
+      ? resolveRenderableReplyPreview(bundledReply, viewerUserId)
+      : undefined;
+  const candidatePreviewEvent = bundledReplyPreview ? bundledReply : loadedPreviewEvent;
+  const candidatePreview = bundledReplyPreview ?? loadedPreview;
   const preferCachedReply =
     bundled.reply &&
     cachedFallback?.previewText &&
     cachedReplyTs !== undefined &&
     (!candidatePreviewEvent || cachedReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
   const latestPreviewEvent = preferCachedReply ? undefined : candidatePreviewEvent;
+  const latestPreview = preferCachedReply ? undefined : candidatePreview;
   // A cached preview keeps its own sender: a newer reply not shown yet (one still encrypted) did
   // not write it (P2-e2ee-F005).
   const lastEvent = preferCachedReply
@@ -211,8 +243,21 @@ export const resolveThreadPresentationSnapshot = ({
     lastEvent?.getSender?.() ??
     cachedFallback?.lastSenderId ??
     fallbackParticipantIds?.find((candidateId) => !!candidateId);
+  let resolvedMemberDisplayName: string | undefined;
+  if (lastSenderId) {
+    if (memberDisplayNameCache) {
+      if (memberDisplayNameCache.has(lastSenderId)) {
+        resolvedMemberDisplayName = memberDisplayNameCache.get(lastSenderId);
+      } else {
+        resolvedMemberDisplayName = getMemberDisplayName(room, lastSenderId);
+        memberDisplayNameCache.set(lastSenderId, resolvedMemberDisplayName);
+      }
+    } else {
+      resolvedMemberDisplayName = getMemberDisplayName(room, lastSenderId);
+    }
+  }
   const lastSenderDisplayName = lastSenderId
-    ? (getMemberDisplayName(room, lastSenderId) ?? lastSenderId)
+    ? (resolvedMemberDisplayName ?? lastSenderId)
     : undefined;
   const summaryInfo = resolveThreadSummaryInfo({
     preferredSummaryInfo: pickLatestThreadSummaryInfo(
@@ -232,16 +277,12 @@ export const resolveThreadPresentationSnapshot = ({
     rootEvent,
     preferredPreviewText: preferredRootPreviewText,
   });
-  const latestReplyPreviewText =
-    getVisibleThreadEventBodyPreviewText(latestPreviewEvent) ?? cachedFallback?.previewText;
+  const latestReplyPreviewText = latestPreview?.text ?? cachedFallback?.previewText;
   const rootPreviewLocalization = getThreadPreviewLocalization(
     getEventPreviewContent(rootEvent),
     rootPreviewText
   );
-  const latestReplyPreviewLocalization = getThreadPreviewLocalization(
-    getEventPreviewContent(latestPreviewEvent),
-    latestReplyPreviewText
-  );
+  const latestReplyPreviewLocalization = latestPreview?.localization;
 
   return {
     summaryInfo,
