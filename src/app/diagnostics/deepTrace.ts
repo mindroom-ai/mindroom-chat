@@ -128,7 +128,7 @@ type Runtime = {
   disposed: boolean;
   sessionId: string;
   sequence: number;
-  queue: DeepTraceEvent[];
+  queue: StoredDeepTraceEvent[];
   queueBytes: number;
   droppedQueueEvents: number;
   memory: Set<StoredDeepTraceEvent>;
@@ -372,7 +372,7 @@ const getDatabase = (): Promise<IDBPDatabase<DeepTraceDB>> => {
 };
 
 const appendStoredEvents = async (
-  events: DeepTraceEvent[],
+  events: StoredDeepTraceEvent[],
   droppedEventCount = 0
 ): Promise<void> => {
   if (events.length === 0 && droppedEventCount === 0) return;
@@ -388,16 +388,12 @@ const appendStoredEvents = async (
   const stats = { ...((await metaStore.get(STATS_KEY)) ?? EMPTY_STATS) };
   stats.droppedEventCount = (stats.droppedEventCount ?? 0) + droppedEventCount;
 
-  for (const event of events) {
-    const stored: StoredDeepTraceEvent = {
-      ...event,
-      bytes: JSON.stringify(event).length,
-    };
+  for (const stored of events) {
     await eventStore.add(stored);
     stats.eventCount += 1;
     stats.byteCount += stored.bytes;
-    stats.oldestAt ??= event.at;
-    stats.newestAt = event.at;
+    stats.oldestAt ??= stored.at;
+    stats.newestAt = stored.at;
   }
 
   let cursor = await eventStore.openCursor();
@@ -457,7 +453,7 @@ const flush = async (target: Runtime, force = false): Promise<void> => {
   }
 
   const flushSequence = target.activationSequence;
-  let batch: DeepTraceEvent[] = [];
+  let batch: StoredDeepTraceEvent[] = [];
   let batchBytes = 0;
   let droppedEventCount = 0;
   const drain = (async () => {
@@ -467,7 +463,7 @@ const flush = async (target: Runtime, force = false): Promise<void> => {
       target.activationSequence === flushSequence
     ) {
       batch = target.queue.splice(0, FLUSH_BATCH_SIZE);
-      batchBytes = batch.reduce((total, event) => total + JSON.stringify(event).length, 0);
+      batchBytes = batch.reduce((total, event) => total + event.bytes, 0);
       target.queueBytes = Math.max(0, target.queueBytes - batchBytes);
       droppedEventCount = target.droppedQueueEvents;
       target.droppedQueueEvents = 0;
@@ -549,9 +545,10 @@ export const recordDeepTraceEvent = (
     ...(normalizedData ? { data: normalizedData } : {}),
   };
   const eventBytes = JSON.stringify(event).length;
+  const storedEvent: StoredDeepTraceEvent = { ...event, bytes: eventBytes };
   // Retain an independent tail before attempting I/O: even the failed batch
   // and events recorded while an IndexedDB operation hangs remain exportable.
-  target.memory.add({ ...event, bytes: eventBytes });
+  target.memory.add(storedEvent);
   target.memoryBytes += eventBytes;
   while (target.memory.size > MEMORY_MAX_EVENTS || target.memoryBytes > MEMORY_MAX_BYTES) {
     const oldest = target.memory.values().next().value!;
@@ -567,7 +564,7 @@ export const recordDeepTraceEvent = (
   ) {
     const dropped = target.queue.shift();
     if (dropped) {
-      target.queueBytes = Math.max(0, target.queueBytes - JSON.stringify(dropped).length);
+      target.queueBytes = Math.max(0, target.queueBytes - dropped.bytes);
       target.droppedQueueEvents += 1;
     }
   }
@@ -577,7 +574,7 @@ export const recordDeepTraceEvent = (
   ) {
     target.droppedQueueEvents += 1;
   } else {
-    target.queue.push(event);
+    target.queue.push(storedEvent);
     target.queueBytes += eventBytes;
   }
   scheduleFlush(target, options.flush);
@@ -860,11 +857,7 @@ export const traceDeepDiagnosticFetch = async (
   requestSequence = (requestSequence + 1) % Number.MAX_SAFE_INTEGER;
   const operationId = requestSequence;
   const startedAt = nowMonotonic();
-  recordDeepTraceEvent(
-    `network.${category}.${method}.start`,
-    { operation_id: operationId },
-    { flush: category.startsWith('matrix.') }
-  );
+  recordDeepTraceEvent(`network.${category}.${method}.start`, { operation_id: operationId });
   try {
     const response = await baseFetch(input, init);
     const contentLengthHeader = response.headers.get('content-length');
