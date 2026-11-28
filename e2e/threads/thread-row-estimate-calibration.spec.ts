@@ -246,6 +246,8 @@ test('phone thread row estimates calibrate against DOM tiles and bound upward ho
     expect(
       initial!.estimates.filter(([, , est, c]) => est > 0 && !c).length
     ).toBeGreaterThanOrEqual(6);
+    const cachedByKey = new Map(initial!.estimates.map(([, k, , c]) => [k, c]));
+    expect(PREMOUNT_IDS.some((id) => cachedByKey.get(id) === false)).toBe(true);
     await Promise.all(
       PREMOUNT_IDS.map((id) => expect(page.locator(`[data-message-id="${id}"]`)).toHaveCount(0))
     );

@@ -54,6 +54,30 @@ const html = (formattedBody: string, body = 'rich', extra: Record<string, unknow
   ...extra,
 });
 
+const makeTimelineSetWithReactions = (
+  targetId: string,
+  reactions: MatrixEvent[]
+): Pick<EventTimelineSet, 'relations'> => {
+  const bucket = { getRelations: () => reactions };
+  return {
+    relations: {
+      getChildEventsForEvent: (eventId: string, relType: string, eventType: string) =>
+        eventId === targetId && relType === 'm.annotation' && eventType === 'm.reaction'
+          ? bucket
+          : undefined,
+    },
+  } as unknown as Pick<EventTimelineSet, 'relations'>;
+};
+
+const makeReaction = (id: string, targetId: string, sender: string, key: string, ts: number) =>
+  makeEvent({
+    id,
+    sender,
+    ts,
+    type: 'm.reaction',
+    content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: targetId, key } },
+  });
+
 const makeTimelineSetWithReplace = (
   targetId: string,
   edits: MatrixEvent[]
@@ -213,11 +237,12 @@ describe('estimateMessageRowHeight', () => {
     expect(estimateMessageRowHeight(captionedThumb, { compact: false })).toBe(8 + 6 * 22);
   });
 
-  it('prices body-only Markdown fenced code blocks comparably to HTML pre/code blocks', () => {
+  it('matches CodeBlockRule parity: unindented backticks collapse while tilde, indented, and unclosed fences do not', () => {
     const eightyLines = Array.from(
       { length: 80 },
       (_, i) => `const step_${i} = runStage(${i});`
     ).join('\n');
+    const phoneOpts = { compact: false, wrapChars: 38, coarsePointer: true };
     const htmlCode = makeEvent({
       id: '$html-80',
       sender: AGENT,
@@ -233,19 +258,24 @@ describe('estimateMessageRowHeight', () => {
       sender: AGENT,
       content: { msgtype: 'm.text', body: `~~~ts\n${eightyLines}\n~~~` },
     });
-    // Collapsed on phone: base (8) + coarse collapsed header (53) + 270 = 331 px (not ~1,768 px).
-    const htmlPx = estimateMessageRowHeight(htmlCode, {
-      compact: false,
-      wrapChars: 38,
-      coarsePointer: true,
+    const indentedMd = makeEvent({
+      id: '$md-indented-80',
+      sender: AGENT,
+      content: { msgtype: 'm.text', body: `   \`\`\`ts\n${eightyLines}\n   \`\`\`` },
     });
+    const unclosedMd = makeEvent({
+      id: '$md-unclosed-80',
+      sender: AGENT,
+      content: { msgtype: 'm.text', body: `\`\`\`ts\n${eightyLines}` },
+    });
+    // Unindented backticks collapse on phone: base (8) + coarse collapsed header (53) + 270 = 331 px.
+    const htmlPx = estimateMessageRowHeight(htmlCode, phoneOpts);
     expect(htmlPx).toBe(8 + 53 + 270);
-    expect(
-      estimateMessageRowHeight(backtickMd, { compact: false, wrapChars: 38, coarsePointer: true })
-    ).toBe(htmlPx);
-    expect(
-      estimateMessageRowHeight(tildeMd, { compact: false, wrapChars: 38, coarsePointer: true })
-    ).toBe(htmlPx);
+    expect(estimateMessageRowHeight(backtickMd, phoneOpts)).toBe(htmlPx);
+    // CodeBlockRule only parses unindented backtick fences: tilde, indented, and unclosed stay uncollapsed.
+    expect(estimateMessageRowHeight(tildeMd, phoneOpts)).toBe(8 + 82 * 22);
+    expect(estimateMessageRowHeight(indentedMd, phoneOpts)).toBe(8 + 82 * 22);
+    expect(estimateMessageRowHeight(unclosedMd, phoneOpts)).toBe(8 + 81 * 22);
 
     const tenShortLines = Array.from(
       { length: 10 },
@@ -261,10 +291,8 @@ describe('estimateMessageRowHeight', () => {
       sender: AGENT,
       content: html(`<pre><code>${tenShortLines}</code></pre>`, tenShortLines),
     });
-    expect(
-      estimateMessageRowHeight(mdShort, { compact: false, wrapChars: 38, coarsePointer: true })
-    ).toBe(
-      estimateMessageRowHeight(htmlShort, { compact: false, wrapChars: 38, coarsePointer: true })
+    expect(estimateMessageRowHeight(mdShort, phoneOpts)).toBe(
+      estimateMessageRowHeight(htmlShort, phoneOpts)
     );
   });
 
@@ -360,13 +388,65 @@ describe('estimateMessageRowHeight', () => {
         showToolCalls: false,
       })
     ).toBe(8 + 36 + 22);
-    // Shown tool calls: base (8) + 2 tool rows (2 * 38) + 1-line body (22).
+    // Shown tool calls: consecutive markers group into 1 ThreadActivity run: base (8) + 38 + 22.
     expect(
       estimateMessageRowHeight(noReasoning, {
         compact: false,
         coarsePointer: false,
         showToolCalls: true,
       })
+    ).toBe(8 + 38 + 22);
+
+    const twelveConsecutive = makeEvent({
+      id: '$tools-12-run',
+      sender: AGENT,
+      content: html(
+        `${Array.from({ length: 12 }, (_, i) => `<p>🔧 <code>step_${i + 1}</code> [${i + 1}]</p>`).join('')}<p>Done.</p>`,
+        `${Array.from({ length: 12 }, (_, i) => `🔧 \`step_${i + 1}\` [${i + 1}]`).join('\n')}\nDone.`,
+        { 'io.mindroom.ai_run': AI_RUN_WITH_MODEL, 'io.mindroom.stream_status': 'streaming' }
+      ),
+    });
+    expect(
+      estimateMessageRowHeight(twelveConsecutive, { compact: false, showToolCalls: true })
+    ).toBe(8 + 38 + 22);
+
+    const twoSeparatedRunsHtml = makeEvent({
+      id: '$tools-2-runs-html',
+      sender: AGENT,
+      content: html(
+        '<p>🔧 <code>read_file</code> [1]</p><p>🔧 <code>grep</code> [2]</p><p>Checking output.</p><p>🔧 <code>shell</code> [3]</p>',
+        '🔧 `read_file` [1]\n🔧 `grep` [2]\nChecking output.\n🔧 `shell` [3]',
+        { 'io.mindroom.ai_run': AI_RUN_WITH_MODEL, 'io.mindroom.stream_status': 'streaming' }
+      ),
+    });
+    expect(
+      estimateMessageRowHeight(twoSeparatedRunsHtml, { compact: false, showToolCalls: true })
+    ).toBe(8 + 2 * 38 + 22);
+
+    const consecutivePlain = makeEvent({
+      id: '$tools-1-run-plain',
+      sender: AGENT,
+      content: {
+        msgtype: 'm.text',
+        body: '🔧 `read_file` [1]\n🔧 `grep` [2]\n\n🔧 `shell` [3]\nSummary ready.',
+        'io.mindroom.stream_status': 'streaming',
+      },
+    });
+    expect(
+      estimateMessageRowHeight(consecutivePlain, { compact: false, showToolCalls: true })
+    ).toBe(8 + 38 + 22);
+
+    const twoSeparatedRunsPlain = makeEvent({
+      id: '$tools-2-runs-plain',
+      sender: AGENT,
+      content: {
+        msgtype: 'm.text',
+        body: '🔧 `read_file` [1]\nChecking output.\n🔧 `shell` [2]',
+        'io.mindroom.stream_status': 'streaming',
+      },
+    });
+    expect(
+      estimateMessageRowHeight(twoSeparatedRunsPlain, { compact: false, showToolCalls: true })
     ).toBe(8 + 2 * 38 + 22);
 
     const withReasoning = makeEvent({
@@ -442,6 +522,163 @@ describe('estimateMessageRowHeight', () => {
     const fallbackBodyPx = estimateFormattedBodyPx(fallbackHtmlContent, 48)!;
     // Base (8) + fallback body + 3 options * 20 px button delta.
     expect(fallbackPx).toBe(8 + fallbackBodyPx + 3 * 20);
+  });
+
+  it('strips 80-line Matrix reply fallbacks and adds quote height only when a reply quote renders', () => {
+    const quotedLines = Array.from(
+      { length: 80 },
+      (_, i) => `Quoted context line ${i + 1} for Service X diagnostics.`
+    );
+    const fallbackBody = `> <@alice:example.org> ${quotedLines[0]}\n${quotedLines
+      .slice(1)
+      .map((l) => `> ${l}`)
+      .join('\n')}\n\nDone.`;
+    const fallbackHtml = `<mx-reply><blockquote><a href="https://matrix.to/#/!r/$target">In reply to</a> <a href="https://matrix.to/#/@alice:example.org">@alice:example.org</a><br/>${quotedLines.join('<br/>')}</blockquote></mx-reply>Done.`;
+
+    const earlier = makeEvent({ id: '$target', sender: '@alice:example.org' });
+    const other = makeEvent({
+      id: '$other',
+      sender: '@bob:example.org',
+      ts: earlier.getTs() + 1000,
+    });
+
+    const genuineReply = makeEvent({
+      id: '$reply-genuine',
+      sender: AGENT,
+      ts: other.getTs() + 1000,
+      content: html(fallbackHtml, fallbackBody, {
+        'm.relates_to': { 'm.in_reply_to': { event_id: '$target' } },
+      }),
+    });
+    // Body strips 80-line fallback to "Done." (8 + 22 = 30), NOT ~1,850 px.
+    expect(estimateThreadEventRowHeight(genuineReply, { compact: false })).toBe(8 + 22);
+    expect(estimateMessageRowHeight(genuineReply, { compact: false })).toBe(8 + 22);
+    // Genuine reply to earlier event adds 24 px quote chip: 30 + 24 + 38 header = 92 px.
+    expect(estimateThreadRowHeight(genuineReply, other, { compact: false })).toBe(8 + 22 + 24 + 38);
+    // Replying directly below its target renders no quote chip: max(68, 30 + 38) = 68 px.
+    expect(estimateThreadRowHeight(genuineReply, earlier, { compact: false })).toBe(68);
+
+    const bodyOnlyReply = makeEvent({
+      id: '$reply-body-only',
+      sender: AGENT,
+      ts: other.getTs() + 2000,
+      content: {
+        msgtype: 'm.text',
+        body: fallbackBody,
+        'm.relates_to': { 'm.in_reply_to': { event_id: '$target' } },
+      },
+    });
+    expect(estimateThreadRowHeight(bodyOnlyReply, other, { compact: false })).toBe(
+      8 + 22 + 24 + 38
+    );
+
+    const threadFallbackReply = makeEvent({
+      id: '$reply-thread-fallback',
+      sender: AGENT,
+      ts: other.getTs() + 3000,
+      content: html(fallbackHtml, fallbackBody, {
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: '$target',
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: '$target' },
+        },
+      }),
+    });
+    // MSC3440 thread fallback replies to nothing, so no quote chip is rendered (68 px).
+    expect(estimateThreadRowHeight(threadFallbackReply, other, { compact: false })).toBe(68);
+  });
+
+  it('prices answered QuestionCards at 1 option and invalidates cache when answers arrive or retract', () => {
+    const questionText = 'Which cluster should run the rollout?';
+    const keys = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣'];
+    const labels = ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta'];
+    const interactive = {
+      version: 1,
+      question_text: questionText,
+      options: Object.fromEntries(keys.map((k, i) => [k, labels[i]!.toLowerCase()])),
+      option_labels: Object.fromEntries(keys.map((k, i) => [k, labels[i]!])),
+    };
+
+    // 1. Without fallback text: 6 options unanswered vs 1 option answered.
+    const noFallbackEvent = makeEvent({
+      id: '$q6-plain',
+      sender: AGENT,
+      content: {
+        msgtype: 'm.text',
+        body: questionText,
+        'io.mindroom.interactive': interactive,
+      },
+    });
+    const plainReactions: MatrixEvent[] = [
+      makeReaction('$seed-1', '$q6-plain', AGENT, '1️⃣', 1_700_000_001_000),
+      makeReaction('$human-like', '$q6-plain', '@alice:example.org', '👍', 1_700_000_002_000),
+    ];
+    const plainTs = makeTimelineSetWithReactions('$q6-plain', plainReactions);
+    const plainOpts = { compact: false, wrapChars: 48, timelineSet: plainTs };
+
+    // Agent-seeded option reactions and non-option human reactions leave the question unanswered.
+    const unansweredPlain = estimateMessageRowHeight(noFallbackEvent, plainOpts);
+    expect(unansweredPlain).toBe(8 + 22 + 30 + 6 * 42);
+
+    // Replacing a non-option reaction (redacted 👍) with an answer reaction keeps active count = 2
+    // and must still invalidate the cache to 1 option.
+    plainReactions[1]!.makeRedacted(
+      new MatrixEvent({
+        type: 'm.room.redaction',
+        redacts: '$human-like',
+        event_id: '$redact-like',
+        sender: '@alice:example.org',
+        content: {},
+      }),
+      new Room('!room:example.org', {} as MatrixClient, '@alice:example.org')
+    );
+    const answerReaction = makeReaction(
+      '$human-ans',
+      '$q6-plain',
+      '@alice:example.org',
+      '2️⃣',
+      1_700_000_003_000
+    );
+    plainReactions.push(answerReaction);
+    const answeredPlain = estimateMessageRowHeight(noFallbackEvent, plainOpts);
+    expect(answeredPlain).toBe(8 + 22 + 30 + 1 * 42);
+    expect(unansweredPlain - answeredPlain).toBe(5 * 42);
+
+    // Redacting the answer reaction invalidates the cache back to all 6 options.
+    answerReaction.makeRedacted(
+      new MatrixEvent({
+        type: 'm.room.redaction',
+        redacts: '$human-ans',
+        event_id: '$redact-ans',
+        sender: '@alice:example.org',
+        content: {},
+      }),
+      new Room('!room:example.org', {} as MatrixClient, '@alice:example.org')
+    );
+    expect(estimateMessageRowHeight(noFallbackEvent, plainOpts)).toBe(unansweredPlain);
+
+    // 2. With fallback list HTML: answered hides 5 fallback option lines + button deltas.
+    const fbContent = html(
+      `<p>${questionText}</p><ol>${keys.map((k, i) => `<li>${k} ${labels[i]}</li>`).join('')}</ol><p>${INTERACTIVE_INSTRUCTION_TEXT}</p>`,
+      `${questionText}\n${labels.map((l, i) => `${i + 1}. ${l}`).join('\n')}\n${INTERACTIVE_INSTRUCTION_TEXT}`,
+      { 'io.mindroom.interactive': interactive }
+    );
+    const fbEvent = makeEvent({ id: '$q6-fb', sender: AGENT, content: fbContent });
+    const fbReactions: MatrixEvent[] = [];
+    const fbTs = makeTimelineSetWithReactions('$q6-fb', fbReactions);
+    const fbOpts = { compact: false, wrapChars: 48, timelineSet: fbTs };
+    const fbBodyPx = estimateFormattedBodyPx(fbContent, 48)!;
+
+    const unansweredFb = estimateMessageRowHeight(fbEvent, fbOpts);
+    expect(unansweredFb).toBe(8 + fbBodyPx + 6 * 20);
+
+    fbReactions.push(
+      makeReaction('$fb-ans', '$q6-fb', '@alice:example.org', '3️⃣', 1_700_000_004_000)
+    );
+    const answeredFb = estimateMessageRowHeight(fbEvent, fbOpts);
+    expect(answeredFb).toBe(8 + fbBodyPx + 1 * 20 - 5 * 22);
+    expect(unansweredFb - answeredFb).toBe(5 * (20 + 22));
   });
 });
 

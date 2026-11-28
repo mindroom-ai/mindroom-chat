@@ -169,7 +169,7 @@ describe('the estimates of a folded turn', () => {
     const [root, first, second, answer] = events;
     const rootPx = estimateThreadRowHeight(root!, undefined, { compact: false });
     const firstPx = estimateThreadRowHeight(first!, root, { compact: false });
-    // While folded, $a1 is closed so $a2 sees ROOT above it; once open, $a2 follows $a1.
+    // Without hiddenIds passed, $a2 is still priced while folded: skipping closed break $a1 shows ROOT above $a2; once open, $a2 follows $a1.
     const secondFoldedPx = estimateThreadRowHeight(second!, root, { compact: false });
     const secondOpenPx = estimateThreadRowHeight(second!, first, { compact: false });
     const answerPx = estimateThreadRowHeight(answer!, second, { compact: false });

@@ -2,7 +2,7 @@ import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
 import { getThreadSummaryInfo, hasThreadSummary } from '../../matrix/protocol/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
-import { getLatestEdit } from '../../matrix/room';
+import { getLatestEdit, trimReplyFromBody } from '../../matrix/room';
 import { countCacheProbe } from '../cache/cacheProbe';
 
 export type ThreadInitialRenderMode = 'loading' | 'cached' | 'live';
@@ -156,7 +156,7 @@ export const estimateThreadEventRowHeight = (
     return 0;
   }
   const contentRecord = resolvedContent ?? mEvent.getContent<Record<string, unknown>>();
-  const body = typeof contentRecord.body === 'string' ? contentRecord.body : '';
+  const body = typeof contentRecord.body === 'string' ? trimReplyFromBody(contentRecord.body) : '';
   // Thread rows render a summary as a one-line marker under the reply before it.
   if (getThreadSummaryInfo(contentRecord)?.summaryText) return base + THREAD_ROW_LINE_PX;
   // Always-expanded rows (agent replies and legacy thread summaries) never fold:
