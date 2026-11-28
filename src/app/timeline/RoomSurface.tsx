@@ -162,6 +162,7 @@ function useRoomSurfaceState(props: RoomTimelineProps, listenedOverview?: Thread
     room,
     threadId: undefined,
     eventId,
+    focusEventInRoom: props.focusEventInRoom,
     focusedRoomOverviewRequested: viewState.focusedRoomOverviewRequested,
     compactViewRequested,
     effectiveViewMode: viewMode,

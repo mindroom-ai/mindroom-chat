@@ -123,6 +123,13 @@ const NOBODY: ReadonlySet<string> = new Set();
 const sameMembers = (a: ReadonlySet<string>, b: ReadonlySet<string>) =>
   a.size === b.size && Array.from(a).every((member) => b.has(member));
 
+const timelineRowsListeners = new Set<() => void>();
+
+/** Notifies active typing observers when a `[data-timeline-rows]` container mounts or unmounts. */
+export const notifyTimelineRowsChanged = (): void => {
+  timelineRowsListeners.forEach((listener) => listener());
+};
+
 /** Polling fallback interval when IntersectionObserver is unavailable (jsdom tests). */
 const ON_SCREEN_CHECK_MS = 250;
 
@@ -284,6 +291,7 @@ const useStreamingRepliesOnScreen = (
     };
 
     syncTargets();
+    timelineRowsListeners.add(syncTargets);
     const onRoomTimeline = (_event: MatrixEvent, eventRoom: Room | undefined) => {
       if (!eventRoom || eventRoom.roomId === room.roomId) syncTargets();
     };
@@ -295,6 +303,7 @@ const useStreamingRepliesOnScreen = (
     mx.on(MatrixEventEvent.Replaced, onMatrixEvent);
     mx.on(MatrixEventEvent.Decrypted, onMatrixEvent);
     return () => {
+      timelineRowsListeners.delete(syncTargets);
       room.removeListener(RoomEvent.Timeline, onRoomTimeline);
       room.removeListener(RoomEvent.Redaction, onRoomTimeline);
       mx.removeListener(MatrixEventEvent.Replaced, onMatrixEvent);

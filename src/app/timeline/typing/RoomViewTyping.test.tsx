@@ -6,7 +6,7 @@ import { MatrixEvent, MatrixEventEvent, RoomEvent, type Room } from 'matrix-js-s
 import { afterEach, expect, it, vi } from 'vitest';
 import { roomIdToTypingMembersAtom } from '../../matrix/state/typingMembers';
 import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
-import { RoomViewTyping } from './RoomViewTyping';
+import { notifyTimelineRowsChanged, RoomViewTyping } from './RoomViewTyping';
 
 vi.mock('./RoomViewTyping.css', () => ({
   TypingStrip: 'typing-strip',
@@ -643,6 +643,81 @@ it('does not observe the enclosing room container with a subtree MutationObserve
     expect(observeSpy).toHaveBeenCalledWith(rows, { childList: true });
     expect(observeSpy).not.toHaveBeenCalledWith(area, expect.anything());
   } finally {
+    area.remove();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  }
+});
+
+it('hides the typing strip immediately when [data-timeline-rows] mounts for an already-streaming reply without a new Matrix event, and restores it on unmount', () => {
+  const observe = vi.fn();
+  vi.stubGlobal(
+    'IntersectionObserver',
+    class {
+      observe = observe;
+      unobserve = vi.fn();
+      disconnect = vi.fn();
+    }
+  );
+  const observeSpy = vi.spyOn(MutationObserver.prototype, 'observe');
+  const prevGetLiveTimeline = room.getLiveTimeline;
+  const area = document.createElement('div');
+  document.body.append(area);
+  try {
+    eventStreaming = true;
+    const streamingEvent = new MatrixEvent({
+      event_id: '$stream-room',
+      type: 'm.room.message',
+      sender: HELPER,
+      room_id: ROOM_ID,
+      content: { msgtype: 'm.text', body: 'Streaming...' },
+    });
+    room.getLiveTimeline = () =>
+      ({ getEvents: () => [streamingEvent] }) as ReturnType<Room['getLiveTimeline']>;
+
+    const store = createStore();
+    typing(store, HELPER);
+    container = document.createElement('div');
+    area.append(container);
+    act(() => {
+      root = createRoot(container!);
+      root.render(
+        <Provider store={store}>
+          <RoomViewTyping room={room} containerRef={{ current: area }} />
+        </Provider>
+      );
+    });
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+    expect(observeSpy).not.toHaveBeenCalled();
+
+    // Switching Compact -> Classic/Threads mounts [data-timeline-rows] with the streaming reply
+    // already on screen and notifies RoomViewTyping without any new Matrix event.
+    const scroller = document.createElement('div');
+    scroller.style.overflowY = 'auto';
+    scroller.getBoundingClientRect = () =>
+      ({ top: 0, bottom: 700, left: 0, right: 390, width: 390, height: 700 }) as DOMRect;
+    const rows = document.createElement('div');
+    rows.setAttribute('data-timeline-rows', '');
+    const row = document.createElement('div');
+    row.setAttribute('data-message-id', '$stream-room');
+    row.getBoundingClientRect = () =>
+      ({ top: 100, bottom: 260, left: 0, right: 300, width: 300, height: 160 }) as DOMRect;
+    rows.append(row);
+    scroller.append(rows);
+    area.append(scroller);
+
+    act(() => notifyTimelineRowsChanged());
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(observe).toHaveBeenCalledWith(row);
+    expect(observeSpy).toHaveBeenCalledWith(rows, { childList: true });
+    expect(observeSpy).not.toHaveBeenCalledWith(area, expect.anything());
+
+    // Switching back to Compact unmounts [data-timeline-rows] and restores the strip immediately.
+    scroller.remove();
+    act(() => notifyTimelineRowsChanged());
+    expect(container.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+  } finally {
+    room.getLiveTimeline = prevGetLiveTimeline;
     area.remove();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();

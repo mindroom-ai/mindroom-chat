@@ -125,7 +125,8 @@ const holdNextSend = async (page: Page, roomId: string): Promise<HeldSend> => {
   };
 };
 
-const composer = (page: Page) => page.locator('[data-editable-name="RoomInput"]');
+// Foreground composer only, excluding the inert room under-layer during phone slides.
+const composer = (page: Page) => page.locator('[data-editable-name="RoomInput"]:not([inert] *)');
 /** Presses the composer's Send button, as a phone has no Enter to send with. */
 const pressSend = (page: Page) =>
   page.getByRole('button', { name: 'Send message', exact: true }).click();

@@ -43,7 +43,7 @@ const msg = (roomId: string, eventId: string, body: string, ts: number) =>
   });
 
 describe('passive back-peek warm snapshot reuse', () => {
-  it('reuses warm WeakMap snapshot in O(1) across remounts, skips loads/sorts while peeking, misses on filter change, and rebuilds fresh on commit', async () => {
+  it('reuses warm snapshot in O(1) across remounts, bypasses cache on Compact focusEventInRoom peeks, misses on filter change, and rebuilds fresh on commit', async () => {
     const mx = createClient({ baseUrl: 'https://matrix.example.org', userId: '@self:example.org' });
     const engine = createSyncEngine({ mx });
     const roomId = '!warm-peek:example.org';
@@ -65,18 +65,23 @@ describe('passive back-peek warm snapshot reuse', () => {
     type Props = {
       summaryMap: Map<string, ThreadSummaryInfo>;
       filter?: typeof DIRECT_ROOM_TIMELINE_FILTER_STATE;
+      eventId?: string;
+      focusEventInRoom?: boolean;
     };
     function WarmBody({
       listened,
       summaryMap,
       filter = DIRECT_ROOM_TIMELINE_FILTER_STATE,
+      eventId,
+      focusEventInRoom,
     }: Props & {
       listened: NonNullable<Exclude<ReturnType<typeof useThreadOverviewListenedFirst>, 'waiting'>>;
     }) {
       const index = useThreadIndex({
         room,
         threadId: undefined,
-        eventId: undefined,
+        eventId,
+        focusEventInRoom,
         focusedRoomOverviewRequested: false,
         compactViewRequested: true,
         effectiveViewMode: 'compact',
@@ -97,7 +102,7 @@ describe('passive back-peek warm snapshot reuse', () => {
         mx,
         onStoreThreadSummary: NOOP,
       });
-      lastCompactIds = index.compactThreadRootData.ids;
+      lastCompactIds = index.compactOverviewOrdering.displayOrderedIds;
       lastRootSummary =
         index.compactThreadRecordMap.get('$root-1')?.presentation.summaryInfo?.summaryText;
       return <div data-testid="warm-compact">{lastCompactIds.join(',')}</div>;
@@ -116,13 +121,21 @@ describe('passive back-peek warm snapshot reuse', () => {
       mounted: boolean,
       passive: boolean,
       summaryMap: Map<string, ThreadSummaryInfo>,
-      filter = DIRECT_ROOM_TIMELINE_FILTER_STATE
+      filter = DIRECT_ROOM_TIMELINE_FILTER_STATE,
+      focus?: { eventId: string; focusEventInRoom: boolean }
     ) => (
       <QueryClientProvider client={queryClient}>
         <MatrixClientProvider value={mx}>
           <SyncEngineProvider engine={engine}>
             <PassivePeekContext.Provider value={passive}>
-              {mounted ? <WarmCompactRoom summaryMap={summaryMap} filter={filter} /> : null}
+              {mounted ? (
+                <WarmCompactRoom
+                  summaryMap={summaryMap}
+                  filter={filter}
+                  eventId={focus?.eventId}
+                  focusEventInRoom={focus?.focusEventInRoom}
+                />
+              ) : null}
             </PassivePeekContext.Provider>
           </SyncEngineProvider>
         </MatrixClientProvider>
@@ -173,7 +186,35 @@ describe('passive back-peek warm snapshot reuse', () => {
     expect(sortSpy).not.toHaveBeenCalled();
     expect(loadThreadsMock).not.toHaveBeenCalled();
 
+    // Compact focus back-peek (focusEventInRoom + eventId) bypasses warm caches for both
+    // useThreadIndex and useRoomThreadList so a newly created thread card is present before commit.
+    const reply2 = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: roomId,
+      event_id: '$reply-2',
+      sender: '@member:example.org',
+      origin_server_ts: 2_100,
+      content: {
+        msgtype: 'm.text',
+        body: 'Reply in new thread',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root-2' },
+      },
+    });
+    room.createThread('$root-2', root2, [reply2], true);
+    rendered.rerender(wrap(false, false, summaryV2));
+    rendered.rerender(
+      wrap(true, true, summaryV2, DIRECT_ROOM_TIMELINE_FILTER_STATE, {
+        eventId: '$root-2',
+        focusEventInRoom: true,
+      })
+    );
+    expect(buildSpy).toHaveBeenCalled();
+    expect(sortSpy).toHaveBeenCalled();
+    expect(loadThreadsMock).not.toHaveBeenCalled();
+    expect(lastCompactIds).toEqual(expect.arrayContaining(['$root-1', '$root-2']));
+
     // Filter mismatch during passive peek misses cache cleanly.
+    buildSpy.mockClear();
     rendered.rerender(wrap(false, false, summaryV2));
     rendered.rerender(
       wrap(true, true, summaryV2, { ...DIRECT_ROOM_TIMELINE_FILTER_STATE, freeText: 'second' })

@@ -95,12 +95,13 @@ const EMPTY_ROOT_DATA = {
   sourceTsMap: new Map<string, number>(),
 };
 type WarmThreadIndexEntry = {
+  room: Room;
   key: string;
   freeze: ThreadSortFreezeState | null;
   ignored: Set<string>;
   result: Omit<UseThreadIndexResult, 'refreshRoomThreadList' | 'applyThreadOverviewRelationEvents'>;
 };
-const warmThreadIndexCache = new WeakMap<Room, WarmThreadIndexEntry>();
+let lastWarmThreadIndex: WarmThreadIndexEntry | null = null;
 const sameSet = (a: Set<string>, b: Set<string>) =>
   a === b || (a.size === b.size && [...a].every((id) => b.has(id)));
 
@@ -357,6 +358,7 @@ export type UseThreadIndexOptions = {
   room: Room;
   threadId: string | undefined;
   eventId: string | undefined;
+  focusEventInRoom?: boolean;
   focusedRoomOverviewRequested: boolean;
   compactViewRequested: boolean;
   effectiveViewMode: RoomViewMode;
@@ -383,6 +385,7 @@ export const useThreadIndex = ({
   room,
   threadId,
   eventId,
+  focusEventInRoom,
   focusedRoomOverviewRequested,
   compactViewRequested,
   effectiveViewMode,
@@ -413,9 +416,10 @@ export const useThreadIndex = ({
     [requestedThreadFilterState, effectiveViewMode]
   );
   const warmKey = `${sessionId}\0${currentUserId ?? ''}\0${compactViewRequested}\0${threadSortControlSignature}\0${requestedThreadFilterState.unsupportedQuery}\0${showHiddenEvents}\0${hideMembershipEvents}\0${hideNickAvatarEvents}`;
+  const bypassWarmPeek = focusedRoomOverviewRequested || Boolean(focusEventInRoom && eventId);
   const cachedWarm =
-    paused && !threadId && !focusedRoomOverviewRequested
-      ? warmThreadIndexCache.get(room)
+    paused && !threadId && !bypassWarmPeek && lastWarmThreadIndex?.room === room
+      ? lastWarmThreadIndex
       : undefined;
   const warmPeek =
     cachedWarm &&
@@ -479,7 +483,8 @@ export const useThreadIndex = ({
     room,
     compactViewRequested || threadsViewListed,
     overviewChanges,
-    overviewRefreshCounter
+    overviewRefreshCounter,
+    bypassWarmPeek
   );
   const roomSurfaceEventEntries = useMemo(() => {
     if (warmPeek) return [] as TimelineEventEntry[];
@@ -859,13 +864,14 @@ export const useThreadIndex = ({
     onStoreThreadSummary,
   });
   useLayoutEffect(() => {
-    if (paused || threadId || focusedRoomOverviewRequested) return;
-    warmThreadIndexCache.set(room, {
+    if (paused || threadId || bypassWarmPeek) return;
+    lastWarmThreadIndex = {
+      room,
       key: warmKey,
       freeze: threadSortFreezeState,
       ignored: ignoredUsersSet,
       result: data,
-    });
+    };
   });
 
   return { ...data, refreshRoomThreadList, applyThreadOverviewRelationEvents };

@@ -33,7 +33,7 @@ import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils
  * reads, all through WebKit's networking process.
  */
 const restoredRooms = new WeakSet<Room>();
-const cachedSortedThreads = new WeakMap<Room, { userId: string; threads: Thread[] }>();
+let lastWarmThreadList: { room: Room; userId: string; threads: Thread[] } | null = null;
 const EMPTY_UNREADS: ReadonlyMap<string, boolean> = new Map();
 const savedRootRevisions = new WeakMap<
   Room,
@@ -86,7 +86,8 @@ export const useRoomThreadList = (
   room: Room,
   enabled: boolean,
   overviewChanges: ThreadRecordChanges,
-  overviewRefreshCounter: number
+  overviewRefreshCounter: number,
+  bypassWarmPeek = false
 ) => {
   const mx = useMatrixClient();
   const engine = useSyncEngine();
@@ -309,8 +310,14 @@ export const useRoomThreadList = (
   }, [paused]);
 
   const userId = mx.getUserId() ?? '';
-  const cachedWarm = enabled && paused ? cachedSortedThreads.get(room) : undefined;
-  const warmThreads = cachedWarm?.userId === userId ? cachedWarm.threads : undefined;
+  const warmThreads =
+    enabled &&
+    paused &&
+    !bypassWarmPeek &&
+    lastWarmThreadList?.room === room &&
+    lastWarmThreadList.userId === userId
+      ? lastWarmThreadList.threads
+      : undefined;
   const rawThreads = useMemo(() => {
     if (warmThreads) return warmThreads;
     void version;
@@ -336,7 +343,7 @@ export const useRoomThreadList = (
     [enabled, rawThreads, threadUnreads, warmThreads]
   );
   useLayoutEffect(() => {
-    if (enabled && !paused) cachedSortedThreads.set(room, { userId, threads });
+    if (enabled && !paused) lastWarmThreadList = { room, userId, threads };
   }, [enabled, paused, room, threads, userId]);
   const fullyLoaded = useMemo(() => {
     void version;
