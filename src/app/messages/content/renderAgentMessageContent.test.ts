@@ -40,10 +40,10 @@ vi.mock('./MsgTypeRenderers', () => ({
       renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
       renderAfterBody
     ),
-  MText: ({ content, renderAfterBody, renderBody, renderStateSuffix }: any) =>
+  MText: ({ content, notice, renderAfterBody, renderBody, renderStateSuffix }: any) =>
     React.createElement(
       'div',
-      { 'data-renderer': 'text' },
+      { 'data-renderer': 'text', 'data-notice': notice },
       renderBody({ body: typeof content.body === 'string' ? content.body : '' }),
       renderAfterBody,
       renderStateSuffix?.()
@@ -228,12 +228,12 @@ describe('renderAgentMessageContent', () => {
     settledTranscript.unmount();
   });
 
-  it('renders the animated MindRoom thinking placeholder for exact active Thinking... messages', async () => {
+  it.each(['m.text', 'm.notice'])('renders the active %s thinking placeholder', async (msgType) => {
     const { MatrixEvent } = await import('matrix-js-sdk');
     const content = {
-      msgtype: 'm.text',
+      msgtype: msgType,
       body: 'Thinking...',
-      'io.mindroom.stream_status': 'pending',
+      'io.mindroom.stream_status': msgType === 'm.notice' ? 'streaming' : 'pending',
     };
     const renderer = await renderNode({
       // With an age, `localTimestamp` differs from `origin_server_ts`.
@@ -243,7 +243,7 @@ describe('renderAgentMessageContent', () => {
         unsigned: { age: 500 },
         content,
       }),
-      msgType: 'm.text',
+      msgType,
       content,
     });
 
@@ -255,8 +255,8 @@ describe('renderAgentMessageContent', () => {
       ]
     ).toBe(1_234);
 
-    expect(rendered).toContain('thinking-placeholder');
     expect(rendered).toContain('Making progress');
+    expect(rendered).toContain('"data-notice":false');
     expect(rendered).not.toContain('Thinking...');
     expect(rendered).not.toContain('streaming');
 
@@ -305,23 +305,30 @@ describe('renderAgentMessageContent', () => {
     }
   });
 
-  it('keeps terminal Thinking... messages on the normal text renderer', async () => {
+  it.each([
+    ['m.text', 'completed'],
+    ['m.notice', 'completed'],
+    ['m.notice', 'cancelled'],
+    ['m.notice', 'approval_pending'],
+    ['m.notice', undefined],
+    ['m.emote', 'streaming'],
+  ] as const)('keeps %s Thinking... as normal prose (%s)', async (msgType, streamStatus) => {
     const renderer = await renderNode({
-      msgType: 'm.text',
+      msgType,
       content: {
-        msgtype: 'm.text',
+        msgtype: msgType,
         body: 'Thinking...',
-        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.stream_status': streamStatus,
       },
     });
 
     const rendered = JSON.stringify(renderer.toJSON());
 
-    expect(rendered).toContain('data-renderer');
-    expect(rendered).toContain('text');
+    expect(rendered).toContain(`"data-renderer":"${msgType === 'm.emote' ? 'emote' : 'text'}"`);
+    expect(rendered).not.toContain('data-notice');
     expect(rendered).toContain('Thinking...');
     expect(rendered).not.toContain('thinking-placeholder');
-    expect(rendered).not.toContain('streaming');
+    if (msgType !== 'm.emote') expect(rendered).not.toContain('streaming');
 
     renderer.unmount();
   });

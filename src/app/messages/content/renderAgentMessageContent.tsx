@@ -432,22 +432,19 @@ type AgentTextMessageProps = {
   options: RenderAgentMessageContentOptions;
   kind: AgentTextKind;
   isFileMessage: boolean;
-  isThinkingPlaceholder: boolean;
   renderableContent: Record<string, unknown>;
   longTextSource?: LongTextSource;
   isStreaming: boolean;
 };
 
 /**
- * Unified text/notice/emote/long-text message component. Keeps one tree identity across
- * ThinkingPlaceholder -> streamed m.notice -> m.text -> m.file sidecar -> live m.text -> final
- * sidecar via `useResolvedMessageContent`.
+ * Unified text/notice/emote/long-text renderer. Keeps one tree across streaming edits and
+ * sidecar hydration, using the resolved body to decide whether to show the thinking placeholder.
  */
 function AgentTextMessage({
   options,
   kind,
   isFileMessage,
-  isThinkingPlaceholder,
   renderableContent,
   longTextSource,
   isStreaming,
@@ -461,6 +458,8 @@ function AgentTextMessage({
     fromMindroomAgent,
     hydrate: options.hydrateLongText ?? true,
   });
+  const isThinkingPlaceholder =
+    kind !== 'emote' && isStreaming && isThinkingPlaceholderBody(resolved.content);
   const callTranscript = useMemo(
     () => (fromMindroomAgent ? readCallTranscript(resolved.content) : undefined),
     [fromMindroomAgent, resolved.content]
@@ -547,7 +546,7 @@ function AgentTextMessage({
       {kind === 'emote' ? (
         <MEmote displayName={options.displayName} {...textProps} />
       ) : (
-        <MText {...textProps} />
+        <MText {...textProps} notice={isThinkingPlaceholder ? false : undefined} />
       )}
       {resolved.showLoadingIndicator && (
         <Box alignItems="Center" gap="100" style={{ marginTop: config.space.S100 }}>
@@ -757,11 +756,9 @@ export const renderAgentMessageContent = (
   }
 
   const isStreaming = isAiRunStreaming(content);
-  const isThinkingPlaceholder =
-    !longTextSource && isTextMessage && isStreaming && isThinkingPlaceholderBody(content);
   const renderableContent = longTextSource
     ? longTextSource.previewContent
-    : isThinkingPlaceholder
+    : textKind !== 'emote' && isStreaming && isThinkingPlaceholderBody(content)
       ? content
       : withToolRefFormattedBodyFallback(content, fromMindroomAgent);
 
@@ -770,7 +767,6 @@ export const renderAgentMessageContent = (
       options={options}
       kind={textKind}
       isFileMessage={isFileMessage}
-      isThinkingPlaceholder={isThinkingPlaceholder}
       renderableContent={renderableContent}
       longTextSource={
         longTextSource ? { ...longTextSource, owner: getEventAttachmentOwner(mEvent) } : undefined

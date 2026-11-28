@@ -6,6 +6,7 @@ import type { HTMLReactParserOptions } from 'html-react-parser';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { loadLiveMarkdown, renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
 import { renderAgentMessageContent } from '../content/renderAgentMessageContent';
+import { MText } from '../content/MsgTypeRenderers';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { inspectRenderedToolCalls } from '../html/HtmlBlocks';
 import { domContainsText } from './replyDom';
@@ -161,8 +162,9 @@ describe('MindroomReasoning', () => {
    * the model is writing its last segment.
    */
   const renderThinking = (content: Record<string, unknown>) => {
-    const root = render({ ...content, [LIVE]: String(content[LIVE]).slice(0, 1) });
-    act(() => renderer?.update(element(content)));
+    const msgType = typeof content.msgtype === 'string' ? content.msgtype : 'm.text';
+    const root = render({ ...content, [LIVE]: String(content[LIVE]).slice(0, 1) }, msgType);
+    act(() => renderer?.update(element(content, msgType)));
     return root;
   };
 
@@ -447,15 +449,18 @@ describe('MindroomReasoning', () => {
     expect(text(root)).toContain('Running sh<U+202E>nur on <U+202E>atad<U+202C>...');
   });
 
-  it('shows live reasoning and activity around the thinking placeholder', () => {
+  it('shows live reasoning and activity around the undimmed thinking notice', () => {
     const root = renderThinkingOpen({
-      msgtype: 'm.text',
+      msgtype: 'm.notice',
       body: 'Thinking...',
       'io.mindroom.stream_status': 'streaming',
       'io.mindroom.live_reasoning': 'Planning',
       'io.mindroom.live_activity': 'Starting worker',
     });
 
+    const body = root.findByType(MText);
+    expect(body.props.notice).toBe(false);
+    expect(body.props.renderStateSuffix).toBeUndefined();
     expect(text(root)).toBe(
       'ThinkingThinkingPlanningHide thinkingThinking placeholderStarting worker'
     );
