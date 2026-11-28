@@ -14,6 +14,7 @@ import {
   META_STORE,
   buildRedactedRelationMetaKey,
   type CachedRoomLedgerRecord,
+  ATTACHMENT_BYTES_SUMMARY_KEY,
   ATTACHMENT_REFERENCES_STORE,
   ATTACHMENTS_STORE,
   buildAttachmentReferenceKey,
@@ -21,6 +22,7 @@ import {
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
 import { invalidateEvictionVerdict, noteEvictionBytesFreed } from './cacheEviction';
+import { adjustAttachmentBytesSummary } from './cacheStoreAttachmentBytes';
 import { deleteScaledPictures } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
@@ -58,6 +60,7 @@ export const loadCachedAttachment = async (
   sessionId: string,
   mxcUri: string
 ): Promise<CachedAttachmentRecord | undefined> => {
+  if (mxcUri === ATTACHMENT_BYTES_SUMMARY_KEY) return undefined;
   try {
     const db = await openCacheStore(sessionId);
     if (!db) return undefined;
@@ -156,6 +159,11 @@ const putAttachmentTransaction = async (
         record.essential ||= essential;
       }
       blobs.put(record);
+      adjustAttachmentBytesSummary(
+        blobs,
+        record.byteLength - (previous?.byteLength ?? 0),
+        previous ? 0 : 1
+      );
     }
     await done;
   } catch (error) {
@@ -172,6 +180,7 @@ export const putCachedAttachment = async (
   input: Pick<CachedAttachmentRecord, 'bytes' | 'mimeType' | 'mxcUri'>,
   options: CacheAttachmentWriteOptions = {}
 ): Promise<CacheAttachmentWriteStatus> => {
+  if (input.mxcUri === ATTACHMENT_BYTES_SUMMARY_KEY) return 'failed';
   const writeLease = options.writeLease ?? captureCacheStoreWriteLease(sessionId, options.roomId);
   if (options.signal?.aborted) throw abortError();
   if (!isCacheStoreWriteLeaseCurrent(writeLease)) return 'revoked';
@@ -199,6 +208,7 @@ export const getCachedAttachmentMetadata = async (
   sessionId: string,
   mxcUri: string
 ): Promise<CachedAttachmentMetadata | undefined> => {
+  if (mxcUri === ATTACHMENT_BYTES_SUMMARY_KEY) return undefined;
   try {
     const db = await openCacheStore(sessionId);
     if (!db) return undefined;
@@ -245,6 +255,7 @@ const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterab
     if (!remaining.length) {
       blobs.delete(mxcUri);
       freedBytes += cached.byteLength;
+      adjustAttachmentBytesSummary(blobs, -cached.byteLength, -1, mxcUri);
     } else if (cached.essential !== essential) {
       blobs.put({ ...cached, essential });
       if (!essential) becameOptional = true;

@@ -32,6 +32,7 @@ import {
   clearRoomCachedContent,
   noteRoomOpened,
   openCacheStore,
+  putCachedAttachment,
   runCacheEvictionIfOverBudget,
   saveRoomEventsToCacheCommitted,
   setConfiguredCacheStoreByteBudget,
@@ -762,6 +763,48 @@ it('does not rerun eviction on repeated page admissions under a protected-pressu
     expect(control.controller.getSnapshot(roomId).status).toBe('space');
   } finally {
     trace.mockRestore();
+  }
+});
+
+it('does not scan attachments with a cursor on repeated under-budget page admissions', async () => {
+  const f = fixture();
+  const engine = f.make();
+  await saveRoomEventsToCacheCommitted(engine.sessionId, roomId, [raw('$retained')]);
+  await putCachedAttachment(
+    engine.sessionId,
+    { mxcUri: 'mxc://test/under-budget-a', bytes: new ArrayBuffer(2048), mimeType: 'image/png' },
+    { roomId }
+  );
+  await putCachedAttachment(
+    engine.sessionId,
+    { mxcUri: 'mxc://test/under-budget-b', bytes: new ArrayBuffer(4096), mimeType: 'image/png' },
+    { roomId }
+  );
+  const control = createRoomOfflineController({
+    mx: f.mx,
+    sessionId: engine.sessionId,
+    scheduler: engine.scheduler,
+    connection: {
+      getSnapshot: () => ({ connected: true, unmetered: true }),
+      subscribe: () => () => {},
+    },
+    getPrefetchConfig: () => ({ scope: 'all-rooms' }),
+    onChanged: () => {},
+  });
+  const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
+  try {
+    // First admission seeds the persisted summary once; subsequent admissions skip cursor scans.
+    for (let i = 0; i < 5; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      expect(await control.canSavePage(roomId)).toBe(true);
+    }
+    expect(
+      (keyCursor.mock.contexts as IDBIndex[]).filter(
+        (index) => index.objectStore.name === 'attachments'
+      )
+    ).toHaveLength(1);
+  } finally {
+    keyCursor.mockRestore();
   }
 });
 it('hidden pages pause and logout revokes a pending page', async () => {

@@ -4,6 +4,7 @@ import {
   isCacheStoreWriteLeaseCurrent,
   openCacheStore,
 } from './cacheStoreDb';
+import { adjustAttachmentBytesSummary } from './cacheStoreAttachmentBytes';
 import {
   ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
   ATTACHMENT_REFERENCES_STORE,
@@ -86,12 +87,17 @@ export const putCachedScaledPicture = async (
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error);
     });
-    const references = (await requestResult(
-      transaction
-        .objectStore(ATTACHMENT_REFERENCES_STORE)
-        .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
-        .getAll(input.mxcUri)
-    )) as CachedAttachmentReferenceRecord[];
+    const blobs = transaction.objectStore(ATTACHMENTS_STORE);
+    const key = scaledPictureKey(input.mxcUri);
+    const [references, previous] = await Promise.all([
+      requestResult(
+        transaction
+          .objectStore(ATTACHMENT_REFERENCES_STORE)
+          .index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX)
+          .getAll(input.mxcUri)
+      ) as Promise<CachedAttachmentReferenceRecord[]>,
+      requestResult(blobs.get(key)) as Promise<CachedAttachmentRecord | undefined>,
+    ]);
     const owned = references.some(
       (row) =>
         row.roomId === owner.roomId &&
@@ -102,8 +108,8 @@ export const putCachedScaledPicture = async (
     );
     if (owned) {
       const now = Date.now();
-      transaction.objectStore(ATTACHMENTS_STORE).put({
-        mxcUri: scaledPictureKey(input.mxcUri),
+      blobs.put({
+        mxcUri: key,
         bytes: input.bytes,
         mimeType: input.mimeType,
         byteLength: input.bytes.byteLength,
@@ -111,6 +117,11 @@ export const putCachedScaledPicture = async (
         storedAt: now,
         lastAccessedAt: now,
       } satisfies CachedAttachmentRecord);
+      adjustAttachmentBytesSummary(
+        blobs,
+        input.bytes.byteLength - (previous?.byteLength ?? 0),
+        previous ? 0 : 1
+      );
     }
     await done;
     return owned;
@@ -136,6 +147,7 @@ export const deleteScaledPictures = async (
     const scaled = (await requestResult(blobs.get(key))) as CachedAttachmentRecord | undefined;
     if (!scaled) continue;
     blobs.delete(key);
+    adjustAttachmentBytesSummary(blobs, -scaled.byteLength, -1, key);
     freed += scaled.byteLength;
   }
   return freed;

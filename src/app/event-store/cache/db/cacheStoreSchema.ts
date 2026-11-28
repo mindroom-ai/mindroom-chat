@@ -67,6 +67,10 @@ export const MAX_EVENT_ID = '￿';
 // with (roomIds start with `!`).
 export const INTERNAL_META_ROOM_ID = '__cacheStore';
 export const LEGACY_WIPE_MARKER_META_KEY = '__cacheStore|migration';
+// Reserved primary key in `attachments` for the persisted byte/count summary.
+// Real MXC URIs start with `mxc://`, and this record omits `lastAccessedAt`
+// and `byteLength` so IndexedDB excludes it from `by_access_bytes`.
+export const ATTACHMENT_BYTES_SUMMARY_KEY = '__cacheStore|attachmentBytes';
 
 // ISSUE-207 P2.2 preparation: the eviction ledger enforces a per-session
 // storage budget of 1 GB (decision D9). This constant lives here so the
@@ -241,6 +245,12 @@ export type CachedAttachmentRecord = {
   essential: boolean;
   storedAt: number;
   lastAccessedAt: number;
+};
+
+export type CachedAttachmentBytesSummaryRecord = {
+  mxcUri: typeof ATTACHMENT_BYTES_SUMMARY_KEY;
+  totalBytes: number;
+  count: number;
 };
 
 export type CachedAttachmentReferenceRecord = {
