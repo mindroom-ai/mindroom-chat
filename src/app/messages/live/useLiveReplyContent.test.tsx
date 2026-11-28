@@ -8,7 +8,9 @@ import { loadLiveMarkdown } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS } from './liveReplyStore';
 import {
   LIVE_COMPACTIONS_KEY,
+  LIVE_REASONING_KEY,
   LIVE_REASONING_SEGMENTS_KEY,
+  MINDROOM_REASONING_KEY,
   useLiveReplyContent,
 } from './useLiveReplyContent';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
@@ -863,5 +865,45 @@ describe('useLiveReplyContent', () => {
       );
     });
     expect(shown()[LIVE_COMPACTIONS_KEY]).toEqual(runningCompaction);
+  });
+
+  it('does not overwrite durable io.mindroom.reasoning with older live reasoning on wait or expiry', () => {
+    const durableReasoning = { text: 'Newer durable thought', duration_ms: 5000 };
+    ingest(snapshot(4, 'Frame four', 'Older live thought', SEGMENTS));
+
+    // Covering durable checkpoint carries io.mindroom.reasoning: live reasoning must not override it.
+    render(
+      durable('streaming', {
+        'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+        [MINDROOM_REASONING_KEY]: durableReasoning,
+      })
+    );
+    expect(shown()[MINDROOM_REASONING_KEY]).toEqual(durableReasoning);
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_KEY);
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_SEGMENTS_KEY);
+
+    // After 12s expiry while still streaming, durable reasoning remains untouched...
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    expect(shown()[MINDROOM_REASONING_KEY]).toEqual(durableReasoning);
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_KEY);
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_SEGMENTS_KEY);
+
+    // ...while durable content omitting io.mindroom.reasoning still receives the retained live reasoning.
+    act(() => {
+      renderer?.update(
+        <Harness
+          mx={mx}
+          event={replyEvent()}
+          content={durable('streaming', {
+            'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
+          })}
+        />
+      );
+    });
+    expect(shown()[LIVE_REASONING_KEY]).toBe('Older live thought');
+    expect(shown()[LIVE_REASONING_SEGMENTS_KEY]).toEqual(SEGMENTS);
   });
 });

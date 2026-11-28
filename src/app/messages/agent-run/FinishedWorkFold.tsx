@@ -67,17 +67,17 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
   const scope = replyDisclosureScope(message?.roomId, message?.eventId);
   const manualExpansionState = useContext(ManualExpansionStateContext);
   const expandAllInit = useContext(ExpandAllInitContext);
-  const persistAutoOpenRef = useRef(false);
+  const isFolded = Boolean(folded);
   const [open, setOpen] = useState(() => {
     const saved = manualExpansionState?.get(foldKey);
-    if (saved !== undefined) return saved;
-    if (folded && hasOpenReplyDisclosure(manualExpansionState, scope, { toolsShown })) {
-      persistAutoOpenRef.current = true;
-      return true;
-    }
+    // Ignore a streaming scroll-out snapshot (`true`) when remounting while still streaming.
+    if (saved !== undefined && (isFolded || saved === false)) return saved;
     return expandAllInit ?? false;
   });
-  const [wasFolded, setWasFolded] = useState(!!folded);
+  const [wasFolded, setWasFolded] = useState(isFolded);
+  const persistAutoOpenRef = useRef(false);
+  const toolsShownRef = useRef(toolsShown);
+  toolsShownRef.current = toolsShown;
   const previousExpandAllInitRef = useRef(expandAllInit);
   // While the work slides open or folds back; folding, it stays mounted until it has folded.
   const [moving, setMoving] = useState<'opening' | 'closing'>();
@@ -108,6 +108,26 @@ export function FinishedWorkFold({ foldKey, durationMs, whole, folded }: Finishe
   } else if (!folded && wasFolded) {
     setWasFolded(false);
   }
+
+  // While streaming, snapshot an open inner disclosure when the row unmounts (scroll-out) or
+  // transitions to folded; if the reader scrolls back while still streaming, clear that snapshot
+  // so closing the disclosure before completion lets finished work fold normally.
+  useEffect(() => {
+    if (isFolded || !manualExpansionState) return undefined;
+    if (manualExpansionState.get(foldKey) === true) {
+      manualExpansionState.delete(foldKey);
+    }
+    return () => {
+      if (
+        !manualExpansionState.has(foldKey) &&
+        hasOpenReplyDisclosure(manualExpansionState, scope, {
+          toolsShown: toolsShownRef.current,
+        })
+      ) {
+        rememberManualExpansionState(manualExpansionState, foldKey, true);
+      }
+    };
+  }, [foldKey, isFolded, manualExpansionState, scope]);
 
   useEffect(() => {
     if (!persistAutoOpenRef.current) return;

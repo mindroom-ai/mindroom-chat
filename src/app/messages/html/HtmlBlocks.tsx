@@ -8,7 +8,7 @@ import {
   domToReact,
 } from 'html-react-parser';
 import { parseHtmlToDom } from '../../rich-text/parseHtml';
-import { ChildNode } from 'domhandler';
+import { ChildNode, isDocument } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import { MINDROOM_TOOL_REF_ICON, ToolRefParseResult, parseToolRefHtml } from './blocks';
 import {
@@ -182,23 +182,40 @@ function CollapsibleBlock({
   );
 }
 
+const getDomNodePath = (node: ChildNode): string => {
+  const segments: number[] = [];
+  for (
+    let current: ChildNode | null = node;
+    current && !isDocument(current);
+    current = current.parent
+  ) {
+    let siblingIndex = 0;
+    for (let prev = current.prev; prev; prev = prev.prev) {
+      siblingIndex += 1;
+    }
+    segments.push(siblingIndex);
+  }
+  return segments.reverse().join('.');
+};
+
 export const renderHtmlBlock = (
   name: string,
   children: ChildNode[],
   opts: HTMLReactParserOptions,
-  index = 0
+  domNode?: ChildNode
 ): React.ReactElement | undefined => {
   if (!Object.prototype.hasOwnProperty.call(MINDROOM_BLOCK_META, name)) return undefined;
 
   const blockName = name as BlockTagName;
   const { icon } = MINDROOM_BLOCK_META[blockName];
+  const blockPath = domNode ? getDomNodePath(domNode) : '0';
 
   return (
     <NamedBlock
-      key={`mindroom-block-${blockName}-${index}`}
+      key={`mindroom-block-${blockName}-${blockPath}`}
       icon={icon}
       blockName={blockName}
-      blockIndex={index}
+      blockPath={blockPath}
     >
       {domToReact(children as DOMNode[], opts)}
     </NamedBlock>
@@ -208,12 +225,12 @@ export const renderHtmlBlock = (
 function NamedBlock({
   icon,
   blockName,
-  blockIndex,
+  blockPath,
   children,
 }: {
   icon: IconSrc;
   blockName: BlockTagName;
-  blockIndex: number;
+  blockPath: string;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
@@ -223,7 +240,7 @@ function NamedBlock({
     <CollapsibleBlock
       icon={icon}
       label={t(`mindroomUi.messages.mindroomHtmlBlocks.blocks.${blockName}`)}
-      disclosureKey={scope ? `${scope}block:${blockName}:${blockIndex}` : undefined}
+      disclosureKey={scope ? `${scope}block:${blockName}:${blockPath}` : undefined}
     >
       {children}
     </CollapsibleBlock>

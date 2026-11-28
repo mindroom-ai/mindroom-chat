@@ -35,6 +35,8 @@ export const LIVE_REASONING_KEY = 'io.mindroom.live_reasoning';
 export const LIVE_REASONING_SEGMENTS_KEY = 'io.mindroom.live_reasoning_segments';
 /** Live content only: the reply's compactions so far, as `LiveDocs.compactions`. */
 export const LIVE_COMPACTIONS_KEY = 'io.mindroom.live_compactions';
+/** Final reasoning the runtime stores on a reply. */
+export const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
 
 /** On durable progress edits: the warm-up lines after the body, one `<p>` each in the HTML. */
 const WARMUP_SUFFIX_KEY = 'io.mindroom.warmup_suffix';
@@ -336,7 +338,7 @@ export const useLiveReplyContent = (
     if (!enrichmentDocs) return durable;
     const covered = withRunningOutput(durable, enrichmentDocs.tools);
     const extra: IContent = {};
-    if (enrichmentDocs.reasoning) {
+    if (!(MINDROOM_REASONING_KEY in covered) && enrichmentDocs.reasoning) {
       extra[LIVE_REASONING_KEY] = enrichmentDocs.reasoning;
       if (enrichmentDocs.segments.length > 0) {
         extra[LIVE_REASONING_SEGMENTS_KEY] = enrichmentDocs.segments;

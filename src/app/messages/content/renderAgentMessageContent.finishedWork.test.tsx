@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
-import { ExpandAllInitContext, ManualExpansionStateContext } from '../manualExpansionState';
+import {
+  ExpandAllInitContext,
+  ManualExpansionStateContext,
+  clearBulkExpansionOverrides,
+} from '../manualExpansionState';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
 import { renderAgentMessageContent } from './renderAgentMessageContent';
 import { getDefaultStore } from 'jotai';
@@ -808,5 +812,85 @@ describe('finished agent work', () => {
     });
     expect(searchRunButton().props['aria-expanded']).toBe(true);
     expect(resultButton().props['aria-expanded']).toBe(true);
+  });
+
+  it('keeps a finished reply closed across remount after Collapse All even with open thinking and tools, and restores them on reopen', () => {
+    const completed = {
+      ...reply('completed'),
+      'io.mindroom.reasoning': {
+        text: 'Checking the sources.',
+        duration_ms: 4000,
+        segments: [{ start: 0, after_tool: 0, duration_ms: 4000 }],
+      },
+    };
+    const renderWithExpandAll = (expandAllInit: boolean | undefined) =>
+      render(completed, true, undefined, NO_INLINE_SECRET_REQUESTS, expandAllInit);
+    const thoughtToggle = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node).startsWith('Thought'));
+    const searchRunButton = () =>
+      renderer!.root.find((node) => node.type === 'button' && textOf(node).includes('web_search'));
+
+    renderWithExpandAll(false);
+    expect(workedRow().props['aria-expanded']).toBe(false);
+
+    // Room Expand All opens the finished work; the reader opens thinking and a tool inside it.
+    clearBulkExpansionOverrides(manualExpansionState);
+    renderWithExpandAll(true);
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    act(() => {
+      thoughtToggle().props.onClick();
+      searchRunButton().props.onClick();
+    });
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+    expect(searchRunButton().props['aria-expanded']).toBe(true);
+
+    // Room Collapse All clears outer overrides and collapses the finished work.
+    clearBulkExpansionOverrides(manualExpansionState);
+    renderWithExpandAll(false);
+    expect(workedRow().props['aria-expanded']).toBe(false);
+
+    // Scrolling offscreen and back must keep Worked for X closed.
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    renderWithExpandAll(false);
+    expect(workedRow().props['aria-expanded']).toBe(false);
+
+    // Manually opening Worked for X restores the previously unfolded thinking and tool.
+    act(() => {
+      workedRow().props.onClick();
+    });
+    expect(workedRow().props['aria-expanded']).toBe(true);
+    expect(thoughtToggle().props['aria-expanded']).toBe(true);
+    expect(searchRunButton().props['aria-expanded']).toBe(true);
+  });
+
+  it('folds finished work when the reader scrolled out and back while streaming and then closed thinking before completion', () => {
+    const renderInThread = (content: Record<string, unknown>) =>
+      render(content, true, undefined, NO_INLINE_SECRET_REQUESTS, false);
+    const streaming = {
+      ...reply('streaming'),
+      [LIVE_REASONING_KEY]: 'Checking the sources.',
+    };
+
+    renderInThread(streaming);
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+
+    // Scroll offscreen while streaming (snapshots open disclosure), then scroll back still streaming.
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    renderInThread(streaming);
+    expect(reasoningToggle().props['aria-expanded']).toBe(true);
+
+    // Reader closes thinking before the reply finishes.
+    act(() => {
+      reasoningToggle().props.onClick();
+    });
+    expect(reasoningToggle().props['aria-expanded']).toBe(false);
+
+    renderInThread(reply('completed'));
+    expect(workedRow().props['aria-expanded']).toBe(false);
   });
 });

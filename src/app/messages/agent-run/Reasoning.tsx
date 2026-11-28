@@ -18,6 +18,7 @@ import {
   LIVE_COMPACTIONS_KEY,
   LIVE_REASONING_KEY,
   LIVE_REASONING_SEGMENTS_KEY,
+  MINDROOM_REASONING_KEY,
 } from '../live/useLiveReplyContent';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { ACTIVE_STREAM_STATUSES, getStreamStatusFromContent } from '../../matrix/protocol/aiRun';
@@ -52,9 +53,6 @@ import { CompactionSeamsAt, ReasoningSegmentsAt, thoughtSeconds } from './Reason
 const NO_MARKERS: readonly number[] = [];
 const NO_PLACEMENT: ReadonlyMap<number, readonly number[]> = new Map();
 const CONTENTS = { display: 'contents' } as const;
-
-/** Final reasoning the runtime stores on a finished reply. */
-const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
 
 type FinalReasoning = {
   text: string;

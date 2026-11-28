@@ -16,7 +16,7 @@ export const renderCustomHtmlElement = (
   attribs: Record<string, string>,
   children: ChildNode[],
   opts: HTMLReactParserOptions,
-  index = 0
+  domNode?: ChildNode
 ): React.ReactElement | undefined => {
   if (name === 'table') {
     const readRows = simpleTableRows(children, (nodes) => domToReact(nodes as DOMNode[], opts));
@@ -29,6 +29,6 @@ export const renderCustomHtmlElement = (
 
   return (
     renderMatrixMathHtmlElement(name, attribs, children, opts) ??
-    renderHtmlBlock(name, children, opts, index)
+    renderHtmlBlock(name, children, opts, domNode)
   );
 };
