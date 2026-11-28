@@ -22,6 +22,11 @@ import {
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
 import {
+  adjustAttachmentBytesSummary,
+  readTotalCachedBytes,
+  writeAttachmentBytesSummary,
+} from './cacheStoreAttachmentBytes';
+import {
   attachmentOwnerUri,
   isScaledPictureKey,
   scaledPictureKey,
@@ -183,8 +188,15 @@ export const clearRoomCachedContent = async (
         remaining.onsuccess = () => {
           const shared = remaining.result as CachedAttachmentReferenceRecord[];
           if (!shared.length) {
-            blobs.delete(mxcUri);
-            freedBytes += byteLength;
+            const existing = blobs.count(mxcUri);
+            existing.onsuccess = () => {
+              if (existing.result > 0) {
+                blobs.delete(mxcUri);
+                freedBytes += byteLength;
+                adjustAttachmentBytesSummary(blobs, -byteLength, -1, mxcUri);
+              }
+            };
+            existing.onerror = () => reject(existing.error);
             // The picture's scaled copy goes with its last reference.
             const scaledKey = scaledPictureKey(mxcUri);
             const scaled = blobs.get(scaledKey);
@@ -193,7 +205,9 @@ export const clearRoomCachedContent = async (
               if (!record) return;
               blobs.delete(scaledKey);
               freedBytes += record.byteLength;
+              adjustAttachmentBytesSummary(blobs, -record.byteLength, -1, scaledKey);
             };
+            scaled.onerror = () => reject(scaled.error);
           } else {
             const blob = blobs.get(mxcUri);
             blob.onsuccess = () => {
@@ -263,29 +277,8 @@ const isRoomProtectedInStore = (db: IDBDatabase, roomId: string): Promise<boolea
     transaction.onabort = () => reject(transaction.error);
   });
 
-/** Admission reads index keys only, never attachment payloads or room references. */
-const readCachedBytes = (db: IDBDatabase): Promise<number> =>
-  new Promise<number>((resolve, reject) => {
-    const transaction = db.transaction([ATTACHMENTS_STORE, ROOM_LEDGER_STORE], 'readonly');
-    const ledger = transaction.objectStore(ROOM_LEDGER_STORE).getAll();
-    const cursor = transaction
-      .objectStore(ATTACHMENTS_STORE)
-      .index(ATTACHMENTS_BY_ACCESS_BYTES_INDEX)
-      .openKeyCursor();
-    let attachmentBytes = 0;
-    cursor.onsuccess = () => {
-      if (!cursor.result) return;
-      attachmentBytes += (cursor.result.key as [number, number])[1];
-      cursor.result.continue();
-    };
-    transaction.oncomplete = () =>
-      resolve(
-        attachmentBytes +
-          (ledger.result as CachedRoomLedgerRecord[]).reduce((sum, row) => sum + row.approxBytes, 0)
-      );
-    transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
-  });
+/** Admission reads the room ledger and persisted attachment summary without scanning blobs. */
+const readCachedBytes = (db: IDBDatabase): Promise<number> => readTotalCachedBytes(db);
 
 type MediaPhaseResult = Pick<EvictionResult, 'bytesAfter' | 'evictedMxcUris'> & {
   /** Text and blobs of protected rooms: bytes no eviction can free. */
@@ -347,9 +340,9 @@ const reclaimOptionalMedia = (
           records
             .filter((record) => ownedByProtectedRoom(record.mxcUri))
             .reduce((sum, record) => sum + record.byteLength, 0);
-        const bytesBefore =
-          ledger.reduce((sum, row) => sum + row.approxBytes, 0) +
-          records.reduce((sum, row) => sum + row.byteLength, 0);
+        let attachmentBytes = records.reduce((sum, row) => sum + row.byteLength, 0);
+        let attachmentCount = records.length;
+        const bytesBefore = ledger.reduce((sum, row) => sum + row.approxBytes, 0) + attachmentBytes;
         let bytesAfter = bytesBefore;
         const evictedMxcUris: string[] = [];
         if (bytesBefore > budget) {
@@ -374,8 +367,13 @@ const reclaimOptionalMedia = (
             if (!isScaledPictureKey(record.mxcUri))
               owners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
             bytesAfter -= record.byteLength;
+            attachmentBytes -= record.byteLength;
+            attachmentCount -= 1;
             evictedMxcUris.push(record.mxcUri);
           }
+        }
+        if (evictedMxcUris.length > 0) {
+          writeAttachmentBytesSummary(blobs, attachmentBytes, attachmentCount);
         }
         result = { bytesAfter, evictedMxcUris, protectedBytes };
       } catch (error) {

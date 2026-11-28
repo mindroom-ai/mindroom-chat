@@ -4,7 +4,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import * as deepTrace from '../../../../diagnostics/deepTrace';
 import { saveAttachmentOwner } from '../../__tests__/attachmentFixtures';
 import { loadCachedScaledPicture, putCachedScaledPicture } from '../cacheStoreScaledPictures';
-import { EVICTION_PROTECTED_VERDICT_TTL_MS } from '../cacheStoreSchema';
+import {
+  ATTACHMENTS_STORE,
+  EVICTION_PROTECTED_VERDICT_TTL_MS,
+  type CachedAttachmentRecord,
+} from '../cacheStoreSchema';
 import * as store from '../index';
 
 const session = 'media-eviction';
@@ -318,21 +322,32 @@ it("keeps one session's download protection when another session updates its own
   });
 });
 
-it('reads the attachment total once more after the freed bytes reach the target', async () => {
+it('reads the total once more after freed bytes reach the target without attachment cursor scans', async () => {
   for (let index = 1; index <= 5; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     await saveText(`room-${index}`, index);
   }
   store.__setCacheStoreByteBudgetForTests(1);
   const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
+  const transaction = vi.spyOn(IDBDatabase.prototype, 'transaction');
   const result = await store.runCacheEvictionIfOverBudget(session);
   expect(result.evictedRoomIds).toHaveLength(5);
-  // Admission, the media phase and one final total, not one total per room.
+  // Admission and one final total, not one total per room; only the media phase uses a cursor.
+  expect(
+    transaction.mock.calls.filter(
+      ([stores, mode]) =>
+        mode === 'readonly' &&
+        Array.isArray(stores) &&
+        stores.length === 2 &&
+        stores.includes('attachments') &&
+        stores.includes('room_ledger')
+    )
+  ).toHaveLength(2);
   expect(
     (keyCursor.mock.contexts as IDBIndex[]).filter(
       (index) => index.objectStore.name === 'attachments'
     )
-  ).toHaveLength(3);
+  ).toHaveLength(1);
 });
 
 it('shares one pass between concurrent checks', async () => {
@@ -645,4 +660,173 @@ it('keeps a cached verdict when a small redaction leaves protected bytes well ov
   ]);
   expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ underPressure: true });
   expect(evictionTraces(trace)).toHaveLength(1);
+});
+
+const attachmentKeyCursorCalls = (spy: { mock: { contexts: unknown[] } }) =>
+  (spy.mock.contexts as IDBIndex[]).filter((index) => index.objectStore.name === 'attachments');
+
+const seedRawAttachment = async (mxcUri: string, byteLength: number): Promise<void> => {
+  const db = await store.openCacheStore(session);
+  if (!db) throw new Error('cache store unavailable');
+  await new Promise<void>((resolve, reject) => {
+    const txn = db.transaction(ATTACHMENTS_STORE, 'readwrite');
+    txn.objectStore(ATTACHMENTS_STORE).put({
+      mxcUri,
+      bytes: new ArrayBuffer(byteLength),
+      mimeType: 'application/octet-stream',
+      byteLength,
+      essential: false,
+      storedAt: 1,
+      lastAccessedAt: 1,
+    } satisfies CachedAttachmentRecord);
+    txn.oncomplete = () => resolve();
+    txn.onerror = () => reject(txn.error);
+    txn.onabort = () => reject(txn.error);
+  });
+};
+
+it('admits repeated under-budget checks without scanning attachments with a cursor', async () => {
+  await save('a', 'room-a');
+  await save('b', 'room-b');
+  await saveAttachmentOwner(session, 'room-c', '$photo', 1, [
+    { mxcUri: 'mxc://test/photo', essential: false },
+  ]);
+  await putCachedScaledPicture(
+    session,
+    { mxcUri: 'mxc://test/photo', bytes: new ArrayBuffer(1500), mimeType: 'image/jpeg' },
+    { roomId: 'room-c', eventId: '$photo', revisionTs: 1 }
+  );
+  const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
+  const rawCursor = vi.spyOn(IDBObjectStore.prototype, 'openCursor');
+  for (let i = 0; i < 3; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await store.runCacheEvictionIfOverBudget(session);
+    expect(result.underPressure).toBe(false);
+    expect(result.bytesBefore).toBeGreaterThanOrEqual(5500);
+  }
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(0);
+  expect(rawCursor).not.toHaveBeenCalled();
+});
+
+it('seeds a persisted summary once for pre-existing rows and heals count mismatches', async () => {
+  await seedRawAttachment('mxc://test/pre-1', 1200);
+  await seedRawAttachment('mxc://test/pre-2', 800);
+  const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 2000,
+    underPressure: false,
+  });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(1);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ bytesBefore: 2000 });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ bytesBefore: 2000 });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(1);
+
+  await seedRawAttachment('mxc://test/pre-3', 500);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ bytesBefore: 2500 });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(2);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({ bytesBefore: 2500 });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(2);
+});
+
+it('evicts accurately when adding bytes crosses budget or when the budget is lowered', async () => {
+  let now = Date.now();
+  vi.spyOn(Date, 'now').mockImplementation(() => {
+    now += 1000;
+    return now;
+  });
+  store.__setCacheStoreByteBudgetForTests(5000);
+  await save('first', 'room-a');
+  await save('second', 'room-b');
+  const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 4000,
+    underPressure: false,
+  });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(0);
+
+  await save('third', 'room-c');
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 6000,
+    bytesAfter: 4000,
+    evictedMxcUris: ['mxc://test/first'],
+    underPressure: false,
+  });
+  const scansAfterFirstEviction = attachmentKeyCursorCalls(keyCursor).length;
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 4000,
+    underPressure: false,
+  });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(scansAfterFirstEviction);
+
+  store.__setCacheStoreByteBudgetForTests(3000);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 4000,
+    bytesAfter: 2000,
+    evictedMxcUris: ['mxc://test/second'],
+    underPressure: false,
+  });
+  const scansAfterSecondEviction = attachmentKeyCursorCalls(keyCursor).length;
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 2000,
+    underPressure: false,
+  });
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(scansAfterSecondEviction);
+});
+
+it('keeps summary accounting accurate across scaled overwrites, room clears, and redaction prunes', async () => {
+  await saveAttachmentOwner(session, 'room-a', '$photo', 1, [
+    { mxcUri: 'mxc://test/photo', essential: false },
+  ]);
+  const textOnly = (await store.runCacheEvictionIfOverBudget(session)).bytesBefore;
+  await store.putCachedAttachment(
+    session,
+    { mxcUri: 'mxc://test/photo', bytes: new ArrayBuffer(2000), mimeType: 'image/png' },
+    { roomId: 'room-a', eventId: '$photo', revisionTs: 1 }
+  );
+  await putCachedScaledPicture(
+    session,
+    { mxcUri: 'mxc://test/photo', bytes: new ArrayBuffer(1500), mimeType: 'image/jpeg' },
+    { roomId: 'room-a', eventId: '$photo', revisionTs: 1 }
+  );
+  await putCachedScaledPicture(
+    session,
+    { mxcUri: 'mxc://test/photo', bytes: new ArrayBuffer(1800), mimeType: 'image/jpeg' },
+    { roomId: 'room-a', eventId: '$photo', revisionTs: 1 }
+  );
+  await save('room-b-blob', 'room-b');
+  await saveAttachmentOwner(session, 'room-b', '$missing', 1, [
+    { mxcUri: 'mxc://test/never-saved', essential: false },
+  ]);
+  const roomBText =
+    (await store.runCacheEvictionIfOverBudget(session)).bytesBefore - textOnly - 5800;
+
+  const keyCursor = vi.spyOn(IDBIndex.prototype, 'openKeyCursor');
+  expect(await store.clearRoomCachedContent(session, 'room-b')).toBe(2000 + roomBText);
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: textOnly + 3800,
+    underPressure: false,
+  });
+  await saveAttachmentOwner(session, 'room-a', '$photo', 2, [], undefined, { redacted: true });
+  const afterRedact = await store.runCacheEvictionIfOverBudget(session);
+  expect(afterRedact.bytesBefore).toBeLessThan(textOnly + 1000);
+  expect(afterRedact.underPressure).toBe(false);
+  expect(attachmentKeyCursorCalls(keyCursor)).toHaveLength(0);
+});
+
+it('falls back to a readonly scan when seeding the summary fails with QuotaExceededError', async () => {
+  await seedRawAttachment('mxc://test/quota-seed', 1500);
+  const originalPut = IDBObjectStore.prototype.put;
+  vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function failSummary(
+    this: IDBObjectStore,
+    value,
+    key
+  ) {
+    if (this.name === ATTACHMENTS_STORE)
+      throw new DOMException('Storage full', 'QuotaExceededError');
+    return key === undefined ? originalPut.call(this, value) : originalPut.call(this, value, key);
+  });
+  expect(await store.runCacheEvictionIfOverBudget(session)).toMatchObject({
+    bytesBefore: 1500,
+    underPressure: false,
+  });
 });
