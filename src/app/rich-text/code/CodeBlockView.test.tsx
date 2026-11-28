@@ -109,7 +109,6 @@ it('uses the supplied collapse size and keeps the diff scroller keyboard reachab
       embedded
       collapsedLines={1}
       longLinesThreshold={2}
-      headerExtraActions={<button type="button">Open preview</button>}
     />
   );
   const code = readCode(container);
@@ -120,7 +119,6 @@ it('uses the supplied collapse size and keeps the diff scroller keyboard reachab
 
   expect(pre?.hasAttribute('data-code-block-embedded')).toBe(true);
   expect(group.hasAttribute('data-code-block-actions')).toBe(true);
-  expect(within(group).getByRole('button', { name: 'Open preview' })).toBeTruthy();
   expect(pre?.dataset.wrap).toBe('true');
   expect(code.style.whiteSpace).toBe('pre-wrap');
   expect(scroller.style.maxHeight).toBe('1.5em');

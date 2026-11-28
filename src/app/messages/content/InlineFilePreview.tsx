@@ -189,21 +189,10 @@ function TextFilePreview({
             <CodeBlockView
               source={text}
               language={language}
-              label={body}
+              label={language}
               collapsedLines={COLLAPSED_LINES}
               longLinesThreshold={COLLAPSED_LINES}
               embedded
-              headerExtraActions={
-                <IconButton
-                  size="300"
-                  radii="300"
-                  aria-label={fullViewLabel}
-                  title={fullViewLabel}
-                  onClick={openViewer}
-                >
-                  <Icon size="100" src={Icons.External} />
-                </IconButton>
-              }
             />
           )}
         </div>

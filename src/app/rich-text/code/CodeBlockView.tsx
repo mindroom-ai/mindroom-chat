@@ -59,7 +59,6 @@ type CodeBlockViewProps = {
   collapsedLines?: number;
   longLinesThreshold?: number;
   embedded?: boolean;
-  headerExtraActions?: ReactNode;
   /** Formatted or search-marked source, instead of syntax colors. */
   customBody?: ReactNode;
   /** Replace the frame, keeping the source controls and scroll area available. */
@@ -93,7 +92,6 @@ export function CodeBlockView({
   collapsedLines = COLLAPSED_LINES,
   longLinesThreshold = LONG_CODE_BLOCK_LINES,
   embedded = false,
-  headerExtraActions,
   customBody,
   renderLayout,
 }: CodeBlockViewProps) {
@@ -267,7 +265,6 @@ export function CodeBlockView({
         >
           {sourceActions}
           {copyAction}
-          {headerExtraActions}
         </div>
       </div>
       {sourceBody}

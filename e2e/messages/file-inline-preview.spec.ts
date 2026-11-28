@@ -267,7 +267,7 @@ test('small file previews open inline and a large log waits for Preview', async 
   await button(diffRow, 'Preview').click();
   await expect(button(diffRow, 'Hide preview')).toHaveAttribute('aria-expanded', 'true');
   await expect(diffCode).toHaveText(DIFF.source);
-  await button(toolbar, 'Full view').click();
+  await button(diffRow, `Open ${DIFF.name}`).click();
   const viewer = page.getByRole('dialog', { name: DIFF.name, exact: true });
   await expect(viewer).toBeVisible();
   await expect(code(viewer)).toHaveText(DIFF.source);

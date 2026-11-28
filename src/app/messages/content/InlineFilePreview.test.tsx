@@ -71,7 +71,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-it('loads a small diff once, retains it when hidden, and shares it with both full view actions', async () => {
+it('loads a small diff once and opens it in full view with the drawer collapsed or expanded', async () => {
   const response = deferredFile();
   download.mockReturnValueOnce(response.promise);
   const { container } = render(card(diff.length));
@@ -87,6 +87,9 @@ it('loads a small diff once, retains it when hidden, and shares it with both ful
 
   await act(async () => response.resolve(await new Response(diff).blob()));
   expect(embedded(container)?.querySelector('code')?.textContent).toContain('+new<U+202E>');
+  const diffLabel = screen.getByText('diff', { exact: true });
+  expect(diffLabel.closest('[data-code-block-embedded]')).toBe(embedded(container));
+  expect(screen.queryByRole('button', { name: fullView })).toBeNull();
   expect(screen.getByRole('region', { name: 'Code' }).style.maxHeight).toBe('7.5em');
   click('Copy code');
   await waitFor(() => expect(copyToClipboard).toHaveBeenCalledWith(diff));
@@ -100,7 +103,7 @@ it('loads a small diff once, retains it when hidden, and shares it with both ful
 
   click('Preview');
   expect(embedded(container)).not.toBeNull();
-  click(fullView);
+  click(open);
   expect(await dialog()).toBeTruthy();
   expect(download).toHaveBeenCalledOnce();
 });
