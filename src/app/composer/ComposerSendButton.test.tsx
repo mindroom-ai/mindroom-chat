@@ -3,9 +3,10 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Provider, createStore } from 'jotai';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
-import { LONG_PRESS_MS } from '../lib/hooks/useLongPress';
+import { LONG_PRESS_MS, SELECTION_HOLD_MS } from '../lib/hooks/useLongPress';
 import type { MidTurnMode } from '../preferences/midTurnModes';
 import { ComposerSendButton } from './ComposerSendButton';
+import * as css from './RoomInput.css';
 
 // The menu's real focus trap runs. jsdom lays nothing out, and the trap holds only controls that
 // take up room on the page.
@@ -104,16 +105,24 @@ describe('the Send button', () => {
     expect(screen.getByRole('menuitem', { name: 'Steer' })).toBeTruthy();
   });
 
-  it("keeps the menu open through a finger's lift, until a press outside it", () => {
+  it.each(['pointerUp', 'pointerCancel'] as const)('keeps the hold menu open on %s', (end) => {
     const { onSend, button } = setup(true);
+    const { style } = document.documentElement;
     const finger = { ...press, pointerType: 'touch' };
     fireEvent.pointerDown(button, finger);
     fireEvent.touchStart(button, { touches: [{ clientX: 10, clientY: 10 }] });
-    act(() => {
-      vi.advanceTimersByTime(LONG_PRESS_MS);
-    });
-    fireEvent.pointerUp(button, finger);
-    fireEvent.touchEnd(button, { touches: [] });
+    wait(SELECTION_HOLD_MS);
+    expect(style.userSelect).toBe('none');
+    expect(screen.queryByRole('menu')).toBeNull();
+    wait(LONG_PRESS_MS - SELECTION_HOLD_MS);
+    const menu = screen.getByRole('menu');
+    expect(menu.className.split(' ')).toContain(css.ComposerSendMenu);
+    // The full-window layer comes over the button and makes the pointer leave.
+    fireEvent.pointerLeave(button, finger);
+    expect(style.userSelect).toBe('none');
+    fireEvent[end](menu, finger);
+    expect(style.userSelect).toBe('');
+    fireEvent[end === 'pointerUp' ? 'touchEnd' : 'touchCancel'](button, { touches: [] });
     // The mouse events and the click a browser makes of the lift.
     fireEvent.mouseDown(button);
     fireEvent.mouseUp(button);
