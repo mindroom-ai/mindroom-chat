@@ -424,9 +424,9 @@ describe('CompactThreadColumns', () => {
       document.dispatchEvent(
         new MouseEvent('mouseup', { clientX: 100, clientY: 30, bubbles: true })
       );
-      await tick();
+      // Dispatch the trailing click before the post-drag guard's timer can fire.
+      fireEvent.click(doneRail);
     });
-    fireEvent.click(doneRail);
     expect(onToggleFold).toHaveBeenCalledTimes(1);
     expect(onReorder).toHaveBeenCalledWith(['done', 'needsYou', 'later', 'quiet', 'working']);
     // Wait for @dnd-kit's 50ms post-drag document click guard to detach cleanly.

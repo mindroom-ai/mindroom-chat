@@ -282,7 +282,7 @@ function SortableCompactColumn({
         onClick={onClick}
         onKeyDown={onKeyDown}
       >
-        <ColumnDragGrip />
+        <ColumnDragGrip key={closed ? 'rail' : 'header'} />
         <Icon
           size="100"
           src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
