@@ -177,3 +177,114 @@ describe('the estimates of a folded turn', () => {
     expect(estimates(true)).toEqual([rootPx, firstPx + 42, secondOpenPx, answerPx]);
   });
 });
+
+describe('thread predecessor scan and rowless grouping parity', () => {
+  const editEvent = (id: string, targetId: string, minute: number) =>
+    new MatrixEvent({
+      event_id: id,
+      room_id: '!room:x',
+      sender: '@sam:x',
+      type: 'm.room.message',
+      origin_server_ts: START + minute * 60_000,
+      content: {
+        msgtype: 'm.text',
+        body: '* edited',
+        'm.new_content': { msgtype: 'm.text', body: 'edited' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
+      },
+    });
+
+  const reactionEvent = (id: string, targetId: string, minute: number) =>
+    new MatrixEvent({
+      event_id: id,
+      room_id: '!room:x',
+      sender: '@sam:x',
+      type: 'm.reaction',
+      origin_server_ts: START + minute * 60_000,
+      content: {
+        'm.relates_to': { rel_type: 'm.annotation', event_id: targetId, key: '👍' },
+      },
+    });
+
+  it('returns 0 for runs of edits/reactions without scanning backward and starts a new header after them', () => {
+    const first = new MatrixEvent({
+      event_id: '$msg1',
+      room_id: '!room:x',
+      sender: '@sam:x',
+      type: 'm.room.message',
+      origin_server_ts: START,
+      content: { msgtype: 'm.text', body: 'First message' },
+    });
+    const relationRun = Array.from({ length: 200 }, (_, i) =>
+      i % 2 === 0
+        ? editEvent(`$rel_${i}`, '$msg1', (i + 1) * 0.001)
+        : reactionEvent(`$rel_${i}`, '$msg1', (i + 1) * 0.001)
+    );
+    const second = new MatrixEvent({
+      event_id: '$msg2',
+      room_id: '!room:x',
+      sender: '@sam:x',
+      type: 'm.room.message',
+      origin_server_ts: START + 30_000,
+      content: { msgtype: 'm.text', body: 'Second message' },
+    });
+    const threadEvents = [first, ...relationRun, second];
+    const firstIdSpy = vi.spyOn(first, 'getId');
+
+    const { estimateSize } = timelineRowSizing({
+      threadId: '$msg1',
+      compactLayout: false,
+      threadEvents,
+    });
+
+    // Pricing all 200 edits/reactions returns 0 immediately without touching earlier events.
+    for (let i = 1; i <= relationRun.length; i += 1) {
+      expect(estimateSize(i)).toBe(0);
+    }
+    expect(firstIdSpy).not.toHaveBeenCalled();
+
+    // The same-sender follow-up right after an intervening edit/reaction starts a new author header
+    // (68 px, not 30 px grouped), matching foldTimelineRowContexts / renderTimelineTiles.
+    const followUpIdx = threadEvents.length - 1;
+    expect(estimateSize(followUpIdx)).toBe(68);
+    expect(estimateSize(followUpIdx)).toBe(
+      estimateThreadRowHeight(second, relationRun[relationRun.length - 1], { compact: false })
+    );
+
+    const renderedCollapse = new Map<string, boolean>();
+    const tiles = renderTimelineTiles({
+      virtualItems: [0, followUpIdx].map((index) => ({
+        index,
+        key: index,
+        start: index * 40,
+        size: 68,
+        end: 0,
+        lane: 0,
+      })),
+      threadId: '$msg1',
+      threadEvents,
+      roomWindowRows: [],
+      roomRowEntries: [],
+      windowStart: 0,
+      readUptoAbsoluteIndex: undefined,
+      ignoredUsersSet: new Set(),
+      showHiddenEvents: false,
+      timelineSet: {} as EventTimelineSet,
+      focusItem: undefined,
+      messageData,
+      isHiddenByPlugin: () => false,
+      isHiddenByPluginId: () => false,
+      renderEvent: ({ eventId, collapse }: TimelineMessageRow) => {
+        renderedCollapse.set(eventId, collapse);
+        return <p data-row="true">{eventId}</p>;
+      },
+      isQuietMarkerRow: () => false,
+      unreadMarkerRef: () => undefined,
+      measureElement: () => undefined,
+    });
+    act(() => {
+      create(<div>{tiles}</div>);
+    });
+    expect(renderedCollapse.get('$msg2')).toBe(false);
+  });
+});

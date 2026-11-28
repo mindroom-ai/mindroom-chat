@@ -1,12 +1,8 @@
-import {
-  MatrixClient,
-  MatrixEvent,
-  Room,
-  type EventTimelineSet,
-} from 'matrix-js-sdk';
+import { MatrixClient, MatrixEvent, Room, type EventTimelineSet } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import * as roomUtils from '../matrix/room';
 import { INTERACTIVE_INSTRUCTION_TEXT } from '../matrix/protocol/interactiveQuestion';
+import { getLongTextSource, hydrateLongTextSource } from '../matrix/protocol/longText';
 import { THREAD_SUMMARY_METADATA_KEY } from '../matrix/protocol/threadSummary';
 import { estimateThreadEventRowHeight } from '../event-store/threads/threadRenderUtils';
 import {
@@ -15,7 +11,6 @@ import {
   estimateMessageRowHeight,
   estimateRoomRowHeight,
   estimateThreadRowHeight,
-  roomWrapCharsForWidth,
 } from './timelineRowEstimate';
 
 const MINUTE = 60_000;
@@ -62,21 +57,19 @@ const html = (formattedBody: string, body = 'rich', extra: Record<string, unknow
 const makeTimelineSetWithReplace = (
   targetId: string,
   edits: MatrixEvent[]
-): Pick<EventTimelineSet, 'relations'> =>
-  ({
+): Pick<EventTimelineSet, 'relations'> => {
+  const relationBucket = { getRelations: () => edits };
+  return {
     relations: {
       getChildEventsForEvent: (eventId: string, relType: string, eventType: string) => {
-        if (
-          eventId === targetId &&
-          relType === 'm.replace' &&
-          eventType === 'm.room.message'
-        ) {
-          return { getRelations: () => edits };
+        if (eventId === targetId && relType === 'm.replace' && eventType === 'm.room.message') {
+          return relationBucket;
         }
         return undefined;
       },
     },
-  }) as unknown as Pick<EventTimelineSet, 'relations'>;
+  } as unknown as Pick<EventTimelineSet, 'relations'>;
+};
 
 const codeReply = html(
   '<p>Reply <strong>1</strong></p><pre><code>function step() {\n  return 1;\n}</code></pre>' +
@@ -175,9 +168,9 @@ describe('estimateMessageRowHeight', () => {
     });
 
     expect(estimateMessageRowHeight(human, { compact: false, wrapChars: 38 })).toBe(8 + 9 * 22);
-    expect(estimateMessageRowHeight(agentInline, { compact: false, wrapChars: 38 })).toBeGreaterThan(
-      960
-    );
+    expect(
+      estimateMessageRowHeight(agentInline, { compact: false, wrapChars: 38 })
+    ).toBeGreaterThan(960);
     expect(estimateMessageRowHeight(agentPlain, { compact: false, wrapChars: 38 })).toBeGreaterThan(
       800
     );
@@ -204,11 +197,121 @@ describe('estimateMessageRowHeight', () => {
     expect(estimateMessageRowHeight(agent, { compact: false })).toBe(8 + 36 + 270);
   });
 
-  it('sizes images by their stated size within the media box', () => {
+  it('sizes images within the media box and keeps tall captions on small images', () => {
     const image = makeEvent({
       content: { msgtype: 'm.image', body: 'cat.png', info: { w: 800, h: 400 } },
     });
     expect(estimateMessageRowHeight(image, { compact: false })).toBe(8 + 200);
+    const captionedThumb = makeEvent({
+      id: '$thumb',
+      content: {
+        msgtype: 'm.image',
+        body: 'line 1\nline 2\nline 3\nline 4\nline 5\nline 6',
+        info: { w: 20, h: 20 },
+      },
+    });
+    expect(estimateMessageRowHeight(captionedThumb, { compact: false })).toBe(8 + 6 * 22);
+  });
+
+  it('prices body-only Markdown fenced code blocks comparably to HTML pre/code blocks', () => {
+    const eightyLines = Array.from(
+      { length: 80 },
+      (_, i) => `const step_${i} = runStage(${i});`
+    ).join('\n');
+    const htmlCode = makeEvent({
+      id: '$html-80',
+      sender: AGENT,
+      content: html(`<pre><code>${eightyLines}</code></pre>`, eightyLines),
+    });
+    const backtickMd = makeEvent({
+      id: '$md-backtick-80',
+      sender: AGENT,
+      content: { msgtype: 'm.text', body: `\`\`\`ts\n${eightyLines}\n\`\`\`` },
+    });
+    const tildeMd = makeEvent({
+      id: '$md-tilde-80',
+      sender: AGENT,
+      content: { msgtype: 'm.text', body: `~~~ts\n${eightyLines}\n~~~` },
+    });
+    // Collapsed on phone: base (8) + coarse collapsed header (53) + 270 = 331 px (not ~1,768 px).
+    const htmlPx = estimateMessageRowHeight(htmlCode, {
+      compact: false,
+      wrapChars: 38,
+      coarsePointer: true,
+    });
+    expect(htmlPx).toBe(8 + 53 + 270);
+    expect(
+      estimateMessageRowHeight(backtickMd, { compact: false, wrapChars: 38, coarsePointer: true })
+    ).toBe(htmlPx);
+    expect(
+      estimateMessageRowHeight(tildeMd, { compact: false, wrapChars: 38, coarsePointer: true })
+    ).toBe(htmlPx);
+
+    const tenShortLines = Array.from(
+      { length: 10 },
+      (_, i) => `const check_${i} = verifyServiceHealth("service-${i}", timeout);`
+    ).join('\n');
+    const mdShort = makeEvent({
+      id: '$md-short-10',
+      sender: AGENT,
+      content: { msgtype: 'm.text', body: `\`\`\`ts\n${tenShortLines}\n\`\`\`` },
+    });
+    const htmlShort = makeEvent({
+      id: '$html-short-10',
+      sender: AGENT,
+      content: html(`<pre><code>${tenShortLines}</code></pre>`, tenShortLines),
+    });
+    expect(
+      estimateMessageRowHeight(mdShort, { compact: false, wrapChars: 38, coarsePointer: true })
+    ).toBe(
+      estimateMessageRowHeight(htmlShort, { compact: false, wrapChars: 38, coarsePointer: true })
+    );
+  });
+
+  it('sanitizes hydrated v3 long_text sidecars so restored tool markers fold finished work', async () => {
+    const owner = {};
+    const previewContent = {
+      msgtype: 'm.file',
+      body: 'Checking Service X...',
+      url: 'mxc://example.org/sidecar-v3-folded',
+      'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
+      'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
+      'io.mindroom.stream_status': 'completed',
+    };
+    const source = getLongTextSource(previewContent)!;
+    const headLines = Array.from(
+      { length: 20 },
+      (_, i) => `Step ${i + 1}: checking logs for Service X shard ${i + 1}.`
+    );
+    const body = `${headLines.join('\n')}\n\nAll checks passed.`;
+    const formattedBody = `${headLines.map((l) => `<p>${l}</p>`).join('\n')}\n<p>All checks passed.</p>\n`;
+    const sidecarJson = JSON.stringify({
+      msgtype: 'm.text',
+      body,
+      format: 'org.matrix.custom.html',
+      formatted_body: formattedBody,
+      'io.mindroom.tool_trace': {
+        version: 3,
+        events: [{ type: 'tool_call_completed', tool_name: 'shell', body_line: 21, at: 20 }],
+      },
+    });
+    await hydrateLongTextSource(source, async () => sidecarJson, owner);
+
+    const sidecarEvent = makeEvent({
+      id: '$v3-sidecar',
+      sender: AGENT,
+      content: previewContent,
+    });
+    // Without sanitizeContent, 20 head paragraphs would price >450 px; with restored 🔧 markers,
+    // FinishedWorkFold folds the head to base (8) + bar (28) + 1-line answer (22) = 58 px.
+    expect(
+      estimateMessageRowHeight(sidecarEvent, {
+        compact: false,
+        wrapChars: 38,
+        coarsePointer: true,
+        longTextCacheOwner: owner,
+      })
+    ).toBe(8 + 28 + 22);
   });
 
   it('prices FinishedWorkFold as 28 px + tail instead of hidden intermediate tool work', () => {
@@ -289,7 +392,14 @@ describe('estimateMessageRowHeight', () => {
     const interactive = {
       version: 1,
       question_text: questionText,
-      options: { '1': 'staging', '1️⃣': 'staging', '2': 'canary', '2️⃣': 'canary', '3': 'prod', '3️⃣': 'prod' },
+      options: {
+        '1': 'staging',
+        '1️⃣': 'staging',
+        '2': 'canary',
+        '2️⃣': 'canary',
+        '3': 'prod',
+        '3️⃣': 'prod',
+      },
       option_labels: {
         '1': 'Staging',
         '1️⃣': 'Staging',
@@ -315,21 +425,23 @@ describe('estimateMessageRowHeight', () => {
     });
     const qPx = estimateMessageRowHeight(withoutFallback, { compact: false, wrapChars: 38 });
     const plainPx = estimateMessageRowHeight(plainOnly, { compact: false, wrapChars: 38 });
-    // Card chrome (30) + 3 options * (20 + 21) = +153 px over body.
-    expect(qPx - plainPx).toBe(30 + 3 * (20 + 21));
+    // Card chrome (30) + 3 options * 42 = +156 px over body.
+    expect(qPx - plainPx).toBe(30 + 3 * 42);
 
+    const fallbackHtmlContent = html(
+      `<p>${questionText}</p><ol><li>1️⃣ Staging</li><li>2️⃣ Canary</li><li>3️⃣ Production</li></ol><p>${INTERACTIVE_INSTRUCTION_TEXT}</p>`,
+      `${questionText}\n1. Staging\n2. Canary\n3. Production\n${INTERACTIVE_INSTRUCTION_TEXT}`,
+      { 'io.mindroom.interactive': interactive }
+    );
     const withFallback = makeEvent({
       id: '$q-fallback',
       sender: AGENT,
-      content: html(
-        `<p>${questionText}</p><ol><li>1️⃣ Staging</li><li>2️⃣ Canary</li><li>3️⃣ Production</li></ol><p>${INTERACTIVE_INSTRUCTION_TEXT}</p>`,
-        `${questionText}\n1. Staging\n2. Canary\n3. Production\n${INTERACTIVE_INSTRUCTION_TEXT}`,
-        { 'io.mindroom.interactive': interactive }
-      ),
+      content: fallbackHtmlContent,
     });
     const fallbackPx = estimateMessageRowHeight(withFallback, { compact: false, wrapChars: 48 });
-    // Base (8) + card (34 + 2 wrapped question lines * 22 + 3 * 41 = 201) = 209 px.
-    expect(fallbackPx).toBe(8 + 201);
+    const fallbackBodyPx = estimateFormattedBodyPx(fallbackHtmlContent, 48)!;
+    // Base (8) + fallback body + 3 options * 20 px button delta.
+    expect(fallbackPx).toBe(8 + fallbackBodyPx + 3 * 20);
   });
 });
 
@@ -368,7 +480,7 @@ describe('estimateMessageRowHeight reuse and edit awareness', () => {
     expect(estimateMessageRowHeight(reply, { compact: false })).toBe(8 + 12 * 22);
   });
 
-  it('resolves unapplied m.replace edits from timelineSet.relations and reuses WeakMap cache without calling getLatestMessageContent again', () => {
+  it('resolves unapplied m.replace edits once and skips getEditedEvent on repeated cache hits', () => {
     const target = makeEvent({
       id: '$thinking',
       sender: AGENT,
@@ -394,29 +506,56 @@ describe('estimateMessageRowHeight reuse and edit awareness', () => {
         'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
       },
     });
-    const timelineSet = makeTimelineSetWithReplace('$thinking', [edit]);
+    const edits = [edit];
+    const timelineSet = makeTimelineSetWithReplace('$thinking', edits);
+    const editedSpy = vi.spyOn(roomUtils, 'getEditedEvent');
     const latestSpy = vi.spyOn(roomUtils, 'getLatestMessageContent');
     try {
-      const firstPx = estimateThreadRowHeight(target, undefined, {
-        compact: false,
-        wrapChars: 38,
-        coarsePointer: true,
-        timelineSet,
-      });
+      const opts = { compact: false, wrapChars: 38, coarsePointer: true, timelineSet };
+      const firstPx = estimateThreadRowHeight(target, undefined, opts);
       // Base (8) + 15 lines (330) + coarse header (60) = 398, NOT "Thinking..." (~90 px).
       expect(firstPx).toBe(8 + 15 * 22 + 60);
+      expect(editedSpy).toHaveBeenCalledTimes(1);
       expect(latestSpy).toHaveBeenCalledTimes(1);
 
-      // Repeated render hits WeakMap before calling getLatestMessageContent.
-      const secondPx = estimateThreadRowHeight(target, undefined, {
-        compact: false,
-        wrapChars: 38,
-        coarsePointer: true,
-        timelineSet,
-      });
-      expect(secondPx).toBe(firstPx);
+      // Repeated renders hit WeakMap on O(1) source identities without calling getEditedEvent.
+      for (let i = 0; i < 4; i += 1) {
+        expect(estimateThreadRowHeight(target, undefined, opts)).toBe(firstPx);
+      }
+      expect(editedSpy).toHaveBeenCalledTimes(1);
       expect(latestSpy).toHaveBeenCalledTimes(1);
+
+      // In-place mutation of the cached resolved edit's m.new_content invalidates the cache.
+      (edit.getContent()['m.new_content'] as Record<string, unknown>)['io.mindroom.reasoning'] = {
+        text: 'Reasoning added in place.',
+      };
+      expect(estimateThreadRowHeight(target, undefined, opts)).toBe(firstPx + 28);
+      expect(editedSpy).toHaveBeenCalledTimes(2);
+
+      // Appending a newer replacement to timelineSet.relations invalidates the cache.
+      edits.push(
+        makeEvent({
+          id: '$newer-edit',
+          sender: AGENT,
+          ts: target.getTs() + 4_000,
+          content: {
+            msgtype: 'm.text',
+            body: '* Short final',
+            'm.new_content': {
+              msgtype: 'm.text',
+              body: 'Short final',
+              'io.mindroom.ai_run': AI_RUN_WITH_MODEL,
+              'io.mindroom.stream_status': 'completed',
+            },
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$thinking' },
+          },
+        })
+      );
+      // Base (8) + borrowed reasoning from older edit (28) + 1 line (22) + coarse header (60) = 118.
+      expect(estimateThreadRowHeight(target, undefined, opts)).toBe(8 + 28 + 22 + 60);
+      expect(editedSpy).toHaveBeenCalledTimes(3);
     } finally {
+      editedSpy.mockRestore();
       latestSpy.mockRestore();
     }
   });
@@ -446,9 +585,9 @@ describe('estimateThreadRowHeight and estimateRoomRowHeight', () => {
 
   it('applies author headers, coarse SenderLine, ModelBadge min height, compact layout, and day dividers', () => {
     // Human group start: 68 fine, 90 coarse.
-    expect(estimateThreadRowHeight(first, undefined, { compact: false, coarsePointer: false })).toBe(
-      68
-    );
+    expect(
+      estimateThreadRowHeight(first, undefined, { compact: false, coarsePointer: false })
+    ).toBe(68);
     expect(estimateThreadRowHeight(first, undefined, { compact: false, coarsePointer: true })).toBe(
       90
     );
@@ -528,11 +667,10 @@ describe('estimateThreadRowHeight and estimateRoomRowHeight', () => {
   });
 
   it('wraps narrow (390 px) columns at 38 chars and desktop (960 px) at 110 chars', () => {
-    expect(roomWrapCharsForWidth(undefined)).toBe(48);
+    expect(columnWrapCharsForWidth(undefined)).toBe(48);
     expect(columnWrapCharsForWidth(390)).toBe(38);
-    expect(roomWrapCharsForWidth(390)).toBe(38);
-    expect(roomWrapCharsForWidth(960)).toBe(110);
-    expect(roomWrapCharsForWidth(200)).toBe(24);
+    expect(columnWrapCharsForWidth(960)).toBe(110);
+    expect(columnWrapCharsForWidth(200)).toBe(24);
 
     const fourMediumLines = makeEvent({
       id: '$step',
@@ -543,11 +681,11 @@ describe('estimateThreadRowHeight and estimateRoomRowHeight', () => {
       },
     });
     const phoneCoarse = estimateRoomRowHeight(fourMediumLines, first, {
-      wrapChars: roomWrapCharsForWidth(390),
+      wrapChars: columnWrapCharsForWidth(390),
       coarsePointer: true,
     });
     const desktopFine = estimateRoomRowHeight(fourMediumLines, first, {
-      wrapChars: roomWrapCharsForWidth(960),
+      wrapChars: columnWrapCharsForWidth(960),
       coarsePointer: false,
     });
     expect(desktopFine).toBeLessThan(phoneCoarse);

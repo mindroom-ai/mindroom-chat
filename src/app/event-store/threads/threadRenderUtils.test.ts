@@ -291,7 +291,9 @@ describe('estimateThreadEventRowHeight', () => {
   });
 
   it('never caps MindRoom agent replies at the human fold and prices past 48 lines', () => {
-    const body = Array.from({ length: 65 }, (_v, i) => `Step ${i + 1}: verify Service X`).join('\n');
+    const body = Array.from({ length: 65 }, (_v, i) => `Step ${i + 1}: verify Service X`).join(
+      '\n'
+    );
     const agent = new MatrixEvent({
       content: { body, msgtype: 'm.text' },
       event_id: '$agent-long',

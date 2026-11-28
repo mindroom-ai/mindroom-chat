@@ -102,15 +102,15 @@ export const shouldAutoPaginateThreadBack = ({
 // the fold budget tracks CollapsibleMessage's preview with an overlaid control.
 // Tile rectangles exclude inter-row margins, as does the virtualizer cache.
 // MessageBase vertical padding (S100 * 2 = 8px) and Folds T400 line height (22px).
-const THREAD_ROW_BASE_PX = 8;
-const THREAD_ROW_BASE_COMPACT_PX = 6;
-const THREAD_ROW_LINE_PX = 22;
+export const THREAD_ROW_BASE_PX = 8;
+export const THREAD_ROW_BASE_COMPACT_PX = 6;
+export const THREAD_ROW_LINE_PX = 22;
 // CollapsibleMessage previews 11em; its collapsed control adds no row height.
-const THREAD_ROW_FOLD_CONTENT_LINES = 9;
-const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
+export const THREAD_ROW_FOLD_CONTENT_LINES = 9;
+export const THREAD_ROW_WRAP_CHARS_PER_LINE = 48;
 // Always-expanded rows (agent replies, legacy summaries) render in full; keep a
 // ceiling high enough for long replies on 390 px phones while bounding abuse.
-const THREAD_ROW_MAX_ESTIMATED_LINES = 240;
+export const THREAD_ROW_MAX_ESTIMATED_LINES = 240;
 const THREAD_ROW_BODY_SCAN_CHARS = 16_384;
 
 const estimateBodyLines = (

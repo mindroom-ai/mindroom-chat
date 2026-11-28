@@ -262,18 +262,14 @@ export const timelineRowSizing = (o: {
     if (o.hiddenIds?.has(id)) return 0;
     const open = o.turnFolds?.breaks.get(id)?.open;
     if (open === false) return TURN_BREAK_ESTIMATE_PX;
+    if (reactionOrEditEvent(event) || isRowlessTimelineEvent(event)) return 0;
     let above: MatrixEvent | undefined;
     if (o.threadEvents && eventIndex !== undefined) {
       for (let prev = eventIndex - 1; prev >= 0; prev -= 1) {
         const candidate = o.threadEvents[prev];
         if (!candidate) continue;
         const candidateId = candidate.getId() ?? '';
-        if (
-          o.hiddenIds?.has(candidateId) ||
-          o.turnFolds?.breaks.get(candidateId)?.open === false ||
-          reactionOrEditEvent(candidate) ||
-          isRowlessTimelineEvent(candidate)
-        ) {
+        if (o.hiddenIds?.has(candidateId) || o.turnFolds?.breaks.get(candidateId)?.open === false) {
           continue;
         }
         above = candidate;
