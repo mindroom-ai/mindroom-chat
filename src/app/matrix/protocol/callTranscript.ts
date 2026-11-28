@@ -140,8 +140,9 @@ export const readCallTranscript = (
  * The memberships that count a member as the transcript's speaker: joined, and for a call between
  * people (`io.mindroom.call_notes`) also left or banned since the call.
  */
-export const speakerMemberships = (transcript: CallTranscript): ReadonlySet<string> =>
-  transcript.callId === undefined ? JOINED : WAS_IN_ROOM;
+export const speakerMemberships = (
+  transcript: Pick<CallTranscript, 'callId'>
+): ReadonlySet<string> => (transcript.callId === undefined ? JOINED : WAS_IN_ROOM);
 
 /**
  * Whether the card may name the transcript's speakers. Any account can write the key with any user

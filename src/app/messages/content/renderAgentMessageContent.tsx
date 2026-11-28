@@ -461,6 +461,10 @@ function AgentTextMessage({
     fromMindroomAgent,
     hydrate: options.hydrateLongText ?? true,
   });
+  const callTranscript = useMemo(
+    () => (fromMindroomAgent ? readCallTranscript(resolved.content) : undefined),
+    [fromMindroomAgent, resolved.content]
+  );
 
   if (longTextSource && isFileMessage && outerContent[CANVAS_RESPONSE_KEY]) {
     const receipt = readCanvasSidecarResponse(
@@ -556,7 +560,6 @@ function AgentTextMessage({
     </>
   );
 
-  const callTranscript = fromMindroomAgent ? readCallTranscript(resolved.content) : undefined;
   return callTranscript ? (
     <CallTranscriptCard
       transcript={callTranscript}

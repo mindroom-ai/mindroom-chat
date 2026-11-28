@@ -564,5 +564,95 @@ describe('a voice call transcript message', () => {
       expect(card()?.querySelector('[data-call-transcript-notes]')?.textContent).toContain(NOTES);
       expect(toggle()?.textContent).toContain('2 turns');
     });
+
+    it('does not cancel or restart unlisted speaker lookups when the transcript message re-renders', async () => {
+      const content = notesContent({
+        duration_seconds: 60,
+        turns: [
+          { sender: CALLER, text: 'Ship it?' },
+          { sender: GONE, text: 'Ship it.' },
+        ],
+      });
+      const mEvent = new MatrixEvent({
+        type: 'm.room.message',
+        room_id: ROOM_ID,
+        event_id: '$call-stable',
+        sender: ROUTER,
+        origin_server_ts: 1,
+        content,
+      });
+      let resolveState!: (value: { membership: string }) => void;
+      const getStateEvent = vi.fn(
+        () =>
+          new Promise<{ membership: string }>((resolve) => {
+            resolveState = resolve;
+          })
+      );
+      const roomMembers = Object.entries(MEMBERS).map(([userId, known]) => ({
+        userId,
+        roomId: ROOM_ID,
+        membership: known.membership,
+        rawDisplayName: known.name ?? userId,
+        getMxcAvatarUrl: () => undefined,
+      }));
+      const room = {
+        roomId: ROOM_ID,
+        getMember: (userId: string) => roomMembers.find((m) => m.userId === userId) ?? null,
+        getMembers: () => roomMembers,
+        loadMembersIfNeeded: async () => true,
+      };
+      const mx = {
+        getUserId: () => VIEWER,
+        getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
+        getStateEvent,
+        on: () => undefined,
+        removeListener: () => undefined,
+        getHomeserverUrl: () => 'https://example.org',
+        mxcUrlToHttp: (mxc: string) => `https://example.org/${encodeURIComponent(mxc)}`,
+      } as unknown as MatrixClient;
+
+      const renderWith = (nextContent: IContent) => {
+        act(() => {
+          root.render(
+            <MatrixClientProvider value={mx}>
+              <ClientConfigProvider value={{}}>
+                <RenderMessageContent
+                  mEvent={mEvent}
+                  roomId={ROOM_ID}
+                  displayName="Router"
+                  msgType={String(nextContent.msgtype ?? 'm.notice')}
+                  ts={1}
+                  getContent={(() => nextContent) as never}
+                  urlPreview={false}
+                  htmlReactParserOptions={{}}
+                  linkifyOpts={{}}
+                />
+              </ClientConfigProvider>
+            </MatrixClientProvider>
+          );
+        });
+      };
+
+      // Initial render kicks off one getStateEvent lookup; card waits for it.
+      renderWith(content);
+      expect(getStateEvent).toHaveBeenCalledTimes(1);
+      expect(card()).toBeNull();
+
+      // Re-rendering with the same content (and again with a fresh shallow wrapper) must not
+      // cancel the in-flight lookup or trigger a duplicate getStateEvent call.
+      renderWith(content);
+      renderWith({ ...content });
+      expect(getStateEvent).toHaveBeenCalledTimes(1);
+      expect(card()).toBeNull();
+
+      // Resolving that first lookup reveals the transcript card.
+      await act(async () => {
+        resolveState({ membership: 'leave' });
+      });
+      expect(getStateEvent).toHaveBeenCalledTimes(1);
+      expect(card()).not.toBeNull();
+      act(() => toggle()?.click());
+      expect(groups()).toHaveLength(2);
+    });
   });
 });
