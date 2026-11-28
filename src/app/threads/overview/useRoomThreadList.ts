@@ -106,7 +106,8 @@ export const useRoomThreadList = (
   const engine = useSyncEngine();
   // A list can look complete before server support is known. Use the first SDK load as proof.
   const alreadyListed = enabled && roomThreadListIsListed(room);
-  const [loading, setLoading] = useState(enabled && !uncommittedBackPeek && !alreadyListed);
+  // A cold peek is pending even though it defers automatic work.
+  const [loading, setLoading] = useState(enabled && !alreadyListed);
   const [loadedSuccessfully, setLoadedSuccessfully] = useState(alreadyListed);
   const [error, setError] = useState<Error>();
   const [version, setVersion] = useState(0);
@@ -279,7 +280,7 @@ export const useRoomThreadList = (
     lifecycleAbortControllerRef.current = abortController;
 
     const listed = roomThreadListIsListed(room);
-    setLoading(!uncommittedBackPeek && !listed);
+    setLoading(!listed);
     setLoadedSuccessfully(listed);
     setError(undefined);
 

@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { Direction, MatrixClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
-import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
+import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { createSyncEngine } from '../../event-store/engine/syncEngine';
@@ -19,6 +19,14 @@ import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { createThreadRecordChanges } from '../../event-store/threads/threadRecord';
 import { buildCompactThreadRootData } from '../../event-store/threads/compactThreadRootData';
 import { useRoomThreadList } from './useRoomThreadList';
+import {
+  bundledReply,
+  createListingRoom,
+  listedRoot,
+  listInPages,
+  roomId,
+  userId,
+} from './useRoomThreadList.test.shared';
 
 /** Roots whose revision the hook computed, in order. */
 const revisedRoots: string[] = [];
@@ -39,10 +47,8 @@ vi.mock('../../event-store/cache/eventRepository', async (original) => {
   };
 });
 
-const userId = '@alice:example.org';
 /** No listener marks it, so each build checks every thread. */
 const changes = createThreadRecordChanges();
-const roomId = '!offline:example.org';
 let renderer: ReactTestRenderer | undefined;
 let sessionId: string;
 const originalListSupport = Thread.hasServerSideListSupport;
@@ -178,24 +184,13 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
   expect(room.getThread('$root-1')?.events).toHaveLength(0);
 }, 30_000);
 
-class ListingClient extends MatrixClient {
-  constructor() {
-    super({ baseUrl: 'https://example.org', userId });
-    this.clientOpts = { threadSupport: true };
-    this.threadSupportPending = Promise.resolve();
-  }
-}
-
 type Engine = ReturnType<typeof createSyncEngine>;
 type RootSave = Parameters<ReturnType<Engine['persist']['forRoom']>['persistThreadEventCache']>;
 
 const setUpRoom = () => {
-  const mx = new ListingClient();
-  const room = new Room(roomId, mx, userId, { timelineSupport: true });
-  mx.store.storeRoom(room);
-  const engine = createSyncEngine({ mx });
-  sessionId = engine.sessionId;
-  return { mx, room, engine };
+  const fixture = createListingRoom();
+  sessionId = fixture.engine.sessionId;
+  return fixture;
 };
 
 /** Calls `record` with each root save as it starts, then saves. */
@@ -212,27 +207,6 @@ const recordSaves = (engine: Engine, record: (...args: RootSave) => void) => {
     };
   });
 };
-
-/** The room lists its threads in pages, starting with one more page before its first. */
-const listInPages = (room: Room) => {
-  Thread.hasServerSideListSupport = FeatureSupport.Stable;
-  const list = room.getUnfilteredTimelineSet();
-  room.threadsTimelineSets[0] = list;
-  room.threadsTimelineSets[1] = list;
-  const timeline = list.getLiveTimeline();
-  timeline.setPaginationToken('older-roots', Direction.Backward);
-  return timeline;
-};
-
-const listedRoot = (eventId: string, body = eventId) =>
-  new MatrixEvent({
-    event_id: eventId,
-    room_id: roomId,
-    sender: userId,
-    origin_server_ts: 1000,
-    type: 'm.room.message',
-    content: { msgtype: 'm.text', body },
-  });
 
 const encryptedListedRoot = (eventId: string) =>
   new MatrixEvent({
@@ -301,27 +275,6 @@ const closeList = async () => {
   renderer = undefined;
 };
 
-const bundledReply = (eventId: string) => ({
-  'm.relations': {
-    'm.thread': {
-      count: 1,
-      current_user_participated: true,
-      latest_event: {
-        event_id: eventId,
-        room_id: roomId,
-        sender: userId,
-        origin_server_ts: 1500,
-        type: 'm.room.message',
-        content: {
-          msgtype: 'm.text',
-          body: eventId,
-          'm.relates_to': { rel_type: 'm.thread', event_id: '$listed' },
-        },
-      },
-    },
-  },
-});
-
 /** Whether a saved root and its edit were readable when saved. */
 const describeSave = (root: MatrixEvent | null | undefined) => {
   const edit = root?.replacingEvent();
@@ -352,7 +305,7 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
     if (change === 'decryption') {
       await decryptEvent(root, Promise.reject(new Error('Missing key')));
     }
-    if (change === 'bundled reply') root.setUnsigned(bundledReply('$reply-1'));
+    if (change === 'bundled reply') root.setUnsigned(bundledReply('$reply-1', '$listed'));
     const encryptedEdit =
       change === 'edit decryption'
         ? new MatrixEvent({
@@ -411,7 +364,7 @@ it.each(Object.keys(changesBeforeLaterPage) as (keyof typeof changesBeforeLaterP
           await decryptEvent(root, Promise.resolve({ body: 'Clear title' }));
         } else if (change === 'bundled reply') {
           // The list's later page carries the root again, with a newer reply in its summary.
-          root.setUnsigned(bundledReply('$reply-2'));
+          root.setUnsigned(bundledReply('$reply-2', '$listed'));
         } else {
           await decryptEvent(
             encryptedEdit!,
@@ -564,7 +517,7 @@ it('checks each listed root with its page and once more as the load ends, not on
   expect(saved).toEqual(all);
 });
 
-it('shows SDK threads in a cold peek without loading or restoring the list, but allows retry', async () => {
+it('shows SDK threads in a cold peek without fetching or restoring the list, but allows retry', async () => {
   const { mx, room, engine } = setUpRoom();
   const root = listedRoot('$known');
   room.processThreadRoots([root], false);
@@ -574,7 +527,7 @@ it('shows SDK threads in a cold peek without loading or restoring the list, but 
 
   const list = showList(mx, engine, room, true);
   expect(list.current?.threads.map((thread) => thread.id)).toEqual(['$known']);
-  expect(list.current?.loading).toBe(false);
+  expect(list.current?.loading).toBe(true);
   await act(async () => {});
   expect(fetch).not.toHaveBeenCalled();
   expect(restore).not.toHaveBeenCalled();
@@ -623,6 +576,7 @@ it('checks warm roots after paint, not while peeking or after a cancelled mount'
   const peek = showList(mx, engine, room, true);
   expect(peek.current?.threads).toHaveLength(2);
   expect(peek.current?.loadedSuccessfully).toBe(true);
+  expect(peek.current?.loading).toBe(false);
   await act(async () => {});
   expect(frames).toHaveLength(0);
   expect(revisedRoots).toEqual([]);
