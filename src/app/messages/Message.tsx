@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type FocusEvent,
+  type KeyboardEventHandler,
   type MouseEvent,
   type MouseEventHandler,
   type PointerEvent,
@@ -566,6 +567,7 @@ export type MessageProps = MessageSubject &
     /** The reaction chips, shown under the body. */
     reactions?: ReactNode;
     'data-message-id'?: string;
+    onKeyDown?: KeyboardEventHandler<HTMLDivElement>;
     ref?: Ref<HTMLDivElement>;
   };
 
@@ -883,6 +885,7 @@ export function Message({
   resolvedMessageContent,
   replyTiming,
   children,
+  onKeyDown,
   ...props
 }: MessageProps) {
   const client = useMatrixClient();
@@ -1029,6 +1032,28 @@ export function Message({
     // The word the click selected would stay highlighted under the menu.
     if (hasSelectedText()) document.getSelection()?.removeAllRanges();
     setMenuAnchor(pointRect(evt.clientX, evt.clientY));
+  };
+  // Handle the menu shortcuts directly: Chromium on macOS does not emit contextmenu for Shift+F10.
+  const openMenuFromKey: KeyboardEventHandler<HTMLDivElement> = (evt) => {
+    if (
+      evt.defaultPrevented ||
+      edit ||
+      evt.target !== evt.currentTarget ||
+      !(evt.key === 'ContextMenu' || (evt.shiftKey && evt.key === 'F10')) ||
+      wantsBrowserMenu(evt.target, hasSelectedText())
+    ) {
+      onKeyDown?.(evt);
+      return;
+    }
+    evt.preventDefault();
+    evt.stopPropagation();
+    document.getSelection()?.removeAllRanges();
+    const row = evt.currentTarget;
+    const rect = row.getBoundingClientRect();
+    const end = getComputedStyle(row).direction === 'rtl' ? rect.left : rect.right;
+    const top = Math.min(window.innerHeight, Math.max(0, rect.top));
+    const bottom = Math.min(window.innerHeight, Math.max(0, rect.bottom));
+    setMenuAnchor(pointRect(Math.min(window.innerWidth, Math.max(0, end)), (top + bottom) / 2));
   };
   // A long press opens it where the finger rests, on touch screens whose browser fires no
   // contextmenu for one (iOS Safari). Touches inside the row's own pop-outs, which React passes
@@ -1195,7 +1220,7 @@ export function Message({
         </Menu>
       </FocusTrap>
     );
-    const menuPopOut = menuAnchor && (
+    const menuPopOut = !edit && menuAnchor && (
       <PopOut
         anchor={menuAnchor}
         position={menuSide}
@@ -1248,7 +1273,12 @@ export function Message({
           toolbarClearance === undefined ? undefined : { insetBlockStart: `${toolbarClearance}px` }
         }
       >
-        <Menu role="none" variant="SurfaceVariant" className={css.MessageOptionsBar}>
+        <Menu
+          role="none"
+          variant="SurfaceVariant"
+          className={css.MessageOptionsBar}
+          data-message-toolbar=""
+        >
           <Box className={css.MessageOptionsRow}>
             {controls && (
               <>
@@ -1352,6 +1382,7 @@ export function Message({
         space={messageSpacing}
         selected={!!menuAnchor || edit}
         onContextMenu={openMenuAtPointer}
+        onKeyDown={openMenuFromKey}
         {...longPress}
         onPointerDownCapture={noteRowPointer}
         onFocusCapture={noteRowFocus}

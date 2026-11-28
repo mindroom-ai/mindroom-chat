@@ -7,6 +7,9 @@ import { openPanelRoom, panelLocator, type PanelRoom } from '../helpers/sidePane
 // fits the page's height as the page changes, and leaves the side panel closed until the user opens
 // it. The room's homeserver may open canvases by itself, so a panel that stays closed is the inline
 // flag's doing.
+// Set INLINE_CANVAS_HOVER_SHOTS=<directory> to capture the unscrolled, scrolled, and next-row hover states.
+const HOVER_SHOTS = process.env.INLINE_CANVAS_HOVER_SHOTS;
+
 test.describe.configure({ timeout: 240_000 });
 test.use({ viewport: { width: 1280, height: 900 }, video: 'off' });
 test.afterEach(async ({ context }) => {
@@ -95,10 +98,9 @@ test('the message hover pill stays off an inline canvas', async ({ context, page
   const pills = row.getByRole('button', { name: /^(Reply|Add Reaction)$/, includeHidden: true });
   const settle = () =>
     page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-  const shots = process.env.INLINE_CANVAS_HOVER_SHOTS;
   const capture = async (name: string) => {
     await settle();
-    if (shots) await page.screenshot({ path: `${shots}/${name}.png` });
+    if (HOVER_SHOTS) await page.screenshot({ path: `${HOVER_SHOTS}/${name}.png` });
   };
   await apply.waitFor({ timeout: 60_000 });
   await expect.poll(frameHeight(page, title), { timeout: 20_000 }).toBe(height);
@@ -122,9 +124,11 @@ test('the message hover pill stays off an inline canvas', async ({ context, page
   await followUp.hover();
   await capture('next-row-hover');
   const senderLines = await followUp.locator('[data-message-sender-line]').count();
-  const reply = followUp.getByRole('button', { name: 'Reply', exact: true });
-  const nextPill = (await reply.isVisible()) ? await reply.locator('../..').boundingBox() : null;
-  const cardAtBottom = (await notice.locator('../..').boundingBox())!;
+  // The markers are absent on main; take all three screenshots there before reporting the bug.
+  const pill = followUp.locator('[data-message-toolbar]');
+  const card = row.locator('[data-inline-canvas]');
+  const nextPill = (await pill.isVisible()) ? await pill.boundingBox() : null;
+  const cardAtBottom = (await card.isVisible()) ? await card.boundingBox() : null;
   const { top, bottom } = await scroll.evaluate((s) => ({
     top: s.querySelector('[data-thread-header]')!.getBoundingClientRect().bottom,
     bottom: s.getBoundingClientRect().bottom - parseFloat(getComputedStyle(s).scrollPaddingBottom),
@@ -144,14 +148,25 @@ test('the message hover pill stays off an inline canvas', async ({ context, page
   await page.mouse.move(x + width / 2, y + h / 2);
   await capture('scrolled-canvas-hover');
   expect([unscrolled, inMenu, await pills.count()], 'canvas hover pills').toEqual([0, 0, 0]);
+  if (!cardAtBottom || !nextPill)
+    throw new Error('Expected a visible canvas card and follow-up pill');
   const end = cardAtBottom.y + cardAtBottom.height;
   expect(senderLines).toBe(0);
   expect(cardAtBottom.y).toBeLessThan(top);
   expect(end).toBeGreaterThan(top);
   expect(end).toBeLessThan(bottom);
-  expect(nextPill?.y, 'visible follow-up pill').toBeGreaterThanOrEqual(end);
+  expect(nextPill.y).toBeGreaterThanOrEqual(end);
   await apply.click({ timeout: 10_000 });
   await expect(board.getByRole('status')).toHaveText('Open tasks');
+
+  await row.evaluate((el) => el.focus({ preventScroll: true }));
+  await page.keyboard.press('Shift+F10');
+  await expect(replyItem).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.getByRole('menu').locator(':focus')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(replyItem).toBeHidden();
+  await expect(pills).toHaveCount(0);
 });
 
 test('an inline canvas follows absolutely positioned content through transitions as it grows and shrinks', async ({
@@ -456,9 +471,7 @@ test('inline and panel canvases follow pageZoom and keep Open canvas in the inli
 
   // At 50% page zoom the inline canvas scales visually to half height while filling the column.
   await setPageZoom(page, 50);
-  await expect
-    .poll(() => page.evaluate(() => document.documentElement.style.fontSize))
-    .toBe('50%');
+  await expect.poll(() => page.evaluate(() => document.documentElement.style.fontSize)).toBe('50%');
   await expect.poll(frameHeight(page, 'Zoom card'), { timeout: 20_000 }).toBeCloseTo(200, 0);
   const zoomedBoxHeight = (await frame.locator('xpath=..').boundingBox())?.height ?? 0;
   expect(zoomedBoxHeight).toBeCloseTo(200, 0);

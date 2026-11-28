@@ -40,9 +40,10 @@ const findScroller = (row: HTMLElement): HTMLElement | undefined => {
 export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
 /** Marks the card of an inline canvas, not its fallback notice. */
 export const INLINE_CANVAS_ATTRIBUTE = 'data-inline-canvas';
-export const MessageInlineCanvasContext = createContext<Dispatch<SetStateAction<number>> | undefined>(
-  undefined
-);
+/** Lets inline cards register with their message row so it can hide the hover toolbar. */
+export const MessageInlineCanvasContext = createContext<
+  Dispatch<SetStateAction<number>> | undefined
+>(undefined);
 /**
  * The Show full message / Show less button of a long message (CollapsibleMessage). It sits at the
  * end of the message's bottom edge, the corner the toolbar of the row below floats over.
