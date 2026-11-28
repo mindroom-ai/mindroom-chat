@@ -43,7 +43,7 @@ const runFilter = (
     simpleMode?: boolean;
     hasMindroomAgents?: boolean;
     groupSections?: boolean;
-    sectionOrder?: readonly ("needsYou" | "working" | "later" | "quiet" | "done")[];
+    sectionOrder?: readonly ('needsYou' | 'working' | 'later' | 'quiet' | 'done')[];
     pinnedKeys?: readonly string[];
   } = {}
 ) =>

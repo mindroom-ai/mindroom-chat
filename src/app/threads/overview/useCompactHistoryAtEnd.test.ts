@@ -145,4 +145,69 @@ describe('useCompactHistoryAtEnd', () => {
     await settle();
     expect(paginateBack).toHaveBeenCalledTimes(2);
   });
+
+  it('checks the targeted column body instead of the non-scrolling outer view in Columns mode', async () => {
+    // Outer view has overflowY: hidden (scrollHeight === clientHeight), which would always look "at end".
+    const { host, view } = mountView(500, 0);
+    const board = document.createElement('div');
+    board.setAttribute('data-compact-columns-board', 'true');
+    const header = document.createElement('button');
+    header.setAttribute('data-compact-column-header', 'needsYou');
+    const body = document.createElement('div');
+    body.setAttribute('data-compact-column-body', 'needsYou');
+    Object.defineProperty(body, 'clientHeight', { configurable: true, value: 500 });
+    Object.defineProperty(body, 'scrollHeight', { configurable: true, value: 2_000 });
+    body.scrollTop = 0;
+    const card = document.createElement('div');
+    body.append(card);
+    board.append(header, body);
+    view.append(board);
+
+    const paginateBack = vi.fn(async () => undefined);
+    render(host, { paginateBack });
+
+    // Wheeling on the board header or at the top of a column body must NOT paginate.
+    header.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 120 }));
+    card.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 120 }));
+    body.scrollTop = 100;
+    body.dispatchEvent(new Event('scroll'));
+    await settle();
+    expect(paginateBack).not.toHaveBeenCalled();
+
+    // Scrolling up even near the bottom must NOT paginate.
+    body.scrollTop = 1_600;
+    body.dispatchEvent(new Event('scroll'));
+    await settle();
+    expect(paginateBack).toHaveBeenCalledTimes(COMPACT_HISTORY_PAGES_PER_APPROACH);
+
+    paginateBack.mockClear();
+    body.scrollTop = 1_550;
+    body.dispatchEvent(new Event('scroll'));
+    await settle();
+    expect(paginateBack).not.toHaveBeenCalled();
+
+    // Wheeling down at the bottom of the column body DOES paginate.
+    card.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 120 }));
+    await settle();
+    expect(paginateBack).toHaveBeenCalledTimes(COMPACT_HISTORY_PAGES_PER_APPROACH);
+
+    // Swapping [data-compact-room-view] (Columns -> Vertical) inside host keeps listeners working,
+    // while wheeling on a sibling outside [data-compact-room-view] (filter bar) is ignored.
+    paginateBack.mockClear();
+    const filterBar = document.createElement('div');
+    const verticalView = document.createElement('div');
+    verticalView.setAttribute('data-compact-room-view', 'true');
+    Object.defineProperty(verticalView, 'clientHeight', { configurable: true, value: 500 });
+    Object.defineProperty(verticalView, 'scrollHeight', { configurable: true, value: 2_000 });
+    verticalView.scrollTop = 1_500;
+    host.replaceChildren(filterBar, verticalView);
+
+    filterBar.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 120 }));
+    await settle();
+    expect(paginateBack).not.toHaveBeenCalled();
+
+    verticalView.dispatchEvent(new WheelEvent('wheel', { deltaY: 120 }));
+    await settle();
+    expect(paginateBack).toHaveBeenCalledTimes(COMPACT_HISTORY_PAGES_PER_APPROACH);
+  });
 });

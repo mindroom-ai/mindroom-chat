@@ -459,9 +459,7 @@ function SpaceThreadsPageContent({ space }: { space: Room }) {
           columns={columnsEnabled}
           singleBucketTab={singleBucketTab}
           onToggleSectionFold={(id) => updateCompactSections({ type: 'TOGGLE_FOLD', id })}
-          onReorderSections={(order) =>
-            updateCompactSections({ type: 'REORDER_SECTIONS', order })
-          }
+          onReorderSections={(order) => updateCompactSections({ type: 'REORDER_SECTIONS', order })}
           roomsById={roomsById}
           pinnedByRoom={pinnedByRoom}
           showRoomBadge={activeRoomIds.length > 1}

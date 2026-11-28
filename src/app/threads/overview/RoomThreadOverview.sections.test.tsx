@@ -128,9 +128,9 @@ it.each([true, false])('shows and toggles For me beside Group (simple: %s)', (si
   expect(toggle()?.props.className).toContain(css.SortButtonActive);
 });
 
-describe("the Columns switch of the Compact filter bar", () => {
+describe('the Columns switch of the Compact filter bar', () => {
   it.each([true, false])(
-    "renders right beside Group only when offered and keeps Group/Columns mutually exclusive (simple: %s)",
+    'renders right beside Group only when offered and keeps Group/Columns mutually exclusive (simple: %s)',
     (simple) => {
       renderBar(simple, { onToggleThreadSections: noop });
       expect(columnsSwitch()).toBeUndefined();
@@ -147,13 +147,13 @@ describe("the Columns switch of the Compact filter bar", () => {
 
       const groupBtn = sectionsSwitch();
       const colsBtn = columnsSwitch();
-      expect(groupBtn?.props["aria-pressed"]).toBe(false);
+      expect(groupBtn?.props['aria-pressed']).toBe(false);
       expect(groupBtn?.props.className).not.toContain(css.SortButtonActive);
-      expect(colsBtn?.props["aria-label"]).toBe("Columns");
-      expect(colsBtn?.props["aria-pressed"]).toBe(true);
+      expect(colsBtn?.props['aria-label']).toBe('Columns');
+      expect(colsBtn?.props['aria-pressed']).toBe(true);
       expect(colsBtn?.props.className).toContain(css.SortButtonActive);
-      expect(byData("data-sort-by")).toHaveLength(0);
-      expect(byData("data-thread-sort-freeze")).toHaveLength(0);
+      expect(byData('data-sort-by')).toHaveLength(0);
+      expect(byData('data-thread-sort-freeze')).toHaveLength(0);
 
       act(() => {
         groupBtn?.props.onClick();
@@ -164,13 +164,13 @@ describe("the Columns switch of the Compact filter bar", () => {
     }
   );
 
-  it("falls back to showing Group pressed when Columns is hidden on narrow panes", () => {
+  it('falls back to showing Group pressed when Columns is hidden on narrow panes', () => {
     renderBar(true, {
       onToggleThreadSections: noop,
       threadSections: true,
       threadColumns: true,
     });
     expect(columnsSwitch()).toBeUndefined();
-    expect(sectionsSwitch()?.props["aria-pressed"]).toBe(true);
+    expect(sectionsSwitch()?.props['aria-pressed']).toBe(true);
   });
 });

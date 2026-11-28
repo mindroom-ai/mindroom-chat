@@ -104,6 +104,8 @@ export const RoomDot = style({
   flexShrink: 0,
 });
 
+export const ThreadListHost = style([FlexColumn, { overflow: 'hidden' }]);
+
 export const ThreadListScroll = style([
   FlexColumn,
   {

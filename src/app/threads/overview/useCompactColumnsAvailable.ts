@@ -1,11 +1,5 @@
-import { type RefObject, useCallback, useLayoutEffect, useState } from 'react';
-import { compactCardNavigation, findCompactCard, focusCompactCard } from './compactCardKeys';
-import {
-  COMPACT_COLUMN_CARDS_STEP,
-  COMPACT_COLUMN_INITIAL_CARDS,
-  COMPACT_COLUMNS_MIN_WIDTH_PX,
-} from './compactColumnsLayout';
-import type { CompactThreadSectionId } from './compactThreadSections';
+import { type RefObject, useLayoutEffect, useState } from 'react';
+import { COMPACT_COLUMNS_MIN_WIDTH_PX } from './compactColumnsLayout';
 
 /**
  * Observes `containerRef` with `ResizeObserver` and returns whether the pane is wide enough for
@@ -35,43 +29,4 @@ export const useCompactColumnsAvailable = (
   }, [containerRef]);
 
   return available;
-};
-
-/** Per-column progressive card limits, reset synchronously when `scopeKey` (room/space) changes. */
-export const useCompactColumnLimits = (scopeKey: string) => {
-  const [state, setState] = useState<{
-    scopeKey: string;
-    limits: Partial<Record<CompactThreadSectionId, number>>;
-  }>(() => ({ scopeKey, limits: {} }));
-  const limits = state.scopeKey === scopeKey ? state.limits : {};
-  const showMore = useCallback(
-    (id: CompactThreadSectionId) => {
-      setState((prev) => {
-        const base = prev.scopeKey === scopeKey ? prev.limits : {};
-        const current = base[id] ?? COMPACT_COLUMN_INITIAL_CARDS;
-        return { scopeKey, limits: { ...base, [id]: current + COMPACT_COLUMN_CARDS_STEP } };
-      });
-    },
-    [scopeKey]
-  );
-  return { limits, showMore };
-};
-
-/** Registers visible open-column card IDs with keyboard card navigation while Columns mode is active. */
-export const useColumnsCardNavigation = (
-  viewRef: RefObject<HTMLElement | null>,
-  enabled: boolean,
-  ids: readonly string[],
-  idOf?: (card: HTMLElement) => string | undefined
-): void => {
-  useLayoutEffect(() => {
-    const view = viewRef.current;
-    if (!enabled || !view || typeof document === 'undefined') return undefined;
-    const focus = (id: string | undefined) =>
-      id ? focusCompactCard(findCompactCard(view, id)) : false;
-    compactCardNavigation.set(view, { ids, idOf, focus });
-    return () => {
-      if (compactCardNavigation.get(view)?.ids === ids) compactCardNavigation.delete(view);
-    };
-  }, [enabled, idOf, ids, viewRef]);
 };

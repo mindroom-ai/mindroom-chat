@@ -539,7 +539,7 @@ describe('useRoomViewThreadState', () => {
     expect(current().threadSections).toBe(false);
   });
 
-  it("toggles Columns on wide panes, switches to vertical Group when clicking Group from Columns, and preserves stored preference when narrow", () => {
+  it('toggles Columns on wide panes, switches to vertical Group when clicking Group from Columns, and preserves stored preference when narrow', () => {
     const wide = mountThreadState({ columnsAvailable: true });
     expect(wide.current().threadColumns).toBe(false);
 

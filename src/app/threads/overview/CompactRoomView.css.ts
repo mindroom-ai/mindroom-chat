@@ -11,6 +11,17 @@ import { transition } from '../../ui/styles/transition';
 
 const touchActions = '(max-width: 480px), (hover: none)';
 
+export const Host = style({
+  display: 'flex',
+  flexDirection: 'column',
+  flex: '1 1 auto',
+  minWidth: 0,
+  minBlockSize: 0,
+  width: '100%',
+  blockSize: '100%',
+  position: 'relative',
+});
+
 export const View = style([
   Scroll,
   {

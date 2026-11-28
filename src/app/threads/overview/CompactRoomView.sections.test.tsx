@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ThreadWorkflowBucket } from '../../event-store/threads/threadWorkflow';
 import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
-import { type CompactFocusRequest, takeCompactFocusRequest } from './compactFocusRequest';
+import {
+  type CompactFocusRequest,
+  isCompactFocusRequestOpen,
+  takeCompactFocusRequest,
+} from './compactFocusRequest';
 import type { CompactThreadSection } from './compactThreadSections';
 import { clearCompactRoomSectionsStore } from './compactRoomSections';
 import { CompactRoomView } from './CompactRoomView';
@@ -679,29 +683,121 @@ describe('the Compact room in sections', () => {
     expect(placeOnReturn('$done')).toBe('focused');
   });
 
-  it("renders Columns board when columnsMode is true, passes only open column card IDs to view models, and preserves empty state & single-bucket fallback", () => {
+  it('renders Columns board when columnsMode is true, passes only open column card IDs to view models, and preserves empty state & single-bucket fallback', () => {
     const { rerender } = render(
-      view(["$read", "$job", "$streaming", "$snoozed", "$done"], true, room, undefined, true)
+      view(['$read', '$job', '$streaming', '$snoozed', '$done'], true, room, undefined, true)
     );
-    expect(document.querySelector("[data-compact-columns-board=\"true\"]")).not.toBeNull();
+    expect(document.querySelector('[data-compact-columns-board="true"]')).not.toBeNull();
     // Done starts folded -> 0 cards mounted in Done and $done is omitted from view models!
-    expect(document.querySelector("[data-compact-column=\"done\"][data-collapsed=\"true\"]")).not.toBeNull();
-    expect(state.lastViewModelIds).toEqual(["$read", "$job", "$streaming", "$snoozed"]);
-    expect(state.lastViewModelIds).not.toContain("$done");
+    expect(
+      document.querySelector('[data-compact-column="done"][data-collapsed="true"]')
+    ).not.toBeNull();
+    expect(state.lastViewModelIds).toEqual(['$read', '$job', '$streaming', '$snoozed']);
+    expect(state.lastViewModelIds).not.toContain('$done');
 
     // Clicking the collapsed Done rail expands it and requests $done view model.
-    fireEvent.click(document.querySelector("[data-compact-column-rail=\"done\"]")!);
-    expect(state.lastViewModelIds).toContain("$done");
+    fireEvent.click(document.querySelector('[data-compact-column-rail="done"]')!);
+    expect(state.lastViewModelIds).toContain('$done');
 
     // Empty list falls back to empty state instead of an empty board.
     rerender(view([], true, room, undefined, true));
-    expect(document.querySelector("[data-compact-columns-board]")).toBeNull();
-    expect(screen.getByText("mindroomUi.threads.compactRoomView.noThreads")).toBeTruthy();
+    expect(document.querySelector('[data-compact-columns-board]')).toBeNull();
+    expect(screen.getByText('mindroomUi.threads.compactRoomView.noThreads')).toBeTruthy();
 
     // Single-bucket tab falls back to vertical section rendering.
-    rerender(view(["$done"], true, room, "done", true));
-    expect(document.querySelector("[data-compact-columns-board]")).toBeNull();
-    expect(document.querySelector("[data-compact-section=\"done\"]")).not.toBeNull();
+    rerender(view(['$done'], true, room, 'done', true));
+    expect(document.querySelector('[data-compact-columns-board]')).toBeNull();
+    expect(document.querySelector('[data-compact-section="done"]')).not.toBeNull();
+  });
+
+  it('renders Columns mode with real layout geometry without render loops, preserves per-column scroll, releases touch pointerCancel hold, reveals End/focusRequest past 40 cards', () => {
+    const manyIds = Array.from({ length: 75 }, (_, i) => `$col-${i}`);
+    state.sections = [
+      { id: 'needsYou', rootIds: ['$need-0'] },
+      { id: 'working', rootIds: manyIds },
+    ];
+    stubCompactLayout({
+      width: () => 1000,
+      clientHeight: 700,
+      gap: 4,
+      rowHeight: () => 84,
+    });
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    const commits: number[] = [];
+    const renderView = (columnsMode: boolean, focusRequest?: CompactFocusRequest) => (
+      <Profiler id="columns-loop-guard" onRender={() => commits.push(1)}>
+        <CompactRoomView
+          room={room}
+          threadRootIds={['$need-0', ...manyIds]}
+          threadRecordMap={new Map()}
+          onThreadClick={vi.fn()}
+          compactRoomScrollStateRef={{ current: viewMemory }}
+          sectionsNow={NOW}
+          columnsMode={columnsMode}
+          focusRequest={focusRequest}
+        />
+      </Profiler>
+    );
+
+    const { rerender } = render(renderView(true));
+    // Nonzero card/viewport geometry must NOT trigger a virtualizer render loop.
+    expect(commits.length).toBeLessThanOrEqual(4);
+    expect(document.querySelectorAll('button[data-thread-root-id]')).toHaveLength(41);
+
+    // Complete pointerHandlers forwarding: pointerCancel and prevented touchEnd release orderHeld.
+    const board = document.querySelector<HTMLElement>('[data-compact-columns-board="true"]')!;
+    fireEvent.pointerDown(board, { pointerType: 'touch' });
+    expect(board.getAttribute('data-order-held')).toBe('true');
+    fireEvent.pointerCancel(board, { pointerType: 'touch' });
+    fireEvent.pointerLeave(board, { pointerType: 'touch' });
+    expect(board.getAttribute('data-order-held')).toBeNull();
+
+    fireEvent.pointerDown(board, { pointerType: 'touch' });
+    expect(board.getAttribute('data-order-held')).toBe('true');
+    const touchEnd = new Event('touchend', { bubbles: true, cancelable: true });
+    touchEnd.preventDefault();
+    act(() => {
+      board.dispatchEvent(touchEnd);
+    });
+    expect(board.getAttribute('data-order-held')).toBeNull();
+
+    // Pressing End from the first card expands the last open column past 40 cards and focuses $col-74.
+    expect(document.querySelector('button[data-thread-root-id="$col-74"]')).toBeNull();
+    const firstCard = document.querySelector<HTMLButtonElement>(
+      'button[data-thread-root-id="$need-0"]'
+    )!;
+    act(() => firstCard.focus());
+    fireEvent.keyDown(firstCard, { key: 'End' });
+    const lastCard = document.querySelector<HTMLButtonElement>(
+      'button[data-thread-root-id="$col-74"]'
+    )!;
+    expect(lastCard).not.toBeNull();
+    expect(document.activeElement).toBe(lastCard);
+
+    // Per-column scrollTop is preserved across Columns -> Vertical -> Columns remounts.
+    const workingBody = document.querySelector<HTMLDivElement>(
+      '[data-compact-column-body="working"]'
+    )!;
+    workingBody.scrollTop = 320;
+    fireEvent.scroll(workingBody);
+    rerender(renderView(false));
+    expect(document.querySelector('[data-compact-columns-board]')).toBeNull();
+    rerender(renderView(true));
+    expect(
+      document.querySelector<HTMLDivElement>('[data-compact-column-body="working"]')?.scrollTop
+    ).toBe(320);
+
+    // Deep-link focusRequest targeting a card beyond the initial 40-card cap reveals & meets it.
+    expect(document.querySelector('button[data-thread-root-id="$col-65"]')).toBeNull();
+    const req: CompactFocusRequest = { eventId: '$col-65', entryKey: 'pin-link', pushed: true };
+    takeCompactFocusRequest(viewMemory, ROOM_ID, req);
+    expect(isCompactFocusRequestOpen(viewMemory, req)).toBe(true);
+    rerender(renderView(true, req));
+    expect(document.querySelector('button[data-thread-root-id="$col-65"]')).not.toBeNull();
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+    expect(isCompactFocusRequestOpen(viewMemory, req)).toBe(false);
   });
 
   it('shows the cards as before while Sections are off', () => {

@@ -82,7 +82,13 @@ describe('compactRoomSections', () => {
       type: 'REORDER_SECTIONS',
       order: ['working', 'done', 'working'],
     });
-    expect(store.get(sectionsAtom).order).toEqual(['working', 'done', 'needsYou', 'later', 'quiet']);
+    expect(store.get(sectionsAtom).order).toEqual([
+      'working',
+      'done',
+      'needsYou',
+      'later',
+      'quiet',
+    ]);
   });
 
   it('migrates legacy v1 and v2 storage backward-compatibly to v3', () => {

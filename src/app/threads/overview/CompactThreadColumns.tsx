@@ -1,12 +1,11 @@
 import {
-  type CSSProperties,
-  type FocusEventHandler,
-  type PointerEventHandler,
+  type ComponentPropsWithoutRef,
   type ReactNode,
   type Ref,
   type RefObject,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
 } from 'react';
@@ -18,7 +17,6 @@ import { useCompactCardSwipeList } from './CompactCardSwipe';
 import { SwipeList } from './CompactCardSwipe.css';
 import { handleCardArrowKey } from './compactCardKeys';
 import { COMPACT_COLUMN_INITIAL_CARDS } from './compactColumnsLayout';
-import { useCompactColumnLimits } from './useCompactColumnsAvailable';
 import { useCompactColumnMotion } from './useCompactColumnMotion';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
 import * as css from './CompactThreadColumns.css';
@@ -28,35 +26,29 @@ export type CompactColumnSignal = {
   unread?: boolean;
 };
 
-export type CompactThreadColumnsProps = {
+export type CompactThreadColumnsProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'> & {
   sections: readonly CompactThreadSection[];
   folded: readonly CompactThreadSectionId[];
   /** Full persisted section order, used to preserve relative positions of hidden empty buckets. */
   fullOrder?: readonly CompactThreadSectionId[];
-  /** Optional controlled per-column progressive card limits (lifted when parent needs visible IDs). */
+  /** Controlled per-column progressive card limits owned by `useCompactColumnsBoard`. */
   columnLimits?: Readonly<Partial<Record<CompactThreadSectionId, number>>>;
   onShowMore?: (id: CompactThreadSectionId) => void;
+  /** Optional map persisting per-column `scrollTop` keyed by `${scrollScopeKey}:${section.id}`. */
+  scrollPositions?: Map<string, number>;
+  scrollScopeKey?: string;
   getCount?: (section: CompactThreadSection) => number;
   getSignal?: (section: CompactThreadSection) => CompactColumnSignal | undefined;
   onToggleFold: (id: CompactThreadSectionId) => void;
   onReorder: (order: CompactThreadSectionId[]) => void;
   renderCard: (id: string, scrollRootRef: RefObject<HTMLDivElement | null>) => ReactNode;
-  scopeKey?: string;
-  className?: string;
-  style?: CSSProperties;
   boardRef?: Ref<HTMLDivElement>;
-  onPointerEnter?: PointerEventHandler<HTMLDivElement>;
-  onPointerMove?: PointerEventHandler<HTMLDivElement>;
-  onPointerLeave?: PointerEventHandler<HTMLDivElement>;
-  onFocus?: FocusEventHandler<HTMLDivElement>;
-  onBlur?: FocusEventHandler<HTMLDivElement>;
-  'data-order-held'?: boolean;
 };
 
 /** Subtle 6-dot drag handle on column headers and collapsed rails. */
 function ColumnDragGrip() {
   return (
-    <span className={css.DragGrip} aria-hidden="true">
+    <span className={css.DragGrip} data-compact-column-drag-grip="true" aria-hidden="true">
       <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor" aria-hidden="true">
         <circle cx="2" cy="2" r="1.1" />
         <circle cx="6" cy="2" r="1.1" />
@@ -89,11 +81,15 @@ function CompactOpenColumnBody({
   section,
   limit,
   onShowMore,
+  scrollPositions,
+  scrollKey,
   renderCard,
 }: {
   section: CompactThreadSection;
   limit: number;
-  onShowMore: (id: CompactThreadSectionId) => void;
+  onShowMore?: (id: CompactThreadSectionId) => void;
+  scrollPositions?: Map<string, number>;
+  scrollKey?: string;
   renderCard: (id: string, scrollRootRef: RefObject<HTMLDivElement | null>) => ReactNode;
 }) {
   const { t } = useTranslation();
@@ -101,11 +97,28 @@ function CompactOpenColumnBody({
   const sentinelRef = useRef<HTMLButtonElement>(null);
   useCompactCardSwipeList(bodyRef);
 
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (!body || !scrollPositions || !scrollKey) return;
+    const saved = scrollPositions.get(scrollKey);
+    if (saved !== undefined && saved > 0) body.scrollTop = saved;
+  }, [scrollKey, scrollPositions]);
+
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body || !scrollPositions || !scrollKey) return undefined;
+    const onScroll = () => scrollPositions.set(scrollKey, body.scrollTop);
+    body.addEventListener('scroll', onScroll, { passive: true });
+    return () => body.removeEventListener('scroll', onScroll);
+  }, [scrollKey, scrollPositions]);
+
   const visibleIds = section.rootIds.slice(0, limit);
   const remaining = Math.max(0, section.rootIds.length - visibleIds.length);
 
   useEffect(() => {
-    if (remaining <= 0 || typeof IntersectionObserver === 'undefined') return undefined;
+    if (remaining <= 0 || !onShowMore || typeof IntersectionObserver === 'undefined') {
+      return undefined;
+    }
     const root = bodyRef.current;
     const target = sentinelRef.current;
     if (!root || !target) return undefined;
@@ -129,7 +142,7 @@ function CompactOpenColumnBody({
       onKeyDown={handleCardArrowKey}
     >
       {visibleIds.map((id) => renderCard(id, bodyRef))}
-      {remaining > 0 && (
+      {remaining > 0 && onShowMore && (
         <button
           ref={sentinelRef}
           type="button"
@@ -154,21 +167,16 @@ export function CompactThreadColumns({
   fullOrder,
   columnLimits,
   onShowMore,
+  scrollPositions,
+  scrollScopeKey = '',
   getCount,
   getSignal,
   onToggleFold,
   onReorder,
   renderCard,
-  scopeKey = '',
-  className,
-  style,
   boardRef,
-  onPointerEnter,
-  onPointerMove,
-  onPointerLeave,
-  onFocus,
-  onBlur,
-  'data-order-held': dataOrderHeld,
+  className,
+  ...rest
 }: CompactThreadColumnsProps) {
   const { t } = useTranslation();
   const internalBoardRef = useRef<HTMLDivElement>(null);
@@ -180,10 +188,6 @@ export function CompactThreadColumns({
     },
     [boardRef]
   );
-
-  const internalLimits = useCompactColumnLimits(scopeKey);
-  const effectiveLimits = columnLimits ?? internalLimits.limits;
-  const effectiveShowMore = onShowMore ?? internalLimits.showMore;
 
   const sectionById = useMemo(
     () => new Map(sections.map((section) => [section.id, section] as const)),
@@ -218,15 +222,9 @@ export function CompactThreadColumns({
     <div
       ref={setBoardRef}
       className={classNames(css.Board, className)}
-      style={style}
       data-compact-columns-board="true"
       data-open-count={openCount}
-      data-order-held={dataOrderHeld || undefined}
-      onPointerEnter={onPointerEnter}
-      onPointerMove={onPointerMove}
-      onPointerLeave={onPointerLeave}
-      onFocus={onFocus}
-      onBlur={onBlur}
+      {...rest}
     >
       {effectiveOrder.map((id) => {
         const section = sectionById.get(id);
@@ -259,7 +257,12 @@ export function CompactThreadColumns({
                 onKeyDown={handleHeaderKeyDown(id)}
               >
                 <ColumnDragGrip />
-                <Icon size="100" src={Icons.ChevronRight} data-directional="true" aria-hidden="true" />
+                <Icon
+                  size="100"
+                  src={Icons.ChevronRight}
+                  data-directional="true"
+                  aria-hidden="true"
+                />
                 <ColumnSignalDot id={id} signal={signal} />
                 <Text size="B300" className={css.RailLabel}>
                   {headingText}
@@ -289,8 +292,10 @@ export function CompactThreadColumns({
                 </button>
                 <CompactOpenColumnBody
                   section={section}
-                  limit={effectiveLimits[id] ?? COMPACT_COLUMN_INITIAL_CARDS}
-                  onShowMore={effectiveShowMore}
+                  limit={columnLimits?.[id] ?? COMPACT_COLUMN_INITIAL_CARDS}
+                  onShowMore={onShowMore}
+                  scrollPositions={scrollPositions}
+                  scrollKey={scrollPositions ? `${scrollScopeKey}:${id}` : undefined}
                   renderCard={renderCard}
                 />
               </>

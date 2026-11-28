@@ -125,7 +125,7 @@ describe('RoomTimeline Compact sections wiring', () => {
     act(() => agentless.renderer.unmount());
   });
 
-  it("wires threadColumns into the toolbar and CompactRoomView on All/untabbed views, and hides on single-bucket tabs", async () => {
+  it('wires threadColumns into the toolbar and CompactRoomView on All/untabbed views, and hides on single-bucket tabs', async () => {
     const onToggleThreadColumns = vi.fn();
     const wide = await renderCompact({
       threadSections: true,
@@ -145,7 +145,7 @@ describe('RoomTimeline Compact sections wiring', () => {
         threadColumns: true,
         onToggleThreadColumns,
       },
-      selectThreadWorkflowTab(createDefaultThreadFilterState(), "done")
+      selectThreadWorkflowTab(createDefaultThreadFilterState(), 'done')
     );
     expect(singleTab.bar().threadColumns).toBe(false);
     expect(singleTab.bar().onToggleThreadColumns).toBeUndefined();

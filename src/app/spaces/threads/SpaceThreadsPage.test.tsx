@@ -1555,12 +1555,12 @@ describe('SpaceThreadsPage', () => {
     ).toBe('Unpin thread');
   });
 
-  it("enables width-gated Columns mode in wide SpaceThreadsPage and falls back cleanly when narrowed", () => {
+  it('enables width-gated Columns mode in wide SpaceThreadsPage and falls back cleanly when narrowed', () => {
     let observedWidth = COMPACT_COLUMNS_MIN_WIDTH_PX + 80;
     const observers: Array<{ cb: ResizeObserverCallback; targets: Set<Element> }> = [];
     const origRO = globalThis.ResizeObserver;
     vi.stubGlobal(
-      "ResizeObserver",
+      'ResizeObserver',
       class {
         private readonly rec: { cb: ResizeObserverCallback; targets: Set<Element> };
         constructor(cb: ResizeObserverCallback) {
@@ -1584,21 +1584,31 @@ describe('SpaceThreadsPage', () => {
     );
     try {
       const now = Date.now();
-      const eng = makeRoom(ROOM_ENG, "Engineering", { hasAgent: true });
+      const eng = makeRoom(ROOM_ENG, 'Engineering', { hasAgent: true });
       const entries = [
-        makeEntry(ROOM_ENG, "Engineering", "$needs", "Needs attention", now - 5_000, ME, 0),
-        makeEntry(ROOM_ENG, "Engineering", "$quiet", "Quiet item", now - QUIET_AFTER_MS - 60_000, ME, 0),
+        makeEntry(ROOM_ENG, 'Engineering', '$needs', 'Needs attention', now - 5_000, ME, 0),
+        makeEntry(
+          ROOM_ENG,
+          'Engineering',
+          '$quiet',
+          'Quiet item',
+          now - QUIET_AFTER_MS - 60_000,
+          ME,
+          0
+        ),
       ];
       const store = createStore();
       const { container } = renderSpaceThreads({ rooms: [eng], entries, store });
 
-      const columnsBtn = container.querySelector<HTMLButtonElement>("[data-thread-columns]");
+      const columnsBtn = container.querySelector<HTMLButtonElement>('[data-thread-columns]');
       expect(columnsBtn).toBeTruthy();
       fireEvent.click(columnsBtn!);
 
-      expect(container.querySelector("[data-compact-columns-board]")).toBeTruthy();
-      expect(container.querySelector("[data-compact-column=\"needsYou\"]")).toBeTruthy();
-      expect(container.querySelector("[data-compact-column=\"quiet\"][data-collapsed=\"true\"]")).toBeTruthy();
+      expect(container.querySelector('[data-compact-columns-board]')).toBeTruthy();
+      expect(container.querySelector('[data-compact-column="needsYou"]')).toBeTruthy();
+      expect(
+        container.querySelector('[data-compact-column="quiet"][data-collapsed="true"]')
+      ).toBeTruthy();
       expect(store.get(getCompactRoomSectionsAtom(ME))).toMatchObject({ on: true, columns: true });
 
       // Narrow below structural threshold -> hides Columns button and falls back to vertical sections,
@@ -1615,12 +1625,12 @@ describe('SpaceThreadsPage', () => {
           );
         });
       });
-      expect(container.querySelector("[data-thread-columns]")).toBeNull();
-      expect(container.querySelector("[data-compact-columns-board]")).toBeNull();
-      expect(container.querySelector("[data-compact-section=\"needsYou\"]")).toBeTruthy();
+      expect(container.querySelector('[data-thread-columns]')).toBeNull();
+      expect(container.querySelector('[data-compact-columns-board]')).toBeNull();
+      expect(container.querySelector('[data-compact-section="needsYou"]')).toBeTruthy();
       expect(store.get(getCompactRoomSectionsAtom(ME)).columns).toBe(true);
     } finally {
-      vi.stubGlobal("ResizeObserver", origRO);
+      vi.stubGlobal('ResizeObserver', origRO);
     }
   });
 });

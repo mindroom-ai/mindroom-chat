@@ -49,7 +49,10 @@ export const Column = style({
   color: color.SurfaceVariant.OnContainer,
   position: 'relative',
   overflow: 'hidden',
-  transition: transition(['border-color', 'background-color', 'box-shadow'], motion.duration.Normal),
+  transition: transition(
+    ['border-color', 'background-color', 'box-shadow'],
+    motion.duration.Normal
+  ),
   selectors: {
     '&[data-dragging="true"]': {
       zIndex: 10,
@@ -84,7 +87,6 @@ const ColumnTriggerBase = style([
     color: color.SurfaceVariant.OnContainer,
     cursor: 'grab',
     userSelect: 'none',
-    touchAction: 'pan-y',
     transition: transition(['background-color'], motion.duration.Normal),
     selectors: { '&:focus-visible': focusRing, '&:active': { cursor: 'grabbing' } },
   },
@@ -121,11 +123,15 @@ globalStyle(
   { cursor: 'grabbing' }
 );
 
+// Only the grip claims touch gestures (`touch-action: none`) so touch tablets keep native board panning.
 export const DragGrip = style({
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
   flexShrink: 0,
+  padding: config.space.S100,
+  margin: `calc(-1 * ${config.space.S100})`,
+  touchAction: 'none',
   opacity: config.opacity.P300,
   transition: transition(['opacity'], motion.duration.Fast),
 });
