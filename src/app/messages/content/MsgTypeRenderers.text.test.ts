@@ -70,9 +70,10 @@ describe('notices', () => {
       const [opened] = React.useState(() => ({ body }));
       return React.createElement('span', { 'data-first-body': opened.body }, body);
     };
-    const message = (msgtype: MsgType, body: string) =>
+    const message = (msgtype: MsgType, body: string, notice?: boolean) =>
       React.createElement(msgtype === MsgType.Notice ? MNotice : MText, {
         content: { msgtype, body },
+        notice,
         renderBody: ({ body: text }) => React.createElement(Body, { body: text }),
       });
     const priority = (renderer: ReturnType<typeof create>) =>
@@ -84,6 +85,11 @@ describe('notices', () => {
       renderer = create(message(MsgType.Notice, 'Working on it'));
     });
     expect(priority(renderer)).toBe('300');
+
+    act(() => {
+      renderer.update(message(MsgType.Notice, 'Thinking...', false));
+    });
+    expect(priority(renderer)).toBe('400');
 
     act(() => {
       renderer.update(message(MsgType.Text, 'Done'));

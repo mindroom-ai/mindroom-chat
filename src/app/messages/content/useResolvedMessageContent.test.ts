@@ -164,7 +164,10 @@ vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({
 
 vi.mock('../agent-run/Reasoning.css', () => ({
   Reasoning: 'Reasoning',
+  Line: 'Line',
   Toggle: 'Toggle',
+  BulbIcon: 'BulbIcon',
+  Bulb: 'Bulb',
   Label: 'Label',
   Chevron: 'Chevron',
 }));
@@ -202,7 +205,7 @@ vi.mock('./PasteAttachmentContent', () => ({
   PasteAttachmentContent: () => null,
 }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({
-  ThinkingPlaceholder: () => null,
+  ThinkingPlaceholder: () => React.createElement('span', null, 'Thinking shimmer'),
 }));
 vi.mock('../agent-run/TranscribingPlaceholder', () => ({
   TranscribingPlaceholder: () => null,
@@ -1987,12 +1990,19 @@ describe('v3 tool-trace sidecar hydration', () => {
       });
     }
   });
-  it('hydrates a streaming m.text sidecar whose preview body is Thinking... instead of locking on ThinkingPlaceholder', async () => {
+  it.each([
+    ['m.text', true],
+    ['m.notice', true],
+    ['m.file', true],
+    ['m.text', false],
+    ['m.notice', false],
+  ] as const)('hydrates a %s thinking sidecar (tools: %s)', async (msgType, withTools) => {
     const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const deferred = createDeferred<Record<string, unknown>>();
     longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
     const preview = {
       ...createPreviewContent(),
+      msgtype: msgType,
       body: 'Thinking...',
       url: 'mxc://server/v3-streaming-thinking-sidecar',
       'io.mindroom.stream_status': 'streaming',
@@ -2008,7 +2018,7 @@ describe('v3 tool-trace sidecar hydration', () => {
             eventId: '$v3-streaming-thinking',
             fromMindroomAgent: true,
             displayName: 'MindRoom',
-            msgType: 'm.text',
+            msgType,
             content: preview,
             htmlReactParserOptions: {},
             linkifyOpts: {},
@@ -2019,10 +2029,13 @@ describe('v3 tool-trace sidecar hydration', () => {
 
     try {
       expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
+      const initial = JSON.stringify(renderer.toJSON());
+      expect(initial).toContain('Thinking shimmer');
+      expect(initial).not.toContain('Thinking...');
 
       await act(async () => {
-        deferred.resolve({
-          msgtype: 'm.text',
+        const hydrated = {
+          msgtype: msgType === 'm.file' ? 'm.text' : msgType,
           body: 'Thinking...',
           format: 'org.matrix.custom.html',
           formatted_body: '<p>Thinking...</p>\n',
@@ -2040,11 +2053,21 @@ describe('v3 tool-trace sidecar hydration', () => {
               },
             ],
           },
-        });
+        };
+        deferred.resolve(
+          withTools
+            ? hydrated
+            : {
+                ...hydrated,
+                'io.mindroom.tool_trace': undefined,
+                'io.mindroom.reasoning': { text: 'Planning', duration_ms: 6000 },
+              }
+        );
       });
 
       const rendered = JSON.stringify(renderer.toJSON());
-      expect(rendered).toContain('shell');
+      expect(rendered).toContain(withTools ? 'shell' : 'Thought for 6 s');
+      expect(rendered.includes('Thinking shimmer')).toBe(!withTools);
       expect(rendered).not.toContain('Thinking...');
     } finally {
       await act(async () => {
