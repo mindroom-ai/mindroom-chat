@@ -258,7 +258,7 @@ describe('estimateMessageRowHeight', () => {
     );
   });
 
-  it('folds finished work by default and keeps pre-tool checklist height when expandAll/showToolCalls is on', () => {
+  it('folds finished work even with showToolCalls and opens pre-tool checklist only on expandAll', () => {
     const checklist = seq(
       40,
       (i) => `<li>Check ${i + 1}: verify Service X shard ${i + 1}</li>`,
@@ -277,7 +277,8 @@ describe('estimateMessageRowHeight', () => {
       )
     );
     expect(msgH(reply, { compact: false, showToolCalls: false })).toBe(8 + 28 + 22);
-    expect(msgH(reply, SHOW_TOOLS)).toBeGreaterThan(8 + 40 * 22);
+    expect(msgH(reply, SHOW_TOOLS)).toBe(8 + 28 + 22);
+    expect(msgH(reply, { compact: false, expandAll: true })).toBeGreaterThan(8 + 40 * 22);
   });
 
   it('prices Reasoning, standalone ToolCallsFold cog, and consecutive vs separated visible tool runs', () => {

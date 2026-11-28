@@ -209,6 +209,7 @@ export const timelineRowSizing = (o: {
   timelineSet?: Pick<EventTimelineSet, 'relations'>;
   getRowTimelineSet?: (event: MatrixEvent) => Pick<EventTimelineSet, 'relations'> | undefined;
   showToolCalls?: boolean;
+  expandAll?: boolean;
   longTextCacheOwner?: object;
 }) => {
   const threadLeadingOffset = o.threadId && o.hasThreadLoadOlder ? 1 : 0;
@@ -243,6 +244,7 @@ export const timelineRowSizing = (o: {
           wrapChars,
           coarsePointer: o.coarsePointer,
           showToolCalls: o.showToolCalls,
+          expandAll: o.expandAll,
           timelineSet: o.timelineSet,
           longTextCacheOwner: o.longTextCacheOwner,
         }) +

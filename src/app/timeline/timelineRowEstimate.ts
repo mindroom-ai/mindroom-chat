@@ -180,16 +180,22 @@ const hasReasoning = (c: ContentRecord) =>
     (v) => typeof v === 'string' && v.trim() !== ''
   );
 
-type Layout = { compact: boolean; wrapChars: number; coarse: boolean; showToolCalls: boolean };
+type Layout = {
+  compact: boolean;
+  wrapChars: number;
+  coarse: boolean;
+  showToolCalls: boolean;
+  expandAll: boolean;
+};
 
 const estimateToolWorkPx = (
   content: ContentRecord,
   html: string | undefined,
   body: string,
-  { wrapChars: wrap, coarse, showToolCalls }: Layout,
+  { wrapChars: wrap, coarse, showToolCalls, expandAll }: Layout,
   plainPx: (text: string) => number
 ): number | undefined => {
-  const foldsFinished = isFinishedAgentReply(content) && !showToolCalls;
+  const foldsFinished = isFinishedAgentReply(content) && !expandAll;
   const r = hasReasoning(content);
   const controls = (runs: number) => {
     if (showToolCalls) return (r ? ROW.work : 0) + runs * ROW.toolRun;
@@ -243,6 +249,7 @@ export type MessageRowEstimateOptions = {
   wrapChars?: number;
   coarsePointer?: boolean;
   showToolCalls?: boolean;
+  expandAll?: boolean;
   timelineSet?: Pick<EventTimelineSet, 'relations'>;
   longTextCacheOwner?: object;
 };
@@ -305,7 +312,7 @@ type RowEstimate = {
   isSummaryMarker: boolean;
 };
 
-/** Checked before `getEditedEvent` / `getLatestMessageContent` / regex work for O(1) cache hits. */
+/** Avoids edit resolution and HTML/Markdown parsing on unchanged cache hits. */
 const rowEstimates = new WeakMap<MatrixEvent, RowEstimate>();
 
 const snapshotEdit = (edit: MatrixEvent): readonly [unknown, number, unknown, number] => {
@@ -318,7 +325,8 @@ const resolveRowEstimate = (event: MatrixEvent, opts: MessageRowEstimateOptions)
   const { compact, wrapChars = COL.wrap, timelineSet, longTextCacheOwner } = opts;
   const coarse = opts.coarsePointer ?? false;
   const showToolCalls = opts.showToolCalls ?? false;
-  const layout: Layout = { compact, wrapChars, coarse, showToolCalls };
+  const expandAll = opts.expandAll ?? false;
+  const layout: Layout = { compact, wrapChars, coarse, showToolCalls, expandAll };
   const raw = recordOf(event.getContent()) ?? {};
   const repl = event.replacingEvent?.() ?? undefined;
   const replContent = recordOf(repl?.getContent());
@@ -335,7 +343,15 @@ const resolveRowEstimate = (event: MatrixEvent, opts: MessageRowEstimateOptions)
   const bundledEdit = recordOf(event.getUnsigned?.()?.['m.relations'])?.[RelationType.Replace];
   const k1 = [raw, keysOf(raw), repl, replContent, keysOf(replContent), syncedEdit];
   const k2 = [syncedEdit?.getContent(), msgRel, msgRelCount, typeRel, typeRelCount, bundledEdit];
-  const key: readonly unknown[] = [...k1, ...k2, compact, wrapChars, coarse, showToolCalls];
+  const key: readonly unknown[] = [
+    ...k1,
+    ...k2,
+    compact,
+    wrapChars,
+    coarse,
+    showToolCalls,
+    expandAll,
+  ];
   const sender = event.getSender() ?? undefined;
   const cachedSidecar = (src: LongTextSource | undefined) =>
     src && longTextCacheOwner ? getCachedLongTextContent(src, longTextCacheOwner) : undefined;
