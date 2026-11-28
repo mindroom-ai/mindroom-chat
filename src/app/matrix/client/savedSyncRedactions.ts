@@ -180,6 +180,13 @@ const trimSavedSync = (mx: MatrixClient): void => {
   dropSettledScheduledTasks(sync);
 };
 
+const roomRedactionVersions = new WeakMap<Room, number>();
+
+/** Monotonic per-room counter bumped on every live redaction or dropped bundled edit. */
+export const roomRedactionVersion = (room: Room): number =>
+  (roomRedactionVersions.get(room) ?? 0) +
+  ((room as { redactedBundledEdits?: { size?: number } }).redactedBundledEdits?.size ?? 0);
+
 /**
  * Saves the client's sync store after sync batches that brought a redaction, a state event,
  * account data or the account's own read receipt, unless the SDK saves such a batch itself; call
@@ -258,6 +265,11 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     if (!UNSAVED_ROOM_ACCOUNT_DATA.has(event.getType())) changeSinceSave = true;
   };
 
+  const onRoomRedaction = (_event: MatrixEvent, room?: Room) => {
+    if (!room) return;
+    roomRedactionVersions.set(room, (roomRedactionVersions.get(room) ?? 0) + 1);
+  };
+
   // The SDK reports SYNCING once it has processed a batch, just before it decides to save.
   // A redaction a room takes without a synced event, such as one that comes with thread events
   // paginated back, only grows its record of redacted bundled edits (eventRevision.ts).
@@ -295,6 +307,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
   mx.on(ClientEvent.Event, onEvent);
   mx.on(ClientEvent.AccountData, onAccountData);
   mx.on(RoomEvent.AccountData, onRoomAccountData);
+  mx.on(RoomEvent.Redaction, onRoomRedaction);
   mx.on(ClientEvent.Sync, onSync);
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -305,6 +318,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     mx.removeListener(ClientEvent.Event, onEvent);
     mx.removeListener(ClientEvent.AccountData, onAccountData);
     mx.removeListener(RoomEvent.AccountData, onRoomAccountData);
+    mx.removeListener(RoomEvent.Redaction, onRoomRedaction);
     mx.removeListener(ClientEvent.Sync, onSync);
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', onVisibilityChange);

@@ -17,6 +17,7 @@ import {
   dropRedactedContent,
   keepRedactionsInSavedSync,
   REDACTION_SAVE_GAP_MS,
+  roomRedactionVersion,
 } from './savedSyncRedactions';
 
 type Deferred = { resolve: () => void };
@@ -235,7 +236,25 @@ describe('keepRedactionsInSavedSync', () => {
 
     expect(store.save).toHaveBeenCalledTimes(1);
     expect(emitter.listenerCount(ClientEvent.Event)).toBe(0);
+    expect(emitter.listenerCount(RoomEvent.Redaction)).toBe(0);
     expect(emitter.listenerCount(ClientEvent.Sync)).toBe(0);
+  });
+
+  it('increments roomRedactionVersion on RoomEvent.Redaction and redactedBundledEdits growth', () => {
+    const room = { redactedBundledEdits: new Set<string>() } as unknown as Room;
+    const { mx, emitter } = makeClient({ room });
+    const stop = keepRedactionsInSavedSync(mx);
+
+    expect(roomRedactionVersion(room)).toBe(0);
+    emitter.emit(RoomEvent.Redaction, synced('m.room.redaction', '$r1'), room);
+    expect(roomRedactionVersion(room)).toBe(1);
+
+    room.redactedBundledEdits.add('$edit-1');
+    expect(roomRedactionVersion(room)).toBe(2);
+
+    stop();
+    emitter.emit(RoomEvent.Redaction, synced('m.room.redaction', '$r2'), room);
+    expect(roomRedactionVersion(room)).toBe(2);
   });
 
   const stateEvent = (eventId: string) =>

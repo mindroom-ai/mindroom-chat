@@ -9,6 +9,7 @@ import * as roomThreadListModule from '../../event-store/threads/roomThreadList'
 import * as threadRecordModule from '../../event-store/threads/threadRecord';
 import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../../event-store/timeline/roomTimelineViewState';
 import { PassivePeekContext } from '../../lib/hooks/usePaneCollapsed';
+import { keepRedactionsInSavedSync } from '../../matrix/client/savedSyncRedactions';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { useThreadOverviewListenedFirst } from './threadOverviewRefreshCounter';
@@ -264,6 +265,8 @@ describe('passive back-peek warm snapshot reuse', () => {
     const engine = createSyncEngine({ mx });
     const roomId = '!redaction-peek:example.org';
     const room = new Room(roomId, mx, '@self:example.org', { timelineSupport: true });
+    mx.reEmitter.reEmit(room, [RoomEvent.Redaction]);
+    const stopRedactions = keepRedactionsInSavedSync(mx);
     const root = msg(roomId, '$root-r1', 'Topic root', 1_000);
     const secretReply = new MatrixEvent({
       type: 'm.room.message',
@@ -368,6 +371,11 @@ describe('passive back-peek warm snapshot reuse', () => {
     rendered.rerender(wrap(true, true));
     expect(buildSpy).toHaveBeenCalled();
     expect(lastPreview).not.toBe('Secret reply to delete');
+
+    rendered.unmount();
+    stopRedactions();
+    expect(mx.listenerCount(RoomEvent.Redaction)).toBe(0);
+    expect(room.listenerCount(RoomEvent.Redaction)).toBe(baseRedactionListeners);
   });
 
   it('invalidates the warm peek cache when a bundled edit is redacted via addLiveEvents without emitting RoomEvent.Redaction', async () => {
@@ -379,6 +387,9 @@ describe('passive back-peek warm snapshot reuse', () => {
     const engine = createSyncEngine({ mx });
     const roomId = '!bundled-edit-redaction-peek:example.org';
     const room = new Room(roomId, mx, '@self:example.org', { timelineSupport: true });
+    mx.reEmitter.reEmit(room, [RoomEvent.Redaction]);
+    const stopRedactions = keepRedactionsInSavedSync(mx);
+    const baseRedactionListeners = room.listenerCount(RoomEvent.Redaction);
     const editedRoot = mx.getEventMapper()({
       type: 'm.room.message',
       room_id: roomId,
@@ -493,5 +504,10 @@ describe('passive back-peek warm snapshot reuse', () => {
     rendered.rerender(wrap(true, true));
     expect(buildSpy).toHaveBeenCalled();
     expect(lastRootPreview).toBe('Original safe text');
+
+    rendered.unmount();
+    stopRedactions();
+    expect(mx.listenerCount(RoomEvent.Redaction)).toBe(0);
+    expect(room.listenerCount(RoomEvent.Redaction)).toBe(baseRedactionListeners);
   });
 });
