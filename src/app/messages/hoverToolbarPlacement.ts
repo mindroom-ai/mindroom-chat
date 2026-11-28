@@ -42,24 +42,25 @@ const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > butto
  */
 const CONTENT_ACTIONS = '[data-code-block-actions], [data-file-actions], [data-canvas-actions]';
 /**
- * The sender line at the top of a message: its name, the reply details button of an agent reply
- * and the time, which the toolbar keeps clear of once it moves down into its row.
+ * The tight wrapper around a message's sender name and timestamp at the start of its header row.
+ * When wide enough to reach under the toolbar (narrow viewports or long names), the toolbar keeps
+ * clear of it.
  */
 const SENDER_LINE = '[data-message-sender-line]';
-// Space kept between the toolbar and such controls: twice the toolbar's own 4 px padding, so a
-// control does not read as part of the toolbar.
+// Space kept between the toolbar and such controls, so a control does not read as part of it.
 const CONTROL_GAP_PX = 8;
+// Breathing room below the sticky room header or thread banner while a tall row's toolbar travels.
+const TRAVEL_GAP_PX = 6;
 // The lowest a toolbar moved into its row goes: this far above the row's bottom.
 const ROW_END_GAP_PX = 4;
 
 /**
  * The lowest point of what floats over the top of a scroller where a toolbar spanning `left` to
- * `right` would sit: the scroller's `scroll-padding-top`, which the timeline sets to the height
- * of the floating room header and the sticky thread banner, and the controls right above the
- * rows.
+ * `right` would sit: the scroller's `scroll-padding-top` (room header and sticky thread banner)
+ * plus a small breathing gap, and any controls floating right above the rows (`[+all]`).
  */
 const coveredUntilY = (scroller: HTMLElement, left: number, right: number): number => {
-  let bottom = scroller.getBoundingClientRect().top + readTopInset(scroller);
+  let bottom = scroller.getBoundingClientRect().top + readTopInset(scroller) + TRAVEL_GAP_PX;
   scroller.querySelectorAll(`[${TIMELINE_OVERLAY_ATTRIBUTE}]`).forEach((overlay) => {
     const rect = overlay.getBoundingClientRect();
     if (rect.width > 0 && rect.left < right && rect.right > left) {
@@ -80,7 +81,7 @@ type FoldSpan = Span & { ownRow: boolean };
  * place. `usual` is that place, `covered` where what floats over the top of the timeline ends,
  * `height` the toolbar's own height, `folds` the fold buttons under its span, `senderLine`
  * the row's sender line where it is under the span, and `contentActions` the buttons of the row's
- * code blocks and files under the span.
+ * code blocks, files, and canvases under the span.
  */
 export const toolbarOffset = (
   usual: number,
@@ -91,12 +92,18 @@ export const toolbarOffset = (
   senderLine?: Span,
   contentActions: Span[] = []
 ): number | undefined => {
+  const overlapsControl = (at: number, control: Span) =>
+    at < control.bottom && at + height > control.top;
   const nearControl = (at: number, control: Span) =>
     at < control.bottom + CONTROL_GAP_PX && at + height > control.top - CONTROL_GAP_PX;
   const clearAt = (at: number) =>
     ![...folds, ...contentActions].some((control) => nearControl(at, control));
-  // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
-  let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
+  // Travel smoothly below the sticky header/banner once scrolled past usual, clamping 4 px above
+  // the row's bottom so short rows never jump above usual.
+  let top =
+    covered > usual + 0.5
+      ? Math.max(usual, Math.min(covered, rowHeight - ROW_END_GAP_PX - height))
+      : usual;
   [...folds]
     .sort((a, b) => a.top - b.top)
     .forEach((fold) => {
@@ -106,45 +113,57 @@ export const toolbarOffset = (
         top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
       }
     });
-  // Moved down into its row, where it would cover the buttons of a code block or a file, it goes
-  // on to the nearest spot below such buttons that ends inside the row clear of every button
-  // group and fold button, and stays where none is; up, it would go back under what floats over
-  // the timeline.
-  if (top > usual + 0.5 && contentActions.some((actions) => nearControl(top, actions))) {
+  // Where the toolbar would cover the buttons of a code block, file, or canvas (either when
+  // traveling into a row or when its resting edge overlaps them), move to the nearest clear spot
+  // below them inside the row; if still at rest and too short below, step above them when clear.
+  const movedDown = top > usual + 0.5;
+  const blockingActions = contentActions.filter((actions) =>
+    movedDown ? nearControl(top, actions) : overlapsControl(top, actions)
+  );
+  if (blockingActions.length > 0) {
     const below = contentActions
       .map((actions) => actions.bottom + CONTROL_GAP_PX)
       .filter((at) => at > top)
       .sort((a, b) => a - b)
       .find((at) => at + height <= rowHeight - ROW_END_GAP_PX && clearAt(at));
-    if (below !== undefined) top = below;
+    if (below !== undefined) {
+      top = below;
+    } else if (!movedDown) {
+      const above =
+        Math.min(...blockingActions.map((actions) => actions.top)) - CONTROL_GAP_PX - height;
+      if (above >= covered && clearAt(above)) top = above;
+    }
   }
-  // Moved down into its row, it goes on below the row's sender line where that shows, so the
-  // name, the time and the reply details button stay in reach, unless a fold button is there (a
-  // long row's own Show less sticks to the bottom of the view) or the buttons of a code block or
-  // a file are: then it stays over the sender line, unless it went below those buttons above. In
-  // its usual place it ends a few pixels into the row, above the line's text.
+  // When the tight sender line reaches horizontally under the toolbar (narrow viewport or long
+  // name), move below it when that fits cleanly inside the row; otherwise float above the row edge
+  // when at rest with room above and clear, or fall back below it when a fold button or sticky
+  // header blocks going above so the name and timestamp stay readable and clickable.
   if (
     senderLine &&
     senderLine.bottom > covered &&
-    top > usual + 0.5 &&
+    (top > usual + 0.5 || usual >= 0) &&
     top < senderLine.bottom &&
     top + height > senderLine.top
   ) {
     const below = senderLine.bottom + CONTROL_GAP_PX;
-    if (clearAt(below)) top = below;
+    const above = Math.min(0, senderLine.top) - height;
+    if (below + height <= rowHeight - ROW_END_GAP_PX && clearAt(below)) {
+      top = below;
+    } else if (top <= usual + 0.5 && above >= covered && clearAt(above)) {
+      top = above;
+    } else if (clearAt(below)) {
+      top = below;
+    }
   }
   return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
 };
 
 /**
  * How far below the top of its row the hover toolbar sits, in pixels, or `undefined` in its usual
- * place above the row. It moves to stay clear of what floats over the top of the timeline (the
- * first row starts right under the room's `[+all]` toggle or a thread's banner, so its toolbar
- * moves down into the row instead of covering them) and of the fold buttons of long messages, so
- * it never draws over a Show less button. Moved down into its row, it also keeps clear of the
- * buttons of a code block or a file where the row has room below them, and below the row's sender
- * line unless such buttons are there. Measured while the toolbar shows, and again as the timeline
- * scrolls under it or the row changes size.
+ * place. Headered rows dock inside the empty end half of their header row; follow-up rows straddle
+ * their top-end edge. When a tall row scrolls under the floating room header or sticky thread
+ * banner, or collides with `[+all]`, fold buttons, content action buttons, or a wide sender line,
+ * the toolbar travels smoothly to stay clear. Measured while shown and updated on scroll/resize.
  */
 export const useToolbarClearance = (
   rowRef: RefObject<HTMLElement | null>,
@@ -201,8 +220,8 @@ export const useToolbarClearance = (
       if (!frame) frame = requestAnimationFrame(place);
     };
     scroller.addEventListener('scroll', schedule, { passive: true });
-    // Folding or unfolding the row moves its own fold button. A reply's run details arriving with
-    // a later edit widen its sender line, which in Compact can then reach under the toolbar.
+    // Folding or unfolding the row moves its own fold button. A reply's timing or run details
+    // arriving with a later edit widen its sender line, which on narrow screens can reach the bar.
     const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule);
     resize?.observe(row);
     const senderLine = row.querySelector(SENDER_LINE);

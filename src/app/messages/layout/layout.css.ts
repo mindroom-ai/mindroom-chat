@@ -33,12 +33,28 @@ export const MessageBase = recipe({
     },
     highlight: {
       true: { backgroundColor: color.Primary.Container },
+      false: {},
     },
     selected: {
       true: { backgroundColor: color.Surface.ContainerActive },
+      false: {},
     },
   },
-  defaultVariants: { space: '400' },
+  compoundVariants: [
+    {
+      variants: { highlight: false, selected: false },
+      style: {
+        '@media': {
+          '(hover: hover)': {
+            selectors: {
+              '&:hover': { backgroundColor: color.Surface.ContainerHover },
+            },
+          },
+        },
+      },
+    },
+  ],
+  defaultVariants: { space: '400', highlight: false, selected: false },
 });
 
 export const AvatarBase = style({

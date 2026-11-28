@@ -29,10 +29,10 @@ vi.mock('../bug-reports/MessageBugReportItem', () => ({
   useCanReportMessageBug: () => false,
 }));
 vi.mock('../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
-// The dialog needs a layout jsdom lacks; the info button's aria-expanded says it opened.
+// The dialog needs a layout jsdom lacks; a lightweight marker reflects whether it opened.
 vi.mock('../ui/ModalLayer', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../ui/ModalLayer')>()),
-  ModalLayer: () => null,
+  ModalLayer: ({ open }: { open: boolean }) => (open ? <div data-reply-details-open="" /> : null),
 }));
 vi.mock('./Time.css', () => ({ ReplyTime: 'ReplyTime', Fold: 'Fold', FoldText: 'FoldText' }));
 
@@ -160,12 +160,20 @@ describe("an agent reply's header time", () => {
       removeEventListener: () => undefined,
     }));
     const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);
+    // Resting header shows no Reply details button; clicking the timestamp still opens the dialog.
+    expect(screen.queryByRole('button', { name: 'Reply details' })).toBeNull();
     await act(async () => {
       fireEvent.click(time);
     });
+    expect(document.querySelector('[data-reply-details-open]')).not.toBeNull();
+    expect(time.hasAttribute('data-open')).toBe(false);
+    // Focusing the row reveals the hover toolbar's Reply details button reflecting open state.
+    const row = time.closest<HTMLElement>('[data-message-id="$event"]')!;
+    await act(async () => {
+      row.focus();
+    });
     const details = screen.getByRole('button', { name: 'Reply details' });
     expect(details.getAttribute('aria-expanded')).toBe('true');
-    expect(time.hasAttribute('data-open')).toBe(false);
   });
 
   it('unfolds on a tap on a touchscreen whose primary pointer hovers', async () => {
@@ -183,14 +191,19 @@ describe("an agent reply's header time", () => {
       fireEvent.click(time);
     });
     expect(time.hasAttribute('data-open')).toBe(true);
-    const details = screen.getByRole('button', { name: 'Reply details' });
-    expect(details.getAttribute('aria-expanded')).toBe('false');
+    expect(document.querySelector('[data-reply-details-open]')).toBeNull();
   });
 
   it.each([MessageLayout.Modern, MessageLayout.Bubble])(
     'stays on a follow-up agent reply, with run details or only its timing (%s)',
     async (layout) => {
-      expect(await renderMessage(layout, timing, WITH_RUN, true)).not.toBeNull();
+      const withRun = await renderMessage(layout, timing, WITH_RUN, true);
+      expect(withRun).not.toBeNull();
+      // No resting info button in the header; Reply details lives in the hover/focus toolbar.
+      expect(screen.queryByRole('button', { name: 'Reply details' })).toBeNull();
+      await act(async () => {
+        withRun.closest<HTMLElement>('[data-message-id="$event"]')?.focus();
+      });
       expect(screen.getByRole('button', { name: 'Reply details' })).toBeTruthy();
       cleanup();
       expect(await renderMessage(layout, timing, PLAIN, true)).not.toBeNull();
@@ -199,12 +212,27 @@ describe("an agent reply's header time", () => {
     }
   );
 
-  it('keeps unfolding on a tap, with the reply details on its button', async () => {
+  it('reveals a compact hover timestamp in the avatar column for collapsed follow-up rows', async () => {
+    expect(await renderMessage(MessageLayout.Modern, undefined, PLAIN, true)).toBeNull();
+    const row = document.querySelector<HTMLElement>('[data-message-id="$event"]')!;
+    await act(async () => {
+      row.focus();
+    });
+    const collapsedTime = document.querySelector('time');
+    expect(collapsedTime).not.toBeNull();
+    expect(collapsedTime?.textContent).toBe('10:04');
+  });
+
+  it('keeps unfolding on a tap, with the reply details in the toolbar', async () => {
     const time = await renderMessage(MessageLayout.Modern, timing, WITH_RUN);
     await act(async () => {
       fireEvent.click(time);
     });
     expect(time.hasAttribute('data-open')).toBe(true);
+    expect(document.querySelector('[data-reply-details-open]')).toBeNull();
+    await act(async () => {
+      time.closest<HTMLElement>('[data-message-id="$event"]')?.focus();
+    });
     const details = screen.getByRole('button', { name: 'Reply details' });
     expect(details.getAttribute('aria-expanded')).toBe('false');
   });
@@ -213,6 +241,9 @@ describe("an agent reply's header time", () => {
     const time = await renderMessage(MessageLayout.Modern, timing, BARE_COMPLETED_RUN, true);
     expect(time).not.toBeNull();
     expect(time.textContent).toBe('10:04 – 10:11 · 7m 12s');
+    await act(async () => {
+      time.closest<HTMLElement>('[data-message-id="$event"]')?.focus();
+    });
     expect(screen.queryByRole('button', { name: 'Reply details' })).toBeNull();
   });
 });

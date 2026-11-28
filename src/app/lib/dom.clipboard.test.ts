@@ -3,7 +3,7 @@
 import { Capacitor } from '@capacitor/core';
 import { Clipboard } from '@capacitor/clipboard';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { copyToClipboard } from './dom';
+import { copyTextPromiseToClipboard, copyToClipboard } from './dom';
 
 vi.mock('@capacitor/core', () => ({
   Capacitor: {
@@ -251,5 +251,162 @@ describe('copyToClipboard', () => {
     await expect(copyToClipboard('task\r\n42')).resolves.toBe(false);
     expect(execCommand).not.toHaveBeenCalled();
     expect(document.querySelector('[data-clipboard-fallback]')).toBeNull();
+  });
+});
+
+describe('copyTextPromiseToClipboard', () => {
+  const originalClipboard = navigator.clipboard;
+  const originalClipboardItem = globalThis.ClipboardItem;
+
+  beforeEach(() => {
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(false);
+    vi.mocked(Clipboard.write).mockResolvedValue();
+  });
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: originalClipboard,
+    });
+    if (originalClipboardItem === undefined) {
+      Reflect.deleteProperty(globalThis, 'ClipboardItem');
+    } else {
+      Object.defineProperty(globalThis, 'ClipboardItem', {
+        configurable: true,
+        value: originalClipboardItem,
+      });
+    }
+    vi.restoreAllMocks();
+  });
+
+  it('starts a promise-backed ClipboardItem write synchronously before textPromise settles', async () => {
+    let capturedBlobPromise: Promise<Blob> | undefined;
+    class MockClipboardItem {
+      constructor(items: Record<string, Blob | Promise<Blob>>) {
+        capturedBlobPromise = items['text/plain'] as Promise<Blob>;
+      }
+    }
+    Object.defineProperty(globalThis, 'ClipboardItem', {
+      configurable: true,
+      value: MockClipboardItem,
+    });
+    const write = vi.fn(async () => {
+      const blob = await capturedBlobPromise!;
+      expect(await blob.text()).toBe('hydrated body');
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write },
+    });
+
+    let resolveText!: (value: string) => void;
+    const textPromise = new Promise<string>((resolve) => {
+      resolveText = resolve;
+    });
+
+    const resultPromise = copyTextPromiseToClipboard(textPromise);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(capturedBlobPromise).toBeDefined();
+
+    resolveText('hydrated body');
+    await expect(resultPromise).resolves.toBe(true);
+  });
+
+  it('falls back to copyToClipboard when textPromise resolves and clipboard.write rejects', async () => {
+    class MockClipboardItem {
+      constructor(_items: Record<string, Blob | Promise<Blob>>) {}
+    }
+    Object.defineProperty(globalThis, 'ClipboardItem', {
+      configurable: true,
+      value: MockClipboardItem,
+    });
+    const write = vi.fn().mockRejectedValue(new DOMException('Not allowed', 'NotAllowedError'));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write, writeText },
+    });
+
+    await expect(copyTextPromiseToClipboard(Promise.resolve('fallback body'))).resolves.toBe(true);
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(writeText).toHaveBeenCalledWith('fallback body');
+  });
+
+  it('returns false without copying fallback text when textPromise rejects', async () => {
+    let capturedBlobPromise: Promise<Blob> | undefined;
+    class MockClipboardItem {
+      constructor(items: Record<string, Blob | Promise<Blob>>) {
+        capturedBlobPromise = items['text/plain'] as Promise<Blob>;
+      }
+    }
+    Object.defineProperty(globalThis, 'ClipboardItem', {
+      configurable: true,
+      value: MockClipboardItem,
+    });
+    const write = vi.fn().mockRejectedValue(new Error('write rejected'));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write, writeText },
+    });
+
+    await expect(
+      copyTextPromiseToClipboard(Promise.reject(new Error('hydration failed')))
+    ).resolves.toBe(false);
+    await expect(capturedBlobPromise).rejects.toThrow('hydration failed');
+    expect(writeText).not.toHaveBeenCalled();
+
+    // Even if clipboard.write resolves, a rejected textPromise still returns false.
+    write.mockResolvedValueOnce(undefined);
+    await expect(
+      copyTextPromiseToClipboard(Promise.reject(new Error('hydration failed again')))
+    ).resolves.toBe(false);
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('skips browser ClipboardItem on Capacitor native and uses native clipboard after resolution', async () => {
+    class MockClipboardItem {
+      constructor(_items: Record<string, Blob | Promise<Blob>>) {}
+    }
+    Object.defineProperty(globalThis, 'ClipboardItem', {
+      configurable: true,
+      value: MockClipboardItem,
+    });
+    const write = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write },
+    });
+    vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
+    vi.mocked(Capacitor.isPluginAvailable).mockReturnValue(true);
+
+    await expect(copyTextPromiseToClipboard(Promise.resolve('native body'))).resolves.toBe(true);
+    expect(write).not.toHaveBeenCalled();
+    expect(Clipboard.write).toHaveBeenCalledWith({ string: 'native body' });
+  });
+
+  it('falls back to copyToClipboard when ClipboardItem throws synchronously', async () => {
+    class ThrowingClipboardItem {
+      constructor(_items: Record<string, Blob | Promise<Blob>>) {
+        throw new TypeError('Promise values not supported');
+      }
+    }
+    Object.defineProperty(globalThis, 'ClipboardItem', {
+      configurable: true,
+      value: ThrowingClipboardItem,
+    });
+    const write = vi.fn().mockResolvedValue(undefined);
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { write, writeText },
+    });
+
+    await expect(copyTextPromiseToClipboard(Promise.resolve('sync throw fallback'))).resolves.toBe(
+      true
+    );
+    expect(write).not.toHaveBeenCalled();
+    expect(writeText).toHaveBeenCalledWith('sync throw fallback');
   });
 });

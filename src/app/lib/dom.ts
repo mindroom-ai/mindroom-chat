@@ -79,6 +79,42 @@ export const copyToClipboard = async (
   return copyWithSelection(text, container);
 };
 
+/**
+ * Copies text that resolves asynchronously while preserving WebKit user activation by starting a
+ * promise-backed `ClipboardItem` write synchronously inside the click gesture when available.
+ * Never falls back to copying if `textPromise` itself rejects.
+ */
+export const copyTextPromiseToClipboard = (
+  textPromise: Promise<string>,
+  container?: Element | null
+): Promise<boolean> => {
+  if (!Capacitor.isNativePlatform()) {
+    const clipboard = getBrowserClipboard();
+    if (typeof clipboard?.write === 'function' && typeof ClipboardItem !== 'undefined') {
+      const blobPromise = textPromise.then((text) => new Blob([text], { type: 'text/plain' }));
+      blobPromise.catch(() => undefined);
+      try {
+        const written = clipboard.write([new ClipboardItem({ 'text/plain': blobPromise })]);
+        written.catch(() => undefined);
+        return textPromise.then(
+          (text) =>
+            written.then(
+              () => true,
+              () => copyToClipboard(text, container)
+            ),
+          () => false
+        );
+      } catch {
+        // Fall through when promise-backed ClipboardItem is unsupported or throws synchronously.
+      }
+    }
+  }
+  return textPromise.then(
+    (text) => copyToClipboard(text, container),
+    () => false
+  );
+};
+
 const TEXT_ENTRY_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 
 /** Whether keyboard input goes to a field now: an input, a select, or editable content has focus. */
