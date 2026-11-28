@@ -181,7 +181,11 @@ export const useThreadReturnPlace = ({
   });
   // A thread renders before the rows it replaces save their place, in its own commit.
   const forThreadRef = useRef(!!threadId);
-  const savedScrollTopRef = useRef<{ roomId: string; scrollTop: number }>(undefined);
+  const savedScrollTopRef = useRef<{
+    roomId: string;
+    scrollTop: number;
+    wasAtBottom: boolean;
+  }>(undefined);
   const shownRef = useRef({ roomId, roomRowsShown, latestAtTop, scrollRef });
   shownRef.current = { roomId, roomRowsShown, latestAtTop, scrollRef };
   useLayoutEffect(() => {
@@ -195,8 +199,14 @@ export const useThreadReturnPlace = ({
       pending?.roomId === shownNow.roomId &&
       currentScroll.clientHeight > 0
     ) {
-      if (currentScroll.scrollTop !== pending.scrollTop) {
-        currentScroll.scrollTop = pending.scrollTop;
+      let targetScrollTop = pending.scrollTop;
+      if (pending.wasAtBottom) {
+        targetScrollTop = shownNow.latestAtTop
+          ? 0
+          : Math.max(0, currentScroll.scrollHeight - currentScroll.clientHeight);
+      }
+      if (currentScroll.scrollTop !== targetScrollTop) {
+        currentScroll.scrollTop = targetScrollTop;
       }
       savedScrollTopRef.current = undefined;
     }
@@ -207,12 +217,15 @@ export const useThreadReturnPlace = ({
       if (!shown.roomRowsShown || !scrollElement) return;
       const rect = scrollElement.getBoundingClientRect();
       if (typeof rect.height === 'number' && rect.height <= 0) return;
+      const wasAtBottom = isNearLatestEnd(scrollElement, shown.latestAtTop);
       if (scrollElement.clientHeight > 0) {
-        savedScrollTopRef.current = { roomId: shown.roomId, scrollTop: scrollElement.scrollTop };
+        savedScrollTopRef.current = {
+          roomId: shown.roomId,
+          scrollTop: scrollElement.scrollTop,
+          wasAtBottom,
+        };
       }
-      memoryRef.current = isNearLatestEnd(scrollElement, shown.latestAtTop)
-        ? undefined
-        : readRoomRowsPlace(scrollElement, shown.roomId);
+      memoryRef.current = wasAtBottom ? undefined : readRoomRowsPlace(scrollElement, shown.roomId);
     };
   }, [memoryRef]);
   return place?.roomId === roomId ? place : undefined;

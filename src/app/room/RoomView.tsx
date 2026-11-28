@@ -389,7 +389,7 @@ export function RoomView({
 
   const peekingOnly = columnFills && (peekingBack || slidingForward);
   const peekFocusEventId = columnFills && peekingBack ? liveLayer.focusEventId : undefined;
-  const keepRoomAlive = phone && warmPhoneRoomId === roomId && !peekFocusEventId;
+  const keepRoomAlive = phone && warmPhoneRoomId === roomId;
 
   useLayoutEffect(() => {
     if ((!columnFills && peekingBack) || (columnFills && peekingForwardThreadId !== null)) {
@@ -648,7 +648,7 @@ export function RoomView({
         canCancelJobs={canCancelJobs}
         notice={<ComposerNotice room={room} tombstone={tombstone} canMessage={canMessage} />}
         composer={
-          composerShown && (
+          composerShown && !peekingBack ? (
             <RoomInput
               room={room}
               roomId={roomId}
@@ -657,7 +657,7 @@ export function RoomView({
               fileDropContainerRef={areaRef}
               onRoomMessageSent={onRoomMessageSent}
             />
-          )
+          ) : undefined
         }
         passive={peekingOnly}
         collapsed={columnFills && liveLayer === null}

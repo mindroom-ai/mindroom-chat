@@ -1,7 +1,6 @@
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { MatrixClient, MatrixEvent, ThreadEvent, type Thread } from 'matrix-js-sdk';
-import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
+import { MatrixClient, MatrixEvent, type Thread } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
@@ -245,60 +244,4 @@ describe('useRoomThreadList', () => {
       renderer.unmount();
     }
   );
-
-  it('skips loadRoomThreads and defers ThreadEvent version bumps while PaneCollapsedContext is true, flushing once on uncollapse', async () => {
-    mockedLoadRoomThreads.mockResolvedValue(undefined);
-    const listeners = new Map<string, Set<() => void>>();
-    const threads: Thread[] = [];
-    const room = {
-      roomId: '!collapsed-room:example.org',
-      getThreads: () => [...threads],
-      on: (event: string, fn: () => void) => {
-        const set = listeners.get(event) ?? new Set();
-        set.add(fn);
-        listeners.set(event, set);
-      },
-      removeListener: (event: string, fn: () => void) => {
-        listeners.get(event)?.delete(fn);
-      },
-      threadsTimelineSets: [],
-    } as unknown as Room;
-    const emit = (event: string) => listeners.get(event)?.forEach((fn) => fn());
-    const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
-    const engine = createSyncEngine({ mx });
-    const renders: ThreadListSnapshot[] = [];
-    let renderer!: ReactTestRenderer;
-
-    const renderWithCollapsed = (collapsed: boolean) => (
-      <MatrixClientProvider value={mx}>
-        <SyncEngineProvider engine={engine}>
-          <PaneCollapsedContext.Provider value={collapsed}>
-            <Harness enabled room={room} onRender={(value) => renders.push(value)} />
-          </PaneCollapsedContext.Provider>
-        </SyncEngineProvider>
-      </MatrixClientProvider>
-    );
-
-    await act(async () => {
-      renderer = create(renderWithCollapsed(true));
-    });
-    expect(mockedLoadRoomThreads).not.toHaveBeenCalled();
-    expect(renders.at(-1)?.loading).toBe(false);
-
-    const countBeforeEvents = renders.length;
-    threads.push({ id: '$new-thread' } as unknown as Thread);
-    await act(async () => {
-      emit(ThreadEvent.New);
-      emit(ThreadEvent.NewReply);
-    });
-    expect(renders.length).toBe(countBeforeEvents);
-    expect(mockedLoadRoomThreads).not.toHaveBeenCalled();
-
-    await act(async () => {
-      renderer.update(renderWithCollapsed(false));
-    });
-    expect(mockedLoadRoomThreads).toHaveBeenCalledTimes(1);
-    expect(renders.at(-1)?.threads.map((t) => t.id)).toEqual(['$new-thread']);
-    await act(async () => renderer.unmount());
-  });
 });

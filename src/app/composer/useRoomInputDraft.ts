@@ -2,7 +2,6 @@ import { useStore } from 'jotai';
 import { useCallback, useLayoutEffect, useRef } from 'react';
 import { Editor, Transforms } from 'slate';
 import { isEmptyEditor, resetEditor, resetEditorHistory } from '../editor/utils';
-import { usePaneCollapsed } from '../lib/hooks/usePaneCollapsed';
 import { roomIdToMsgDraftAtomFamily } from './roomInputDrafts';
 
 // The drafts mounted composers show, each counted once per composer.
@@ -17,7 +16,6 @@ export const isDraftShown = (draftKey: string): boolean => shownDrafts.has(draft
  */
 export const useRoomInputDraft = (editor: Editor, draftKey: string) => {
   const store = useStore();
-  const collapsed = usePaneCollapsed();
   const draftAtom = roomIdToMsgDraftAtomFamily(draftKey);
   const activeRef = useRef<{ editor: Editor; atom: typeof draftAtom }>(undefined);
   const savingRef = useRef(false);
@@ -35,7 +33,6 @@ export const useRoomInputDraft = (editor: Editor, draftKey: string) => {
   }, [draftAtom, editor, store]);
 
   useLayoutEffect(() => {
-    if (collapsed) return undefined;
     const restoreDraft = () => {
       if (savingRef.current) return;
       const draft = store.get(draftAtom);
@@ -57,7 +54,7 @@ export const useRoomInputDraft = (editor: Editor, draftKey: string) => {
       // Nothing else to undo: the next destination's effect restores its own draft into
       // this editor, and an unmounted editor is discarded.
     };
-  }, [collapsed, draftAtom, draftKey, editor, saveDraft, store]);
+  }, [draftAtom, draftKey, editor, saveDraft, store]);
 
   return saveDraft;
 };

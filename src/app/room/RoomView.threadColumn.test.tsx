@@ -307,7 +307,13 @@ vi.mock('./ThreadView', async () => {
             </div>
           )}
           {header}
-          <div ref={reply} contentEditable suppressContentEditableWarning aria-label="Reply" />
+          <div
+            ref={reply}
+            contentEditable
+            suppressContentEditableWarning
+            aria-label="Reply"
+            data-editable-name="RoomInput"
+          />
           {/* A menu it opens renders outside it, as the app's menus and dialogs do. */}
           {createPortal(<button type="button">Column menu item</button>, document.body)}
         </div>
@@ -325,7 +331,7 @@ vi.mock('../composer/RoomInput', async () => {
       state.roomMessageSent = onRoomMessageSent;
       return (
         <Slate editor={editor} initialValue={[{ type: 'paragraph', children: [{ text: '' }] }]}>
-          <Editable aria-label="Message" />
+          <Editable aria-label="Message" data-editable-name="RoomInput" />
         </Slate>
       );
     },
@@ -1455,27 +1461,51 @@ it('cancelling a live room back-peek flushes preview unmount BEFORE restoring sc
   expect(state.main!.threadReturnPlaceRef!.current).toEqual(savedReturnPlace);
 });
 
-it('unmounts a parked phone room Activity when switching rooms or resizing to desktop', () => {
+it('keeps a single RoomInput in DOM across parked phone room, back-peek, and commit, and drops warm Activity on room switch or desktop resize', () => {
+  const inputs = () => document.querySelectorAll('[data-editable-name="RoomInput"]');
   state.thread = undefined;
   const { rerender } = render(tree({}, ScreenSize.Mobile));
   const warmMessages = screen.getByTestId('messages');
+  expect(inputs()).toHaveLength(1);
+  expect(screen.getByLabelText('Message')).toBeTruthy();
 
+  // Opening a filling thread parks messages in hidden Activity and unmounts room RoomInput.
   state.thread = '$thread';
   rerender(tree({}, ScreenSize.Mobile));
   expect(screen.getByTestId('messages')).toBe(warmMessages);
   expect(warmMessages.parentElement?.style.display).toBe('none');
+  expect(inputs()).toHaveLength(1);
+  expect(screen.queryByLabelText('Message')).toBeNull();
+  expect(screen.getByLabelText('Reply')).toBeTruthy();
 
-  // Resizing phone -> desktop while in a filling thread drops the parked phone Activity.
+  // Passive back-peek keeps 0 room RoomInputs in DOM while reserving composer band, then commit restores it.
+  let live: LiveThreadBackUnder | null = null;
+  act(() => {
+    live = state.enterLiveRoomPeek?.() ?? null;
+  });
+  expect(live).not.toBeNull();
+  expect(inputs()).toHaveLength(1);
+  expect(screen.queryByLabelText('Message')).toBeNull();
+  expect(document.querySelector<HTMLElement>('[data-footer-of="room"]')?.style.minBlockSize).toBe(
+    'var(--room-composer-height, 0px)'
+  );
+
+  state.thread = undefined;
+  rerender(tree({}, ScreenSize.Mobile));
+  expect(inputs()).toHaveLength(1);
+  expect(screen.getByLabelText('Message')).toBeTruthy();
+
+  // Re-park and verify desktop resize or room switch drops the warm Activity.
+  state.thread = '$thread';
+  rerender(tree({}, ScreenSize.Mobile));
+  expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
   rerender(tree({}, ScreenSize.Desktop));
   expect(screen.queryByTestId('messages')).toBeNull();
 
-  // Back on phone in the room, then opening a thread parks it again; switching rooms drops it.
   state.thread = undefined;
   rerender(tree({}, ScreenSize.Mobile));
   state.thread = '$thread';
   rerender(tree({}, ScreenSize.Mobile));
-  expect(screen.getByTestId('messages').parentElement?.style.display).toBe('none');
-
   const otherRoom = new Room('!other-room:example.org', mx, '@alice:example.org');
   rerender(tree({ room: otherRoom }, ScreenSize.Mobile));
   expect(screen.queryByTestId('messages')).toBeNull();

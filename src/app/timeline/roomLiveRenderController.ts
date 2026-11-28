@@ -188,10 +188,20 @@ export const useRoomLiveRenderController = (o: LiveRenderOptions): void => {
   const collapsedRef = useRef(collapsed);
   collapsedRef.current = collapsed;
   const dirtyRepaintRef = useRef(false);
+  const needsResyncRef = useRef(false);
   const { setTimeline } = o;
 
   // A reply decrypted after the reader left its thread was not watched there.
   const openThreadIdRef = useLatestRef(threadId);
+
+  // When <Activity mode="hidden"> tears down effects, useLiveEventArrive misses room timeline
+  // arrivals while parked; mark for a single resync once the pane becomes active again.
+  useEffect(
+    () => () => {
+      needsResyncRef.current = true;
+    },
+    []
+  );
 
   // Same rows, same range, new object: whatever derives from the window computes again. A
   // repaint never touches the range, which another hook may have just changed (a removed row).
@@ -204,18 +214,28 @@ export const useRoomLiveRenderController = (o: LiveRenderOptions): void => {
   };
 
   useLayoutEffect(() => {
-    if (!collapsed && dirtyRepaintRef.current) {
-      dirtyRepaintRef.current = false;
-      setTimeline((current) => ({ ...current }));
+    if (collapsed || (!dirtyRepaintRef.current && !needsResyncRef.current)) return;
+    dirtyRepaintRef.current = false;
+    needsResyncRef.current = false;
+    if (!threadId && atLiveEndRef.current && atBottomRef.current) {
+      const request = scrollToBottomRef.current;
+      request.count += 1;
+      request.smooth = false;
     }
-  }, [collapsed, setTimeline]);
+    setTimeline((current) => ({ ...current }));
+  }, [atBottomRef, atLiveEndRef, collapsed, scrollToBottomRef, setTimeline, threadId]);
 
   // The window takes in the one row that arrived at its end.
-  const grow = () =>
+  const grow = () => {
+    if (collapsedRef.current) {
+      dirtyRepaintRef.current = true;
+      return;
+    }
     o.setTimeline((current) => ({
       ...current,
       range: { start: current.range.start, end: current.range.end + 1 },
     }));
+  };
 
   const requestBottomPin = (smooth: boolean) => {
     const request = scrollToBottomRef.current;

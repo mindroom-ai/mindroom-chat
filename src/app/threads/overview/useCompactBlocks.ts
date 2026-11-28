@@ -41,12 +41,21 @@ type Options = {
   protectedId?: string;
   records?: ReadonlyMap<string, unknown>;
   indexPending?: boolean;
+  /** True when a cold focus placement (e.g. direct-link back-peek) must run while passive. */
+  focusRequest?: boolean;
   getRowId?: (row: Element) => string | undefined;
 };
 
 export function useCompactBlocks(options: Options) {
   const { groups, scrollRef, contentRef, memory, roomId } = options;
-  const { target, protectedId, records, indexPending, getRowId = defaultRowId } = options;
+  const {
+    target,
+    protectedId,
+    records,
+    indexPending,
+    focusRequest = false,
+    getRowId = defaultRowId,
+  } = options;
   const state = useMemo(() => {
     const empty: Geometry = { heights: new Map(), fresh: new Set(), visible: [], gap: 0 };
     return {
@@ -190,7 +199,7 @@ export function useCompactBlocks(options: Options) {
       ? mounted.current
       : projectedIds;
   useEffect(() => {
-    if (paneCollapsed) return undefined;
+    if (paneCollapsed && !focusRequest) return undefined;
     const [view, content] = [scrollRef.current, contentRef.current];
     if (!view || !content || typeof window === 'undefined') return undefined;
     // Heights last with the place to go back to; else for the last eight rooms that mounted.
@@ -290,7 +299,17 @@ export function useCompactBlocks(options: Options) {
       cancelAnimationFrame(frame);
       view.removeEventListener('scroll', scroll);
     };
-  }, [contentRef, geometry, getRowId, memory, paneCollapsed, roomId, scrollRef, state]);
+  }, [
+    contentRef,
+    focusRequest,
+    geometry,
+    getRowId,
+    memory,
+    paneCollapsed,
+    roomId,
+    scrollRef,
+    state,
+  ]);
   useLayoutEffect(() => {
     const view = scrollRef.current;
     const pending = savedScrollTopRef.current;

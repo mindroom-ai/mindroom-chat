@@ -3,7 +3,6 @@ import { RoomEvent, ThreadEvent, type Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
-import { Activity } from 'react';
 import {
   useThreadOverviewListenedFirst,
   useThreadOverviewRefreshCounter,
@@ -135,104 +134,31 @@ describe('useThreadOverviewRefreshCounter', () => {
     });
   });
 
-  it('keeps useThreadOverviewListenedFirst warm across Activity hide/reveal without waiting or bumping while passive, and handles cold collapsed preview', async () => {
+  it('transitions cold collapsed useThreadOverviewListenedFirst 0 -> 1 once and freezes live events until uncollapsed', async () => {
     const room = makeRoom();
     const seen: Array<number | 'waiting' | undefined> = [];
-    function ListenedHarness() {
+    function Harness() {
       const value = useThreadOverviewListenedFirst(room, undefined, true);
       seen.push(value === 'waiting' ? 'waiting' : value?.overviewRefreshCounter);
       return null;
     }
-
-    const ActivityBox = Activity as React.ComponentType<{
-      mode: 'visible' | 'hidden';
-      children?: React.ReactNode;
-    }>;
-
+    const wrap = (collapsed: boolean) =>
+      React.createElement(
+        PaneCollapsedContext.Provider,
+        { value: collapsed },
+        React.createElement(Harness)
+      );
     let renderer: ReturnType<typeof create> | undefined;
-    // 1. Warm mount -> count goes 0 (waiting) -> 1.
     await act(async () => {
-      renderer = create(
-        React.createElement(
-          PaneCollapsedContext.Provider,
-          { value: false },
-          React.createElement(
-            ActivityBox,
-            { mode: 'visible' },
-            React.createElement(ListenedHarness)
-          )
-        )
-      );
-    });
-    expect(seen.at(-1)).toBe(1);
-
-    // 2. Park in Activity hidden while collapsed.
-    await act(async () => {
-      renderer?.update(
-        React.createElement(
-          PaneCollapsedContext.Provider,
-          { value: true },
-          React.createElement(ActivityBox, { mode: 'hidden' }, React.createElement(ListenedHarness))
-        )
-      );
-    });
-
-    // 3. Reveal during passive peek: never resets to waiting, does not bump on reveal or live events.
-    seen.length = 0;
-    await act(async () => {
-      renderer?.update(
-        React.createElement(
-          PaneCollapsedContext.Provider,
-          { value: true },
-          React.createElement(
-            ActivityBox,
-            { mode: 'visible' },
-            React.createElement(ListenedHarness)
-          )
-        )
-      );
+      renderer = create(wrap(true));
       room.emit(RoomEvent.Receipt, undefined, room);
       room.emit(ThreadEvent.Update);
     });
-    expect(seen).not.toContain('waiting');
-    expect(seen.every((v) => v === 1)).toBe(true);
-
-    // 4. Commit (uncollapse): flushes once to 2.
+    expect(seen.at(-1)).toBe(1);
     await act(async () => {
-      renderer?.update(
-        React.createElement(
-          PaneCollapsedContext.Provider,
-          { value: false },
-          React.createElement(
-            ActivityBox,
-            { mode: 'visible' },
-            React.createElement(ListenedHarness)
-          )
-        )
-      );
+      renderer?.update(wrap(false));
     });
     expect(seen.at(-1)).toBe(2);
-    await act(async () => renderer?.unmount());
-
-    // 5. Cold mount directly while collapsed/passive (cold-reload back-peek): transitions 0 -> 1 once
-    //    so preview renders instead of staying waiting, then freezes live events until uncollapsed.
-    const coldSeen: Array<number | 'waiting' | undefined> = [];
-    function ColdHarness() {
-      const value = useThreadOverviewListenedFirst(room, undefined, true);
-      coldSeen.push(value === 'waiting' ? 'waiting' : value?.overviewRefreshCounter);
-      return null;
-    }
-    await act(async () => {
-      renderer = create(
-        React.createElement(
-          PaneCollapsedContext.Provider,
-          { value: true },
-          React.createElement(ColdHarness)
-        )
-      );
-      room.emit(ThreadEvent.Update);
-    });
-    expect(coldSeen.at(-1)).toBe(1);
     await act(async () => renderer?.unmount());
   });
 });

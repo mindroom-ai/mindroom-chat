@@ -54,6 +54,10 @@ const DOCK_STYLE: CSSProperties = {
   zIndex: 5,
   pointerEvents: 'none',
 };
+// Reserve the cached composer band while a passive back-peek omits Slate RoomInput.
+const PASSIVE_FOOTER_STYLE: CSSProperties = {
+  minBlockSize: 'var(--room-composer-height, 0px)',
+};
 // The footer starts with an empty box where a selection can end. A triple click selects up to the
 // start of the next paragraph; on the conversation's last text, with nothing in between, that
 // start was in the composer, and Chrome moved the selection and the focus there as the held drag
@@ -283,18 +287,23 @@ export function ConversationLayout({
                   {threadId && !readOnly && <ThreadApprovalQueue />}
                 </div>
               </ThreadApprovalProvider>
-              {/* Outside the approval provider: opening a thread must not remount the composer. */}
-              <div
-                ref={footerRef}
-                className={classNames(overlay.Footer, phone && overlay.FooterOnPhone)}
-                data-room-footer="true"
-                data-footer-of={threadId ? 'thread' : 'room'}
-              >
-                <div aria-hidden style={SELECTION_STOP_STYLE} />
-                {notice}
-                {composer}
-              </div>
             </Activity>
+          )}
+          {/* Outside <Activity> and the approval provider: desktop beside-thread keeps the composer
+              mounted, while a collapsed phone room unmounts it so no hidden second RoomInput stays
+              in the DOM. */}
+          {!collapsed && (
+            <div
+              ref={footerRef}
+              className={classNames(overlay.Footer, phone && overlay.FooterOnPhone)}
+              style={passive && !composer ? PASSIVE_FOOTER_STYLE : undefined}
+              data-room-footer="true"
+              data-footer-of={threadId ? 'thread' : 'room'}
+            >
+              <div aria-hidden style={SELECTION_STOP_STYLE} />
+              {notice}
+              {composer}
+            </div>
           )}
         </div>
         {children}

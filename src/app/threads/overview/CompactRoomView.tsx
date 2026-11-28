@@ -233,6 +233,7 @@ export function CompactRoomView({
     records: threadRecordMap,
     // A read the homeserver cannot answer only retries: the list places on the cards it has.
     indexPending: indexPending && !unreachable,
+    focusRequest: !!focusRequest,
   });
   const { ids } = blocks;
   const cardViewModels = useCompactThreadCardViewModels({

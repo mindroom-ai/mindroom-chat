@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
 import { act, cleanup, render } from '@testing-library/react';
-import { useRef } from 'react';
+import { Activity, useRef } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { stubCompactLayout, tickFrames as tick } from './compactBlocks.test.shared';
-import { Activity } from 'react';
 import { PaneCollapsedContext } from '../../lib/hooks/usePaneCollapsed';
 import { useCompactBlocks } from './useCompactBlocks';
 
@@ -30,6 +29,7 @@ type Props = {
   records?: ReadonlyMap<string, ThreadRecord>;
   protectedId?: string;
   indexPending?: boolean;
+  focusRequest?: boolean;
   onIds?: (ids: string[]) => void;
   onEnd?: (prepareEnd: () => void) => void;
   roomId?: string;
@@ -528,7 +528,7 @@ it('caches getComputedStyle and reads view.scrollTop once per scroll pass when f
   computedSpy.mockRestore();
 });
 
-it('pauses ResizeObserver and discovery probes while PaneCollapsedContext is true and preserves scrollTop across Activity hide/reveal', () => {
+it('freezes warm passive Activity peeks while restoring scrollTop, and still runs cold focusRequest discovery while passive', () => {
   const observeSpy = vi.fn();
   const prevRO = globalThis.ResizeObserver;
   globalThis.ResizeObserver = class {
@@ -536,96 +536,45 @@ it('pauses ResizeObserver and discovery probes while PaneCollapsedContext is tru
     disconnect = vi.fn();
     unobserve = vi.fn();
   };
-  const localIds = Array.from({ length: 40 }, (_, i) => `$p${i}`);
-  const memory: ScrollAnchorMemory = new Map();
-  let viewEl!: HTMLDivElement;
-
-  function List() {
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const contentRef = useRef<HTMLDivElement>(null);
-    const { rows } = useCompactBlocks({
-      groups: { list: localIds },
-      scrollRef,
-      contentRef,
-      memory,
-      roomId: '!warm-room:example.org',
-    });
-    return (
-      <div
-        ref={(el) => {
-          scrollRef.current = el;
-          if (el) viewEl = el;
-        }}
-        data-view=""
-      >
-        <div ref={contentRef} data-content="">
-          {rows
-            .flat()
-            .map((row) =>
-              typeof row === 'string' ? (
-                <div key={row} data-scroll-anchor={row} />
-              ) : (
-                <div key={row.key} data-compact-spacer={row.key} style={{ height: row.height }} />
-              )
-            )}
-        </div>
-      </div>
-    );
-  }
+  const wrap = (collapsed: boolean, mode: 'visible' | 'hidden', memory: ScrollAnchorMemory) => (
+    <PaneCollapsedContext.Provider value={collapsed}>
+      <Activity mode={mode}>
+        <List roomId="!warm-room:example.org" memory={memory} />
+      </Activity>
+    </PaneCollapsedContext.Provider>
+  );
 
   try {
-    const rendered = render(
-      <PaneCollapsedContext.Provider value={false}>
-        <Activity mode="visible">
-          <List />
-        </Activity>
-      </PaneCollapsedContext.Provider>
-    );
+    const warmMemory: ScrollAnchorMemory = new Map();
+    const warm = render(wrap(false, 'visible', warmMemory));
+    const view = warm.container.querySelector<HTMLElement>('[data-view]')!;
     tick(6);
-    layout.scroll(viewEl, 420);
-    expect(viewEl.scrollTop).toBe(420);
-
-    // Park inside Activity hidden.
-    rendered.rerender(
-      <PaneCollapsedContext.Provider value>
-        <Activity mode="hidden">
-          <List />
-        </Activity>
-      </PaneCollapsedContext.Provider>
-    );
-    // Simulate WebKit resetting scrollTop to 0 under display: none.
-    viewEl.scrollTop = 0;
+    layout.scroll(view, 420);
+    warm.rerender(wrap(true, 'hidden', warmMemory));
+    view.scrollTop = 0;
     observeSpy.mockClear();
-
-    // Reveal during passive peek: scrollTop is restored synchronously, ResizeObserver stays paused.
-    rendered.rerender(
-      <PaneCollapsedContext.Provider value>
-        <Activity mode="visible">
-          <List />
-        </Activity>
-      </PaneCollapsedContext.Provider>
-    );
-    expect(viewEl.scrollTop).toBe(420);
+    warm.rerender(wrap(true, 'visible', warmMemory));
+    expect(view.scrollTop).toBe(420);
     expect(observeSpy).not.toHaveBeenCalled();
-
-    // Cancel re-hides and keeps 420 intact for a subsequent reveal + commit.
-    rendered.rerender(
-      <PaneCollapsedContext.Provider value>
-        <Activity mode="hidden">
-          <List />
-        </Activity>
-      </PaneCollapsedContext.Provider>
-    );
-    viewEl.scrollTop = 0;
-    rendered.rerender(
-      <PaneCollapsedContext.Provider value={false}>
-        <Activity mode="visible">
-          <List />
-        </Activity>
-      </PaneCollapsedContext.Provider>
-    );
-    expect(viewEl.scrollTop).toBe(420);
+    warm.rerender(wrap(false, 'visible', warmMemory));
     expect(observeSpy).toHaveBeenCalled();
+    warm.unmount();
+
+    observeSpy.mockClear();
+    const coldMemory: ScrollAnchorMemory = new Map([
+      ['!cold-room:example.org', { scrollTop: 1, anchors: [{ key: '$row30', offset: 160 }] }],
+    ]);
+    const cold = render(
+      <PaneCollapsedContext.Provider value>
+        <List roomId="!cold-room:example.org" memory={coldMemory} focusRequest />
+      </PaneCollapsedContext.Provider>
+    );
+    const coldView = cold.container.querySelector<HTMLElement>('[data-view]')!;
+    tick(6);
+    expect(observeSpy).toHaveBeenCalled();
+    expect(coldView.dataset.ready).toBe('true');
+    expect(anchor(coldView, '$row30')).not.toBeNull();
+    cold.unmount();
   } finally {
     globalThis.ResizeObserver = prevRO;
   }

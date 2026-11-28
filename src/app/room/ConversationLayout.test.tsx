@@ -247,7 +247,7 @@ it('skips rewriting overlay inset CSS properties when heights are unchanged on r
   }
 });
 
-it('parks header and conversation inside Activity when keepAlive is set, freezes PaneCollapsedContext while passive, and preserves cached insets without forced reflow', () => {
+it('parks header and timeline inside Activity when keepAlive is set, unmounts footer while collapsed, and preserves cached insets while passive', () => {
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -260,19 +260,21 @@ it('parks header and conversation inside Activity when keepAlive is set, freezes
     collapsedSeen.push(usePaneCollapsed());
     return <div data-testid="probe" />;
   }
+  const areaRef = createRef<HTMLDivElement>();
+  const conversationRef = createRef<HTMLDivElement>();
+  const propsFor = (extra: Partial<Parameters<typeof layout>[0]> = {}) =>
+    layout({
+      areaRef,
+      conversationRef,
+      keepAlive: true,
+      threadId: '$t1',
+      header: () => <div data-testid="header" />,
+      timeline: <Probe />,
+      children: <div data-testid="cover" />,
+      ...extra,
+    });
   try {
-    const areaRef = createRef<HTMLDivElement>();
-    const conversationRef = createRef<HTMLDivElement>();
-    const { rerender } = render(
-      layout({
-        areaRef,
-        conversationRef,
-        keepAlive: true,
-        header: () => <div data-testid="header" />,
-        timeline: <Probe />,
-        children: <div data-testid="cover" />,
-      })
-    );
+    const { rerender } = render(propsFor({ threadId: undefined }));
     const probeEl = screen.getByTestId('probe');
     const headerWrap = screen.getByTestId('header').parentElement as HTMLElement;
     let headerReads = 0;
@@ -283,61 +285,29 @@ it('parks header and conversation inside Activity when keepAlive is set, freezes
         return 56;
       },
     });
-    // Trigger initial measurement at real height.
-    rerender(
-      layout({
-        areaRef,
-        conversationRef,
-        keepAlive: true,
-        threadId: '$t1',
-        header: () => <div data-testid="header" />,
-        timeline: <Probe />,
-        children: <div data-testid="cover" />,
-      })
-    );
+    rerender(propsFor());
     expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
     expect(collapsedSeen.at(-1)).toBe(false);
 
-    // Park collapsed with keepAlive: DOM stays mounted inside hidden Activity, cover stays visible,
-    // and cached --room-header-height is NOT zeroed out.
+    // Collapsed with keepAlive: header+timeline parked in hidden Activity, footer unmounted, insets preserved.
     headerReads = 0;
-    rerender(
-      layout({
-        areaRef,
-        conversationRef,
-        keepAlive: true,
-        collapsed: true,
-        threadId: '$t1',
-        header: () => <div data-testid="header" />,
-        timeline: <Probe />,
-        children: <div data-testid="cover" />,
-      })
-    );
+    rerender(propsFor({ collapsed: true }));
     expect(screen.getByTestId('cover')).toBeTruthy();
     expect(screen.getByTestId('probe')).toBe(probeEl);
     expect(probeEl.parentElement?.style.display).toBe('none');
     expect(headerWrap.style.display).toBe('none');
+    expect(document.querySelector('[data-room-footer="true"]')).toBeNull();
     expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
     expect(headerReads).toBe(0);
 
-    // Passive reveal (back-peek): Activity becomes visible, same instance, PaneCollapsedContext
-    // stays true, and cached insets are reused with zero forced offsetHeight reads.
-    rerender(
-      layout({
-        areaRef,
-        conversationRef,
-        keepAlive: true,
-        collapsed: false,
-        passive: true,
-        threadId: '$t1',
-        header: () => <div data-testid="header" />,
-        timeline: <Probe />,
-        children: <div data-testid="cover" />,
-      })
-    );
+    // Passive reveal without composer: visible Activity, footer reserves composer band, 0 forced reflows.
+    rerender(propsFor({ collapsed: false, passive: true, composer: undefined }));
     expect(screen.getByTestId('probe')).toBe(probeEl);
     expect(probeEl.parentElement?.style.display).not.toBe('none');
     expect(collapsedSeen.at(-1)).toBe(true);
+    expect(
+      document.querySelector<HTMLElement>('[data-room-footer="true"]')?.style.minBlockSize
+    ).toBe('var(--room-composer-height, 0px)');
     expect(areaRef.current?.style.getPropertyValue('--room-header-height')).toBe('56px');
     expect(headerReads).toBe(0);
   } finally {
