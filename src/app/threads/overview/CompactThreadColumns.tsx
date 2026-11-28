@@ -282,6 +282,7 @@ function SortableCompactColumn({
         onClick={onClick}
         onKeyDown={onKeyDown}
       >
+        <span key={String(closed)} className={css.ColumnTriggerSurface} aria-hidden="true" />
         <ColumnDragGrip key={closed ? 'rail' : 'header'} />
         <Icon
           size="100"

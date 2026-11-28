@@ -1,4 +1,4 @@
-import { globalStyle, style, type StyleRule } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
@@ -76,15 +76,14 @@ globalStyle(`${Board}[data-open-count="1"] ${Column}:not(${ColumnCollapsed})`, {
   maxInlineSize: toRem(COMPACT_SINGLE_OPEN_COLUMN_MAX_WIDTH_PX),
 });
 
-// Each variant creates its own surface, so swapping variants never transitions the fill.
-const triggerSurface = {
-  content: '""',
+// The surface, unlike the button, remounts on fold so only hover transitions its fill.
+export const ColumnTriggerSurface = style({
   position: 'absolute',
   inset: 0,
   zIndex: -1,
   pointerEvents: 'none',
   transition: transition(['background-color'], motion.duration.Normal),
-} satisfies StyleRule;
+});
 
 const ColumnTriggerBase = style([
   DefaultReset,
@@ -112,9 +111,6 @@ export const ColumnHeader = style([
     paddingInline: config.space.S200,
     borderBlockEnd: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
     textAlign: 'start',
-    selectors: {
-      '&::before': { ...triggerSurface, backgroundColor: color.SurfaceVariant.Container },
-    },
   },
 ]);
 
@@ -127,13 +123,16 @@ export const ColumnRail = style([
     blockSize: '100%',
     minBlockSize: 0,
     paddingInline: 0,
-    selectors: { '&::after': triggerSurface },
   },
 ]);
 
-globalStyle(`${ColumnHeader}:hover::before, ${ColumnRail}:hover::after`, {
-  '@media': { '(hover: hover)': { backgroundColor: color.SurfaceVariant.ContainerHover } },
+globalStyle(`${ColumnHeader} ${ColumnTriggerSurface}`, {
+  backgroundColor: color.SurfaceVariant.Container,
 });
+globalStyle(
+  `${ColumnHeader}:hover ${ColumnTriggerSurface}, ${ColumnRail}:hover ${ColumnTriggerSurface}`,
+  { '@media': { '(hover: hover)': { backgroundColor: color.SurfaceVariant.ContainerHover } } }
+);
 
 globalStyle(
   `${Column}[data-dragging="true"] ${ColumnHeader}, ${Column}[data-dragging="true"] ${ColumnRail}`,
