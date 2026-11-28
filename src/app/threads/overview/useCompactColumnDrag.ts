@@ -1,15 +1,20 @@
 import { type RefObject, useCallback, useLayoutEffect, useRef, useState } from 'react';
 import type { DragStartEvent } from '@dnd-kit/core';
 import { getEventCoordinates } from '@dnd-kit/utilities';
+import { useTranslation } from 'react-i18next';
 import { preventClickDefaultsDuringPointerDrag } from '../../lib/sortableDrag';
 
 const EDGE_ZONE_PX = 48;
 const PAN_STEP_PX = 12;
 
-export const isCompactBoardRtl = (board: HTMLElement | null): boolean =>
-  !!board &&
-  (getComputedStyle(board).direction ||
-    board.closest('[dir]')?.getAttribute('dir')?.toLowerCase()) === 'rtl';
+const readBoardRtl = (board: HTMLElement | null): boolean | undefined => {
+  if (!board) return undefined;
+  const explicit = board.closest('[dir]')?.getAttribute('dir')?.toLowerCase();
+  const direction = getComputedStyle(board).direction || explicit;
+  if (direction === 'rtl') return true;
+  // Default LTR is not an explicit override of the locale.
+  return explicit === 'ltr' || explicit === 'rtl' ? false : undefined;
+};
 
 /** dnd-kit's autoscroller assumes non-negative scrollLeft; RTL scrolls from 0 toward -max. */
 const startRtlPan = (board: HTMLDivElement, activatorEvent: Event) => {
@@ -44,22 +49,16 @@ const startRtlPan = (board: HTMLDivElement, activatorEvent: Event) => {
 };
 
 export const useCompactColumnDrag = (boardRef: RefObject<HTMLDivElement | null>) => {
-  const [rtl, setRtl] = useState(false);
-  const updateDirection = useCallback(() => {
-    const next = isCompactBoardRtl(boardRef.current);
-    setRtl(next);
-    return next;
-  }, [boardRef]);
+  const { i18n } = useTranslation();
+  const languageRtl = i18n?.dir?.() === 'rtl';
+  const [rtl, setRtl] = useState(languageRtl);
+  const readRtl = useCallback(
+    () => readBoardRtl(boardRef.current) ?? languageRtl,
+    [boardRef, languageRtl]
+  );
   useLayoutEffect(() => {
-    updateDirection();
-  });
-  useLayoutEffect(() => {
-    const observer = new MutationObserver(updateDirection);
-    for (let el: HTMLElement | null = boardRef.current; el; el = el.parentElement) {
-      observer.observe(el, { attributeFilter: ['dir'] });
-    }
-    return () => observer.disconnect();
-  }, [boardRef, updateDirection]);
+    setRtl(readRtl());
+  }, [i18n?.language, readRtl]);
 
   const cleanupRef = useRef<(() => void) | undefined>(undefined);
   const stopPan = useCallback(() => {
@@ -71,10 +70,12 @@ export const useCompactColumnDrag = (boardRef: RefObject<HTMLDivElement | null>)
     ({ activatorEvent }: DragStartEvent) => {
       stopPan();
       preventClickDefaultsDuringPointerDrag(activatorEvent);
+      const nextRtl = readRtl();
+      setRtl(nextRtl);
       const board = boardRef.current;
-      if (updateDirection() && board) cleanupRef.current = startRtlPan(board, activatorEvent);
+      if (nextRtl && board) cleanupRef.current = startRtlPan(board, activatorEvent);
     },
-    [boardRef, stopPan, updateDirection]
+    [boardRef, readRtl, stopPan]
   );
-  return { rtl, handleDragStart, stopPan };
+  return { rtl, readRtl, handleDragStart, stopPan };
 };

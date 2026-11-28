@@ -42,7 +42,6 @@ import { handleCardArrowKey } from './compactCardKeys';
 import { COMPACT_COLUMN_INITIAL_CARDS, mergeVisibleSectionOrder } from './compactColumnsLayout';
 import { useCompactColumnDrag } from './useCompactColumnDrag';
 import { useCompactColumnMotion } from './useCompactColumnMotion';
-import type { CompactColumnViewState } from './useCompactColumnsBoard';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
 import * as css from './CompactThreadColumns.css';
 
@@ -69,9 +68,18 @@ class GripTouchSensor extends TouchSensor {
   }));
 }
 
-export type CompactColumnSignal = {
+type CompactColumnSignal = {
   streaming?: boolean;
   unread?: boolean;
+};
+
+export const getCompactColumnSignal = (
+  { id, rootIds }: CompactThreadSection,
+  hasStatus: (key: string, status: 'isStreaming' | 'isUnread') => boolean | undefined
+): CompactColumnSignal | undefined => {
+  if (id === 'working') return { streaming: rootIds.some((key) => hasStatus(key, 'isStreaming')) };
+  if (id === 'needsYou') return { unread: rootIds.some((key) => hasStatus(key, 'isUnread')) };
+  return undefined;
 };
 
 export type CompactThreadColumnsProps = Omit<ComponentPropsWithoutRef<'div'>, 'children'> & {
@@ -80,11 +88,9 @@ export type CompactThreadColumnsProps = Omit<ComponentPropsWithoutRef<'div'>, 'c
   /** Full persisted section order, used to preserve relative positions of hidden empty buckets. */
   fullOrder?: readonly CompactThreadSectionId[];
   /** Controlled per-column progressive card limits owned by `useCompactColumnsBoard`. */
-  columnLimits?: Readonly<Partial<Record<CompactThreadSectionId, number>>>;
+  columnLimits?: ReadonlyMap<CompactThreadSectionId, number>;
   onShowMore?: (id: CompactThreadSectionId) => void;
-  /** Optional map persisting per-column `{ scrollTop, limit }` keyed by `${scrollScopeKey}:${section.id}`. */
-  columnStates?: Map<string, CompactColumnViewState>;
-  scrollScopeKey?: string;
+  scrollTops?: Map<CompactThreadSectionId, number>;
   getCount?: (section: CompactThreadSection) => number;
   getSignal?: (section: CompactThreadSection) => CompactColumnSignal | undefined;
   onToggleFold: (id: CompactThreadSectionId) => void;
@@ -129,44 +135,30 @@ function CompactOpenColumnBody({
   section,
   limit,
   onShowMore,
-  columnStates,
-  scrollKey,
+  scrollTops,
   renderCard,
 }: {
   section: CompactThreadSection;
   limit: number;
   onShowMore?: (id: CompactThreadSectionId) => void;
-  columnStates?: Map<string, CompactColumnViewState>;
-  scrollKey?: string;
+  scrollTops?: Map<CompactThreadSectionId, number>;
   renderCard: (id: string, scrollRootRef: RefObject<HTMLDivElement | null>) => ReactNode;
 }) {
   const { t } = useTranslation();
   const bodyRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLButtonElement>(null);
-  const limitRef = useRef(limit);
-  limitRef.current = limit;
   useCompactCardSwipeList(bodyRef);
 
   useLayoutEffect(() => {
     const body = bodyRef.current;
-    if (!body || !columnStates || !scrollKey) return;
-    const saved = columnStates.get(scrollKey)?.scrollTop;
-    if (saved !== undefined && saved > 0) body.scrollTop = saved;
-  }, [columnStates, scrollKey]);
-
-  useEffect(() => {
-    const body = bodyRef.current;
-    if (!body || !columnStates || !scrollKey) return undefined;
+    if (!body || !scrollTops) return undefined;
+    body.scrollTop = scrollTops.get(section.id) ?? 0;
     const onScroll = () => {
-      const prev = columnStates.get(scrollKey);
-      columnStates.set(scrollKey, {
-        scrollTop: body.scrollTop,
-        limit: Math.max(prev?.limit ?? COMPACT_COLUMN_INITIAL_CARDS, limitRef.current),
-      });
+      scrollTops.set(section.id, body.scrollTop);
     };
     body.addEventListener('scroll', onScroll, { passive: true });
     return () => body.removeEventListener('scroll', onScroll);
-  }, [columnStates, scrollKey]);
+  }, [scrollTops, section.id]);
 
   const visibleIds = section.rootIds.slice(0, limit);
   const remaining = Math.max(0, section.rootIds.length - visibleIds.length);
@@ -221,8 +213,7 @@ type SortableCompactColumnProps = {
   limit: number;
   dragDisabled: boolean;
   onShowMore?: (id: CompactThreadSectionId) => void;
-  columnStates?: Map<string, CompactColumnViewState>;
-  scrollKey?: string;
+  scrollTops?: Map<CompactThreadSectionId, number>;
   setColumnRef: (node: HTMLElement | null) => void;
   onClick: () => void;
   onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => void;
@@ -237,8 +228,7 @@ function SortableCompactColumn({
   limit,
   dragDisabled,
   onShowMore,
-  columnStates,
-  scrollKey,
+  scrollTops,
   setColumnRef,
   onClick,
   onKeyDown,
@@ -277,57 +267,49 @@ function SortableCompactColumn({
       data-collapsed={closed ? 'true' : undefined}
       data-dragging={isDragging ? 'true' : undefined}
     >
-      {closed ? (
-        <button
-          ref={setActivatorNodeRef}
-          type="button"
-          className={css.ColumnRail}
-          data-compact-column-rail={id}
-          aria-expanded={false}
-          aria-label={t('threadNav.expandColumn', { section: sectionName, count })}
-          {...listeners}
-          onClick={onClick}
-          onKeyDown={onKeyDown}
-        >
-          <ColumnDragGrip />
-          <Icon size="100" src={Icons.ChevronRight} data-directional="true" aria-hidden="true" />
-          <ColumnSignalDot id={id} signal={signal} />
-          <Text size="B300" className={css.RailLabel}>
-            {headingText}
-          </Text>
-        </button>
-      ) : (
-        <>
-          <button
-            ref={setActivatorNodeRef}
-            type="button"
-            className={css.ColumnHeader}
-            data-compact-column-header={id}
-            aria-expanded={true}
-            aria-label={t('threadNav.collapseColumn', { section: sectionName, count })}
-            {...listeners}
-            onClick={onClick}
-            onKeyDown={onKeyDown}
-          >
-            <ColumnDragGrip />
-            <Icon size="100" src={Icons.ChevronBottom} aria-hidden="true" />
-            <Text size="B300" className={css.HeaderLabel}>
-              {headingText}
-            </Text>
+      <button
+        ref={setActivatorNodeRef}
+        type="button"
+        className={closed ? css.ColumnRail : css.ColumnHeader}
+        data-compact-column-rail={closed ? id : undefined}
+        data-compact-column-header={closed ? undefined : id}
+        aria-expanded={!closed}
+        aria-label={t(closed ? 'threadNav.expandColumn' : 'threadNav.collapseColumn', {
+          section: sectionName,
+          count,
+        })}
+        {...listeners}
+        onClick={onClick}
+        onKeyDown={onKeyDown}
+      >
+        <ColumnDragGrip />
+        <Icon
+          size="100"
+          src={closed ? Icons.ChevronRight : Icons.ChevronBottom}
+          data-directional={closed ? 'true' : undefined}
+          aria-hidden="true"
+        />
+        {closed && <ColumnSignalDot id={id} signal={signal} />}
+        <Text size="B300" className={closed ? css.RailLabel : css.HeaderLabel}>
+          {headingText}
+        </Text>
+        {!closed && (
+          <>
             <ColumnSignalDot id={id} signal={signal} />
             <Text size="T200" className={css.FoldCue} aria-hidden="true">
               {t('threadNav.foldColumn')}
             </Text>
-          </button>
-          <CompactOpenColumnBody
-            section={section}
-            limit={limit}
-            onShowMore={onShowMore}
-            columnStates={columnStates}
-            scrollKey={scrollKey}
-            renderCard={renderCard}
-          />
-        </>
+          </>
+        )}
+      </button>
+      {!closed && (
+        <CompactOpenColumnBody
+          section={section}
+          limit={limit}
+          onShowMore={onShowMore}
+          scrollTops={scrollTops}
+          renderCard={renderCard}
+        />
       )}
     </section>
   );
@@ -344,8 +326,7 @@ export function CompactThreadColumns({
   fullOrder,
   columnLimits,
   onShowMore,
-  columnStates,
-  scrollScopeKey = '',
+  scrollTops,
   getCount,
   getSignal,
   onToggleFold,
@@ -377,8 +358,10 @@ export function CompactThreadColumns({
     useSensor(GripTouchSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } })
   );
 
+  const { rtl, readRtl, handleDragStart, stopPan } = useCompactColumnDrag(internalBoardRef);
   const { setColumnRef, handleHeaderClick, handleHeaderKeyDown } = useCompactColumnMotion({
     boardRef: internalBoardRef,
+    readRtl,
     sectionIds,
     fullOrder,
     foldedSignature,
@@ -386,7 +369,6 @@ export function CompactThreadColumns({
     onReorder,
   });
 
-  const { rtl, handleDragStart, stopPan } = useCompactColumnDrag(internalBoardRef);
   // The strategy reads rects left to right; DOM and saved order stay in reading order.
   const sortableIds = useMemo(
     () => (rtl ? [...sectionIds].reverse() : sectionIds),
@@ -440,11 +422,10 @@ export function CompactThreadColumns({
                 closed={foldedSet.has(id)}
                 count={getCount ? getCount(section) : section.rootIds.length}
                 signal={getSignal?.(section)}
-                limit={columnLimits?.[id] ?? COMPACT_COLUMN_INITIAL_CARDS}
+                limit={columnLimits?.get(id) ?? COMPACT_COLUMN_INITIAL_CARDS}
                 dragDisabled={dragDisabled}
                 onShowMore={onShowMore}
-                columnStates={columnStates}
-                scrollKey={columnStates ? `${scrollScopeKey}:${id}` : undefined}
+                scrollTops={scrollTops}
                 setColumnRef={setColumnRef(id)}
                 onClick={handleHeaderClick(id)}
                 onKeyDown={handleHeaderKeyDown(id)}

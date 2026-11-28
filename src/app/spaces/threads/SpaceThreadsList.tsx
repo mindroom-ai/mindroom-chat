@@ -54,7 +54,6 @@ import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { RoomDot } from './RoomDot';
 import { useIsSpaceThreadsPassive } from '../spaceUnderLayerContext';
 import type { SpaceRoomItem } from './spaceThreadsModel';
-import { countOpenColumnCards } from '../../threads/overview/compactColumnsLayout';
 import { SpaceThreadsColumnsBody } from './SpaceThreadsColumnsBody';
 import { SpaceThreadsVerticalBody } from './SpaceThreadsVerticalBody';
 import * as css from './SpaceThreads.css';
@@ -432,13 +431,6 @@ export function SpaceThreadsList({
         : { all: [...entryKeys] },
     [entryKeys, foldedSections, sections, singleBucketTab]
   );
-  const cardCount = useMemo(
-    () =>
-      columnsShown && sections
-        ? countOpenColumnCards(sections, foldedSections)
-        : Object.values(groups).reduce((total, group) => total + group.length, 0),
-    [columnsShown, foldedSections, groups, sections]
-  );
   const resolvedMemory = scrollMemory ?? fallbackMemoryRef.current;
   const spaceCardIdOf = useCallback(
     (card: HTMLElement) =>
@@ -483,7 +475,6 @@ export function SpaceThreadsList({
     <div ref={scrollRef} className={css.ThreadListHost}>
       {columnsShown && sections ? (
         <SpaceThreadsColumnsBody
-          cardCount={cardCount}
           sections={sections}
           foldedSections={foldedSections}
           sectionOrder={sectionOrder}

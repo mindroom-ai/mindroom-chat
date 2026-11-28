@@ -32,7 +32,6 @@ import { usePointerOverCards } from './useCompactScrollFallback';
 import type { CompactFocusRequest } from './compactFocusRequest';
 import { useCompactThreadSections } from './useCompactThreadSections';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
-import { countOpenColumnCards } from './compactColumnsLayout';
 import { CompactRoomColumnsBody } from './CompactRoomColumnsBody';
 import { CompactRoomVerticalBody } from './CompactRoomVerticalBody';
 import { step } from './compactShownOrder';
@@ -208,10 +207,6 @@ export function CompactRoomView({
     };
   }, [folded, heldSections, pinnedRootIds, shownRows]);
   const activeCardIds = useMemo(() => Object.values(groups).flat(), [groups]);
-  const cardCount =
-    columnsShown && heldSections
-      ? countOpenColumnCards(heldSections, folded)
-      : activeCardIds.length;
   const unreachable = useHomeserverUnreachable(room.client);
   const { canToggle, setResolved, unsnooze, updatingThreadRootIds, error } =
     useToggleThreadResolution(room);
@@ -364,7 +359,6 @@ export function CompactRoomView({
       {columnsShown && heldSections ? (
         <CompactRoomColumnsBody
           room={room}
-          cardCount={cardCount}
           sections={heldSections}
           folded={folded}
           fullOrder={sectionsChoice.order}

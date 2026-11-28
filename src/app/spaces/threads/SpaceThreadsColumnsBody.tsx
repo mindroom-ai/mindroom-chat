@@ -1,10 +1,10 @@
-import { type ReactNode, type RefObject, useCallback, useRef } from 'react';
+import { type ReactNode, type RefObject, useRef } from 'react';
 import { Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import {
   CompactThreadColumns,
-  type CompactColumnSignal,
+  getCompactColumnSignal,
 } from '../../threads/overview/CompactThreadColumns';
 import type {
   CompactThreadSection,
@@ -17,7 +17,6 @@ import * as css from './SpaceThreads.css';
 const NOOP_REORDER = () => undefined;
 
 export type SpaceThreadsColumnsBodyProps = {
-  cardCount: number;
   sections: readonly CompactThreadSection[];
   foldedSections: readonly CompactThreadSectionId[];
   sectionOrder?: readonly CompactThreadSectionId[];
@@ -36,7 +35,6 @@ export type SpaceThreadsColumnsBodyProps = {
  * `useVirtualCompactList` never observes or measures cards inside the multi-column board.
  */
 export function SpaceThreadsColumnsBody({
-  cardCount,
   sections,
   foldedSections,
   sectionOrder,
@@ -60,34 +58,12 @@ export function SpaceThreadsColumnsBody({
     idOf: cardIdOf,
   });
 
-  const getSignal = useCallback(
-    (section: CompactThreadSection): CompactColumnSignal | undefined => {
-      if (section.id === 'working') {
-        return {
-          streaming: section.rootIds.some(
-            (key) => entryByKey.get(key)?.threadRecord.status.isStreaming === true
-          ),
-        };
-      }
-      if (section.id === 'needsYou') {
-        return {
-          unread: section.rootIds.some((key) => {
-            const entry = entryByKey.get(key);
-            return Boolean(entry?.isUnread || entry?.threadRecord.status.isUnread);
-          }),
-        };
-      }
-      return undefined;
-    },
-    [entryByKey]
-  );
-
   return (
     <div
       ref={scrollRef}
       className={css.ThreadListColumns}
       data-space-threads-list="true"
-      data-compact-card-count={cardCount}
+      data-compact-card-count={board.allOpenIds.length}
       tabIndex={-1}
     >
       {pinError && (
@@ -102,9 +78,13 @@ export function SpaceThreadsColumnsBody({
         fullOrder={sectionOrder}
         columnLimits={board.limits}
         onShowMore={board.showMore}
-        columnStates={board.columnStates}
-        scrollScopeKey={scrollMemoryKey}
-        getSignal={getSignal}
+        scrollTops={board.scrollTops}
+        getSignal={(section) =>
+          getCompactColumnSignal(section, (key, status) => {
+            const entry = entryByKey.get(key);
+            return (status === 'isUnread' && entry?.isUnread) || entry?.threadRecord.status[status];
+          })
+        }
         onToggleFold={onToggleSectionFold}
         onReorder={onReorderSections ?? NOOP_REORDER}
         renderCard={renderCard}

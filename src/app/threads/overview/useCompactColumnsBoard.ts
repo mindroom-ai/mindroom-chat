@@ -9,42 +9,28 @@ import {
 } from './compactColumnsLayout';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
 
-export type CompactColumnViewState = {
-  scrollTop: number;
-  limit: number;
+type ScopeColumnsMemory = {
+  scrollLeft?: number;
+  scrollTops: Map<CompactThreadSectionId, number>;
+  limits: Map<CompactThreadSectionId, number>;
 };
+const columnsMemories = new WeakMap<ScrollAnchorMemory, Map<string, ScopeColumnsMemory>>();
 
-const EMPTY_LIMITS: Readonly<Partial<Record<CompactThreadSectionId, number>>> = {};
-type CompactColumnsMemory = {
-  columnStates: Map<string, CompactColumnViewState>;
-  boardScrollLeft: Map<string, number>;
-};
-const columnsMemories = new WeakMap<ScrollAnchorMemory, CompactColumnsMemory>();
-
-const getColumnsMemory = (memory?: ScrollAnchorMemory): CompactColumnsMemory | undefined => {
-  if (!memory) return undefined;
-  let states = columnsMemories.get(memory);
-  if (!states) {
-    states = { columnStates: new Map(), boardScrollLeft: new Map() };
-    columnsMemories.set(memory, states);
-  }
-  return states;
-};
-
-const readSavedLimits = (
-  columnStates: ReadonlyMap<string, CompactColumnViewState> | undefined,
+const getScopeColumnsMemory = (
+  memory: ScrollAnchorMemory,
   scopeKey: string
-): Readonly<Partial<Record<CompactThreadSectionId, number>>> => {
-  if (!columnStates) return EMPTY_LIMITS;
-  const prefix = `${scopeKey}:`;
-  let restored: Partial<Record<CompactThreadSectionId, number>> | undefined;
-  columnStates.forEach((entry, key) => {
-    if (!key.startsWith(prefix) || entry.limit <= COMPACT_COLUMN_INITIAL_CARDS) return;
-    const id = key.slice(prefix.length) as CompactThreadSectionId;
-    restored ??= {};
-    restored[id] = entry.limit;
-  });
-  return restored ?? EMPTY_LIMITS;
+): ScopeColumnsMemory => {
+  let scopes = columnsMemories.get(memory);
+  if (!scopes) {
+    scopes = new Map();
+    columnsMemories.set(memory, scopes);
+  }
+  let scope = scopes.get(scopeKey);
+  if (!scope) {
+    scope = { scrollTops: new Map(), limits: new Map() };
+    scopes.set(scopeKey, scope);
+  }
+  return scope;
 };
 
 export type UseCompactColumnsBoardOptions = {
@@ -52,7 +38,7 @@ export type UseCompactColumnsBoardOptions = {
   scopeKey: string;
   sections: readonly CompactThreadSection[];
   folded: readonly CompactThreadSectionId[];
-  scrollMemory?: ScrollAnchorMemory;
+  scrollMemory: ScrollAnchorMemory;
   idOf?: (card: HTMLElement) => string | undefined;
 };
 
@@ -70,31 +56,32 @@ export const useCompactColumnsBoard = ({
   scrollMemory,
   idOf,
 }: UseCompactColumnsBoardOptions) => {
-  const { columnStates, boardScrollLeft } =
-    useMemo(() => getColumnsMemory(scrollMemory), [scrollMemory]) ?? {};
+  const scopeState = getScopeColumnsMemory(scrollMemory, scopeKey);
+  // Capture before scroll listeners or cap persistence can populate this scope.
+  const [hadSavedColumnsOnMount] = useState(
+    () =>
+      scopeState.scrollLeft !== undefined ||
+      scopeState.limits.size > 0 ||
+      [...scopeState.scrollTops.values()].some((top) => top > 0)
+  );
   const boardRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const board = boardRef.current;
-    if (!board || !boardScrollLeft) return undefined;
-    board.scrollLeft = boardScrollLeft.get(scopeKey) ?? 0;
+    if (!board) return undefined;
+    board.scrollLeft = scopeState.scrollLeft ?? 0;
     const save = () => {
-      boardScrollLeft.set(scopeKey, board.scrollLeft);
+      scopeState.scrollLeft = board.scrollLeft;
     };
     board.addEventListener('scroll', save, { passive: true });
     return () => board.removeEventListener('scroll', save);
-  }, [boardScrollLeft, scopeKey]);
-  const [limitState, setLimitState] = useState<{
-    scopeKey: string;
-    limits: Readonly<Partial<Record<CompactThreadSectionId, number>>>;
-  }>(() => ({ scopeKey, limits: readSavedLimits(columnStates, scopeKey) }));
-
-  const limits = useMemo(
-    () =>
-      limitState.scopeKey === scopeKey
-        ? limitState.limits
-        : readSavedLimits(columnStates, scopeKey),
-    [columnStates, limitState, scopeKey]
+  }, [scopeState]);
+  // Start each visit with a snapshot of the scope’s committed limits.
+  const savedLimits = useMemo<ReadonlyMap<CompactThreadSectionId, number>>(
+    () => new Map(scopeState.limits),
+    [scopeState]
   );
+  const [limitState, setLimitState] = useState({ savedLimits, limits: savedLimits });
+  const limits = limitState.savedLimits === savedLimits ? limitState.limits : savedLimits;
   const pendingFocusIdRef = useRef<string | null>(null);
 
   const foldedSet = useMemo(() => new Set(folded), [folded]);
@@ -106,60 +93,49 @@ export const useCompactColumnsBoard = ({
     () => getVisibleColumnCardIds(sections, folded, limits),
     [folded, limits, sections]
   );
-  const latestRef = useLatestRef({ sections, foldedSet, allOpenIds, columnStates });
+  const latestRef = useLatestRef({ sections, foldedSet });
 
   useLayoutEffect(() => {
-    if (!columnStates) return;
-    (Object.entries(limits) as [CompactThreadSectionId, number | undefined][]).forEach(
-      ([id, limit]) => {
-        if (!limit || limit <= COMPACT_COLUMN_INITIAL_CARDS) return;
-        const key = `${scopeKey}:${id}`;
-        const prev = columnStates.get(key);
-        if (!prev || prev.limit < limit) {
-          columnStates.set(key, { scrollTop: prev?.scrollTop ?? 0, limit });
-        }
+    limits.forEach((limit, id) => {
+      if (limit > (scopeState.limits.get(id) ?? COMPACT_COLUMN_INITIAL_CARDS)) {
+        scopeState.limits.set(id, limit);
       }
-    );
-  }, [columnStates, limits, scopeKey]);
+    });
+  }, [limits, scopeState]);
 
-  const showMore = useCallback(
-    (id: CompactThreadSectionId) => {
+  const updateLimit = useCallback(
+    (id: CompactThreadSectionId, getNext: (current: number) => number) => {
       setLimitState((prev) => {
-        const base =
-          prev.scopeKey === scopeKey
-            ? prev.limits
-            : readSavedLimits(latestRef.current.columnStates, scopeKey);
-        const current = base[id] ?? COMPACT_COLUMN_INITIAL_CARDS;
-        return { scopeKey, limits: { ...base, [id]: current + COMPACT_COLUMN_CARDS_STEP } };
+        const base = prev.savedLimits === savedLimits ? prev.limits : savedLimits;
+        const current = base.get(id) ?? COMPACT_COLUMN_INITIAL_CARDS;
+        const next = getNext(current);
+        if (next <= current) return prev;
+        return { savedLimits, limits: new Map(base).set(id, next) };
       });
     },
-    [latestRef, scopeKey]
+    [savedLimits]
+  );
+  const showMore = useCallback(
+    (id: CompactThreadSectionId) =>
+      updateLimit(id, (current) => current + COMPACT_COLUMN_CARDS_STEP),
+    [updateLimit]
   );
 
   const revealCard = useCallback(
     (cardId: string): boolean => {
-      const {
-        sections: currentSections,
-        foldedSet: currentFolded,
-        columnStates: states,
-      } = latestRef.current;
+      const { sections: currentSections, foldedSet: currentFolded } = latestRef.current;
       for (const section of currentSections) {
         if (currentFolded.has(section.id)) continue;
         const index = section.rootIds.indexOf(cardId);
         if (index < 0) continue;
         const needed =
           Math.ceil((index + 1) / COMPACT_COLUMN_CARDS_STEP) * COMPACT_COLUMN_CARDS_STEP;
-        setLimitState((prev) => {
-          const base = prev.scopeKey === scopeKey ? prev.limits : readSavedLimits(states, scopeKey);
-          const current = base[section.id] ?? COMPACT_COLUMN_INITIAL_CARDS;
-          if (current >= needed) return prev;
-          return { scopeKey, limits: { ...base, [section.id]: needed } };
-        });
+        updateLimit(section.id, () => needed);
         return true;
       }
       return false;
     },
-    [latestRef, scopeKey]
+    [latestRef, updateLimit]
   );
 
   useLayoutEffect(() => {
@@ -201,11 +177,11 @@ export const useCompactColumnsBoard = ({
 
   return {
     boardRef,
-    savedScrollLeft: boardScrollLeft?.get(scopeKey),
+    hadSavedColumnsOnMount,
     limits,
     allOpenIds,
     visibleIds,
-    columnStates,
+    scrollTops: scopeState.scrollTops,
     showMore,
     revealCard,
   };

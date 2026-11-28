@@ -46,13 +46,13 @@ export const COMPACT_COLUMN_CARDS_STEP = 40;
 export const getVisibleColumnCardIds = (
   sections: readonly CompactThreadSection[],
   folded: readonly CompactThreadSectionId[],
-  limits?: Readonly<Partial<Record<CompactThreadSectionId, number>>>
+  limits?: ReadonlyMap<CompactThreadSectionId, number>
 ): string[] => {
   const foldedSet = new Set(folded);
   const ids: string[] = [];
   for (const section of sections) {
     if (foldedSet.has(section.id)) continue;
-    const limit = limits?.[section.id] ?? COMPACT_COLUMN_INITIAL_CARDS;
+    const limit = limits?.get(section.id) ?? COMPACT_COLUMN_INITIAL_CARDS;
     const end = Math.min(section.rootIds.length, limit);
     for (let index = 0; index < end; index += 1) {
       const rootId = section.rootIds[index];
@@ -60,18 +60,6 @@ export const getVisibleColumnCardIds = (
     }
   }
   return ids;
-};
-
-/** Total card count across all currently expanded columns. */
-export const countOpenColumnCards = (
-  sections: readonly CompactThreadSection[],
-  folded: readonly CompactThreadSectionId[]
-): number => {
-  const foldedSet = new Set(folded);
-  return sections.reduce(
-    (count, section) => count + (foldedSet.has(section.id) ? 0 : section.rootIds.length),
-    0
-  );
 };
 
 /**

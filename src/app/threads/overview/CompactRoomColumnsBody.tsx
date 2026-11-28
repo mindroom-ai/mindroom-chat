@@ -3,7 +3,6 @@ import {
   type MutableRefObject,
   type ReactNode,
   type RefObject,
-  useCallback,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -15,20 +14,18 @@ import type { CompactThreadCardViewModel, ThreadRecord } from '../../event-store
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import * as css from './CompactRoomView.css';
 import { findCompactCard } from './compactCardKeys';
-import { COMPACT_COLUMN_INITIAL_CARDS } from './compactColumnsLayout';
 import {
   type CompactFocusRequest,
   isCompactFocusRequestOpen,
   meetCompactFocusRequest,
 } from './compactFocusRequest';
 import { useCompactThreadCardViewModels } from './compactThreadCardViewModel';
-import { CompactThreadColumns, type CompactColumnSignal } from './CompactThreadColumns';
+import { CompactThreadColumns, getCompactColumnSignal } from './CompactThreadColumns';
 import type { CompactThreadSection, CompactThreadSectionId } from './compactThreadSections';
 import { useCompactColumnsBoard } from './useCompactColumnsBoard';
 
 export type CompactRoomColumnsBodyProps = {
   room: Room;
-  cardCount: number;
   sections: readonly CompactThreadSection[];
   folded: readonly CompactThreadSectionId[];
   fullOrder: readonly CompactThreadSectionId[];
@@ -53,7 +50,6 @@ export type CompactRoomColumnsBodyProps = {
  */
 export function CompactRoomColumnsBody({
   room,
-  cardCount,
   sections,
   folded,
   fullOrder,
@@ -96,28 +92,13 @@ export function CompactRoomColumnsBody({
   const requestKey = focusRequest && `${focusRequest.entryKey ?? ''} ${focusRequest.eventId}`;
   const mountRequestKeyRef = useRef(requestKey);
   const mountRequestHandledRef = useRef(false);
-  const hadSavedRoomColumnsOnMountRef = useRef<boolean | undefined>(undefined);
-  if (hadSavedRoomColumnsOnMountRef.current === undefined) {
-    const prefix = `${room.roomId}:`;
-    let saved = board.savedScrollLeft !== undefined;
-    board.columnStates?.forEach((entry, key) => {
-      if (
-        key.startsWith(prefix) &&
-        (entry.scrollTop > 0 || entry.limit > COMPACT_COLUMN_INITIAL_CARDS)
-      ) {
-        saved = true;
-      }
-    });
-    hadSavedRoomColumnsOnMountRef.current = saved;
-  }
-
   const isMountRequest = !!focusRequest && requestKey === mountRequestKeyRef.current;
   const isDefaultEntry = !focusRequest?.entryKey || focusRequest.entryKey === 'default';
   const focusRequestActive =
     !!focusRequest &&
     (isMountRequest
       ? !mountRequestHandledRef.current &&
-        !(focusRequest.returned && hadSavedRoomColumnsOnMountRef.current) &&
+        !(focusRequest.returned && board.hadSavedColumnsOnMount) &&
         (isDefaultEntry || isCompactFocusRequestOpen(memory, focusRequest))
       : !!focusRequest.pushed && isCompactFocusRequestOpen(memory, focusRequest));
   const openFocusEventId =
@@ -149,25 +130,6 @@ export function CompactRoomColumnsBody({
     visibleIds,
   ]);
 
-  const getSignal = useCallback(
-    (section: CompactThreadSection): CompactColumnSignal | undefined => {
-      if (section.id === 'working') {
-        return {
-          streaming: section.rootIds.some(
-            (id) => threadRecordMap.get(id)?.status.isStreaming === true
-          ),
-        };
-      }
-      if (section.id === 'needsYou') {
-        return {
-          unread: section.rootIds.some((id) => threadRecordMap.get(id)?.status.isUnread === true),
-        };
-      }
-      return undefined;
-    },
-    [threadRecordMap]
-  );
-
   const renderModelCard = (id: string, scrollRootRef: RefObject<HTMLDivElement | null>) => {
     const model = modelByRootId.get(id);
     return model ? renderCard(model, scrollRootRef) : null;
@@ -178,7 +140,7 @@ export function CompactRoomColumnsBody({
       ref={viewRef}
       className={css.ViewColumns}
       data-compact-room-view="true"
-      data-compact-card-count={cardCount}
+      data-compact-card-count={board.allOpenIds.length}
       tabIndex={-1}
     >
       {pinError && (
@@ -194,10 +156,11 @@ export function CompactRoomColumnsBody({
         fullOrder={fullOrder}
         columnLimits={board.limits}
         onShowMore={board.showMore}
-        columnStates={board.columnStates}
-        scrollScopeKey={room.roomId}
+        scrollTops={board.scrollTops}
         getCount={(section) => sectionCounts.get(section.id) ?? 0}
-        getSignal={getSignal}
+        getSignal={(section) =>
+          getCompactColumnSignal(section, (id, status) => threadRecordMap.get(id)?.status[status])
+        }
         onToggleFold={onToggleFold}
         onReorder={onReorder}
         renderCard={renderModelCard}

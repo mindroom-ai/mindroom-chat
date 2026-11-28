@@ -18,8 +18,10 @@ import { CompactThreadColumns } from './CompactThreadColumns';
 import { useCompactColumnsBoard } from './useCompactColumnsBoard';
 import { COLUMN_FLIP_DURATION_MS } from './useCompactColumnMotion';
 
+let language = 'en';
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
+    i18n: { language, dir: () => (language === 'ar' ? 'rtl' : 'ltr') },
     t: (key: string, params?: Record<string, unknown>) =>
       params?.count !== undefined ? `${key}:${String(params.count)}` : key,
   }),
@@ -234,10 +236,11 @@ describe('CompactThreadColumns', () => {
       scopeKey?: string;
     }) {
       const viewRef = useRef<HTMLDivElement>(null);
+      const fallbackMemory = useRef<ScrollAnchorMemory>(new Map());
       const board = useCompactColumnsBoard({
         viewRef,
         scopeKey,
-        scrollMemory,
+        scrollMemory: scrollMemory ?? fallbackMemory.current,
         sections: bigSections,
         folded: ['done'],
       });
@@ -249,8 +252,7 @@ describe('CompactThreadColumns', () => {
             sections={bigSections}
             folded={['done']}
             columnLimits={board.limits}
-            columnStates={board.columnStates}
-            scrollScopeKey={scopeKey}
+            scrollTops={board.scrollTops}
             onShowMore={board.showMore}
             onToggleFold={vi.fn()}
             onReorder={vi.fn()}
@@ -300,9 +302,13 @@ describe('CompactThreadColumns', () => {
     expect(restored.container.querySelectorAll('[data-test-card]')).toHaveLength(95);
     restored.rerender(<ControlledBoard scrollMemory={scrollMemory} scopeKey="!room:test:8448" />);
     expect(restoredBoard.scrollLeft).toBe(0);
+    expect(columnBody(restored.container).scrollTop).toBe(0);
+    expect(restored.container.querySelectorAll('[data-test-card]')).toHaveLength(40);
     fireEvent.scroll(restoredBoard);
     restored.rerender(<ControlledBoard scrollMemory={scrollMemory} />);
     expect(restoredBoard.scrollLeft).toBe(-48);
+    expect(columnBody(restored.container).scrollTop).toBe(500);
+    expect(restored.container.querySelectorAll('[data-test-card]')).toHaveLength(95);
     restored.rerender(<ControlledBoard scrollMemory={scrollMemory} scopeKey="!room:test:8448" />);
     expect(restoredBoard.scrollLeft).toBe(0);
     restored.unmount();
@@ -447,9 +453,9 @@ describe('CompactThreadColumns', () => {
     const previousDir = html.getAttribute('dir');
     vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
     try {
-      html.dir = 'ltr';
-      const { container } = render(
-        <div>
+      html.removeAttribute('dir');
+      const boardView = (dir?: 'ltr' | 'rtl') => (
+        <div dir={dir}>
           <CompactThreadColumns
             sections={SECTIONS}
             folded={['done']}
@@ -461,17 +467,22 @@ describe('CompactThreadColumns', () => {
           />
         </div>
       );
+      const { container, rerender } = render(boardView());
       expect(sortableIds()).toEqual(logical);
-      const changeDir = async (el: Element, dir: 'ltr' | 'rtl') => {
-        await act(async () => {
-          el.setAttribute('dir', dir);
-        });
-        expect(sortableIds()).toEqual(dir === 'rtl' ? physical : logical);
-      };
-      await changeDir(html, 'rtl');
-      await changeDir(container.firstElementChild!, 'ltr');
-      await changeDir(container.firstElementChild!, 'rtl');
+      language = 'ar';
+      rerender(boardView());
+      expect(sortableIds()).toEqual(physical);
+      html.dir = 'rtl';
+      language = 'en';
+      rerender(boardView());
+      expect(sortableIds()).toEqual(physical);
+      language = 'ar';
+      rerender(boardView('ltr'));
+      expect(sortableIds()).toEqual(logical);
       expect(columnOrder(container)).toEqual(logical);
+
+      // A wrapper direction change is picked up at drag start, without a React render.
+      container.firstElementChild!.setAttribute('dir', 'rtl');
 
       const board = container.querySelector<HTMLElement>('[data-compact-columns-board]')!;
       bindDynamicColumnRects(container, 680);
@@ -495,6 +506,7 @@ describe('CompactThreadColumns', () => {
       try {
         await touch('touchstart', startX);
         await touch('touchmove', startX - 20);
+        expect(sortableIds()).toEqual(physical);
         await touch('touchmove', edgeX);
         advancePan();
         expect(board.scrollLeft).toBeLessThan(0);
@@ -513,6 +525,7 @@ describe('CompactThreadColumns', () => {
       expect(board.scrollLeft).toBe(-20);
     } finally {
       cleanup();
+      language = 'en';
       if (previousDir === null) html.removeAttribute('dir');
       else html.dir = previousDir;
       vi.useRealTimers();
@@ -521,7 +534,7 @@ describe('CompactThreadColumns', () => {
     }
   });
 
-  it('plays 260ms FLIP and hands focus between open and folded triggers, with zero motion on mount or reduced motion', () => {
+  it('plays 260ms FLIP and keeps trigger focus when folding or expanding, with zero motion on mount or reduced motion', () => {
     const animateCalls: Array<{ col: string; options: KeyframeAnimationOptions }> = [];
     const origAnimate = HTMLElement.prototype.animate;
     HTMLElement.prototype.animate = vi.fn(function (
@@ -564,9 +577,11 @@ describe('CompactThreadColumns', () => {
         header.focus();
         fireEvent.click(header, { detail });
         const rail = trigger('rail');
+        expect(rail).toBe(header);
         expect(document.activeElement).toBe(rail);
         fireEvent.click(rail, { detail });
-        expect(document.activeElement).toBe(trigger('header'));
+        expect(trigger('header')).toBe(header);
+        expect(document.activeElement).toBe(header);
       }
 
       // Safari clicks need not move focus off the card before the column folds.

@@ -10,7 +10,6 @@ import { arrayMove } from '@dnd-kit/sortable';
 import { useLatestRef } from '../../lib/hooks/useLatestRef';
 import { playsMotion } from '../../ui/listMotion';
 import { mergeVisibleSectionOrder } from './compactColumnsLayout';
-import { isCompactBoardRtl } from './useCompactColumnDrag';
 import type { CompactThreadSectionId } from './compactThreadSections';
 
 export const COLUMN_FLIP_DURATION_MS = 260;
@@ -21,6 +20,7 @@ const COLUMN_FLIP_OPTIONS: KeyframeAnimationOptions = {
 
 export type UseCompactColumnMotionOptions = {
   boardRef: RefObject<HTMLDivElement | null>;
+  readRtl: () => boolean;
   sectionIds: readonly CompactThreadSectionId[];
   fullOrder?: readonly CompactThreadSectionId[];
   foldedSignature: string;
@@ -35,6 +35,7 @@ export type UseCompactColumnMotionOptions = {
  */
 export const useCompactColumnMotion = ({
   boardRef,
+  readRtl,
   sectionIds,
   fullOrder,
   foldedSignature,
@@ -115,8 +116,8 @@ export const useCompactColumnMotion = ({
   const handleHeaderClick = useCallback(
     (id: CompactThreadSectionId) => () => {
       pendingFlipRef.current = captureRects();
-      const el = columnElsRef.current.get(id);
-      if (el?.contains(el.ownerDocument.activeElement)) pendingFocusRef.current = { id };
+      const body = columnElsRef.current.get(id)?.querySelector('[data-compact-column-body]');
+      if (body?.contains(body.ownerDocument.activeElement)) pendingFocusRef.current = { id };
       latestRef.current.onToggleFold(id);
     },
     [captureRects, latestRef]
@@ -140,8 +141,7 @@ export const useCompactColumnMotion = ({
       const { sectionIds: order, fullOrder: baseOrder, onReorder: reorder } = latestRef.current;
       const index = order.indexOf(id);
       if (index < 0) return;
-      const step =
-        (event.key === 'ArrowRight' ? 1 : -1) * (isCompactBoardRtl(boardRef.current) ? -1 : 1);
+      const step = (event.key === 'ArrowRight' ? 1 : -1) * (readRtl() ? -1 : 1);
       const nextIndex = index + step;
       if (nextIndex < 0 || nextIndex >= order.length) return;
       pendingFlipRef.current = captureRects();
@@ -149,7 +149,7 @@ export const useCompactColumnMotion = ({
       const nextVisible = arrayMove([...order], index, nextIndex);
       reorder(baseOrder ? mergeVisibleSectionOrder(baseOrder, nextVisible) : nextVisible);
     },
-    [boardRef, captureRects, latestRef]
+    [captureRects, latestRef, readRtl]
   );
 
   return {
