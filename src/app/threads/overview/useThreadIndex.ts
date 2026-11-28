@@ -9,7 +9,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
-import { roomRedactionVersion } from '../../matrix/client/savedSyncRedactions';
+import { roomRedactionVersion } from '../../matrix/eventRevision';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import {
   buildRoomSurfaceEventEntries,

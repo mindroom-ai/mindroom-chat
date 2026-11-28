@@ -10,6 +10,7 @@ import * as threadRecordModule from '../../event-store/threads/threadRecord';
 import { DIRECT_ROOM_TIMELINE_FILTER_STATE } from '../../event-store/timeline/roomTimelineViewState';
 import { PassivePeekContext } from '../../lib/hooks/usePaneCollapsed';
 import { keepRedactionsInSavedSync } from '../../matrix/client/savedSyncRedactions';
+import { hydrateCachedEvents } from '../../event-store/cache/eventCacheEditUtils';
 import { mergeSameIdEventRevision } from '../../matrix/eventRevision';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
@@ -633,6 +634,46 @@ describe('passive back-peek warm snapshot reuse', () => {
     rendered.rerender(wrap(true, true));
     expect(buildSpy).toHaveBeenCalled();
     expect(lastPreview).not.toBe('Hydrated reply to withdraw');
+
+    // Standalone gap-fill redaction applied via Object.create(room) lookup facade also invalidates.
+    const reply2 = new MatrixEvent({
+      type: 'm.room.message',
+      room_id: roomId,
+      event_id: '$reply-gapfill',
+      sender: '@member:example.org',
+      origin_server_ts: 4_000,
+      content: {
+        msgtype: 'm.text',
+        body: 'Gapfill reply to withdraw',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root-hydrated' },
+      },
+    });
+    thread.addEvents([reply2], false);
+    await act(async () => {
+      rendered.rerender(wrap(true, false));
+      await Promise.resolve();
+    });
+    expect(lastPreview).toBe('Gapfill reply to withdraw');
+
+    rendered.rerender(wrap(false, false));
+    const standaloneRedaction = new MatrixEvent({
+      type: 'm.room.redaction',
+      room_id: roomId,
+      event_id: '$redaction-gapfill',
+      sender: '@member:example.org',
+      origin_server_ts: 5_000,
+      redacts: '$reply-gapfill',
+      content: {},
+    });
+    const lookupRoom = Object.create(room) as Room;
+    lookupRoom.findEventById = (id) => (id === '$reply-gapfill' ? reply2 : room.findEventById(id));
+    hydrateCachedEvents({ room: lookupRoom, events: [reply2, standaloneRedaction] });
+    expect(reply2.isRedacted()).toBe(true);
+
+    buildSpy.mockClear();
+    rendered.rerender(wrap(true, true));
+    expect(buildSpy).toHaveBeenCalled();
+    expect(lastPreview).not.toBe('Gapfill reply to withdraw');
 
     rendered.unmount();
   });
