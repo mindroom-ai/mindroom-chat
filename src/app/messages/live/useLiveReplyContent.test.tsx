@@ -10,7 +10,6 @@ import {
   LIVE_COMPACTIONS_KEY,
   LIVE_REASONING_KEY,
   LIVE_REASONING_SEGMENTS_KEY,
-  MINDROOM_REASONING_KEY,
   useLiveReplyContent,
 } from './useLiveReplyContent';
 import { COMPACTIONS_CONTENT_KEY } from '../../matrix/protocol/compactions';
@@ -867,43 +866,70 @@ describe('useLiveReplyContent', () => {
     expect(shown()[LIVE_COMPACTIONS_KEY]).toEqual(runningCompaction);
   });
 
-  it('does not overwrite durable io.mindroom.reasoning with older live reasoning on wait or expiry', () => {
-    const durableReasoning = { text: 'Newer durable thought', duration_ms: 5000 };
-    ingest(snapshot(4, 'Frame four', 'Older live thought', SEGMENTS));
+  it('prefers live reasoning over an inherited prior-turn io.mindroom.reasoning while regenerating until completed', () => {
+    const inheritedReasoning = { text: 'Previous turn thought', duration_ms: 5000 };
+    const finalReasoning = { text: 'Final turn thought', duration_ms: 6000 };
+    ingest(snapshot(4, 'Frame four', 'Current turn thought', SEGMENTS));
 
-    // Covering durable checkpoint carries io.mindroom.reasoning: live reasoning must not override it.
+    // A regenerating reply inherits the prior turn's io.mindroom.reasoning on progress edits:
+    // live reasoning must still win on wait checkpoints...
     render(
       durable('streaming', {
         'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
-        [MINDROOM_REASONING_KEY]: durableReasoning,
+        'io.mindroom.reasoning': inheritedReasoning,
       })
     );
-    expect(shown()[MINDROOM_REASONING_KEY]).toEqual(durableReasoning);
-    expect(shown()).not.toHaveProperty(LIVE_REASONING_KEY);
-    expect(shown()).not.toHaveProperty(LIVE_REASONING_SEGMENTS_KEY);
+    expect(shown()[LIVE_REASONING_KEY]).toBe('Current turn thought');
+    expect(shown()[LIVE_REASONING_SEGMENTS_KEY]).toEqual(SEGMENTS);
 
-    // After 12s expiry while still streaming, durable reasoning remains untouched...
+    // ...and across 12s freshness expiry while still streaming...
     act(() => {
       vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
     });
     expect(store().get(ROOM, REPLY)).toBeUndefined();
-    expect(shown()[MINDROOM_REASONING_KEY]).toEqual(durableReasoning);
-    expect(shown()).not.toHaveProperty(LIVE_REASONING_KEY);
-    expect(shown()).not.toHaveProperty(LIVE_REASONING_SEGMENTS_KEY);
+    expect(shown()[LIVE_REASONING_KEY]).toBe('Current turn thought');
+    expect(shown()[LIVE_REASONING_SEGMENTS_KEY]).toEqual(SEGMENTS);
 
-    // ...while durable content omitting io.mindroom.reasoning still receives the retained live reasoning.
+    // ...and clears once the regenerated reply completes.
     act(() => {
       renderer?.update(
         <Harness
           mx={mx}
           event={replyEvent()}
-          content={durable('streaming', {
-            'io.mindroom.live_checkpoint': { sid: SID, seq: 4 },
-          })}
+          content={durable('completed', { 'io.mindroom.reasoning': finalReasoning })}
         />
       );
     });
-    expect(shown()[LIVE_REASONING_KEY]).toBe('Older live thought');
-    expect(shown()[LIVE_REASONING_SEGMENTS_KEY]).toEqual(SEGMENTS);
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_KEY);
+    expect(shown()).not.toHaveProperty(LIVE_REASONING_SEGMENTS_KEY);
+    expect(shown()['io.mindroom.reasoning']).toEqual(finalReasoning);
+  });
+
+  it('preserves a fresh matching live snapshot before stream_status arrives so subsequent deltas apply', () => {
+    const plainContent: IContent = {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+    };
+    ingest(snapshot(0, 'Hello'));
+    render(plainContent);
+
+    // Durable content renders while stream_status is absent, and the early snapshot stays in store.
+    expect(shown().body).toBe('Thinking...');
+    expect(live()).toBe(false);
+    expect(store().get(ROOM, REPLY)).toBeDefined();
+
+    // Once the first streaming status edit and a delta arrive, the delta applies on top of the snapshot.
+    act(() => {
+      renderer?.update(<Harness mx={mx} event={replyEvent()} content={durable('streaming')} />);
+    });
+    ingest({
+      reply: REPLY,
+      sid: SID,
+      seq: 1,
+      delta: { md: { at: 5, del: 0, ins: ' world', len: 11 } },
+    });
+
+    expect(shown().body).toBe('Hello world');
+    expect(live()).toBe(true);
   });
 });

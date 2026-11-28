@@ -35,8 +35,6 @@ export const LIVE_REASONING_KEY = 'io.mindroom.live_reasoning';
 export const LIVE_REASONING_SEGMENTS_KEY = 'io.mindroom.live_reasoning_segments';
 /** Live content only: the reply's compactions so far, as `LiveDocs.compactions`. */
 export const LIVE_COMPACTIONS_KEY = 'io.mindroom.live_compactions';
-/** Final reasoning the runtime stores on a reply. */
-export const MINDROOM_REASONING_KEY = 'io.mindroom.reasoning';
 
 /** On durable progress edits: the warm-up lines after the body, one `<p>` each in the HTML. */
 const WARMUP_SUFFIX_KEY = 'io.mindroom.warmup_suffix';
@@ -284,7 +282,8 @@ export const useLiveReplyContent = (
   const entry = useSyncExternalStore(subscribe, () =>
     roomId && replyId ? store.get(roomId, replyId) : undefined
   );
-  const verdict = event && entry ? getLiveVerdict(event, content, entry, Date.now()) : undefined;
+  const now = Date.now();
+  const verdict = event && entry ? getLiveVerdict(event, content, entry, now) : undefined;
   const docs = verdict === 'show' ? entry?.docs : undefined;
   // The frames the row showed last. When frames and edits stop together (the connection dropped
   // mid-stream), the entry expires while the durable reply is still an earlier state of what the
@@ -326,10 +325,28 @@ export const useLiveReplyContent = (
   const liveDocs = docs ?? heldDocs;
   const markdownReady = useLiveMarkdownReady(liveDocs !== undefined);
 
+  // When an agent reply mounts before its first stream_status edit arrives, keep a fresh matching
+  // snapshot in the store so subsequent deltas have a base once streaming starts.
+  const preserveEarlyEntry =
+    status === undefined &&
+    !!event &&
+    !!entry &&
+    !event.isRedacted() &&
+    entry.sender === event.getSender() &&
+    now - entry.lastFrameAt < LIVE_REPLY_FRESHNESS_MS;
+
   useEffect(() => {
-    if (verdict !== 'drop' || !roomId || !replyId || store.get(roomId, replyId) !== entry) return;
+    if (
+      verdict !== 'drop' ||
+      preserveEarlyEntry ||
+      !roomId ||
+      !replyId ||
+      store.get(roomId, replyId) !== entry
+    ) {
+      return;
+    }
     store.drop(roomId, replyId);
-  }, [entry, replyId, roomId, store, verdict]);
+  }, [entry, preserveEarlyEntry, replyId, roomId, store, verdict]);
 
   const enrichmentDocs = waitDocs ?? (durableStreaming ? lastLiveDocsRef.current?.docs : undefined);
   const liveContent = useMemo(() => {
@@ -338,7 +355,7 @@ export const useLiveReplyContent = (
     if (!enrichmentDocs) return durable;
     const covered = withRunningOutput(durable, enrichmentDocs.tools);
     const extra: IContent = {};
-    if (!(MINDROOM_REASONING_KEY in covered) && enrichmentDocs.reasoning) {
+    if (enrichmentDocs.reasoning) {
       extra[LIVE_REASONING_KEY] = enrichmentDocs.reasoning;
       if (enrichmentDocs.segments.length > 0) {
         extra[LIVE_REASONING_SEGMENTS_KEY] = enrichmentDocs.segments;
