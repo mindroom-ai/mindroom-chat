@@ -10,11 +10,7 @@ import {
 } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
 import { matchesEnum } from '../../lib/matchesEnum';
-import {
-  noteRoomRedaction,
-  roomRedactionVersion,
-  stripRedactedRelationsFromRawEvent,
-} from '../eventRevision';
+import { stripRedactedRelationsFromRawEvent } from '../eventRevision';
 import { withoutRedactedThreadPreviews } from '../threadSummaryPreviews';
 import { dropSettledScheduledTasks } from './savedSyncScheduledTasks';
 
@@ -184,8 +180,6 @@ const trimSavedSync = (mx: MatrixClient): void => {
   dropSettledScheduledTasks(sync);
 };
 
-export { roomRedactionVersion };
-
 /**
  * Saves the client's sync store after sync batches that brought a redaction, a state event,
  * account data or the account's own read receipt, unless the SDK saves such a batch itself; call
@@ -252,13 +246,8 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
   const onEvent = (event: MatrixEvent) => {
     // Synced events only: a local event still being sent has a status.
     if (event.status !== null) return;
-    if (event.isRedaction()) {
-      redactionSinceSave = true;
-      const roomId = event.getRoomId();
-      if (roomId) noteRoomRedaction(mx.getRoom(roomId));
-    } else if (event.isState() || hasOwnReadReceipt(event, mx.getUserId())) {
-      changeSinceSave = true;
-    }
+    if (event.isRedaction()) redactionSinceSave = true;
+    else if (event.isState() || hasOwnReadReceipt(event, mx.getUserId())) changeSinceSave = true;
   };
 
   const onAccountData = () => {
@@ -267,10 +256,6 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
 
   const onRoomAccountData = (event: MatrixEvent) => {
     if (!UNSAVED_ROOM_ACCOUNT_DATA.has(event.getType())) changeSinceSave = true;
-  };
-
-  const onRoomRedaction = (_event: MatrixEvent, room?: Room) => {
-    noteRoomRedaction(room);
   };
 
   // The SDK reports SYNCING once it has processed a batch, just before it decides to save.
@@ -310,7 +295,6 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
   mx.on(ClientEvent.Event, onEvent);
   mx.on(ClientEvent.AccountData, onAccountData);
   mx.on(RoomEvent.AccountData, onRoomAccountData);
-  mx.on(RoomEvent.Redaction, onRoomRedaction);
   mx.on(ClientEvent.Sync, onSync);
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', onVisibilityChange);
@@ -321,7 +305,6 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     mx.removeListener(ClientEvent.Event, onEvent);
     mx.removeListener(ClientEvent.AccountData, onAccountData);
     mx.removeListener(RoomEvent.AccountData, onRoomAccountData);
-    mx.removeListener(RoomEvent.Redaction, onRoomRedaction);
     mx.removeListener(ClientEvent.Sync, onSync);
     if (typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', onVisibilityChange);

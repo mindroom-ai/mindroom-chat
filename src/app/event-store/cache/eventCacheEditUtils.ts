@@ -11,7 +11,6 @@ import { countCacheProbe } from './cacheProbe';
 import {
   collectKnownRedactedEventIds,
   createIsKnownRedacted,
-  noteRoomRedaction,
   stripRedactedRelationsFromRawEvent,
 } from '../../matrix/eventRevision';
 
@@ -159,7 +158,6 @@ export const applyCachedRedactions = (
     if (relationTarget) redactedRelationTargets.push(relationTarget);
 
     targetEvent.makeRedacted(latestRedaction, room);
-    noteRoomRedaction(room);
   });
 
   return redactedRelationTargets;

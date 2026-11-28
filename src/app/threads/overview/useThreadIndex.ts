@@ -9,7 +9,6 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { usePanePaused } from '../../lib/hooks/usePaneCollapsed';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
-import { roomRedactionVersion } from '../../matrix/eventRevision';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import {
   buildRoomSurfaceEventEntries,
@@ -100,7 +99,6 @@ type WarmThreadIndexEntry = {
   key: string;
   freeze: ThreadSortFreezeState | null;
   ignored: Set<string>;
-  redactionVersion: number;
   result: Omit<UseThreadIndexResult, 'refreshRoomThreadList' | 'applyThreadOverviewRelationEvents'>;
 };
 let lastWarmThreadIndex: WarmThreadIndexEntry | null = null;
@@ -419,14 +417,10 @@ export const useThreadIndex = ({
   );
   const warmKey = `${sessionId}\0${currentUserId ?? ''}\0${compactViewRequested}\0${threadSortControlSignature}\0${requestedThreadFilterState.unsupportedQuery}\0${showHiddenEvents}\0${hideMembershipEvents}\0${hideNickAvatarEvents}`;
   const bypassWarmPeek = focusedRoomOverviewRequested || Boolean(focusEventInRoom && eventId);
-  let cachedWarm =
+  const cachedWarm =
     paused && !threadId && !bypassWarmPeek && lastWarmThreadIndex?.room === room
       ? lastWarmThreadIndex
       : undefined;
-  if (cachedWarm && cachedWarm.redactionVersion !== roomRedactionVersion(room)) {
-    lastWarmThreadIndex = null;
-    cachedWarm = undefined;
-  }
   const warmPeek =
     cachedWarm &&
     cachedWarm.key === warmKey &&
@@ -876,7 +870,6 @@ export const useThreadIndex = ({
       key: warmKey,
       freeze: threadSortFreezeState,
       ignored: ignoredUsersSet,
-      redactionVersion: roomRedactionVersion(room),
       result: data,
     };
   });

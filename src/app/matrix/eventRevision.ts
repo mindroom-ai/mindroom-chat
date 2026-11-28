@@ -17,34 +17,6 @@ export type EventRevisionDescriptor = {
 
 export type RelationSnapshotMode = 'partial' | 'authoritative';
 
-const roomRedactionVersions = new WeakMap<Room, number>();
-
-const canonicalRoom = (room: Room): Room => {
-  let current = room;
-  while (!Object.prototype.hasOwnProperty.call(current, 'roomId')) {
-    const proto = Object.getPrototypeOf(current) as Room | null;
-    if (!proto || proto === Object.prototype) break;
-    current = proto;
-  }
-  return current;
-};
-
-/** Records that `room` observed a redaction (live, synced, or hydrated) for O(1) cache invalidation. */
-export const noteRoomRedaction = (room: Room | null | undefined): void => {
-  if (!room) return;
-  const key = canonicalRoom(room);
-  roomRedactionVersions.set(key, (roomRedactionVersions.get(key) ?? 0) + 1);
-};
-
-/** Monotonic per-room counter bumped on every live, synced, hydrated, or bundled-edit redaction. */
-export const roomRedactionVersion = (room: Room): number => {
-  const key = canonicalRoom(room);
-  return (
-    (roomRedactionVersions.get(key) ?? 0) +
-    ((key as { redactedBundledEdits?: { size?: number } }).redactedBundledEdits?.size ?? 0)
-  );
-};
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -689,7 +661,6 @@ export const mergeSameIdEventRevision = ({
   const rawRedactedBecause = rawEvent.unsigned?.redacted_because;
   if (rawRedactedBecause && !liveEvent.isRedacted()) {
     liveEvent.makeRedacted(mapDetached(rawRedactedBecause), room);
-    noteRoomRedaction(room);
   }
 
   if (liveEvent.isRedacted()) return liveEvent;
