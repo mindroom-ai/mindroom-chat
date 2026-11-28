@@ -3,8 +3,8 @@
  * popovers and dialogs.
  *
  * - Many menus open with `initialFocus: false`, so a mouse click does not ring their first item.
- *   Opened with Enter or Space instead, a layer whose opener keeps focus gets focus on its first
- *   control, as a menu button should.
+ *   When Enter, Space, Shift+F10 or ContextMenu opens a layer and focus stays on its opener,
+ *   focus moves to the layer's first control.
  * - A dialog or alert dialog takes focus as it opens, however it was opened, so a screen reader
  *   announces it and Tab starts inside it: an alert dialog on itself (its name and question are
  *   read, and Enter confirms nothing by accident), any other dialog on its first control. When that
@@ -25,7 +25,7 @@
 
 const PORTAL_CONTAINER_ID = 'portalContainer';
 const APP_ROOT_ID = 'root';
-/** How long after Enter or Space a new layer still counts as opened by that key. */
+/** How long a new layer still counts as opened by a keyboard shortcut. */
 const KEY_OPEN_WINDOW_MS = 400;
 /** How long after a press a new dialog still counts as opened by it, and its control as opener. */
 const DIALOG_OPEN_WINDOW_MS = 1000;
@@ -187,7 +187,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   const parents = new WeakMap<Element, Element>();
   let lastInput: 'keyboard' | 'pointer' | undefined;
   let lastFocused: HTMLElement | undefined;
-  /** The control Enter or Space was pressed on, and the layer that held it. */
+  /** The control a keyboard shortcut was pressed on, and the layer that held it. */
   let keyOpen: Press | undefined;
   /** The control the last pointer press was on, which Safari does not focus. */
   let pointerPress: Press | undefined;
@@ -259,12 +259,20 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Tab') keepTabInDialog(event);
     lastInput = 'keyboard';
-    const plain = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+    const unmodified = !event.altKey && !event.ctrlKey && !event.metaKey;
+    const contextMenuKey =
+      unmodified && (event.shiftKey ? event.key === 'F10' : event.key === 'ContextMenu');
+    const activationKey =
+      unmodified && !event.shiftKey && (event.key === 'Enter' || event.key === ' ');
     const target = event.target as Element | null;
-    keyOpen =
-      plain && (event.key === 'Enter' || event.key === ' ')
-        ? pressOn(target?.closest?.(OPENER_SELECTOR))
-        : undefined;
+    let opener: Element | null | undefined;
+    if (activationKey || contextMenuKey) {
+      opener = target?.closest?.(OPENER_SELECTOR);
+      if (!opener && contextMenuKey && target instanceof win.HTMLElement && canTakeFocus(target)) {
+        opener = target;
+      }
+    }
+    keyOpen = pressOn(opener);
     pointerPress = undefined;
   };
 
